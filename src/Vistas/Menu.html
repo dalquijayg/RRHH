@@ -1,0 +1,421 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - Recursos Humanos</title>
+    <link rel="stylesheet" href="../Disenos/Menu.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css">
+</head>
+<body>
+    <!-- Header con información del usuario y logo -->
+    <header class="app-header">
+        <div class="header-title">
+            <h1>Sistema de Recursos Humanos</h1>
+        </div>
+        
+        <div class="user-profile">
+            <div class="notifications-container">
+                <div class="notifications-icon" id="notificationsIcon">
+                    <i class="fas fa-bell"></i>
+                    <div class="notification-badge" id="notificationBadge">0</div>
+                </div>
+                <div class="notifications-dropdown" id="notificationsDropdown">
+                    <div class="notifications-header">
+                        <h3>Notificaciones</h3>
+                        <button id="markAllAsRead"><i class="fas fa-check-double"></i> Marcar todo como leído</button>
+                    </div>
+                    <div class="notifications-body" id="notificationsBody">
+                        <div class="loading-notifications">
+                            <i class="fas fa-spinner fa-spin"></i>
+                            <span>Cargando notificaciones...</span>
+                        </div>
+                    </div>
+                    <div class="notifications-footer">
+                        <button id="refreshNotifications"><i class="fas fa-sync-alt"></i> Actualizar</button>
+                    </div>
+                </div>
+                <div class="notifications-dropdown" id="notificationsDropdown">
+                    <div class="notifications-header">
+                        <h3>Notificaciones</h3>
+                        <button id="markAllAsRead"><i class="fas fa-check-double"></i> Marcar todo como leído</button>
+                    </div>
+                    <div class="notifications-body" id="notificationsBody">
+                        <div class="loading-notifications">
+                            <i class="fas fa-spinner fa-spin"></i>
+                            <span>Cargando notificaciones...</span>
+                        </div>
+                    </div>
+                    <div class="notifications-footer">
+                        <button id="refreshNotifications"><i class="fas fa-sync-alt"></i> Actualizar</button>
+                    </div>
+                </div>
+            </div>
+            <div class="profile-info">
+                <span id="userName">Cargando...</span>
+                <span id="userRole">Cargando...</span>
+            </div>
+            <div class="profile-image">
+                <img id="userImage" src="../Imagenes/user-default.png" alt="Perfil">
+                <div class="status-indicator online"></div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Contenedor principal -->
+    <div class="container">
+        <!-- Panel lateral -->
+        <div class="sidebar">
+            <div class="sidebar-header">
+                <img src="../Imagenes/Logo Recursos Humanos new.png" alt="Logo RH" class="sidebar-logo">
+                <div class="sidebar-title">Recursos Humanos</div>
+            </div>
+            
+            <nav class="sidebar-nav">
+                <ul>
+                    <li class="active">
+                        <a href="#dashboard">
+                            <i class="fas fa-tachometer-alt"></i>
+                            <span>Dashboard</span>
+                        </a>
+                    </li>
+                    <li>
+                        <a href="#personal">
+                            <i class="fas fa-users"></i>
+                            <span>Personal</span>
+                            <i class="fas fa-chevron-right submenu-icon"></i>
+                        </a>
+                        <ul class="submenu">
+                            <li><a id="personalNuevo"><i class="fas fa-user-plus"></i> Nuevo Personal</a></li>
+                            <li><a id="BusquedaP"><i class="fas fa-search"></i> Búsqueda</a></li>
+                            <li><a href="#reportes"><i class="fas fa-file-alt"></i> Reportes</a></li>
+                        </ul>
+                    </li>
+                    <li>
+                        <a href="#planillas">
+                            <i class="fas fa-file-invoice-dollar"></i>
+                            <span>Planillas</span>
+                            <i class="fas fa-chevron-right submenu-icon"></i>
+                        </a>
+                        <ul class="submenu">
+                            <li><a id="planillaEspecial"><i class="fas fa-calendar-check"></i> Planilla Especial</a></li>
+                            <li><a id="pagoNominaBtn"><i class="fas fa-money-check-alt"></i> Pago Nómina</a></li>
+                        </ul>
+                    </li>
+                    <li>
+                        <a href="#reportes">
+                            <i class="fas fa-chart-bar"></i>
+                            <span>Reportes</span>
+                            <i class="fas fa-chevron-right submenu-icon"></i>
+                        </a>
+                        <ul class="submenu">
+                            <li><a id="reporteSuspensiones"><i class="fas fa-ban"></i> Suspensiones</a></li>
+                            <li><a id="reporteDescuentosJudiciales"><i class="fas fa-gavel"></i> Descuentos Judiciales</a></li>
+                            <li><a id="reportePlanillaEspeciales"><i class="fas fa-calendar-plus"></i> Planillas Dominicales/Asuetos</a></li>
+                        </ul>
+                    </li>
+                    <li>
+                        <a href="#admin">
+                            <i class="fas fa-cogs"></i>
+                            <span>Administración</span>
+                            <i class="fas fa-chevron-right submenu-icon"></i>
+                        </a>
+                        <ul class="submenu">
+                            <li><a href="#usuarios"><i class="fas fa-user-cog"></i> Usuarios</a></li>
+                            <li><a href="#permisos"><i class="fas fa-key"></i> Permisos</a></li>
+                            <li><a href="#configuracion"><i class="fas fa-wrench"></i> Configuración</a></li>
+                        </ul>
+                    </li>
+                    <li>
+                        <a href="#mantenimiento">
+                            <i class="fas fa-tools"></i>
+                            <span>Mantenimiento</span>
+                            <i class="fas fa-chevron-right submenu-icon"></i>
+                        </a>
+                        <ul class="submenu">
+                            <li><a id="actualizarDepartamentoBtn"><i class="fas fa-building"></i> Actualizar Departamento/Divisiones</a></li>
+                            <li><a id="registroEmbargoBtn"><i class="fas fa-money-check-alt"></i> Registro de Embargo Salarial y Suspensiones</a></li>
+                        </ul>
+                    </li>
+                    <li class="sidebar-logout">
+                        <a href="#" id="logoutBtn">
+                            <i class="fas fa-sign-out-alt"></i>
+                            <span>Cerrar Sesión</span>
+                        </a>
+                    </li>
+                </ul>
+            </nav>
+        </div>
+
+        <!-- Contenido principal -->
+        <main class="main-content">
+            <div class="content-header">
+                <h2 class="page-title">Dashboard</h2>
+                <div class="breadcrumb">
+                    <a href="#" class="breadcrumb-item">Inicio</a>
+                    <span class="breadcrumb-separator">/</span>
+                    <span class="breadcrumb-item active">Dashboard</span>
+                </div>
+            </div>
+
+            <!-- Tarjetas de resumen -->
+            <div class="stats-container">
+                <!-- Personal Fijo -->
+                <div class="stat-card animate__animated animate__fadeInUp" style="--delay: 0.1s">
+                    <div class="stat-icon">
+                        <i class="fas fa-user-tie"></i>
+                    </div>
+                    <div class="stat-details">
+                        <div class="stat-title">Personal Fijo</div>
+                        <div class="stat-value" id="personalFijoCount">...</div>
+                    </div>
+                </div>
+
+                <!-- Personal Parcial -->
+                <div class="stat-card animate__animated animate__fadeInUp" style="--delay: 0.2s">
+                    <div class="stat-icon">
+                        <i class="fas fa-user-clock"></i>
+                    </div>
+                    <div class="stat-details">
+                        <div class="stat-title">Personal Parcial</div>
+                        <div class="stat-value" id="personalParcialCount">...</div>
+                    </div>
+                </div>
+
+                <!-- Vacacionistas -->
+                <div class="stat-card animate__animated animate__fadeInUp" style="--delay: 0.3s">
+                    <div class="stat-icon">
+                        <i class="fas fa-umbrella-beach"></i>
+                    </div>
+                    <div class="stat-details">
+                        <div class="stat-title">Vacacionistas</div>
+                        <div class="stat-value" id="vacacionistasCount">...</div>
+                    </div>
+                </div>
+
+                <!-- Total Personal -->
+                <div class="stat-card total-card animate__animated animate__fadeInUp" style="--delay: 0.4s">
+                    <div class="stat-icon">
+                        <i class="fas fa-users"></i>
+                    </div>
+                    <div class="stat-details">
+                        <div class="stat-title">Total Personal</div>
+                        <div class="stat-value" id="totalPersonalCount">...</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Selector de regiones y gráficos -->
+            <div class="dashboard-row">
+                <!-- Selector de regiones -->
+                <div class="dashboard-card region-selector-card animate__animated animate__fadeIn" style="--delay: 0.5s">
+                    <div class="card-header">
+                        <h3><i class="fas fa-map-marker-alt"></i> Seleccione Región</h3>
+                        <div class="card-actions">
+                            <button class="btn-card-action" title="Actualizar" id="refreshRegionesBtn">
+                                <i class="fas fa-sync-alt"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <div class="region-selector-container">
+                            <!-- Buscador de regiones -->
+                            <div class="region-search">
+                                <div class="search-input">
+                                    <i class="fas fa-search"></i>
+                                    <input type="text" id="regionSearch" placeholder="Buscar región...">
+                                    <button class="clear-search" id="clearRegionSearch">
+                                        <i class="fas fa-times"></i>
+                                    </button>
+                                </div>
+                            </div>
+                            
+                            <!-- Regiones en formato de grid compacto -->
+                            <div class="region-grid" id="regionGrid">
+                                <button class="region-grid-item active" data-region="0">
+                                    <i class="fas fa-globe-americas"></i>
+                                    <span>Todas</span>
+                                </button>
+                                <!-- Aquí se cargarán dinámicamente las regiones -->
+                                <div class="region-loading">
+                                    <i class="fas fa-spinner fa-spin"></i>
+                                    <span>Cargando regiones...</span>
+                                </div>
+                            </div>
+                            <div class="dashboard-row">
+                                <div class="dashboard-card chart-card animate__animated animate__fadeIn" style="--delay: 0.6s">
+                                    <div class="card-header">
+                                        <h3><i class="fas fa-chart-bar"></i> Personal por Departamento</h3>
+                                        <div class="region-indicator" id="currentRegionName">Todas las Regiones</div>
+                                        <div class="card-actions">
+                                            <button class="btn-card-action" title="Actualizar" id="refreshChartBtn">
+                                                <i class="fas fa-sync-alt"></i>
+                                            </button>
+                                            <button class="btn-card-action" title="Opciones">
+                                                <i class="fas fa-ellipsis-v"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <div class="card-body">
+                                        <div class="chart-container" id="deptoChart">
+                                            <!-- Aquí se renderizará el gráfico -->
+                                            <div class="chart-loading">
+                                                <i class="fas fa-spinner fa-spin"></i>
+                                                <span>Cargando gráfico...</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="dashboard-row">
+                                    <div class="dashboard-card estado-resumen-card animate__animated animate__fadeIn" style="--delay: 0.7s">
+                                        <div class="card-header">
+                                            <h3><i class="fas fa-building"></i> Estado de Departamentos</h3>
+                                            <div class="region-indicator" id="currentRegionNameEstado">Todas las Regiones</div>
+                                            <div class="card-actions">
+                                                <button class="btn-card-action" title="Actualizar" id="refreshEstadoBtn">
+                                                    <i class="fas fa-sync-alt"></i>
+                                                </button>
+                                            </div>
+                                        </div>
+                                        <div class="card-body">
+                                            <!-- Tarjetas de estado -->
+                                            <div class="estado-cards-container">
+                                                <!-- Departamentos Completos -->
+                                                <div class="estado-card complete">
+                                                    <div class="estado-card-icon">
+                                                        <i class="fas fa-check-circle"></i>
+                                                    </div>
+                                                    <div class="estado-card-details">
+                                                        <div class="estado-card-title">Departamentos Completos</div>
+                                                        <div class="estado-card-value" id="deptosCompletosCount">0</div>
+                                                    </div>
+                                                    <div class="estado-card-footer">
+                                                        <button class="btn-view-details" data-type="complete">
+                                                            Ver Detalles <i class="fas fa-arrow-right"></i>
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                                
+                                                <!-- Departamentos con Faltantes -->
+                                                <div class="estado-card deficit">
+                                                    <div class="estado-card-icon">
+                                                        <i class="fas fa-exclamation-circle"></i>
+                                                    </div>
+                                                    <div class="estado-card-details">
+                                                        <div class="estado-card-title">Departamentos con Faltantes</div>
+                                                        <div class="estado-card-value" id="deptosFaltantesCount">0</div>
+                                                    </div>
+                                                    <div class="estado-card-footer">
+                                                        <button class="btn-view-details" data-type="deficit">
+                                                            Ver Detalles <i class="fas fa-arrow-right"></i>
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                                
+                                                <!-- Departamentos con Sobrantes -->
+                                                <div class="estado-card excess">
+                                                    <div class="estado-card-icon">
+                                                        <i class="fas fa-exclamation-triangle"></i>
+                                                    </div>
+                                                    <div class="estado-card-details">
+                                                        <div class="estado-card-title">Departamentos con Excedentes</div>
+                                                        <div class="estado-card-value" id="deptosSobrantesCount">0</div>
+                                                    </div>
+                                                    <div class="estado-card-footer">
+                                                        <button class="btn-view-details" data-type="excess">
+                                                            Ver Detalles <i class="fas fa-arrow-right"></i>
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                                
+                                                <!-- Departamentos Sin Asignar -->
+                                                <div class="estado-card no-data">
+                                                    <div class="estado-card-icon">
+                                                        <i class="fas fa-info-circle"></i>
+                                                    </div>
+                                                    <div class="estado-card-details">
+                                                        <div class="estado-card-title">Departamentos Sin Asignar</div>
+                                                        <div class="estado-card-value" id="deptosSinAsignarCount">0</div>
+                                                    </div>
+                                                    <div class="estado-card-footer">
+                                                        <button class="btn-view-details" data-type="no-data">
+                                                            Ver Detalles <i class="fas fa-arrow-right"></i>
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            </div>
+        </main>
+    </div>
+    <!-- Modal para detalles de departamentos -->
+    <div class="modal" id="departmentDetailModal">
+        <div class="modal-content modal-lg">
+            <div class="modal-header">
+                <h3><i class="fas fa-building"></i> <span id="modalDepartmentType">Departamentos</span></h3>
+                <button class="close-modal"><i class="fas fa-times"></i></button>
+            </div>
+            <div class="modal-body scrollable-modal-body">
+                <div class="table-container">
+                    <table class="data-table" id="modalDepartmentTable">
+                        <thead>
+                            <tr>
+                                <th>Departamento</th>
+                                <th>Personal Fijo</th>
+                                <th>Personal Parcial</th>
+                                <th>Vacacionistas</th>
+                                <th>Estado</th>
+                            </tr>
+                        </thead>
+                        <tbody id="modalDepartmentList">
+                            <tr class="loading-row">
+                                <td colspan="5">
+                                    <div class="loading-content">
+                                        <i class="fas fa-spinner fa-spin"></i>
+                                        <span>Cargando departamentos...</span>
+                                    </div>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" id="closeDetailModal">Cerrar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Contenedor de notificaciones toast -->
+    <div class="toast-container"></div>
+
+    <!-- Modal para cerrar sesión -->
+    <div class="modal" id="logoutModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Cerrar Sesión</h3>
+                <button class="close-modal"><i class="fas fa-times"></i></button>
+            </div>
+            <div class="modal-body">
+                <p>¿Está seguro que desea cerrar sesión?</p>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" id="cancelLogout">Cancelar</button>
+                <button class="btn btn-primary" id="confirmLogout">Cerrar Sesión</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/chart.js/3.7.0/chart.min.js"></script>
+    <script src="../Logica/Menu.js"></script>
+</body>
+</html>

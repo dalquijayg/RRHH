@@ -1,0 +1,758 @@
+:root {
+    --color-primary: #FF7F27; /* Naranja como color principal de RRHH */
+    --color-secondary: #4ECDC4; /* Azul claro */
+    --color-success: #5CB85C; /* Verde */
+    --color-warning: #FFC107; /* Amarillo */
+    --color-danger: #FF5252; /* Rojo */
+    --color-info: #3498DB; /* Azul info */
+    
+    /* Colores del tema claro */
+    --color-dark: #ffffff; /* Blanco para fondo principal */
+    --color-dark-light: #f8f9fa; /* Gris muy claro para elementos */
+    --color-dark-lighter: #f1f3f5; /* Gris más claro para controles */
+    --color-dark-lightest: #e9ecef; /* Gris casi blanco para elementos interactivos */
+    --color-dark-border: #dee2e6; /* Gris claro para bordes */
+    --color-light: #212529; /* Gris oscuro para textos principales */
+    --color-light-muted: #6c757d; /* Gris medio para textos secundarios */
+    --color-gray: #adb5bd; /* Gris para elementos neutros */
+    --color-white: #212529; /* Textos oscuros para fondos claros */
+    
+    /* Sombras suaves para tema claro */
+    --shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.05);
+    --shadow: 0 4px 8px rgba(0, 0, 0, 0.08);
+    --shadow-lg: 0 8px 16px rgba(0, 0, 0, 0.1);
+    
+    /* Bordes */
+    --border-radius: 8px;
+    --border-radius-lg: 12px;
+    --border-radius-sm: 4px;
+    
+    /* Transiciones */
+    --transition-speed: 0.3s;
+}
+
+/* Resetear estilos */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+html, body {
+    height: 100%;
+    background-color: #f9f9f9;
+    color: var(--color-light);
+}
+
+.container {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    padding: 20px;
+}
+
+/* Tarjeta del formulario */
+.form-card {
+    background-color: #ffffff;
+    border-radius: var(--border-radius);
+    box-shadow: var(--shadow);
+    width: 100%;
+    max-width: 800px;
+    position: relative;
+    overflow: hidden;
+    transition: all var(--transition-speed);
+    border: 1px solid var(--color-dark-border);
+}
+
+.form-card:hover {
+    box-shadow: var(--shadow-lg);
+}
+
+/* Botón de ayuda */
+.help-button {
+    position: absolute;
+    top: 20px;
+    right: 20px;
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: rgba(0, 0, 0, 0.05);
+    border: none;
+    color: var(--color-light-muted);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all var(--transition-speed);
+    z-index: 10;
+}
+
+.help-button:hover {
+    background-color: var(--color-info);
+    color: white;
+    transform: rotate(15deg);
+}
+
+/* Encabezado de la tarjeta */
+.card-header {
+    padding: 30px 20px 20px;
+    text-align: center;
+    position: relative;
+    background-color: rgba(255, 127, 39, 0.05);
+    border-bottom: 1px solid var(--color-dark-border);
+}
+
+.icon-wrapper {
+    width: 70px;
+    height: 70px;
+    background: linear-gradient(135deg, var(--color-primary), #ff9a56);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 15px;
+    color: white;
+    font-size: 2rem;
+    box-shadow: 0 4px 10px rgba(255, 127, 39, 0.3);
+}
+
+#formTitle {
+    color: var(--color-light);
+    font-size: 1.8rem;
+    margin-bottom: 10px;
+}
+
+.color-strip {
+    display: flex;
+    height: 4px;
+    overflow: hidden;
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+}
+
+.color-strip-item {
+    flex: 1;
+    height: 100%;
+}
+
+.color-red { background-color: #FF5252; }
+.color-blue { background-color: #3498DB; }
+.color-green { background-color: #5CB85C; }
+.color-yellow { background-color: #FFC107; }
+.color-orange { background-color: #FF7F27; }
+
+/* Selector de tipo de registro (Pestañas) */
+.tab-selector {
+    display: flex;
+    position: relative;
+    border-bottom: 1px solid var(--color-dark-border);
+}
+
+.tab-button {
+    flex: 1;
+    padding: 15px;
+    background: none;
+    border: none;
+    font-size: 1rem;
+    font-weight: 500;
+    color: var(--color-light-muted);
+    cursor: pointer;
+    transition: all var(--transition-speed);
+    position: relative;
+    z-index: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+}
+
+.tab-button i {
+    font-size: 1.1rem;
+}
+
+.tab-button:hover {
+    color: var(--color-primary);
+}
+
+.tab-button.active {
+    color: var(--color-primary);
+}
+
+.tab-slider {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    height: 3px;
+    width: 50%;
+    background-color: var(--color-primary);
+    transition: all var(--transition-speed) ease-in-out;
+}
+
+/* Ajustar posición del slider para la segunda pestaña */
+.tab-button:nth-child(2).active ~ .tab-slider {
+    left: 50%;
+}
+
+/* Contenedor del formulario */
+.form-container {
+    padding: 20px;
+    display: none;
+}
+
+.form-container.active {
+    display: block;
+}
+
+/* Sección de búsqueda */
+.search-section {
+    margin-bottom: 20px;
+}
+
+.search-section h3 {
+    font-size: 1.2rem;
+    margin-bottom: 15px;
+    color: var(--color-light);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.search-section h3 i {
+    color: var(--color-primary);
+}
+
+.input-group {
+    display: flex;
+    margin-bottom: 15px;
+}
+
+.input-group input {
+    flex: 1;
+    padding: 12px 15px;
+    border: 1px solid var(--color-dark-border);
+    border-radius: var(--border-radius-sm) 0 0 var(--border-radius-sm);
+    font-size: 1rem;
+    outline: none;
+    transition: all var(--transition-speed);
+    background-color: #ffffff;
+    color: var(--color-light);
+}
+
+.input-group input:focus {
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 3px rgba(255, 127, 39, 0.15);
+}
+
+.action-button {
+    padding: 0 15px;
+    background-color: var(--color-primary);
+    color: white;
+    border: none;
+    border-radius: 0 var(--border-radius-sm) var(--border-radius-sm) 0;
+    cursor: pointer;
+    transition: all var(--transition-speed);
+}
+
+.action-button:hover {
+    background-color: #ff8f46;
+}
+
+/* Resultados de búsqueda */
+.search-results {
+    max-height: 200px;
+    overflow-y: auto;
+    background-color: #ffffff;
+    border-radius: var(--border-radius-sm);
+    border: 1px solid var(--color-dark-border);
+    margin-top: 5px;
+}
+
+.search-result-item {
+    display: flex;
+    align-items: center;
+    padding: 10px 15px;
+    border-bottom: 1px solid var(--color-dark-border);
+    transition: all var(--transition-speed);
+}
+
+.search-result-item:last-child {
+    border-bottom: none;
+}
+
+.search-result-item:hover {
+    background-color: rgba(255, 127, 39, 0.05);
+}
+
+.result-icon {
+    width: 40px;
+    height: 40px;
+    background-color: rgba(0, 0, 0, 0.05);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-right: 10px;
+    color: var(--color-light);
+}
+
+.result-info {
+    flex: 1;
+}
+
+.result-name {
+    font-weight: 500;
+    color: var(--color-light);
+}
+
+.result-id {
+    font-size: 0.85rem;
+    color: var(--color-light-muted);
+}
+
+.result-action {
+    margin-left: 10px;
+}
+
+.select-button {
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    background-color: rgba(92, 184, 92, 0.1);
+    border: 1px solid rgba(92, 184, 92, 0.3);
+    color: var(--color-success);
+    cursor: pointer;
+    transition: all var(--transition-speed);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.select-button:hover {
+    background-color: var(--color-success);
+    color: white;
+    transform: scale(1.1);
+}
+
+/* Tarjeta de información del empleado */
+.employee-info {
+    margin-bottom: 20px;
+}
+
+.employee-card {
+    display: flex;
+    align-items: center;
+    background-color: #ffffff;
+    border: 1px solid var(--color-dark-border);
+    border-radius: var(--border-radius);
+    padding: 15px;
+    box-shadow: var(--shadow-sm);
+}
+
+.employee-photo {
+    width: 70px;
+    height: 70px;
+    border-radius: 50%;
+    overflow: hidden;
+    margin-right: 15px;
+    border: 2px solid var(--color-primary);
+}
+
+.employee-photo img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.employee-details {
+    flex: 1;
+}
+
+.employee-details h4 {
+    font-size: 1.2rem;
+    margin-bottom: 5px;
+    color: var(--color-light);
+}
+
+.employee-details p {
+    color: var(--color-light-muted);
+    margin-bottom: 5px;
+}
+
+.employee-id {
+    font-size: 0.9rem;
+    color: var(--color-primary);
+    font-weight: 500;
+}
+
+/* Formulario de descuento o suspensión */
+.discount-data, .suspension-data {
+    background-color: #ffffff;
+    border-radius: var(--border-radius);
+    padding: 20px;
+    border: 1px solid var(--color-dark-border);
+}
+
+.discount-data h3, .suspension-data h3 {
+    font-size: 1.2rem;
+    margin-bottom: 20px;
+    color: var(--color-light);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--color-dark-border);
+}
+
+.discount-data h3 i, .suspension-data h3 i {
+    color: var(--color-primary);
+}
+
+.form-row {
+    margin-bottom: 20px;
+}
+
+.two-columns {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+}
+
+.input-container {
+    position: relative;
+    margin-bottom: 5px;
+}
+
+label {
+    display: block;
+    margin-bottom: 8px;
+    font-size: 0.9rem;
+    color: var(--color-light);
+}
+
+input[type="text"],
+input[type="number"],
+input[type="date"],
+textarea,
+select {
+    width: 100%;
+    padding: 10px 15px;
+    border: 1px solid var(--color-dark-border);
+    border-radius: var(--border-radius-sm);
+    font-size: 1rem;
+    outline: none;
+    transition: all var(--transition-speed);
+    background-color: #ffffff;
+    color: var(--color-light);
+}
+
+input:focus,
+textarea:focus,
+select:focus {
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 3px rgba(255, 127, 39, 0.15);
+}
+
+textarea {
+    resize: vertical;
+    min-height: 80px;
+}
+
+.input-focus-effect {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    width: 0;
+    height: 2px;
+    background-color: var(--color-primary);
+    transition: width var(--transition-speed);
+}
+
+input:focus ~ .input-focus-effect,
+textarea:focus ~ .input-focus-effect {
+    width: 100%;
+}
+
+.input-with-button {
+    display: flex;
+}
+
+.input-with-button input {
+    flex: 1;
+    border-radius: var(--border-radius-sm) 0 0 var(--border-radius-sm);
+}
+
+.apply-button {
+    padding: 0 15px;
+    background-color: rgba(255, 127, 39, 0.1);
+    color: var(--color-primary);
+    border: 1px solid var(--color-dark-border);
+    border-left: none;
+    border-radius: 0 var(--border-radius-sm) var(--border-radius-sm) 0;
+    cursor: pointer;
+    transition: all var(--transition-speed);
+}
+
+.apply-button:hover {
+    background-color: var(--color-primary);
+    color: white;
+}
+
+/* Resultados calculados */
+.result-container {
+    background-color: rgba(0, 0, 0, 0.02);
+    border-radius: var(--border-radius-sm);
+    padding: 10px 15px;
+    border: 1px solid var(--color-dark-border);
+}
+
+.calculated-result {
+    font-size: 1.2rem;
+    font-weight: 600;
+    color: var(--color-light);
+    margin-top: 5px;
+}
+
+.total-result {
+    color: var(--color-primary);
+}
+
+/* Divisor de sección */
+.section-divider {
+    display: flex;
+    align-items: center;
+    margin: 25px 0;
+    color: var(--color-light-muted);
+}
+
+.section-divider::before,
+.section-divider::after {
+    content: "";
+    flex: 1;
+    height: 1px;
+    background-color: var(--color-dark-border);
+}
+
+.section-divider span {
+    padding: 0 10px;
+    font-size: 0.9rem;
+    font-weight: 500;
+}
+
+/* Verificación de totales */
+.verification-container {
+    width: 100%;
+}
+
+.verification-status {
+    padding: 10px 15px;
+    border-radius: var(--border-radius-sm);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background-color: rgba(255, 193, 7, 0.1);
+    border: 1px solid rgba(255, 193, 7, 0.3);
+    color: var(--color-warning);
+}
+
+.verification-status.success {
+    background-color: rgba(92, 184, 92, 0.1);
+    border-color: rgba(92, 184, 92, 0.3);
+    color: var(--color-success);
+}
+
+.verification-status.error {
+    background-color: rgba(255, 82, 82, 0.1);
+    border-color: rgba(255, 82, 82, 0.3);
+    color: var(--color-danger);
+}
+
+/* Input de archivo */
+.file-input {
+    border: none;
+    padding: 10px 0;
+    background: none;
+}
+
+.file-preview {
+    margin-top: 10px;
+    max-width: 100%;
+    overflow: hidden;
+}
+
+.file-preview img {
+    max-width: 100%;
+    max-height: 200px;
+    border-radius: var(--border-radius-sm);
+    border: 1px solid var(--color-dark-border);
+}
+
+.file-preview .pdf-preview {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px;
+    background-color: rgba(0, 0, 0, 0.03);
+    border-radius: var(--border-radius-sm);
+    border: 1px solid var(--color-dark-border);
+}
+
+.file-preview .pdf-preview i {
+    font-size: 2rem;
+    color: #FF5252;
+}
+
+.file-preview .pdf-name {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* Contador de caracteres */
+.character-counter {
+    text-align: right;
+    font-size: 0.8rem;
+    color: var(--color-light-muted);
+    margin-top: 5px;
+}
+
+/* Botones de acción */
+.form-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 15px;
+    margin-top: 20px;
+}
+
+.cancel-button,
+.save-button {
+    padding: 10px 20px;
+    border-radius: var(--border-radius-sm);
+    font-size: 1rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all var(--transition-speed);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.cancel-button {
+    background-color: rgba(0, 0, 0, 0.05);
+    color: var(--color-light);
+    border: 1px solid var(--color-dark-border);
+}
+
+.cancel-button:hover {
+    background-color: rgba(0, 0, 0, 0.1);
+}
+
+.save-button {
+    background-color: var(--color-primary);
+    color: white;
+    border: none;
+}
+
+.save-button:hover {
+    background-color: #ff8f46;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(255, 127, 39, 0.3);
+}
+
+/* Texto de pie de página */
+.footer-text {
+    text-align: center;
+    padding: 15px;
+    color: var(--color-light-muted);
+    font-size: 0.8rem;
+    margin-top: 20px;
+    border-top: 1px solid var(--color-dark-border);
+    background-color: rgba(0, 0, 0, 0.02);
+}
+
+.footer-text p:first-child {
+    margin-bottom: 5px;
+}
+
+/* Estilos de scroll */
+::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+}
+
+::-webkit-scrollbar-track {
+    background: var(--color-dark-lightest);
+    border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb {
+    background-color: var(--color-gray);
+    border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background-color: var(--color-primary);
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .two-columns {
+        grid-template-columns: 1fr;
+        gap: 10px;
+    }
+    
+    .form-actions {
+        flex-direction: column-reverse;
+    }
+    
+    .form-actions button {
+        width: 100%;
+    }
+    
+    .cancel-button, .save-button {
+        justify-content: center;
+    }
+    
+    .employee-card {
+        flex-direction: column;
+        text-align: center;
+    }
+    
+    .employee-photo {
+        margin-right: 0;
+        margin-bottom: 15px;
+    }
+}
+
+@media (max-width: 576px) {
+    .container {
+        padding: 10px;
+    }
+    
+    .card-header {
+        padding: 20px 15px 15px;
+    }
+    
+    .icon-wrapper {
+        width: 60px;
+        height: 60px;
+        font-size: 1.5rem;
+    }
+    
+    #formTitle {
+        font-size: 1.5rem;
+    }
+    
+    .form-container {
+        padding: 15px;
+    }
+    
+    .tab-button {
+        font-size: 0.9rem;
+        padding: 12px 10px;
+    }
+}

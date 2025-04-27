@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Actualización de Departamentos y Divisiones - Recursos Humanos</title>
+    <link rel="stylesheet" href="../Disenos/ActualizarDep.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css">
+</head>
+<body>
+    <!-- Header con información del usuario y logo -->
+    <header class="app-header">
+        <div class="header-title">
+            <div class="header-logo">
+                <i class="fas fa-building"></i>
+            </div>
+            <div class="header-title-text">
+                <span class="title-main">Departamentos y Divisiones</span>
+                <span class="title-sub">Sistema de Recursos Humanos</span>
+            </div>
+        </div>
+        
+        <div class="user-profile">
+            <div class="profile-info">
+                <span id="userName">Cargando...</span>
+                <span id="userRole">Cargando...</span>
+            </div>
+            <div class="profile-image">
+                <img id="userImage" src="../Imagenes/user-default.png" alt="Perfil">
+                <div class="status-indicator online"></div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Sistema de pestañas -->
+    <div class="tabs-container">
+        <div class="tabs">
+            <button class="tab-btn active" data-tab="departments">
+                <i class="fas fa-building"></i> Departamentos
+            </button>
+            <button class="tab-btn" data-tab="divisions">
+                <i class="fas fa-landmark"></i> Divisiones
+            </button>
+        </div>
+    </div>
+
+    <!-- Contenido principal - Departamentos -->
+    <div class="main-container tab-content active" id="departmentsTab">
+        <div class="search-filter-container animate__animated animate__fadeInDown">
+            <div class="search-container">
+                <div class="search-input">
+                    <input type="text" id="searchDepartment" placeholder="Buscar departamento...">
+                    <i class="fas fa-search"></i>
+                    <button class="clear-search" id="clearSearch">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+            </div>
+            
+            <div class="filter-container">
+                <div class="filter-group">
+                    <label for="filterRegion">Región:</label>
+                    <select id="filterRegion" class="filter-select">
+                        <option value="0">Todas las Regiones</option>
+                        <!-- Se cargarán dinámicamente -->
+                    </select>
+                </div>
+                
+                <div class="filter-group">
+                    <label for="filterDivision">División:</label>
+                    <select id="filterDivision" class="filter-select">
+                        <option value="0">Todas las Divisiones</option>
+                        <!-- Se cargarán dinámicamente -->
+                    </select>
+                </div>
+                
+                <div class="actions-container">
+                    <button id="newDepartmentBtn" class="btn btn-primary">
+                        <i class="fas fa-plus"></i> Nuevo Departamento
+                    </button>
+                </div>
+            </div>
+        </div>
+        
+        <div class="departments-grid animate__animated animate__fadeIn" id="departmentsGrid">
+            <!-- Aquí se cargarán los departamentos dinámicamente -->
+            <div class="loading-container">
+                <div class="spinner"></div>
+                <p>Cargando departamentos...</p>
+            </div>
+        </div>
+        
+        <div class="pagination-container animate__animated animate__fadeInUp">
+            <button class="page-nav" id="prevPage" disabled>
+                <i class="fas fa-chevron-left"></i> Anterior
+            </button>
+            <div class="page-numbers" id="pageNumbers">
+                <!-- Números de página dinámicos -->
+            </div>
+            <button class="page-nav" id="nextPage" disabled>
+                Siguiente <i class="fas fa-chevron-right"></i>
+            </button>
+        </div>
+    </div>
+
+    <!-- Contenido principal - Divisiones -->
+    <div class="main-container tab-content" id="divisionsTab">
+        <div class="search-filter-container animate__animated animate__fadeInDown">
+            <div class="search-container">
+                <div class="search-input">
+                    <input type="text" id="searchDivision" placeholder="Buscar división...">
+                    <i class="fas fa-search"></i>
+                    <button class="clear-search" id="clearDivisionSearch">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+            </div>
+            
+            <div class="filter-container">
+                <div class="actions-container">
+                    <button id="newDivisionBtn" class="btn btn-primary">
+                        <i class="fas fa-plus"></i> Nueva División
+                    </button>
+                </div>
+            </div>
+        </div>
+        
+        <div class="divisions-grid animate__animated animate__fadeIn" id="divisionsGrid">
+            <!-- Aquí se cargarán las divisiones dinámicamente -->
+            <div class="loading-container">
+                <div class="spinner"></div>
+                <p>Cargando divisiones...</p>
+            </div>
+        </div>
+        
+        <div class="pagination-container animate__animated animate__fadeInUp">
+            <button class="page-nav" id="prevDivisionPage" disabled>
+                <i class="fas fa-chevron-left"></i> Anterior
+            </button>
+            <div class="page-numbers" id="divisionPageNumbers">
+                <!-- Números de página dinámicos -->
+            </div>
+            <button class="page-nav" id="nextDivisionPage" disabled>
+                Siguiente <i class="fas fa-chevron-right"></i>
+            </button>
+        </div>
+    </div>
+    
+    <!-- Modal para editar/crear departamento -->
+    <div class="modal" id="departmentModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="modalTitle"><i class="fas fa-building"></i> <span>Editar Departamento</span></h3>
+                <button class="close-modal"><i class="fas fa-times"></i></button>
+            </div>
+            <div class="modal-body">
+                <form id="departmentForm">
+                    <input type="hidden" id="departmentId" value="0">
+                    
+                    <div class="form-group">
+                        <label for="departmentName">Nombre del Departamento</label>
+                        <input type="text" id="departmentName" class="form-control" required>
+                    </div>
+                    
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="divisionSelect">División</label>
+                            <select id="divisionSelect" class="form-control" required>
+                                <option value="">Seleccionar División</option>
+                                <!-- Se cargarán dinámicamente -->
+                            </select>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="regionSelect">Región</label>
+                            <select id="regionSelect" class="form-control" required>
+                                <option value="">Seleccionar Región</option>
+                                <!-- Se cargarán dinámicamente -->
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="maxPersonnel">Número máximo de personal</label>
+                        <input type="number" id="maxPersonnel" class="form-control" min="0" value="0" required>
+                    </div>
+                    
+                    <div class="form-section-title">Distribución de Personal</div>
+                    
+                    <div class="personal-distribution">
+                        <div class="distribution-item">
+                            <div class="distribution-label">Personal Fijo</div>
+                            <div class="distribution-inputs">
+                                <div class="input-group">
+                                    <label for="fixedCount">Cantidad</label>
+                                    <input type="number" id="fixedCount" class="form-control" min="0" value="0" required>
+                                </div>
+                                <div class="input-group">
+                                    <label for="fixedPlan">Máx. Personal Domingos/Asuetos</label>
+                                    <input type="number" id="fixedPlan" class="form-control" min="0" value="0" required>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="distribution-item">
+                            <div class="distribution-label">Personal Parcial</div>
+                            <div class="distribution-inputs">
+                                <div class="input-group">
+                                    <label for="partialCount">Cantidad</label>
+                                    <input type="number" id="partialCount" class="form-control" min="0" value="0" required>
+                                </div>
+                                <div class="input-group">
+                                    <label for="partialPlan">Máx. Personal Domingos/Asuetos</label>
+                                    <input type="number" id="partialPlan" class="form-control" min="0" value="0" required>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="distribution-item">
+                            <div class="distribution-label">Vacacionistas</div>
+                            <div class="distribution-inputs">
+                                <div class="input-group">
+                                    <label for="vacationistCount">Cantidad</label>
+                                    <input type="number" id="vacationistCount" class="form-control" min="0" value="0" required>
+                                </div>
+                                <div class="input-group">
+                                    <label for="vacationistPlan">Máx. Personal Domingos/Asuetos</label>
+                                    <input type="number" id="vacationistPlan" class="form-control" min="0" value="0" required>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" id="cancelBtn">
+                    <i class="fas fa-times"></i> Cancelar
+                </button>
+                <button class="btn btn-primary" id="saveBtn">
+                    <i class="fas fa-save"></i> Guardar
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal para editar/crear división -->
+    <div class="modal" id="divisionModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="divisionModalTitle"><i class="fas fa-landmark"></i> <span>Editar División</span></h3>
+                <button class="close-modal"><i class="fas fa-times"></i></button>
+            </div>
+            <div class="modal-body">
+                <form id="divisionForm">
+                    <input type="hidden" id="divisionId" value="0">
+                    
+                    <div class="form-group">
+                        <label for="divisionName">Nombre de la División</label>
+                        <input type="text" id="divisionName" class="form-control" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="divisionLogo">Logo de la División</label>
+                        <div class="logo-upload-container">
+                            <div class="logo-preview" id="logoPreview">
+                                <img id="currentLogo" src="../Imagenes/no-logo.png" alt="Logo">
+                                <div class="logo-overlay">
+                                    <i class="fas fa-image"></i>
+                                    <span>Sin logo</span>
+                                </div>
+                            </div>
+                            <div class="logo-actions">
+                                <button type="button" class="btn btn-secondary" id="selectLogoBtn">
+                                    <i class="fas fa-upload"></i> Seleccionar imagen
+                                </button>
+                                <button type="button" class="btn btn-danger" id="removeLogoBtn">
+                                    <i class="fas fa-trash-alt"></i> Eliminar
+                                </button>
+                                <input type="file" id="logoFileInput" accept="image/*" style="display: none;">
+                                <input type="hidden" id="logoBase64" name="logoBase64">
+                            </div>
+                            <div class="logo-help">
+                                <small>Formatos permitidos: JPG, PNG. Tamaño máximo: 1MB</small>
+                            </div>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" id="cancelDivisionBtn">
+                    <i class="fas fa-times"></i> Cancelar
+                </button>
+                <button class="btn btn-primary" id="saveDivisionBtn">
+                    <i class="fas fa-save"></i> Guardar
+                </button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Modal de confirmación -->
+    <div class="modal" id="confirmModal">
+        <div class="modal-content modal-sm">
+            <div class="modal-header">
+                <h3><i class="fas fa-exclamation-triangle" style="color: var(--color-warning);"></i> Confirmar</h3>
+                <button class="close-modal"><i class="fas fa-times"></i></button>
+            </div>
+            <div class="modal-body">
+                <p id="confirmMessage">¿Está seguro que desea realizar esta acción?</p>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" id="cancelConfirmBtn">
+                    <i class="fas fa-times"></i> Cancelar
+                </button>
+                <button class="btn btn-danger" id="confirmBtn">
+                    <i class="fas fa-trash-alt"></i> Confirmar
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Contenedor de notificaciones toast -->
+    <div class="toast-container"></div>
+
+    <!-- Scripts -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/chart.js/3.7.0/chart.min.js"></script>
+    <script src="../Logica/ActualizarDep.js"></script>
+</body>
+</html>

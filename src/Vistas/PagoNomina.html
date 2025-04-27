@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pago de Nómina - Recursos Humanos</title>
+    <link rel="stylesheet" href="../Disenos/PagoNomina.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+</head>
+<body>
+    <!-- Elementos decorativos de fondo -->
+    <div class="bg-decoration bubble bubble1"></div>
+    <div class="bg-decoration bubble bubble2"></div>
+    <div class="bg-decoration bubble bubble3"></div>
+    <div class="bg-decoration bubble bubble4"></div>
+    <div class="bg-decoration bubble bubble5"></div>
+    
+    <!-- Header y navegación -->
+    <header class="header">
+        <div class="nav-container">
+            <div class="logo-area">
+                <img src="../Imagenes/Logo Recursos Humanos new.png" alt="Logo RH" class="logo">
+                <h1 class="page-title">Pago de Nómina</h1>
+            </div>
+            <div class="user-area">
+                <div class="theme-switch">
+                    <span class="theme-switch-label">Tema</span>
+                    <label class="switch">
+                        <input type="checkbox" id="themeSwitch">
+                        <span class="slider"></span>
+                    </label>
+                </div>
+                <img src="../Imagenes/user-default.png" alt="Usuario" class="user-image" id="userImage">
+                <div class="user-details">
+                    <div class="user-name" id="userName">Cargando...</div>
+                    <div class="user-role" id="userRole">Cargando...</div>
+                </div>
+            </div>
+        </div>
+    </header>
+    
+    <div class="main-container">
+        <!-- Filtros -->
+        <section class="filters-section">
+            <h2 class="filters-title">
+                <i class="fas fa-filter"></i> Filtros de Nómina
+            </h2>
+            
+            <div class="filters-container">
+                <div class="filter-group">
+                    <label for="planillaFilter" class="filter-label">Planilla</label>
+                    <select id="planillaFilter" class="filter-select">
+                        <option value="todos">Todas las planillas</option>
+                        <!-- Las opciones se cargarán dinámicamente -->
+                    </select>
+                </div>
+                
+                <div class="filter-group">
+                    <label for="tipoQuincenaFilter" class="filter-label">Tipo de Quincena</label>
+                    <select id="tipoQuincenaFilter" class="filter-select">
+                        <option value="normal">Planilla Quincenal</option>
+                        <option value="finMes">Planilla Fin de Mes</option>
+                    </select>
+                </div>
+                
+                <div class="filter-group">
+                    <label for="mesFilter" class="filter-label">Mes</label>
+                    <select id="mesFilter" class="filter-select">
+                        <option value="1">Enero</option>
+                        <option value="2">Febrero</option>
+                        <option value="3">Marzo</option>
+                        <option value="4">Abril</option>
+                        <option value="5">Mayo</option>
+                        <option value="6">Junio</option>
+                        <option value="7">Julio</option>
+                        <option value="8">Agosto</option>
+                        <option value="9">Septiembre</option>
+                        <option value="10">Octubre</option>
+                        <option value="11">Noviembre</option>
+                        <option value="12">Diciembre</option>
+                    </select>
+                </div>
+                
+                <div class="filter-group">
+                    <label for="anioFilter" class="filter-label">Año</label>
+                    <select id="anioFilter" class="filter-select">
+                        <!-- Se llenará dinámicamente con JavaScript -->
+                    </select>
+                </div>
+            </div>
+            
+            <button id="applyFilters" class="apply-filters">
+                <i class="fas fa-search"></i> Aplicar Filtros
+            </button>
+        </section>
+        
+        <!-- Tabla de datos -->
+        <section class="data-section">
+            <div class="data-title">
+                <div class="data-title-left">
+                    <i class="fas fa-money-bill-wave"></i> Resultados de Nómina
+                </div>
+                <div class="data-title-actions">
+                    <button id="saveBtn" class="save-btn">
+                        <i class="fas fa-save"></i> Guardar Planilla
+                    </button>
+                    <button id="exportBtn" class="export-btn">
+                        <i class="fas fa-file-excel"></i> Exportar a Excel
+                    </button>
+                    <button id="pdfBtn" class="pdf-btn">
+                        <i class="fas fa-file-pdf"></i> Generar PDF
+                    </button>
+                </div>
+            </div>
+            
+            <!-- Loader -->
+            <div class="loader" id="loader">
+                <div class="loader-spinner"></div>
+                <div class="loader-text">Cargando datos...</div>
+            </div>
+            
+            <!-- No data message -->
+            <div class="no-data" id="noData">
+                <i class="fas fa-search"></i>
+                <h3 class="no-data-title">No hay datos disponibles</h3>
+                <p>Prueba con diferentes filtros o verifica la conexión a la base de datos.</p>
+            </div>
+            
+            <div class="data-table-container">
+                <table class="data-table" id="nominaTable">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Nombre Completo</th>
+                            <th>Departamento</th>
+                            <th>Planilla</th>
+                            <th>Tipo</th>
+                            <th>Salario Diario</th>
+                            <th>Salario Quincenal</th>
+                            <th>Días Laborados</th>
+                            <th>Salario Proporcional</th>
+                            <th>Descuento Judicial</th>
+                            <th>Salario a Pagar</th>
+                        </tr>
+                    </thead>
+                    <tbody id="nominaTableBody">
+                        <!-- Los datos se cargarán dinámicamente -->
+                    </tbody>
+                </table>
+            </div>
+            
+            <!-- Paginación -->
+            <div class="pagination">
+                <div class="pagination-info" id="paginationInfo">Mostrando 0-0 de 0 registros</div>
+                <button class="pagination-btn" data-page="prev">
+                    <i class="fas fa-chevron-left"></i>
+                </button>
+                <div id="paginationButtons">
+                    <!-- Se llenará dinámicamente -->
+                </div>
+                <button class="pagination-btn" data-page="next">
+                    <i class="fas fa-chevron-right"></i>
+                </button>
+            </div>
+        </section>
+    </div>
+
+    <!-- Scripts -->
+    <script src="../Logica/PagoNomina.js"></script>
+</body>

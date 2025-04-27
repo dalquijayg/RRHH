@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Reporte de Suspensiones - Recursos Humanos</title>
+    <link rel="stylesheet" href="../Disenos/Reportes/ReporteSuspensiones.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+</head>
+<body>
+    <!-- Elementos decorativos de fondo -->
+    <div class="bg-decoration circle circle1"></div>
+    <div class="bg-decoration circle circle2"></div>
+    <div class="bg-decoration circle circle3"></div>
+    <div class="bg-decoration polygon polygon1"></div>
+    <div class="bg-decoration polygon polygon2"></div>
+    <div class="bg-grid"></div>
+    
+    <div class="container">
+        <div class="dashboard-card">
+            <div class="card-header">
+                <div class="header-content">
+                    <div class="logo-container">
+                        <div class="logo-icon">
+                            <i class="fas fa-calendar-times"></i>
+                        </div>
+                    </div>
+                    <div class="title-container">
+                        <h1>Reporte de Suspensiones</h1>
+                        <div class="pulse-line"></div>
+                    </div>
+                </div>
+                
+                <div class="action-buttons">
+                    <button id="exportPDF" class="action-button">
+                        <i class="fas fa-file-pdf"></i>
+                        <span>PDF</span>
+                    </button>
+                </div>
+            </div>
+            
+            <div class="search-section">
+                <div class="search-filters">
+                    <div class="filter-group employee-search">
+                        <div class="filter-label">
+                            <i class="fas fa-user"></i>
+                            <span>Buscar Colaborador</span>
+                        </div>
+                        <div class="filter-input">
+                            <input type="text" id="employeeSearch" placeholder="Nombre o ID del colaborador">
+                            <button id="searchEmployee" class="filter-button">
+                                <i class="fas fa-search"></i>
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div class="filter-group date-range">
+                        <div class="filter-label">
+                            <i class="fas fa-calendar-alt"></i>
+                            <span>Rango de Fechas</span>
+                        </div>
+                        <div class="filter-input date-inputs">
+                            <div class="date-field">
+                                <input type="date" id="startDate">
+                            </div>
+                            <div class="date-field">
+                                <input type="date" id="endDate">
+                            </div>
+                            <button id="applyDateFilter" class="filter-button">
+                                <i class="fas fa-filter"></i>
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div class="filter-group date-type">
+                        <div class="filter-label">
+                            <i class="fas fa-clock"></i>
+                            <span>Tipo de Fecha</span>
+                        </div>
+                        <div class="filter-input radio-buttons">
+                            <div class="radio-option">
+                                <input type="radio" id="suspensionDate" name="dateType" value="suspension" checked>
+                                <label for="suspensionDate">Fecha de Suspensión</label>
+                            </div>
+                            <div class="radio-option">
+                                <input type="radio" id="creationDate" name="dateType" value="creation">
+                                <label for="creationDate">Fecha de Creación</label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="advanced-filters">
+                    <button id="toggleAdvanced" class="toggle-button">
+                        <span>Filtros Avanzados</span>
+                        <i class="fas fa-chevron-down"></i>
+                    </button>
+                    
+                    <div class="advanced-options" style="display: none;">
+                        <div class="filter-row">
+                            <div class="filter-group">
+                                <div class="filter-label">
+                                    <i class="fas fa-sort-amount-down"></i>
+                                    <span>Ordenar Por</span>
+                                </div>
+                                <div class="filter-input">
+                                    <select id="sortBy">
+                                        <option value="dateDesc">Fecha (Más reciente)</option>
+                                        <option value="dateAsc">Fecha (Más antigua)</option>
+                                        <option value="durationDesc">Duración (Mayor)</option>
+                                        <option value="durationAsc">Duración (Menor)</option>
+                                        <option value="nameAsc">Nombre (A-Z)</option>
+                                        <option value="nameDesc">Nombre (Z-A)</option>
+                                    </select>
+                                </div>
+                            </div>
+                            
+                            <div class="filter-group">
+                                <div class="filter-label">
+                                    <i class="fas fa-list-ol"></i>
+                                    <span>Resultados por página</span>
+                                </div>
+                                <div class="filter-input">
+                                    <select id="pageSize">
+                                        <option value="10">10</option>
+                                        <option value="25">25</option>
+                                        <option value="50">50</option>
+                                        <option value="100">100</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="report-header">
+                <div class="report-summary">
+                    <div class="summary-card">
+                        <div class="summary-icon">
+                            <i class="fas fa-users"></i>
+                        </div>
+                        <div class="summary-data">
+                            <div class="summary-value" id="totalEmployees">0</div>
+                            <div class="summary-label">Colaboradores</div>
+                        </div>
+                    </div>
+                    
+                    <div class="summary-card">
+                        <div class="summary-icon">
+                            <i class="fas fa-calendar-times"></i>
+                        </div>
+                        <div class="summary-data">
+                            <div class="summary-value" id="totalSuspensions">0</div>
+                            <div class="summary-label">Suspensiones</div>
+                        </div>
+                    </div>
+                    
+                    <div class="summary-card">
+                        <div class="summary-icon">
+                            <i class="fas fa-clock"></i>
+                        </div>
+                        <div class="summary-data">
+                            <div class="summary-value" id="avgDuration">0</div>
+                            <div class="summary-label">Días Promedio</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="result-info">
+                    <div class="result-count">
+                        Mostrando <span id="resultCount">0</span> resultados
+                    </div>
+                    <div class="refresh-button">
+                        <button id="refreshReport">
+                            <i class="fas fa-sync-alt"></i>
+                            <span>Actualizar</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="report-content">
+                <div class="loading-overlay" id="loadingOverlay">
+                    <div class="loader">
+                        <div class="loader-circle"></div>
+                        <div class="loader-text">Cargando datos...</div>
+                    </div>
+                </div>
+                
+                <table class="report-table">
+                    <thead>
+                        <tr>
+                            <th class="sortable" data-sort="employee">
+                                <div class="th-content">
+                                    <span>Colaborador</span>
+                                    <i class="fas fa-sort"></i>
+                                </div>
+                            </th>
+                            <th class="sortable" data-sort="department">
+                                <div class="th-content">
+                                    <span>Departamento</span>
+                                    <i class="fas fa-sort"></i>
+                                </div>
+                            </th>
+                            <th class="sortable" data-sort="startDate">
+                                <div class="th-content">
+                                    <span>Fecha Inicio</span>
+                                    <i class="fas fa-sort"></i>
+                                </div>
+                            </th>
+                            <th class="sortable" data-sort="endDate">
+                                <div class="th-content">
+                                    <span>Fecha Fin</span>
+                                    <i class="fas fa-sort"></i>
+                                </div>
+                            </th>
+                            <th class="sortable" data-sort="duration">
+                                <div class="th-content">
+                                    <span>Duración</span>
+                                    <i class="fas fa-sort"></i>
+                                </div>
+                            </th>
+                            <th>Motivo</th>
+                            <th class="sortable" data-sort="creationDate">
+                                <div class="th-content">
+                                    <span>Fecha Registro</span>
+                                    <i class="fas fa-sort"></i>
+                                </div>
+                            </th>
+                            <th>Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody id="reportData">
+                        <!-- Los datos se cargarán dinámicamente aquí -->
+                    </tbody>
+                </table>
+                
+                <div class="empty-state" id="emptyState" style="display: none;">
+                    <div class="empty-icon">
+                        <i class="fas fa-search"></i>
+                    </div>
+                    <div class="empty-text">No se encontraron suspensiones con los filtros seleccionados</div>
+                    <button id="clearFilters" class="empty-button">
+                        <i class="fas fa-times-circle"></i>
+                        <span>Limpiar Filtros</span>
+                    </button>
+                </div>
+            </div>
+            
+            <div class="report-footer">
+                <div class="pagination">
+                    <button id="prevPage" class="page-button" disabled>
+                        <i class="fas fa-chevron-left"></i>
+                    </button>
+                    <div class="page-numbers" id="pageNumbers">
+                        <!-- Los números de página se generarán dinámicamente -->
+                        <span class="page-number active">1</span>
+                    </div>
+                    <button id="nextPage" class="page-button">
+                        <i class="fas fa-chevron-right"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+        
+        <div class="footer-text">
+            <p>Sistema de Recursos Humanos</p>
+            <p>© New Technology 2025</p>
+        </div>
+    </div>
+    
+    <!-- Modal de Detalles de Suspensión -->
+    <div class="modal" id="suspensionModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Detalles de Suspensión</h2>
+                <button class="modal-close" id="closeModal">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="employee-info">
+                    <div class="employee-photo">
+                        <img id="modalEmployeePhoto" src="../Imagenes/user-default.png" alt="Foto del colaborador">
+                    </div>
+                    <div class="employee-details">
+                        <h3 id="modalEmployeeName">Nombre del Colaborador</h3>
+                        <p id="modalEmployeeDepartment">Departamento</p>
+                        <p><strong>ID:</strong> <span id="modalEmployeeId">---</span></p>
+                    </div>
+                </div>
+                
+                <div class="detail-section">
+                    <h4>Información de la Suspensión</h4>
+                    <div class="detail-grid">
+                        <div class="detail-item">
+                            <div class="detail-label">Fecha de Inicio</div>
+                            <div class="detail-value" id="modalStartDate">--/--/----</div>
+                        </div>
+                        <div class="detail-item">
+                            <div class="detail-label">Fecha de Fin</div>
+                            <div class="detail-value" id="modalEndDate">--/--/----</div>
+                        </div>
+                        <div class="detail-item">
+                            <div class="detail-label">Duración</div>
+                            <div class="detail-value" id="modalDuration">-- días</div>
+                        </div>
+                        <div class="detail-item">
+                            <div class="detail-label">Estado</div>
+                            <div class="detail-value" id="modalStatus">
+                                <span class="status-badge">Activa</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="detail-section">
+                    <h4>Motivo de la Suspensión</h4>
+                    <div class="reason-box" id="modalReason">
+                        El motivo de la suspensión se mostrará aquí.
+                    </div>
+                </div>
+                
+                <div class="detail-section">
+                    <h4>Información de Registro</h4>
+                    <div class="detail-grid">
+                        <div class="detail-item">
+                            <div class="detail-label">Registrado por</div>
+                            <div class="detail-value" id="modalCreatedBy">Usuario</div>
+                        </div>
+                        <div class="detail-item">
+                            <div class="detail-label">Fecha de Registro</div>
+                            <div class="detail-value" id="modalCreationDate">--/--/----</div>
+                        </div>
+                        <div class="detail-item">
+                            <div class="detail-label">Hora de Registro</div>
+                            <div class="detail-value" id="modalCreationTime">--:--</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button id="printDetail" class="modal-button">
+                    <i class="fas fa-print"></i>
+                    <span>Imprimir</span>
+                </button>
+                <button id="closeModalBtn" class="modal-button secondary">
+                    <i class="fas fa-times"></i>
+                    <span>Cerrar</span>
+                </button>
+            </div>
+        </div>
+    </div>
+    
+    <script src="../Logica/Reportes/ReporteSuspensiones.js"></script>
+</body>
+</html>

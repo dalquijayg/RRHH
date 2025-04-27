@@ -1,0 +1,49 @@
+{
+  "name": "recursos",
+  "version": "1.0.0",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "electron .",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "dependencies": {
+    "chart.js": "^4.4.8",
+    "electron": "^34.3.0",
+    "electron-log": "^5.3.4",
+    "electron-reload": "^2.0.0-alpha.1",
+    "electron-updater": "^6.6.2",
+    "exceljs": "^4.4.0",
+    "file-saver": "^2.0.5",
+    "jspdf": "^3.0.1",
+    "odbc": "^2.4.9",
+    "otplib": "^12.0.1",
+    "qrcode": "^1.5.4",
+    "sweetalert2": "^11.17.2",
+    "xlsx": "^0.18.5"
+  },
+  "build": {
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "dalquijayg",
+        "repo": "RRHH"
+      }
+    ],
+    "appId": "com.tuempresa.syscuareport",
+    "productName": "Recursos-Humanos",
+    "win": {
+      "target": [
+        "nsis"
+      ],
+      "icon": "src/LogoRecursos.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    }
+  }
+}

@@ -1,0 +1,554 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Planilla Especial - Recursos Humanos</title>
+    <link rel="stylesheet" href="../Disenos/PlanillaEspecial.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.23/jspdf.plugin.autotable.min.js"></script>
+</head>
+<body>
+    <!-- Header con el nuevo diseño -->
+    <header class="app-header">
+        <div class="header-title">
+            <div class="header-logo">
+                <i class="fas fa-calendar-alt"></i>
+            </div>
+            <div class="header-title-text">
+                <span class="title-main">Planilla Especial</span>
+                <span class="title-sub">Sistema de Recursos Humanos</span>
+            </div>
+        </div>
+        
+        <div class="user-profile">
+            <div class="profile-info">
+                <span id="userName">Cargando...</span>
+                <span id="userRole">Cargando...</span>
+            </div>
+            <div class="profile-image">
+                <img id="userImage" src="../Imagenes/user-default.png" alt="Perfil">
+                <div class="status-indicator online"></div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Contenedor principal -->
+    <div class="container">
+        <!-- Panel lateral compacto -->
+        <div class="sidebar-mini">
+            <div class="sidebar-header">
+                <img src="../Imagenes/Logo Recursos Humanos new.png" alt="Logo RH" class="sidebar-logo">
+            </div>
+            
+            <nav class="sidebar-nav">
+                <ul>
+                    <li>
+                        <a href="#" title="Ayuda" id="helpBtn">
+                            <i class="fas fa-question-circle"></i>
+                        </a>
+                    </li>
+                </ul>
+            </nav>
+        </div>
+
+        <!-- Contenido principal -->
+        <main class="main-content">
+            <div class="content-header">
+                <div class="page-info">
+                    <h2 class="page-title">Planilla Especial</h2>
+                    <div class="breadcrumb">
+                        <a href="#" class="breadcrumb-item">Inicio</a>
+                        <span class="breadcrumb-separator">/</span>
+                        <a href="#" class="breadcrumb-item">Planillas</a>
+                        <span class="breadcrumb-separator">/</span>
+                        <span class="breadcrumb-item active">Planilla Especial</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tarjeta de filtros compacta -->
+            <div class="filter-card animate__animated animate__fadeIn compact-filters">
+                <div class="card-header compact">
+                    <h3><i class="fas fa-filter"></i> Filtros</h3>
+                    <div class="card-actions">
+                        <button class="btn-card-action" title="Refrescar filtros" id="refreshFiltersBtn">
+                            <i class="fas fa-sync-alt"></i>
+                        </button>
+                    </div>
+                </div>
+                <div class="card-body compact">
+                    <form id="filtersForm" class="filters-form">
+                        <div class="form-row three-columns">
+                            <!-- Departamento -->
+                            <div class="form-group">
+                                <label for="departamento" class="form-label compact">
+                                    <i class="fas fa-building"></i> Departamento
+                                </label>
+                                <div class="select-container">
+                                    <select id="departamento" class="form-select" required>
+                                        <option value="" disabled selected>Seleccionar departamento</option>
+                                        <!-- Las opciones se cargarán dinámicamente -->
+                                    </select>
+                                    <div class="select-arrow">
+                                        <i class="fas fa-chevron-down"></i>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Tipo Personal -->
+                            <div class="form-group">
+                                <label for="tipoPersonal" class="form-label compact">
+                                    <i class="fas fa-users"></i> Tipo de Personal
+                                </label>
+                                <div class="select-container">
+                                    <select id="tipoPersonal" class="form-select" required>
+                                        <!-- Las opciones se cargarán dinámicamente -->
+                                    </select>
+                                    <div class="select-arrow">
+                                        <i class="fas fa-chevron-down"></i>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Fecha -->
+                            <div class="form-group">
+                                <label for="fecha" class="form-label compact">
+                                    <i class="fas fa-calendar-alt"></i> Fecha
+                                </label>
+                                <div class="input-group">
+                                    <input type="date" id="fecha" class="form-control" required>
+                                </div>
+                            </div>
+
+                            <!-- Botones de acción -->
+                            <div class="form-actions inline">
+                                <button type="button" class="btn btn-outline btn-sm" id="clearFiltersBtn">
+                                    <i class="fas fa-times"></i> Limpiar
+                                </button>
+                                <button type="submit" class="btn btn-primary btn-sm" id="applyFiltersBtn">
+                                    <i class="fas fa-search"></i> Buscar
+                                </button>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Estado y tipo de planilla (versión compacta) -->
+            <div class="status-card compact animate__animated animate__fadeIn" style="--delay: 0.2s">
+                <div class="status-item compact" id="tipoFecha">
+                    <div class="status-icon small">
+                        <i class="fas fa-question"></i>
+                    </div>
+                    <div class="status-info">
+                        <div class="status-title small">Tipo de Fecha</div>
+                        <div class="status-value small">Por verificar</div>
+                    </div>
+                </div>
+                <div class="status-item compact" id="tipoPago">
+                    <div class="status-icon small">
+                        <i class="fas fa-dollar-sign"></i>
+                    </div>
+                    <div class="status-info">
+                        <div class="status-title small">Tipo de Pago</div>
+                        <div class="status-value small">Por determinar</div>
+                    </div>
+                </div>
+                <div class="status-item compact" id="totalPersonal">
+                    <div class="status-icon small">
+                        <i class="fas fa-users"></i>
+                    </div>
+                    <div class="status-info">
+                        <div class="status-title small">Total de Personal</div>
+                        <div class="status-value small">0</div>
+                    </div>
+                </div>
+                <div class="status-item compact" id="totalPago">
+                    <div class="status-icon small">
+                        <i class="fas fa-coins"></i>
+                    </div>
+                    <div class="status-info">
+                        <div class="status-title small">Total a Pagar</div>
+                        <div class="status-value small">Q 0.00</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tabla de personal (con más espacio disponible) -->
+            <div class="personnel-card animate__animated animate__fadeIn expanded" style="--delay: 0.3s">
+                <div class="card-header with-search">
+                    <h3><i class="fas fa-list"></i> Listado de Personal</h3>
+                    <div class="card-actions">
+                        <div class="search-container">
+                            <input type="text" id="searchPersonal" placeholder="Buscar personal...">
+                            <i class="fas fa-search"></i>
+                        </div>
+                        <button class="btn-card-action" title="Actualizar listado" id="refreshListBtn">
+                            <i class="fas fa-sync-alt"></i>
+                        </button>
+                        <button class="btn-card-action special-action" title="Agregar colaboradores externos" id="addExternalBtn">
+                            <i class="fas fa-user-plus"></i>
+                            <span class="action-tooltip">Agregar Externos</span>
+                        </button>
+                    </div>
+                </div>
+                <div class="card-body table-expanded">
+                    <div class="table-container">
+                        <table class="data-table" id="personalTable">
+                            <thead>
+                                <tr>
+                                    <th class="th-checkbox">
+                                        <div class="th-content">
+                                            <input type="checkbox" id="selectAll" class="form-check-input">
+                                            <label for="selectAll"></label>
+                                        </div>
+                                    </th>
+                                    <th class="th-id">ID</th>
+                                    <th class="th-nombre">Nombre del Colaborador</th>
+                                    <th class="th-puesto">Puesto</th>
+                                    <th class="th-tipo">Tipo de Personal</th>
+                                    <th class="th-pago">Pago Aplicable</th>
+                                </tr>
+                            </thead>
+                            <tbody id="personalTableBody">
+                                <tr class="empty-row">
+                                    <td colspan="6">
+                                        <div class="empty-message">
+                                            <i class="fas fa-search"></i>
+                                            <p>Seleccione los filtros y presione "Buscar" para mostrar el personal</p>
+                                        </div>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                <div class="card-footer">
+                    <div class="pagination compact">
+                        <button class="pagination-btn" id="firstPageBtn" disabled>
+                            <i class="fas fa-angle-double-left"></i>
+                        </button>
+                        <button class="pagination-btn" id="prevPageBtn" disabled>
+                            <i class="fas fa-angle-left"></i>
+                        </button>
+                        <div class="pagination-info">
+                            <span id="currentPage">0</span> de <span id="totalPages">0</span>
+                        </div>
+                        <button class="pagination-btn" id="nextPageBtn" disabled>
+                            <i class="fas fa-angle-right"></i>
+                        </button>
+                        <button class="pagination-btn" id="lastPageBtn" disabled>
+                            <i class="fas fa-angle-double-right"></i>
+                        </button>
+                    </div>
+                    <div class="table-actions">
+                        <button class="btn btn-danger" id="deleteSelectedBtn" disabled>
+                            <i class="fas fa-trash-alt"></i> Eliminar Seleccionados
+                        </button>
+                        <button class="btn btn-success" id="generatePlanillaBtn" disabled>
+                            <i class="fas fa-file-invoice-dollar"></i> Generar Planilla
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Modal para confirmación de generación de planilla -->
+    <div class="modal" id="confirmModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3><i class="fas fa-check-circle"></i> Confirmar Generación de Planilla</h3>
+                <button class="close-modal"><i class="fas fa-times"></i></button>
+            </div>
+            <div class="modal-body">
+                <div class="confirm-info">
+                    <p>Está a punto de generar la planilla con los siguientes detalles:</p>
+                    
+                    <div class="confirm-details">
+                        <div class="confirm-item">
+                            <span class="confirm-label">Departamento:</span>
+                            <span class="confirm-value" id="confirmDepartamento">-</span>
+                        </div>
+                        <div class="confirm-item">
+                            <span class="confirm-label">Tipo de Personal:</span>
+                            <span class="confirm-value" id="confirmTipoPersonal">-</span>
+                        </div>
+                        <div class="confirm-item">
+                            <span class="confirm-label">Fecha:</span>
+                            <span class="confirm-value" id="confirmFecha">-</span>
+                        </div>
+                        <div class="confirm-item">
+                            <span class="confirm-label">Tipo de Pago:</span>
+                            <span class="confirm-value" id="confirmTipoPago">-</span>
+                        </div>
+                        <div class="confirm-item highlight">
+                            <span class="confirm-label">Total de Personal:</span>
+                            <span class="confirm-value" id="confirmTotalPersonal">0</span>
+                        </div>
+                        <div class="confirm-item highlight">
+                            <span class="confirm-label">Total a Pagar:</span>
+                            <span class="confirm-value" id="confirmTotalPago">Q 0.00</span>
+                        </div>
+                    </div>
+                    
+                    <div class="confirm-preview-option">
+                        <div class="preview-box" id="previewBox">
+                            <i class="fas fa-file-pdf"></i>
+                            <span>Ver previsualización antes de generar</span>
+                        </div>
+                    </div>
+                    
+                    <div class="confirm-warning">
+                        <i class="fas fa-exclamation-triangle"></i>
+                        <p>Esta acción no se puede deshacer. ¿Está seguro de continuar?</p>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-outline" id="cancelGenerateBtn">
+                    <i class="fas fa-times"></i> Cancelar
+                </button>
+                <button class="btn btn-info" id="previewPdfBtn">
+                    <i class="fas fa-file-pdf"></i> Previsualizar PDF
+                </button>
+                <button class="btn btn-success" id="confirmGenerateBtn">
+                    <i class="fas fa-check"></i> Confirmar y Generar
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal de ayuda -->
+    <div class="modal" id="helpModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3><i class="fas fa-question-circle"></i> Ayuda - Planilla Especial</h3>
+                <button class="close-modal"><i class="fas fa-times"></i></button>
+            </div>
+            <div class="modal-body">
+                <div class="help-section">
+                    <h4><i class="fas fa-info-circle"></i> Información General</h4>
+                    <p>Esta pantalla le permite generar planillas para pagos dominicales o días especiales para el personal seleccionado.</p>
+                </div>
+                
+                <div class="help-section">
+                    <h4><i class="fas fa-filter"></i> Filtros</h4>
+                    <ul class="help-list">
+                        <li><strong>Departamento:</strong> Seleccione el departamento para el que desea generar la planilla.</li>
+                        <li><strong>Tipo de Personal:</strong> Seleccione el tipo de personal (Fijo, Parcial, etc.).</li>
+                        <li><strong>Fecha:</strong> Seleccione la fecha para la planilla. El sistema determinará automáticamente si es un domingo o un día especial.</li>
+                    </ul>
+                </div>
+                
+                <div class="help-section">
+                    <h4><i class="fas fa-clipboard-list"></i> Tipos de Pago</h4>
+                    <ul class="help-list">
+                        <li><strong>Pago Dominical:</strong> Se aplica cuando la fecha seleccionada es domingo y no está registrada como día especial.</li>
+                        <li><strong>Pago Día Especial:</strong> Se aplica cuando la fecha está registrada como día especial para el departamento seleccionado.</li>
+                    </ul>
+                </div>
+                
+                <div class="help-section">
+                    <h4><i class="fas fa-exclamation-triangle"></i> Restricciones</h4>
+                    <p>No se podrá generar una planilla si:</p>
+                    <ul class="help-list">
+                        <li>La fecha seleccionada no es domingo ni está registrada como día especial.</li>
+                        <li>No hay personal asignado al departamento seleccionado.</li>
+                    </ul>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-primary" id="closeHelpBtn">
+                    <i class="fas fa-check"></i> Entendido
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal para procesos -->
+    <div class="modal" id="processModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="processModalTitle"><i class="fas fa-cog fa-spin"></i> Procesando</h3>
+            </div>
+            <div class="modal-body">
+                <div class="process-container">
+                    <div class="process-progress">
+                        <div class="progress-bar">
+                            <div class="progress-fill" id="progressFill"></div>
+                        </div>
+                        <div class="progress-text" id="progressText">0%</div>
+                    </div>
+                    <div class="process-message" id="processMessage">Iniciando proceso...</div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="modal" id="externalModal">
+        <div class="modal-content wider-modal">
+            <div class="modal-header">
+                <h3><i class="fas fa-user-plus"></i> Agregar Colaboradores Externos</h3>
+                <button class="close-modal"><i class="fas fa-times"></i></button>
+            </div>
+            <div class="modal-body">
+                <div class="external-personnel-form">
+                    <p>Seleccione colaboradores de otros departamentos para agregarlos a esta planilla.</p>
+                    
+                    <!-- Contadores de personal (Fijo, Parcial, Vacacionista) -->
+                    <div class="counters-container">
+                        <div class="counter-item" id="counterFijo">
+                            <div class="counter-icon">
+                                <i class="fas fa-user-tie"></i>
+                            </div>
+                            <div class="counter-info">
+                                <span class="counter-label">Personal Fijo</span>
+                                <span class="counter-value">
+                                    <span id="countFijo">0</span>
+                                    <span class="counter-max">/ <span id="maxFijo">0</span></span>
+                                </span>
+                            </div>
+                            <div class="counter-progress">
+                                <div class="progress-bar">
+                                    <div class="progress-fill" id="progressFijo" style="width: 0%"></div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="counter-item" id="counterParcial">
+                            <div class="counter-icon">
+                                <i class="fas fa-user-clock"></i>
+                            </div>
+                            <div class="counter-info">
+                                <span class="counter-label">Personal Parcial</span>
+                                <span class="counter-value">
+                                    <span id="countParcial">0</span>
+                                    <span class="counter-max">/ <span id="maxParcial">0</span></span>
+                                </span>
+                            </div>
+                            <div class="counter-progress">
+                                <div class="progress-bar">
+                                    <div class="progress-fill" id="progressParcial" style="width: 0%"></div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="counter-item" id="counterVacacionista">
+                            <div class="counter-icon">
+                                <i class="fas fa-umbrella-beach"></i>
+                            </div>
+                            <div class="counter-info">
+                                <span class="counter-label">Personal Vacacionista</span>
+                                <span class="counter-value">
+                                    <span id="countVacacionista">0</span>
+                                    <span class="counter-max">/ <span id="maxVacacionista">0</span></span>
+                                </span>
+                            </div>
+                            <div class="counter-progress">
+                                <div class="progress-bar">
+                                    <div class="progress-fill" id="progressVacacionista" style="width: 0%"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Filtros de búsqueda de colaboradores externos -->
+                    <div class="form-row two-columns">
+                        <!-- Departamento Origen -->
+                        <div class="form-group">
+                            <label for="externalDepartamento" class="form-label">
+                                <i class="fas fa-building"></i> Departamento de Origen
+                            </label>
+                            <div class="select-container">
+                                <select id="externalDepartamento" class="form-select" required>
+                                    <option value="" disabled selected>Seleccionar departamento</option>
+                                    <!-- Las opciones se cargarán dinámicamente -->
+                                </select>
+                                <div class="select-arrow">
+                                    <i class="fas fa-chevron-down"></i>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Búsqueda de Colaborador -->
+                        <div class="form-group">
+                            <label for="searchExternalPersonal" class="form-label">
+                                <i class="fas fa-search"></i> Buscar Colaborador
+                            </label>
+                            <div class="input-with-icon">
+                                <input type="text" id="searchExternalPersonal" class="form-control" placeholder="Buscar por nombre...">
+                                <button class="icon-button" id="clearSearchBtn" title="Limpiar búsqueda">
+                                    <i class="fas fa-times"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Tabla de colaboradores externos disponibles -->
+                    <div class="table-container limited-height">
+                        <table class="data-table" id="externalPersonalTable">
+                            <thead>
+                                <tr>
+                                    <th class="th-checkbox">
+                                        <div class="th-content">
+                                            <input type="checkbox" id="selectAllExternal" class="form-check-input">
+                                            <label for="selectAllExternal"></label>
+                                        </div>
+                                    </th>
+                                    <th class="th-id">ID</th>
+                                    <th class="th-nombre">Nombre del Colaborador</th>
+                                    <th class="th-tipo">Tipo de Personal</th>
+                                    <th class="th-pago">Pago Aplicable</th>
+                                </tr>
+                            </thead>
+                            <tbody id="externalPersonalTableBody">
+                                <tr class="empty-row">
+                                    <td colspan="5">
+                                        <div class="empty-message">
+                                            <i class="fas fa-building"></i>
+                                            <p>Seleccione un departamento para ver los colaboradores disponibles</p>
+                                        </div>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    
+                    <!-- Información de la transacción -->
+                    <div class="transaction-info">
+                        <div class="transaction-header">
+                            <i class="fas fa-info-circle"></i>
+                            <span>Información Importante</span>
+                        </div>
+                        <p>Los colaboradores seleccionados serán añadidos a la planilla actual como personal de apoyo. Esta acción es temporal y solo afecta a esta planilla específica.</p>
+                        <p>El pago aplicable será determinado según el tipo de colaborador y la fecha seleccionada. Asegúrese de no exceder los límites establecidos para el departamento.</p>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <div class="selection-info">
+                    <span id="selectedExternalCount">0 colaboradores seleccionados</span>
+                </div>
+                <div class="action-buttons">
+                    <button class="btn btn-outline" id="cancelExternalBtn">
+                        <i class="fas fa-times"></i> Cancelar
+                    </button>
+                    <button class="btn btn-success" id="confirmExternalBtn" disabled>
+                        <i class="fas fa-plus-circle"></i> Agregar Seleccionados
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <!-- Contenedor de notificaciones toast -->
+    <div class="toast-container"></div>
+
+    <!-- Scripts -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.3.0/exceljs.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+    <script src="../Logica/PlanillaEspecial.js"></script>
+</body>
+</html>

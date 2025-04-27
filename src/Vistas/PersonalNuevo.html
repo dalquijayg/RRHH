@@ -1,0 +1,720 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Registro de Personal Nuevo</title>
+    <link rel="stylesheet" href="../Disenos/PersonalNuevo.css">
+</head>
+<body>
+    <!-- Header con logo y título -->
+    <div class="header">
+        <div class="header-title">
+            <img src="../Imagenes/Logo Recursos.png" alt="Logo RH" height="40">
+            <h1>Registro de Personal Nuevo</h1>
+        </div>
+        <div class="personal-info-preview hidden">
+            <div class="preview-photo">
+                <img src="" alt="Foto Personal" id="headerPhoto">
+            </div>
+            <div class="preview-details">
+                <h2 id="headerNombre">Nombre completo</h2>
+                <p id="headerDPI">DPI: </p>
+            </div>
+        </div>
+    </div>
+
+    <div class="container">
+        <!-- Tabs de navegación -->
+        <div class="tabs">
+            <button class="tab active">Datos Personales</button>
+            <button class="tab" disabled>Información de Contacto</button>
+            <button class="tab" disabled>Información Laboral</button>
+            <button class="tab" disabled>Información Academica</button>
+            <button class="tab" disabled>Documentos</button>
+            <button class="tab" disabled>Resultado PMA</button>
+        </div>
+
+        <form id="personalForm" class="form-container">
+            <!-- Sección de tipo de personal -->
+            <div class="tipo-personal">
+                <h3>Tipo de Personal</h3>
+                <div class="checkbox-group">
+                    <label>
+                        <input type="checkbox" name="tipoPersonal" value="fijo"> Personal Fijo
+                    </label>
+                    <label>
+                        <input type="checkbox" name="tipoPersonal" value="parcial"> Personal Parcial
+                    </label>
+                    <label>
+                        <input type="checkbox" name="tipoPersonal" value="vacacionista"> Vacacionista
+                    </label>
+                </div>
+            </div>
+
+            <!-- Sección de foto -->
+            <div class="form-group photo-upload">
+                <label for="photo">Fotografía del Personal</label>
+                <input type="file" id="photo" accept="image/*" required>
+                <div id="photoPreview" class="photo-preview">
+                    <span class="photo-placeholder">Click para subir foto</span>
+                </div>
+            </div>
+
+            <!-- Sección de nombres -->
+            <div class="nombres-row">
+                <div class="form-group">
+                    <label for="primerNombre">Primer Nombre*</label>
+                    <input type="text" id="primerNombre" required>
+                </div>
+                <div class="form-group">
+                    <label for="segundoNombre">Segundo Nombre*</label>
+                    <input type="text" id="segundoNombre" required>
+                </div>
+            </div>
+
+            <!-- Tercer nombre -->
+            <div class="form-group">
+                <label>¿Tiene tercer nombre?</label>
+                <div class="radio-group">
+                    <label>
+                        <input type="radio" name="tieneTercerNombre" value="si"> Sí
+                    </label>
+                    <label>
+                        <input type="radio" name="tieneTercerNombre" value="no" checked> No
+                    </label>
+                </div>
+            </div>
+
+            <div class="form-group hidden" id="tercerNombreGroup">
+                <label for="tercerNombre">Tercer Nombre*</label>
+                <input type="text" id="tercerNombre">
+            </div>
+
+            <!-- Sección de apellidos -->
+            <div class="apellidos-row">
+                <div class="form-group">
+                    <label for="primerApellido">Primer Apellido*</label>
+                    <input type="text" id="primerApellido" required>
+                </div>
+                <div class="form-group">
+                    <label for="segundoApellido">Segundo Apellido*</label>
+                    <input type="text" id="segundoApellido" required>
+                </div>
+            </div>
+
+            <!-- DPI y Fecha de Nacimiento -->
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="dpi">No. DPI*</label>
+                    <input type="text" id="dpi" required pattern="\d{13}" maxlength="13" 
+                           title="El DPI debe tener 13 dígitos">
+                </div>
+                <div class="form-group">
+                    <label for="fechaNacimiento">Fecha de Nacimiento*</label>
+                    <input type="date" id="fechaNacimiento" required>
+                </div>
+            </div>
+
+            <!-- Lugar de origen -->
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="departamentoOrigen">Departamento de Origen*</label>
+                    <select id="departamentoOrigen" required>
+                        <option value="">Seleccione...</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="municipioOrigen">Municipio de Origen*</label>
+                    <select id="municipioOrigen" required>
+                        <option value="">Seleccione...</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- Estado Civil y Tipo de Sangre -->
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="estadoCivil">Estado Civil*</label>
+                    <select id="estadoCivil" required>
+                        <option value="">Seleccione...</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="tipoSangre">Tipo de Sangre*</label>
+                    <select id="tipoSangre" required>
+                        <option value="">Seleccione...</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="sexo">Sexo*</label>
+                    <select id="sexo" required>
+                        <option value="">Seleccione...</option>
+                        <option value="M">Masculino</option>
+                        <option value="F">Femenino</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- Información de hijos -->
+            <div class="form-group">
+                <label>¿Tiene hijos?</label>
+                <div class="radio-group">
+                    <label>
+                        <input type="radio" name="tieneHijos" value="si"> Sí
+                    </label>
+                    <label>
+                        <input type="radio" name="tieneHijos" value="no" checked> No
+                    </label>
+                </div>
+            </div>
+
+            <div class="form-group hidden" id="cantidadHijosGroup">
+                <label for="cantidadHijos">Cantidad de Hijos*</label>
+                <input type="number" id="cantidadHijos" min="1" max="20">
+            </div>
+
+            <!-- Botones de acción -->
+            <div class="form-actions">
+                <button type="button" id="siguienteBtn" disabled>
+                    Siguiente
+                </button>
+            </div>
+        </form>
+    </div>
+    <div id="contactoForm" class="form-container" style="display: none;">
+        <!-- Información de Residencia -->
+        <div class="section-title">
+            <h3>Información de Residencia</h3>
+        </div>
+    
+        <div class="form-group">
+            <label for="direccionResidencia">Dirección de Residencia*</label>
+            <input type="text" id="direccionResidencia" required>
+        </div>
+    
+        <div class="form-row">
+            <div class="form-group">
+                <label for="departamentoResidencia">Departamento*</label>
+                <select id="departamentoResidencia" required>
+                    <option value="">Seleccione...</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="municipioResidencia">Municipio*</label>
+                <select id="municipioResidencia" required>
+                    <option value="">Seleccione...</option>
+                </select>
+            </div>
+        </div>
+    
+        <!-- Información de Contacto -->
+        <div class="form-row">
+            <div class="form-group">
+                <label for="telefono1">Teléfono #1*</label>
+                <input type="tel" id="telefono1" required maxlength="8" pattern="[0-9]{8}">
+            </div>
+            <div class="form-group">
+                <label for="telefono2">Teléfono #2</label>
+                <input type="tel" id="telefono2" maxlength="8" pattern="[0-9]{8}">
+            </div>
+        </div>
+    
+        <div class="form-group">
+            <label for="correoElectronico">Correo Electrónico*</label>
+            <input type="email" id="correoElectronico" required>
+        </div>
+    
+        <!-- Contacto de Emergencia -->
+        <div class="section-title">
+            <h3>Contacto de Emergencia</h3>
+        </div>
+    
+        <div class="form-group">
+            <label for="nombreEmergencia">Nombre Completo*</label>
+            <input type="text" id="nombreEmergencia" required>
+        </div>
+    
+        <div class="form-row">
+            <div class="form-group">
+                <label for="telefonoEmergencia">Teléfono*</label>
+                <input type="tel" id="telefonoEmergencia" required maxlength="8" pattern="[0-9]{8}">
+            </div>
+            <div class="form-group">
+                <label for="parentescoEmergencia">Parentesco*</label>
+                <select id="parentescoEmergencia" required>
+                    <option value="">Seleccione...</option>
+                </select>
+            </div>
+        </div>
+    
+        <!-- Botones de acción -->
+        <div class="form-actions">
+            <button type="button" id="anteriorBtn" class="btn-secondary">Anterior</button>
+            <button type="button" id="siguienteContactoBtn" disabled>Siguiente</button>
+        </div>
+    </div>
+    <div id="laboralForm" class="form-container" style="display: none;">
+        <div class="section-title">
+            <h3>Información Laboral</h3>
+        </div>
+    
+        <!-- División y Sucursal -->
+        <div class="form-row">
+            <div class="form-group">
+                <label for="division">División*</label>
+                <select id="division" required>
+                    <option value="">Seleccione...</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="sucursal">Sucursal/Departamento*</label>
+                <select id="sucursal" required>
+                    <option value="">Seleccione...</option>
+                </select>
+            </div>
+        </div>
+    
+        <!-- Región y Puesto -->
+        <div class="form-row">
+            <div class="form-group">
+                <label for="region">Región*</label>
+                <select id="region" name="region" required>
+                    <option value="">Seleccione...</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="puesto">Puesto*</label>
+                <select id="puesto" required>
+                    <option value="">Seleccione...</option>
+                </select>
+            </div>
+        </div>
+    
+        <!-- Tallas (se mostrará según la división) -->
+        <div class="form-row">
+            <div class="form-group hidden" id="tallaChaleco">
+                <label for="talla_chaleco">Talla de Chaleco*</label>
+                <select id="talla_chaleco">
+                    <option value="">Seleccione...</option>
+                    <option value="XS">XS</option>
+                    <option value="S">S</option>
+                    <option value="M">M</option>
+                    <option value="L">L</option>
+                    <option value="XL">XL</option>
+                    <option value="XXL">XXL</option>
+                </select>
+            </div>
+            <div class="form-group hidden" id="tallaCalzado">
+                <label for="talla_calzado">Talla de Calzado*</label>
+                <input type="number" id="talla_calzado" min="34" max="46" step="0.5">
+            </div>
+        </div>
+    
+        <!-- Fecha de Inicio -->
+        <div class="form-row">
+            <div class="form-group">
+                <label for="inicioLaboral">Inicio Laboral*</label>
+                <input type="date" id="inicioLaboral" required>
+            </div>
+        </div>
+    
+        <!-- Botones de acción -->
+        <div class="form-actions">
+            <button type="button" id="anteriorLaboralBtn" class="btn-secondary">Anterior</button>
+            <button type="button" id="siguienteLaboralBtn" disabled>Siguiente</button>
+        </div>
+    </div>
+    <div id="academicoForm" class="form-container" style="display: none;">
+        <div class="section-title">
+            <h3>Información Académica</h3>
+        </div>
+    
+        <!-- Contenedor principal para dos columnas -->
+        <div class="education-row">
+            <!-- Sección Primaria -->
+            <div class="education-card">
+                <div class="education-title">
+                    <h4>Primaria</h4>
+                    <div class="title-underline"></div>
+                </div>
+                <div class="education-content">
+                    <div class="radio-group">
+                        <label class="radio-option">
+                            <input type="radio" name="primaria" value="completado">
+                            <span>Completado</span>
+                        </label>
+                        <label class="radio-option">
+                            <input type="radio" name="primaria" value="incompleto">
+                            <span>Incompleto</span>
+                        </label>
+                        <label class="radio-option">
+                            <input type="radio" name="primaria" value="cursando">
+                            <span>Cursando</span>
+                        </label>
+                        <label class="radio-option">
+                            <input type="radio" name="primaria" value="nocurso">
+                            <span>No cursó</span>
+                        </label>
+                    </div>
+                    <div class="semester-select hidden" id="primariaSemestre">
+                        <label>Semestre cursado:</label>
+                        <select id="semestrePrimaria" required>
+                            <option value="">Seleccione...</option>
+                        </select>
+                    </div>
+                    <div class="plan-select hidden" id="planPrimaria">
+                        <label>Plan de Estudio:</label>
+                        <select id="planEstudioPrimaria" required>
+                            <option value="">Seleccione...</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+    
+            <!-- Sección Básico -->
+            <div class="education-card">
+                <div class="education-title">
+                    <h4>Básico</h4>
+                    <div class="title-underline"></div>
+                </div>
+                <div class="education-content">
+                    <div class="radio-group">
+                        <label class="radio-option">
+                            <input type="radio" name="basico" value="completado">
+                            <span>Completado</span>
+                        </label>
+                        <label class="radio-option">
+                            <input type="radio" name="basico" value="incompleto">
+                            <span>Incompleto</span>
+                        </label>
+                        <label class="radio-option">
+                            <input type="radio" name="basico" value="cursando">
+                            <span>Cursando</span>
+                        </label>
+                        <label class="radio-option">
+                            <input type="radio" name="basico" value="nocurso">
+                            <span>No cursó</span>
+                        </label>
+                    </div>
+                    <div class="semester-select hidden" id="basicoSemestre">
+                        <label>Semestre cursado:</label>
+                        <select id="semestreBasico" required>
+                            <option value="">Seleccione...</option>
+                        </select>
+                    </div>
+                    <div class="plan-select hidden" id="planBasico">
+                        <label>Plan de Estudio:</label>
+                        <select id="planEstudioBasico" required>
+                            <option value="">Seleccione...</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+            <div class="education-card">
+                <div class="education-title">
+                    <h4>Diversificado</h4>
+                    <div class="title-underline"></div>
+                </div>
+                <div class="education-content">
+                    <div class="radio-group">
+                        <label class="radio-option">
+                            <input type="radio" name="diversificado" value="completado">
+                            <span>Completado</span>
+                        </label>
+                        <label class="radio-option">
+                            <input type="radio" name="diversificado" value="incompleto">
+                            <span>Incompleto</span>
+                        </label>
+                        <label class="radio-option">
+                            <input type="radio" name="diversificado" value="cursando">
+                            <span>Cursando</span>
+                        </label>
+                        <label class="radio-option">
+                            <input type="radio" name="diversificado" value="nocurso">
+                            <span>No cursó</span>
+                        </label>
+                    </div>
+                    <div class="career-select" id="carreraDiversificado">
+                        <label>Carrera:</label>
+                        <select id="carreraDiversificadoSelect" required>
+                            <option value="">Seleccione...</option>
+                        </select>
+                    </div>
+                    <div class="semester-select hidden" id="diversificadoSemestre">
+                        <label>Semestre cursado:</label>
+                        <select id="semestreDiversificado" required>
+                            <option value="">Seleccione...</option>
+                        </select>
+                    </div>
+                    <div class="plan-select hidden" id="planDiversificado">
+                        <label>Plan de Estudio:</label>
+                        <select id="planEstudioDiversificado" required>
+                            <option value="">Seleccione...</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+            <div class="university-section">
+                <div class="checkbox-group university-check">
+                    <label>
+                        <input type="checkbox" id="estudiaUniversidad"> ¿Estudia o ha estudiado en la Universidad?
+                    </label>
+                </div>
+        
+                <div id="universidadSeccion" class="education-card hidden">
+                    <div class="education-title">
+                        <h4>Universidad</h4>
+                        <div class="title-underline"></div>
+                    </div>
+                    <div class="education-content">
+                        <div class="radio-group">
+                            <label class="radio-option">
+                                <input type="radio" name="universidad" value="completado">
+                                <span>Completado</span>
+                            </label>
+                            <label class="radio-option">
+                                <input type="radio" name="universidad" value="incompleto">
+                                <span>Incompleto</span>
+                            </label>
+                            <label class="radio-option">
+                                <input type="radio" name="universidad" value="cursando">
+                                <span>Cursando</span>
+                            </label>
+                        </div>
+        
+                        <!-- Carrera Universitaria -->
+                        <div class="university-select hidden" id="carreraUniversitariaDiv">
+                            <label>Carrera:</label>
+                            <select id="carreraUniversitaria" required>
+                                <option value="">Seleccione...</option>
+                            </select>
+                        </div>
+        
+                        <!-- Universidad -->
+                        <div class="university-select hidden" id="universidadDiv">
+                            <label>Universidad:</label>
+                            <select id="universidad" required>
+                                <option value="">Seleccione...</option>
+                            </select>
+                        </div>
+        
+                        <!-- Semestre (para Incompleto y Cursando) -->
+                        <div class="semester-select hidden" id="universitarioSemestre">
+                            <label>Semestre cursado:</label>
+                            <select id="semestreUniversitario" required>
+                                <option value="">Seleccione...</option>
+                            </select>
+                        </div>
+        
+                        <!-- Plan de Estudio (solo para Cursando) -->
+                        <div class="plan-select hidden" id="planUniversitario">
+                            <label>Plan de Estudio:</label>
+                            <select id="planEstudioUniversitario" required>
+                                <option value="">Seleccione...</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div id="maestriaSection" class="masters-section hidden">
+                <div class="checkbox-group masters-check">
+                    <label>
+                        <input type="checkbox" id="estudiaMaestria"> ¿Estudia o ha estudiado una Maestría?
+                    </label>
+                </div>
+        
+                <div id="maestriaSeccion" class="education-card hidden">
+                    <div class="education-title">
+                        <h4>Maestría</h4>
+                        <div class="title-underline"></div>
+                    </div>
+                    <div class="education-content">
+                        <div class="radio-group">
+                            <label class="radio-option">
+                                <input type="radio" name="maestria" value="completado">
+                                <span>Completado</span>
+                            </label>
+                            <label class="radio-option">
+                                <input type="radio" name="maestria" value="incompleto">
+                                <span>Incompleto</span>
+                            </label>
+                            <label class="radio-option">
+                                <input type="radio" name="maestria" value="cursando">
+                                <span>Cursando</span>
+                            </label>
+                        </div>
+        
+                        <!-- Maestría -->
+                        <div class="masters-select hidden" id="maestriaCarreraDiv">
+                            <label>Maestría:</label>
+                            <select id="maestriaCarrera" required>
+                                <option value="">Seleccione...</option>
+                            </select>
+                        </div>
+        
+                        <!-- Universidad -->
+                        <div class="masters-select hidden" id="maestriaUniversidadDiv">
+                            <label>Universidad:</label>
+                            <select id="maestriaUniversidad" required>
+                                <option value="">Seleccione...</option>
+                            </select>
+                        </div>
+        
+                        <!-- Semestre (para Incompleto y Cursando) -->
+                        <div class="semester-select hidden" id="maestriaSemestre">
+                            <label>Trimestre cursado:</label>
+                            <select id="semestreMaestria" required>
+                                <option value="">Seleccione...</option>
+                            </select>
+                        </div>
+        
+                        <!-- Plan de Estudio (solo para Cursando) -->
+                        <div class="plan-select hidden" id="planMaestria">
+                            <label>Plan de Estudio:</label>
+                            <select id="planEstudioMaestria" required>
+                                <option value="">Seleccione...</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    
+        <!-- Botones de acción -->
+        <div class="form-actions">
+            <button type="button" id="anteriorAcademicoBtn" class="btn-secondary">Anterior</button>
+            <button type="button" id="siguienteAcademicoBtn" disabled>Siguiente</button>
+        </div>
+    </div>
+    <div id="documentacionForm" class="form-container" style="display: none;">
+        <div class="section-title">
+            <h3>Documentación</h3>
+        </div>
+    
+        <!-- RTU -->
+        <div class="form-group">
+            <div class="checkbox-group">
+                <label>
+                    <input type="checkbox" id="tieneRTU"> ¿Tiene RTU?
+                </label>
+            </div>
+            <div id="nitGroup" class="form-group hidden">
+                <label for="nit">NIT*</label>
+                <input type="text" id="nit" pattern="[0-9K\-]+" maxlength="15" placeholder="Ejemplo: 12345678-9">
+            </div>
+        </div>
+    
+        <!-- Licencia de Conducir -->
+        <div class="form-group">
+            <label>¿Sabe manejar algún vehículo?</label>
+            <div class="radio-group">
+                <label>
+                    <input type="radio" name="sabeManejar" value="si"> Sí
+                </label>
+                <label>
+                    <input type="radio" name="sabeManejar" value="no" checked> No
+                </label>
+            </div>
+        </div>
+    
+        <!-- Tipo de Licencia -->
+        <div id="tipoLicenciaGroup" class="form-group hidden">
+            <label for="tipoLicencia">Tipo de Licencia*</label>
+            <select id="tipoLicencia">
+                <option value="">Seleccione...</option>
+            </select>
+        </div>
+    
+        <!-- Tarjetas -->
+        <div class="form-row">
+            <div class="form-group">
+                <label for="vencimientoTarjetaSalud">Fecha Vencimiento Tarjeta de Salud*</label>
+                <input type="date" id="vencimientoTarjetaSalud" required>
+            </div>
+            <div class="form-group">
+                <label for="vencimientoTarjetaManipulacion">Fecha Vencimiento Tarjeta de Manipulación*</label>
+                <input type="date" id="vencimientoTarjetaManipulacion" required>
+            </div>
+        </div>
+    
+        <!-- Licencia de Armas -->
+        <div class="form-group">
+            <label>¿Tiene licencia para portar arma?</label>
+            <div class="radio-group">
+                <label>
+                    <input type="radio" name="tienePorteArma" value="si"> Sí
+                </label>
+                <label>
+                    <input type="radio" name="tienePorteArma" value="no" checked> No
+                </label>
+            </div>
+        </div>
+    
+        <!-- Botones de acción -->
+        <div class="form-actions">
+            <button type="button" id="anteriorDocumentacionBtn" class="btn-secondary">Anterior</button>
+            <button type="button" id="siguienteDocumentacionBtn" disabled>Siguiente</button>
+        </div>
+    </div>
+    <div id="pmaForm" class="form-container" style="display: none;">
+        <div class="section-title">
+            <h3>Resultados PMA</h3>
+        </div>
+    
+        <div class="form-row">
+            <div class="form-group">
+                <label for="fechaPMA">Fecha de Evaluación*</label>
+                <input type="date" id="fechaPMA" required>
+            </div>
+        </div>
+    
+        <div class="form-row">
+            <div class="form-group">
+                <label for="factorV">Factor V*</label>
+                <input type="number" id="factorV" min="0" max="100" required 
+                       placeholder="Ingrese resultado" class="pma-input">
+            </div>
+            <div class="form-group">
+                <label for="factorE">Factor E*</label>
+                <input type="number" id="factorE" min="0" max="100" required 
+                       placeholder="Ingrese resultado" class="pma-input">
+            </div>
+        </div>
+    
+        <div class="form-row">
+            <div class="form-group">
+                <label for="factorR">Factor R*</label>
+                <input type="number" id="factorR" min="0" max="100" required 
+                       placeholder="Ingrese resultado" class="pma-input">
+            </div>
+            <div class="form-group">
+                <label for="factorN">Factor N*</label>
+                <input type="number" id="factorN" min="0" max="100" required 
+                       placeholder="Ingrese resultado" class="pma-input">
+            </div>
+        </div>
+    
+        <div class="form-row">
+            <div class="form-group">
+                <label for="factorF">Factor F*</label>
+                <input type="number" id="factorF" min="0" max="100" required 
+                       placeholder="Ingrese resultado" class="pma-input">
+            </div>
+            <div class="form-group">
+                <label for="promedioPMA">Promedio</label>
+                <input type="number" id="promedioPMA" readonly 
+                       class="result-input">
+            </div>
+        </div>
+    
+        <!-- Botones de acción -->
+        <div class="form-actions">
+            <button type="button" id="anteriorPMABtn" class="btn-secondary">Anterior</button>
+            <button type="button" id="finalizarBtn" disabled>Finalizar</button>
+        </div>
+    </div>
+    <!-- Scripts -->
+    <script src="../Logica/PersonalNuevo.js"></script>
+</body>
+</html>

@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Descuentos y Suspensiones - Recursos Humanos</title>
+    <link rel="stylesheet" href="../Disenos/IngresoDescuentoJudiciales.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+</head>
+<body>
+    <!-- Elementos decorativos eliminados para mejorar rendimiento -->
+    
+    <div class="container">
+        <div class="form-card">
+            <button id="helpButton" class="help-button" title="Ayuda">
+                <i class="fas fa-question-circle"></i>
+            </button>
+            <div class="card-header">
+                <div class="icon-wrapper">
+                    <i class="fas fa-gavel"></i>
+                </div>
+                <h2 id="formTitle">Descuentos y Suspensiones</h2>
+                <div class="color-strip">
+                    <div class="color-strip-item color-red"></div>
+                    <div class="color-strip-item color-blue"></div>
+                    <div class="color-strip-item color-green"></div>
+                    <div class="color-strip-item color-yellow"></div>
+                    <div class="color-strip-item color-orange"></div>
+                </div>
+            </div>
+            
+            <!-- Selector de tipo de registro -->
+            <div class="tab-selector">
+                <button class="tab-button active" data-form="descuentos">
+                    <i class="fas fa-gavel"></i> Descuentos Judiciales
+                </button>
+                <button class="tab-button" data-form="suspensiones">
+                    <i class="fas fa-calendar-times"></i> Suspensiones
+                </button>
+                <div class="tab-slider"></div>
+            </div>
+            
+            <!-- Formulario de Descuentos Judiciales -->
+            <form id="descuentosForm" class="form-container active">
+                <!-- Sección de búsqueda de colaborador -->
+                <div class="search-section">
+                    <h3><i class="fas fa-search"></i> Buscar Colaborador</h3>
+                    
+                    <div class="input-group">
+                        <input type="text" id="searchInput" placeholder="Ingrese DPI o nombre del colaborador">
+                        <button type="button" id="searchButton" class="action-button">
+                            <i class="fas fa-search"></i>
+                        </button>
+                    </div>
+                    
+                    <div class="search-results" id="searchResults">
+                        <!-- Los resultados de la búsqueda se cargarán aquí -->
+                    </div>
+                </div>
+                
+                <!-- Sección de información del colaborador seleccionado -->
+                <div class="employee-info" id="employeeInfo" style="display: none;">
+                    <div class="employee-card">
+                        <div class="employee-photo">
+                            <img id="employeePhoto" src="../Imagenes/user-default.png" alt="Foto de colaborador">
+                        </div>
+                        <div class="employee-details">
+                            <h4 id="employeeName">Nombre del Colaborador</h4>
+                            <p id="employeeDepartment">Departamento</p>
+                            <div class="employee-id">
+                                <span>ID: </span>
+                                <span id="employeeId">---</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Sección de datos del descuento judicial -->
+                <div class="discount-data" id="discountForm" style="display: none;">
+                    <h3><i class="fas fa-file-invoice-dollar"></i> Datos del Descuento Judicial</h3>
+                    
+                    <div class="form-row">
+                        <div class="input-container">
+                            <label for="noDocumento">No. de Documento del Embargo</label>
+                            <input type="text" id="noDocumento" required>
+                            <span class="input-focus-effect"></span>
+                        </div>
+                    </div>
+                    
+                    <div class="form-row two-columns">
+                        <div class="input-container">
+                            <label for="montoEmbargo">Monto del Embargo (Q)</label>
+                            <input type="number" id="montoEmbargo" step="0.01" min="0" required>
+                            <span class="input-focus-effect"></span>
+                        </div>
+                        
+                        <div class="input-container">
+                            <label for="porcentajeLiquidacion">Porcentaje de Liquidación (%)</label>
+                            <input type="number" id="porcentajeLiquidacion" step="0.01" min="0" max="100" required>
+                            <span class="input-focus-effect"></span>
+                        </div>
+                    </div>
+                    
+                    <div class="form-row two-columns">
+                        <div class="result-container">
+                            <label>Monto de Liquidación Procesal</label>
+                            <div class="calculated-result" id="montoLiquidacion">Q 0.00</div>
+                        </div>
+                        
+                        <div class="result-container">
+                            <label>Monto Total (Embargo + Liquidación)</label>
+                            <div class="calculated-result total-result" id="montoTotal">Q 0.00</div>
+                        </div>
+                    </div>
+                    
+                    <div class="section-divider">
+                        <span>Distribución de Pagos</span>
+                    </div>
+                    
+                    <div class="form-row">
+                        <div class="input-container">
+                            <label for="porcentajeDescuento">% de Descuento sobre Salario Base</label>
+                            <div class="input-with-button">
+                                <input type="number" id="porcentajeDescuento" step="0.01" min="0" max="100" placeholder="35% por defecto">
+                                <button type="button" id="aplicarPorcentaje" class="apply-button" title="Aplicar porcentaje al sueldo">
+                                    <i class="fas fa-percentage"></i>
+                                </button>
+                            </div>
+                            <span class="input-focus-effect"></span>
+                        </div>
+                    </div>
+                    
+                    <div class="form-row two-columns">
+                        <div class="input-container">
+                            <label for="montoQuincenaMedio">Descuento Quincena Medio Mes (Q)</label>
+                            <input type="number" id="montoQuincenaMedio" step="0.01" min="0" required>
+                            <span class="input-focus-effect"></span>
+                        </div>
+                        
+                        <div class="input-container">
+                            <label for="montoQuincenaFin">Descuento Quincena Fin de Mes (Q)</label>
+                            <input type="number" id="montoQuincenaFin" step="0.01" min="0" required>
+                            <span class="input-focus-effect"></span>
+                        </div>
+                    </div>
+                    
+                    <div class="form-row">
+                        <div class="verification-container">
+                            <div class="verification-status" id="verificacionTotal">
+                                <i class="fas fa-exclamation-triangle"></i> La suma de las quincenas debe ser igual al monto total
+                            </div>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="input-container">
+                            <label for="fileScaner">Documento escaneado (PDF o imagen, máx. 14MB)</label>
+                            <input type="file" id="fileScaner" accept=".pdf,.jpg,.jpeg,.png" class="file-input">
+                            <span class="input-focus-effect"></span>
+                            <div class="file-preview" id="filePreview"></div>
+                        </div>
+                    </div>
+                    <div class="form-actions">
+                        <button type="button" id="cancelButton" class="cancel-button">
+                            <i class="fas fa-times"></i> Cancelar
+                        </button>
+                        <button type="submit" id="saveButton" class="save-button">
+                            <i class="fas fa-save"></i> Guardar
+                        </button>
+                    </div>
+                </div>
+            </form>
+            
+            <!-- Formulario de Suspensiones -->
+            <form id="suspensionesForm" class="form-container">
+                <!-- Sección de búsqueda de colaborador -->
+                <div class="search-section">
+                    <h3><i class="fas fa-search"></i> Buscar Colaborador</h3>
+                    
+                    <div class="input-group">
+                        <input type="text" id="searchInputSuspension" placeholder="Ingrese DPI o nombre del colaborador">
+                        <button type="button" id="searchButtonSuspension" class="action-button">
+                            <i class="fas fa-search"></i>
+                        </button>
+                    </div>
+                    
+                    <div class="search-results" id="searchResultsSuspension">
+                        <!-- Los resultados de la búsqueda se cargarán aquí -->
+                    </div>
+                </div>
+                
+                <!-- Sección de información del colaborador seleccionado -->
+                <div class="employee-info" id="employeeInfoSuspension" style="display: none;">
+                    <div class="employee-card">
+                        <div class="employee-photo">
+                            <img id="employeePhotoSuspension" src="../Imagenes/user-default.png" alt="Foto de colaborador">
+                        </div>
+                        <div class="employee-details">
+                            <h4 id="employeeNameSuspension">Nombre del Colaborador</h4>
+                            <p id="employeeDepartmentSuspension">Departamento</p>
+                            <div class="employee-id">
+                                <span>ID: </span>
+                                <span id="employeeIdSuspension">---</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Sección de datos de la suspensión -->
+                <div class="suspension-data" id="suspensionForm" style="display: none;">
+                    <h3><i class="fas fa-calendar-times"></i> Datos de la Suspensión</h3>
+                    
+                    <div class="form-row two-columns">
+                        <div class="input-container">
+                            <label for="fechaInicio">Fecha de Inicio</label>
+                            <input type="date" id="fechaInicio" required>
+                            <span class="input-focus-effect"></span>
+                        </div>
+                        
+                        <div class="input-container">
+                            <label for="fechaFin">Fecha de Finalización</label>
+                            <input type="date" id="fechaFin" required>
+                            <span class="input-focus-effect"></span>
+                        </div>
+                    </div>
+                    
+                    <div class="form-row">
+                        <div class="result-container">
+                            <label>Duración Total</label>
+                            <div class="calculated-result" id="duracionSuspension">0 días</div>
+                        </div>
+                    </div>
+                    
+                    <div class="form-row">
+                        <div class="input-container">
+                            <label for="motivoSuspension">Motivo de la Suspensión</label>
+                            <textarea id="motivoSuspension" rows="4" maxlength="255" required></textarea>
+                            <div class="character-counter"><span id="charCount">0</span>/255</div>
+                            <span class="input-focus-effect"></span>
+                        </div>
+                    </div>
+                    
+                    <div class="form-actions">
+                        <button type="button" id="cancelButtonSuspension" class="cancel-button">
+                            <i class="fas fa-times"></i> Cancelar
+                        </button>
+                        <button type="submit" id="saveButtonSuspension" class="save-button">
+                            <i class="fas fa-save"></i> Guardar
+                        </button>
+                    </div>
+                </div>
+            </form>
+            
+            <div class="footer-text">
+                <p>Sistema de Recursos Humanos</p>
+                <p>© New Technology 2025</p>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Template para resultados de búsqueda -->
+    <template id="searchResultTemplate">
+        <div class="search-result-item" data-id="">
+            <div class="result-icon">
+                <i class="fas fa-user"></i>
+            </div>
+            <div class="result-info">
+                <div class="result-name"></div>
+                <div class="result-id"></div>
+            </div>
+            <div class="result-action">
+                <button class="select-button">
+                    <i class="fas fa-check"></i>
+                </button>
+            </div>
+        </div>
+    </template>
+    
+    <script src="../Logica/IngresoDescuentoJudiciales.js"></script>
+</body>
+</html>

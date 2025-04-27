@@ -1,0 +1,517 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Reporte de Descuentos Judiciales - Recursos Humanos</title>
+    <link rel="stylesheet" href="../Disenos/Reportes/ReporteDescuentoJudicial.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+</head>
+<body>
+    <!-- Elementos decorativos de fondo -->
+    <div class="bg-decoration wave wave1"></div>
+    <div class="bg-decoration wave wave2"></div>
+    <div class="bg, decoration hexagon hexagon1"></div>
+    <div class="bg-decoration hexagon hexagon2"></div>
+    <div class="bg-decoration hexagon hexagon3"></div>
+    <div class="bg-grid"></div>
+    
+    <div class="container">
+        <div class="dashboard-card">
+            <div class="card-header">
+                <div class="header-content">
+                    <div class="logo-container">
+                        <div class="logo-icon">
+                            <i class="fas fa-gavel"></i>
+                        </div>
+                    </div>
+                    <div class="title-container">
+                        <h1>Reporte de Descuentos Judiciales</h1>
+                        <div class="pulse-line"></div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="search-section">
+                <div class="search-filters">
+                    <div class="filter-group employee-search">
+                        <div class="filter-label">
+                            <i class="fas fa-user"></i>
+                            <span>Buscar Colaborador</span>
+                        </div>
+                        <div class="filter-input">
+                            <input type="text" id="employeeSearch" placeholder="Nombre o ID del colaborador">
+                            <button id="searchButton" class="filter-button">
+                                <i class="fas fa-search"></i>
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div class="filter-group date-range">
+                        <div class="filter-label">
+                            <i class="fas fa-calendar-alt"></i>
+                            <span>Rango de Fechas</span>
+                        </div>
+                        <div class="filter-input date-inputs">
+                            <div class="date-field">
+                                <label for="startDate">Desde</label>
+                                <input type="date" id="startDate">
+                            </div>
+                            <div class="date-field">
+                                <label for="endDate">Hasta</label>
+                                <input type="date" id="endDate">
+                            </div>
+                            <button id="applyDateFilter" class="filter-button">
+                                <i class="fas fa-filter"></i>
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div class="filter-group date-type">
+                        <div class="filter-label">
+                            <i class="fas fa-clock"></i>
+                            <span>Tipo de Fecha</span>
+                        </div>
+                        <div class="filter-input radio-buttons">
+                            <div class="radio-option">
+                                <input type="radio" id="registerDate" name="dateType" value="register" checked>
+                                <label for="registerDate">Fecha de Registro</label>
+                            </div>
+                            <div class="radio-option">
+                                <input type="radio" id="paymentDate" name="dateType" value="payment">
+                                <label for="paymentDate">Fecha de Descuento</label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="advanced-filters">
+                    <button id="toggleAdvanced" class="toggle-button">
+                        <span>Filtros Avanzados</span>
+                        <i class="fas fa-chevron-down"></i>
+                    </button>
+                    
+                    <div class="advanced-options" style="display: none;">
+                        <div class="filter-row">
+                            <div class="filter-group">
+                                <div class="filter-label">
+                                    <i class="fas fa-sort-amount-down"></i>
+                                    <span>Ordenar Por</span>
+                                </div>
+                                <div class="filter-input">
+                                    <select id="sortBy">
+                                        <option value="dateDesc">Fecha (Más reciente)</option>
+                                        <option value="dateAsc">Fecha (Más antigua)</option>
+                                        <option value="amountDesc">Monto (Mayor)</option>
+                                        <option value="amountAsc">Monto (Menor)</option>
+                                        <option value="nameAsc">Nombre (A-Z)</option>
+                                        <option value="nameDesc">Nombre (Z-A)</option>
+                                        <option value="balanceDesc">Saldo Pendiente (Mayor)</option>
+                                        <option value="balanceAsc">Saldo Pendiente (Menor)</option>
+                                    </select>
+                                </div>
+                            </div>
+                            
+                            <div class="filter-group">
+                                <div class="filter-label">
+                                    <i class="fas fa-filter"></i>
+                                    <span>Estado</span>
+                                </div>
+                                <div class="filter-input">
+                                    <select id="statusFilter">
+                                        <option value="all">Todos</option>
+                                        <option value="active">Activos</option>
+                                        <option value="completed">Finalizados</option>
+                                    </select>
+                                </div>
+                            </div>
+                            
+                            <div class="filter-group">
+                                <div class="filter-label">
+                                    <i class="fas fa-list-ol"></i>
+                                    <span>Resultados por página</span>
+                                </div>
+                                <div class="filter-input">
+                                    <select id="pageSize">
+                                        <option value="10">10</option>
+                                        <option value="25">25</option>
+                                        <option value="50">50</option>
+                                        <option value="100">100</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="report-header">
+                <div class="report-summary">
+                    <div class="summary-card">
+                        <div class="summary-icon">
+                            <i class="fas fa-users"></i>
+                        </div>
+                        <div class="summary-data">
+                            <div class="summary-value" id="totalEmployees">0</div>
+                            <div class="summary-label">Colaboradores</div>
+                        </div>
+                    </div>
+                    
+                    <div class="summary-card">
+                        <div class="summary-icon">
+                            <i class="fas fa-gavel"></i>
+                        </div>
+                        <div class="summary-data">
+                            <div class="summary-value" id="totalDiscounts">0</div>
+                            <div class="summary-label">Descuentos</div>
+                        </div>
+                    </div>
+                    
+                    <div class="summary-card">
+                        <div class="summary-icon">
+                            <i class="fas fa-money-bill-wave"></i>
+                        </div>
+                        <div class="summary-data">
+                            <div class="summary-value" id="totalAmount">Q 0.00</div>
+                            <div class="summary-label">Monto Total</div>
+                        </div>
+                    </div>
+                    
+                    <div class="summary-card">
+                        <div class="summary-icon">
+                            <i class="fas fa-piggy-bank"></i>
+                        </div>
+                        <div class="summary-data">
+                            <div class="summary-value" id="pendingAmount">Q 0.00</div>
+                            <div class="summary-label">Saldo Pendiente</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="result-info">
+                    <div class="result-count">
+                        Mostrando <span id="resultCount">0</span> resultados
+                    </div>
+                    <div class="refresh-button">
+                        <button id="refreshReport">
+                            <i class="fas fa-sync-alt"></i>
+                            <span>Actualizar</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="report-content">
+                <div class="loading-overlay" id="loadingOverlay">
+                    <div class="loader">
+                        <div class="loader-circle"></div>
+                        <div class="loader-text">Cargando datos...</div>
+                    </div>
+                </div>
+                
+                <table class="report-table">
+                    <thead>
+                        <tr>
+                            <th class="sortable" data-sort="employee">
+                                <div class="th-content">
+                                    <span>Colaborador</span>
+                                    <i class="fas fa-sort"></i>
+                                </div>
+                            </th>
+                            <th class="sortable" data-sort="department">
+                                <div class="th-content">
+                                    <span>Departamento</span>
+                                    <i class="fas fa-sort"></i>
+                                </div>
+                            </th>
+                            <th class="sortable" data-sort="document">
+                                <div class="th-content">
+                                    <span>No. Documento</span>
+                                    <i class="fas fa-sort"></i>
+                                </div>
+                            </th>
+                            <th class="sortable" data-sort="amount">
+                                <div class="th-content">
+                                    <span>Monto Embargo</span>
+                                    <i class="fas fa-sort"></i>
+                                </div>
+                            </th>
+                            <th class="sortable" data-sort="liquidation">
+                                <div class="th-content">
+                                    <span>Liquidación</span>
+                                    <i class="fas fa-sort"></i>
+                                </div>
+                            </th>
+                            <th class="sortable" data-sort="totalAmount">
+                                <div class="th-content">
+                                    <span>Monto Total</span>
+                                    <i class="fas fa-sort"></i>
+                                </div>
+                            </th>
+                            <th class="sortable" data-sort="balance">
+                                <div class="th-content">
+                                    <span>Saldo Pendiente</span>
+                                    <i class="fas fa-sort"></i>
+                                </div>
+                            </th>
+                            <th class="sortable" data-sort="status">
+                                <div class="th-content">
+                                    <span>Estado</span>
+                                    <i class="fas fa-sort"></i>
+                                </div>
+                            </th>
+                            <th>Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody id="reportData">
+                        <!-- Los datos se cargarán dinámicamente aquí -->
+                    </tbody>
+                </table>
+                
+                <div class="empty-state" id="emptyState" style="display: none;">
+                    <div class="empty-icon">
+                        <i class="fas fa-search"></i>
+                    </div>
+                    <div class="empty-text">No se encontraron descuentos judiciales con los filtros seleccionados</div>
+                    <button id="clearFilters" class="empty-button">
+                        <i class="fas fa-times-circle"></i>
+                        <span>Limpiar Filtros</span>
+                    </button>
+                </div>
+            </div>
+            
+            <div class="report-footer">
+                <div class="pagination">
+                    <button id="prevPage" class="page-button" disabled>
+                        <i class="fas fa-chevron-left"></i>
+                    </button>
+                    <div class="page-numbers" id="pageNumbers">
+                        <!-- Los números de página se generarán dinámicamente -->
+                        <span class="page-number active">1</span>
+                    </div>
+                    <button id="nextPage" class="page-button">
+                        <i class="fas fa-chevron-right"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+        
+        <div class="footer-text">
+            <p>Sistema de Recursos Humanos</p>
+            <p>© New Technology 2025</p>
+        </div>
+    </div>
+    
+    <!-- Modal de Detalles de Descuento Judicial -->
+    <div class="modal" id="discountModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Detalles de Descuento Judicial</h2>
+                <button class="modal-close" id="closeModal">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="tab-container">
+                    <div class="tab-buttons">
+                        <button class="tab-button active" data-tab="info">
+                            <i class="fas fa-info-circle"></i>
+                            Información
+                        </button>
+                        <button class="tab-button" data-tab="payments">
+                            <i class="fas fa-money-bill-alt"></i>
+                            Pagos
+                        </button>
+                        <button class="tab-button" data-tab="document">
+                            <i class="fas fa-file-alt"></i>
+                            Documento
+                        </button>
+                    </div>
+                    
+                    <div class="tab-content">
+                        <!-- Tab de Información -->
+                        <div class="tab-pane active" id="info-tab">
+                            <div class="employee-info">
+                                <div class="employee-photo">
+                                    <img id="modalEmployeePhoto" src="../Imagenes/user-default.png" alt="Foto del colaborador">
+                                </div>
+                                <div class="employee-details">
+                                    <h3 id="modalEmployeeName">Nombre del Colaborador</h3>
+                                    <p id="modalEmployeeDepartment">Departamento</p>
+                                    <p><strong>ID:</strong> <span id="modalEmployeeId">---</span></p>
+                                </div>
+                            </div>
+                            
+                            <div class="detail-section">
+                                <h4>Información del Descuento Judicial</h4>
+                                <div class="detail-grid">
+                                    <div class="detail-item">
+                                        <div class="detail-label">No. de Documento</div>
+                                        <div class="detail-value" id="modalDocumentNo">---</div>
+                                    </div>
+                                    <div class="detail-item">
+                                        <div class="detail-label">Fecha de Registro</div>
+                                        <div class="detail-value" id="modalRegisterDate">--/--/----</div>
+                                    </div>
+                                    <div class="detail-item">
+                                        <div class="detail-label">Estado</div>
+                                        <div class="detail-value" id="modalStatus">
+                                            <span class="status-badge">Activo</span>
+                                        </div>
+                                    </div>
+                                    <div class="detail-item">
+                                        <div class="detail-label">Registrado por</div>
+                                        <div class="detail-value" id="modalCreatedBy">Usuario</div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="detail-section">
+                                <h4>Valores del Descuento</h4>
+                                <div class="amount-cards">
+                                    <div class="amount-card">
+                                        <div class="amount-label">Monto del Embargo</div>
+                                        <div class="amount-value" id="modalEmbargoAmount">Q 0.00</div>
+                                    </div>
+                                    <div class="amount-card">
+                                        <div class="amount-label">Porcentaje de Liquidación</div>
+                                        <div class="amount-value" id="modalLiquidationPercent">0%</div>
+                                    </div>
+                                    <div class="amount-card">
+                                        <div class="amount-label">Monto Liquidación Procesal</div>
+                                        <div class="amount-value" id="modalLiquidationAmount">Q 0.00</div>
+                                    </div>
+                                    <div class="amount-card total">
+                                        <div class="amount-label">Monto Total</div>
+                                        <div class="amount-value" id="modalTotalAmount">Q 0.00</div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="detail-section">
+                                <h4>Distribución de Pagos</h4>
+                                <div class="payment-distribution">
+                                    <div class="payment-card">
+                                        <div class="payment-icon">
+                                            <i class="fas fa-calendar-day"></i>
+                                        </div>
+                                        <div class="payment-info">
+                                            <div class="payment-title">Quincena Medio Mes</div>
+                                            <div class="payment-amount" id="modalMidMonthAmount">Q 0.00</div>
+                                        </div>
+                                    </div>
+                                    <div class="payment-card">
+                                        <div class="payment-icon">
+                                            <i class="fas fa-calendar-check"></i>
+                                        </div>
+                                        <div class="payment-info">
+                                            <div class="payment-title">Quincena Fin de Mes</div>
+                                            <div class="payment-amount" id="modalEndMonthAmount">Q 0.00</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="progress-section">
+                                <div class="progress-header">
+                                    <div class="progress-title">Progreso del Pago</div>
+                                    <div class="progress-percentage" id="modalPaymentPercentage">0%</div>
+                                </div>
+                                <div class="progress-bar">
+                                    <div class="progress-fill" id="modalProgressFill" style="width: 0%"></div>
+                                </div>
+                                <div class="progress-info">
+                                    <div class="progress-item">
+                                        <div class="progress-label">Monto Total</div>
+                                        <div class="progress-value" id="modalProgressTotal">Q 0.00</div>
+                                    </div>
+                                    <div class="progress-item">
+                                        <div class="progress-label">Pagado</div>
+                                        <div class="progress-value" id="modalProgressPaid">Q 0.00</div>
+                                    </div>
+                                    <div class="progress-item">
+                                        <div class="progress-label">Saldo Pendiente</div>
+                                        <div class="progress-value" id="modalProgressPending">Q 0.00</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Tab de Historial de Pagos -->
+                        <div class="tab-pane" id="payments-tab">
+                            <div class="payments-history">
+                                <div class="history-header">
+                                    <h4>Historial de Pagos</h4>
+                                    <div class="history-total">
+                                        Total de pagos: <span id="totalPayments">0</span>
+                                    </div>
+                                </div>
+                                
+                                <table class="payments-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Fecha</th>
+                                            <th>Monto</th>
+                                            <th>Saldo Anterior</th>
+                                            <th>Saldo Actual</th>
+                                            <th>Planilla</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="paymentsHistoryData">
+                                        <!-- Los pagos se cargarán dinámicamente aquí -->
+                                    </tbody>
+                                </table>
+                                
+                                <div class="empty-payments" id="emptyPayments" style="display: none;">
+                                    <div class="empty-icon">
+                                        <i class="fas fa-file-invoice-dollar"></i>
+                                    </div>
+                                    <div class="empty-text">Aún no hay pagos registrados para este descuento judicial</div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Tab de Documento -->
+                        <div class="tab-pane" id="document-tab">
+                            <div class="document-viewer">
+                                <div class="document-container" id="documentContainer">
+                                    <!-- La imagen del documento se cargará aquí -->
+                                </div>
+                                <div class="document-controls">
+                                    <button id="zoomIn" class="document-control-button">
+                                        <i class="fas fa-search-plus"></i>
+                                    </button>
+                                    <button id="zoomOut" class="document-control-button">
+                                        <i class="fas fa-search-minus"></i>
+                                    </button>
+                                    <button id="downloadDocument" class="document-control-button">
+                                        <i class="fas fa-download"></i>
+                                    </button>
+                                </div>
+                                <div class="no-document" id="noDocument" style="display: none;">
+                                    <div class="empty-icon">
+                                        <i class="fas fa-file-excel"></i>
+                                    </div>
+                                    <div class="empty-text">No hay documento disponible para este descuento judicial</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button id="printDetail" class="modal-button">
+                    <i class="fas fa-print"></i>
+                    <span>Imprimir</span>
+                </button>
+                <button id="closeModalBtn" class="modal-button secondary">
+                    <i class="fas fa-times"></i>
+                    <span>Cerrar</span>
+                </button>
+            </div>
+        </div>
+    </div>
+    
+    <script src="../Logica/Reportes/ReporteDescuentoJudicial.js"></script>
+</body>
+</html>

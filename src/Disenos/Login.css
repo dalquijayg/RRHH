@@ -1,0 +1,687 @@
+/* Estilos generales */
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600&display=swap');
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    font-family: 'Poppins', sans-serif;
+}
+
+body {
+    background-color: #ffffff;
+    min-height: 100vh;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    overflow: hidden;
+    position: relative;
+}
+
+/* Logo de la empresa (esquina superior izquierda) */
+.brand-logo {
+    position: absolute;
+    top: 20px;
+    left: 20px;
+    max-width: 170px;
+    z-index: 10;
+}
+
+/* Contenedor principal */
+.container {
+    width: 100%;
+    max-width: 450px;
+    padding: 20px;
+    z-index: 1;
+    animation: fadeIn 1s ease-in-out;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Caja de login */
+.login-box {
+    background-color: white;
+    border-radius: 10px;
+    padding: 40px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.08);
+    text-align: center;
+    border: 1px solid #f0f0f0;
+    position: relative;
+    overflow: hidden;
+}
+
+/* Efecto de brillo en las esquinas */
+.login-box::before {
+    content: '';
+    position: absolute;
+    top: -10px;
+    left: -10px;
+    right: -10px;
+    bottom: -10px;
+    background: linear-gradient(45deg, 
+        rgba(255, 255, 255, 0) 0%,
+        rgba(255, 255, 255, 0.8) 50%,
+        rgba(255, 255, 255, 0) 100%);
+    z-index: -1;
+    animation: shine 8s infinite linear;
+}
+
+@keyframes shine {
+    0% {
+        transform: translateX(-100%) translateY(-100%) rotate(45deg);
+    }
+    50% {
+        transform: translateX(100%) translateY(100%) rotate(45deg);
+    }
+    100% {
+        transform: translateX(-100%) translateY(-100%) rotate(45deg);
+    }
+}
+
+/* Logo del sistema */
+.logo {
+    width: 120px;
+    margin-bottom: 15px;
+    animation: pulse 5s infinite ease-in-out;
+}
+
+@keyframes pulse {
+    0% {
+        transform: scale(1);
+    }
+    50% {
+        transform: scale(1.05);
+    }
+    100% {
+        transform: scale(1);
+    }
+}
+
+/* Franja de colores */
+.color-strip {
+    display: flex;
+    justify-content: center;
+    margin-bottom: 25px;
+}
+
+.color-strip-item {
+    height: 5px;
+    width: 30px;
+    margin: 0 3px;
+    border-radius: 3px;
+    transition: all 0.5s;
+}
+
+.color-strip:hover .color-strip-item {
+    height: 8px;
+}
+
+.color-red { 
+    background-color: #FF5252; 
+    animation: colorPulse 3s infinite;
+}
+
+.color-blue { 
+    background-color: #448AFF; 
+    animation: colorPulse 3s infinite 0.6s;
+}
+
+.color-green { 
+    background-color: #4CAF50; 
+    animation: colorPulse 3s infinite 1.2s;
+}
+
+.color-yellow { 
+    background-color: #FFC107; 
+    animation: colorPulse 3s infinite 1.8s;
+}
+
+.color-orange { 
+    background-color: #FF9800; 
+    animation: colorPulse 3s infinite 2.4s;
+}
+
+@keyframes colorPulse {
+    0% {
+        transform: scaleY(1);
+    }
+    50% {
+        transform: scaleY(1.5);
+    }
+    100% {
+        transform: scaleY(1);
+    }
+}
+
+/* Título */
+h2 {
+    color: #654321; /* Color café similar al tronco del árbol del logo */
+    margin-bottom: 25px;
+    font-weight: 600;
+    position: relative;
+    display: inline-block;
+}
+
+h2::after {
+    content: '';
+    position: absolute;
+    bottom: -5px;
+    left: 0;
+    width: 100%;
+    height: 2px;
+    background: linear-gradient(to right, #FF5252, #448AFF, #4CAF50, #FFC107, #FF9800);
+    transform: scaleX(0);
+    transition: transform 0.5s;
+}
+
+.login-box:hover h2::after {
+    transform: scaleX(1);
+}
+
+/* Campos de entrada */
+.input-container {
+    position: relative;
+    margin-bottom: 30px;
+}
+
+.input-container input {
+    width: 100%;
+    padding: 12px 15px;
+    border: 1px solid #e0e0e0;
+    background-color: #f9f9f9;
+    border-radius: 5px;
+    font-size: 15px;
+    color: #333;
+    transition: all 0.3s;
+    margin-top: 10px; /* Espacio adicional después de la etiqueta */
+}
+
+.input-container input:focus {
+    outline: none;
+    border-color: #654321;
+    background-color: #fff;
+    box-shadow: 0 0 0 2px rgba(101, 67, 33, 0.1);
+}
+
+.input-container label {
+    position: relative; /* Cambiado de absolute a relative */
+    display: block;
+    margin-bottom: 8px;
+    font-size: 14px;
+    color: #555;
+    font-weight: 500;
+    text-align: left;
+    animation: fadeIn 0.5s ease-out;
+}
+
+/* Texto informativo */
+.info-text {
+    font-size: 12px;
+    color: #777;
+    text-align: left;
+    margin-top: -20px;
+    margin-bottom: 25px;
+}
+
+/* Texto "completo" destacado */
+.highlight {
+    color: #FF9800;
+    font-weight: 500;
+}
+
+/* Botón de ingreso */
+.btn {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    width: 100%;
+    max-width: 200px;
+    margin: 0 auto;
+    padding: 12px 20px;
+    background-color: #ccc;
+    color: white;
+    border: none;
+    border-radius: 50px;
+    font-size: 15px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.3s;
+    position: relative;
+    overflow: hidden;
+}
+
+.btn:enabled {
+    background-color: #FF9800; /* Color naranja del logo */
+    box-shadow: 0 5px 15px rgba(255, 152, 0, 0.3);
+}
+
+.btn:enabled:hover {
+    background-color: #F57C00; /* Un poco más oscuro */
+    transform: translateY(-2px);
+    box-shadow: 0 8px 20px rgba(255, 152, 0, 0.4);
+}
+
+.btn:enabled:active {
+    transform: translateY(1px);
+}
+
+.btn:enabled::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(
+        90deg,
+        rgba(255, 255, 255, 0) 0%,
+        rgba(255, 255, 255, 0.3) 50%,
+        rgba(255, 255, 255, 0) 100%
+    );
+    transition: left 1s;
+}
+
+.btn:enabled:hover::before {
+    left: 100%;
+}
+
+.btn i {
+    margin-left: 8px;
+    transition: transform 0.3s;
+}
+
+.btn:enabled:hover i {
+    transform: translateX(3px);
+}
+
+/* Pie de página */
+.footer-text {
+    margin-top: 30px;
+    color: #999;
+    font-size: 12px;
+    line-height: 1.5;
+}
+
+/* Elementos decorativos en el fondo */
+.bg-decoration {
+    position: absolute;
+    z-index: -1;
+}
+
+/* Burbujas flotantes con colores del logo */
+.bubble {
+    position: absolute;
+    border-radius: 50%;
+    opacity: 0.1;
+    animation: float 20s infinite linear;
+}
+
+.bubble1 {
+    width: 100px;
+    height: 100px;
+    background-color: #FF5252;
+    top: 20%;
+    left: 10%;
+    animation-duration: 35s;
+}
+
+.bubble2 {
+    width: 50px;
+    height: 50px;
+    background-color: #448AFF;
+    top: 30%;
+    right: 15%;
+    animation-duration: 25s;
+}
+
+.bubble3 {
+    width: 80px;
+    height: 80px;
+    background-color: #4CAF50;
+    bottom: 20%;
+    left: 20%;
+    animation-duration: 30s;
+}
+
+.bubble4 {
+    width: 70px;
+    height: 70px;
+    background-color: #FFC107;
+    bottom: 30%;
+    right: 25%;
+    animation-duration: 40s;
+}
+
+.bubble5 {
+    width: 120px;
+    height: 120px;
+    background-color: #FF9800;
+    top: 60%;
+    right: 5%;
+    animation-duration: 45s;
+}
+
+/* Burbujas adicionales */
+.bubble6 {
+    width: 60px;
+    height: 60px;
+    background-color: #E91E63;
+    top: 15%;
+    left: 35%;
+    animation-duration: 32s;
+}
+
+.bubble7 {
+    width: 90px;
+    height: 90px;
+    background-color: #9C27B0;
+    bottom: 15%;
+    right: 30%;
+    animation-duration: 38s;
+}
+
+.bubble8 {
+    width: 40px;
+    height: 40px;
+    background-color: #3F51B5;
+    top: 45%;
+    left: 5%;
+    animation-duration: 28s;
+}
+
+.bubble9 {
+    width: 75px;
+    height: 75px;
+    background-color: #009688;
+    bottom: 10%;
+    left: 40%;
+    animation-duration: 42s;
+}
+
+.bubble10 {
+    width: 55px;
+    height: 55px;
+    background-color: #FF9800;
+    top: 75%;
+    right: 12%;
+    animation-duration: 36s;
+}
+
+/* Partículas flotantes adicionales */
+.particle {
+    position: absolute;
+    opacity: 0.07;
+    z-index: -1;
+    animation: particleFloat 15s infinite ease-in-out alternate;
+}
+
+.particle1 {
+    width: 15px;
+    height: 15px;
+    background-color: #FF5252;
+    top: 25%;
+    left: 25%;
+    clip-path: polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%);
+    animation-duration: 20s;
+}
+
+.particle2 {
+    width: 12px;
+    height: 12px;
+    background-color: #448AFF;
+    top: 35%;
+    right: 20%;
+    clip-path: polygon(50% 0%, 100% 38%, 82% 100%, 18% 100%, 0% 38%);
+    animation-duration: 18s;
+}
+
+.particle3 {
+    width: 18px;
+    height: 18px;
+    background-color: #4CAF50;
+    bottom: 30%;
+    left: 30%;
+    clip-path: polygon(25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50%);
+    animation-duration: 22s;
+}
+
+.particle4 {
+    width: 14px;
+    height: 14px;
+    background-color: #FFC107;
+    bottom: 45%;
+    right: 35%;
+    clip-path: polygon(0% 0%, 100% 0%, 100% 100%, 0% 100%);
+    animation-duration: 24s;
+    animation-delay: 2s;
+}
+
+.particle5 {
+    width: 16px;
+    height: 16px;
+    background-color: #FF9800;
+    top: 65%;
+    right: 15%;
+    clip-path: polygon(50% 0%, 61% 35%, 98% 35%, 68% 57%, 79% 91%, 50% 70%, 21% 91%, 32% 57%, 2% 35%, 39% 35%);
+    animation-duration: 26s;
+}
+
+@keyframes particleFloat {
+    0% {
+        transform: translateY(0) rotate(0deg);
+    }
+    50% {
+        transform: translateY(-40px) rotate(180deg);
+    }
+    100% {
+        transform: translateY(40px) rotate(360deg);
+    }
+}
+
+@keyframes float {
+    0% {
+        transform: translateY(0) rotate(0deg);
+    }
+    33% {
+        transform: translateY(-50px) rotate(120deg);
+    }
+    66% {
+        transform: translateY(20px) rotate(240deg);
+    }
+    100% {
+        transform: translateY(0) rotate(360deg);
+    }
+}
+
+/* Patrones geométricos sutiles */
+.pattern {
+    position: absolute;
+    opacity: 0.05;
+    background-size: 20px 20px;
+}
+
+.pattern1 {
+    width: 300px;
+    height: 300px;
+    top: -50px;
+    right: -50px;
+    background-image: 
+        linear-gradient(45deg, #FF5252 25%, transparent 25%), 
+        linear-gradient(-45deg, #FF5252 25%, transparent 25%);
+    animation: rotateSlow 80s infinite linear;
+}
+
+.pattern2 {
+    width: 200px;
+    height: 200px;
+    bottom: -50px;
+    left: -50px;
+    background-image: 
+        linear-gradient(45deg, #448AFF 25%, transparent 25%), 
+        linear-gradient(-45deg, #448AFF 25%, transparent 25%);
+    animation: rotateSlow 60s infinite linear reverse;
+}
+
+.pattern3 {
+    width: 250px;
+    height: 250px;
+    top: 10%;
+    left: 5%;
+    background-image: 
+        radial-gradient(#4CAF50 2px, transparent 2px), 
+        radial-gradient(#4CAF50 2px, transparent 2px);
+    background-size: 30px 30px;
+    background-position: 0 0, 15px 15px;
+    animation: rotateSlow 70s infinite linear;
+}
+
+.pattern4 {
+    width: 220px;
+    height: 220px;
+    bottom: 10%;
+    right: 8%;
+    background-image: 
+        linear-gradient(0deg, #FFC107 2px, transparent 2px), 
+        linear-gradient(90deg, #FFC107 2px, transparent 2px);
+    background-size: 30px 30px;
+    animation: rotateSlow 75s infinite linear reverse;
+}
+
+/* Efecto de onda en el fondo */
+.wave {
+    position: absolute;
+    width: 100%;
+    height: 100px;
+    opacity: 0.05;
+    z-index: -2;
+}
+
+.wave1 {
+    top: 20%;
+    background: linear-gradient(to right, #FF5252, #448AFF, #4CAF50, #FFC107, #FF9800);
+    clip-path: polygon(
+        0% 0%, 
+        10% 10%, 
+        20% 0%, 
+        30% 10%, 
+        40% 0%, 
+        50% 10%, 
+        60% 0%, 
+        70% 10%, 
+        80% 0%, 
+        90% 10%, 
+        100% 0%, 
+        100% 100%, 
+        0% 100%
+    );
+    animation: waveMove 20s infinite linear alternate;
+}
+
+.wave2 {
+    bottom: 15%;
+    background: linear-gradient(to right, #FF9800, #FFC107, #4CAF50, #448AFF, #FF5252);
+    clip-path: polygon(
+        0% 100%, 
+        10% 90%, 
+        20% 100%, 
+        30% 90%, 
+        40% 100%, 
+        50% 90%, 
+        60% 100%, 
+        70% 90%, 
+        80% 100%, 
+        90% 90%, 
+        100% 100%, 
+        100% 0%, 
+        0% 0%
+    );
+    animation: waveMove 25s infinite linear alternate-reverse;
+}
+
+@keyframes waveMove {
+    0% {
+        transform: translateX(-5%) scaleY(0.8);
+    }
+    100% {
+        transform: translateX(5%) scaleY(1.2);
+    }
+}
+
+@keyframes rotateSlow {
+    from {
+        transform: rotate(0deg);
+    }
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+/* Estilos para el estado de error */
+.login-box.error {
+    animation: shake 0.5s ease-in-out;
+    box-shadow: 0 10px 30px rgba(255, 82, 82, 0.2);
+}
+
+@keyframes shake {
+    0%, 100% { transform: translateX(0); }
+    10%, 30%, 50%, 70%, 90% { transform: translateX(-5px); }
+    20%, 40%, 60%, 80% { transform: translateX(5px); }
+}
+
+/* Mensaje de error */
+.error-message {
+    color: #FF5252;
+    font-size: 13px;
+    margin-bottom: 20px;
+    text-align: left;
+    animation: fadeIn 0.3s ease-in-out;
+}
+
+/* Estilos para el estado de carga */
+.login-box.submitting .btn {
+    background-color: #4CAF50;
+    animation: pulse 1.5s infinite;
+}
+
+@keyframes pulse {
+    0% { box-shadow: 0 0 0 0 rgba(76, 175, 80, 0.4); }
+    70% { box-shadow: 0 0 0 10px rgba(76, 175, 80, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(76, 175, 80, 0); }
+}
+
+/* Estilos para el estado de éxito */
+.login-box.success {
+    box-shadow: 0 10px 30px rgba(76, 175, 80, 0.3);
+}
+
+.login-box.success .btn {
+    background-color: #4CAF50;
+}
+
+/* Responsive */
+@media screen and (max-width: 480px) {
+    .container {
+        padding: 15px;
+    }
+    
+    .login-box {
+        padding: 30px 20px;
+    }
+    
+    .brand-logo {
+        max-width: 100px;
+    }
+    
+    .bubble {
+        opacity: 0.05; /* Menos visible en móviles */
+    }
+}

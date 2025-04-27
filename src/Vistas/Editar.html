@@ -1,0 +1,781 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Editar Colaborador - Recursos Humanos</title>
+    <link rel="stylesheet" href="../Disenos/Editar.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css">
+</head>
+<body>
+    <!-- Elementos decorativos de fondo -->
+    <div class="bg-decoration bubble bubble1"></div>
+    <div class="bg-decoration bubble bubble2"></div>
+    <div class="bg-decoration bubble bubble3"></div>
+    <div class="bg-decoration wave wave1"></div>
+    <div class="bg-decoration wave wave2"></div>
+    <div class="bg-decoration pattern pattern1"></div>
+    <div class="bg-decoration pattern pattern2"></div>
+    
+    <!-- Contenedor principal -->
+    <div class="container">
+        <!-- Cabecera con información del usuario actual -->
+        <div class="user-header animate__animated animate__fadeInDown">
+            <div class="go-back-btn" id="btnVolver">
+                <i class="fas fa-arrow-left"></i>
+                <span>Volver a búsqueda</span>
+            </div>
+            <div class="header-title">
+                <div class="header-icon">
+                    <i class="fas fa-user-edit"></i>
+                </div>
+                <h1>Editar Colaborador</h1>
+            </div>
+            <div class="save-actions">
+                <button class="btn-save-all" id="btnGuardarTodo">
+                    <i class="fas fa-save"></i>
+                    <span>Guardar</span>
+                </button>
+            </div>
+        </div>
+        
+        <!-- Perfil del colaborador (siempre visible) -->
+        <div class="employee-profile animate__animated animate__fadeIn" style="--delay: 0.2s">
+            <div class="profile-photo">
+                <div class="photo-container">
+                    <img src="../Imagenes/user-default.png" alt="Foto de colaborador" id="employeePhoto">
+                    <div class="photo-overlay">
+                        <button class="photo-edit-btn" id="btnEditPhoto">
+                            <i class="fas fa-camera"></i>
+                        </button>
+                    </div>
+                </div>
+                <div class="photo-shine"></div>
+            </div>
+            
+            <div class="profile-info">
+                <div class="employee-name-section">
+                    <h2 id="employeeName">Cargando información...</h2>
+                    <div class="employee-department" id="employeeDepartment">Departamento</div>
+                </div>
+                
+                <div class="employee-status-section">
+                    <div class="status-select-container">
+                        <label for="employeeStatus">Estado:</label>
+                        <div class="select-wrapper">
+                            <select id="employeeStatus" class="status-select">
+                                <!-- Se cargará dinámicamente -->
+                            </select>
+                            <i class="fas fa-chevron-down"></i>
+                        </div>
+                    </div>
+                    <div class="employee-id">ID: <span id="employeeId">12345</span></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Sistema de pestañas para edición -->
+        <div class="tabs-container animate__animated animate__fadeIn" style="--delay: 0.4s">
+            <div class="tabs-header">
+                <button class="tab-btn active" data-tab="personal">
+                    <i class="fas fa-user"></i> 
+                    <span>Datos Personales</span>
+                </button>
+                <button class="tab-btn" data-tab="location">
+                    <i class="fas fa-map-marker-alt"></i> 
+                    <span>Ubicación</span>
+                </button>
+                <button class="tab-btn" data-tab="contact">
+                    <i class="fas fa-phone-alt"></i> 
+                    <span>Contacto</span>
+                </button>
+                <button class="tab-btn" data-tab="work">
+                    <i class="fas fa-briefcase"></i> 
+                    <span>Info. Laboral</span>
+                </button>
+                <button class="tab-btn" data-tab="academic">
+                    <i class="fas fa-graduation-cap"></i> 
+                    <span>Info. Académica</span>
+                </button>
+                <button class="tab-btn" data-tab="history">
+                    <i class="fas fa-history"></i> 
+                    <span>Historial</span>
+                </button>
+            </div>
+            
+            <div class="edit-content">
+                <!-- Indicador de carga -->
+                <div id="loadingIndicator" class="loading-container">
+                    <div class="loading-spinner"></div>
+                    <p>Cargando información del colaborador...</p>
+                </div>
+                
+                <!-- Contenido de las pestañas -->
+                <div class="tab-content" id="tabContent">
+                    <!-- Pestaña: Datos Personales -->
+                    <div class="tab-pane active" id="tab-personal">
+                        <div class="form-section">
+                            <div class="section-header">
+                                <h3><i class="fas fa-user"></i> Información Personal</h3>
+                                <button class="section-edit-btn" data-section="personal-info">
+                                    <i class="fas fa-edit"></i> Editar
+                                </button>
+                            </div>
+                            <div class="section-content">
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <label for="primerNombre">Primer Nombre *</label>
+                                        <input type="text" id="primerNombre" disabled>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="segundoNombre">Segundo Nombre</label>
+                                        <input type="text" id="segundoNombre" disabled>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="tercerNombre">Tercer Nombre</label>
+                                        <input type="text" id="tercerNombre" disabled>
+                                    </div>
+                                </div>
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <label for="primerApellido">Primer Apellido *</label>
+                                        <input type="text" id="primerApellido" disabled>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="segundoApellido">Segundo Apellido</label>
+                                        <input type="text" id="segundoApellido" disabled>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="dpi">DPI *</label>
+                                        <div class="input-with-icon">
+                                            <i class="fas fa-id-card"></i>
+                                            <input type="text" id="dpi" disabled>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <label for="fechaNacimiento">Fecha de Nacimiento *</label>
+                                        <div class="input-with-icon">
+                                            <i class="fas fa-calendar-alt"></i>
+                                            <input type="date" id="fechaNacimiento" disabled>
+                                        </div>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="estadoCivil">Estado Civil *</label>
+                                        <div class="select-wrapper">
+                                            <select id="estadoCivil" disabled>
+                                                <!-- Se cargará dinámicamente -->
+                                            </select>
+                                            <i class="fas fa-chevron-down"></i>
+                                        </div>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="hijos">Número de Hijos</label>
+                                        <input type="number" id="hijos" min="0" disabled>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Pestaña: Ubicación -->
+                    <div class="tab-pane" id="tab-location">
+                        <div class="form-section">
+                            <div class="section-header">
+                                <h3><i class="fas fa-map-marker-alt"></i> Lugar de Origen</h3>
+                                <button class="section-edit-btn" data-section="origin-location">
+                                    <i class="fas fa-edit"></i> Editar
+                                </button>
+                            </div>
+                            <div class="section-content">
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <label for="deptoOrigen">Departamento de Origen *</label>
+                                        <div class="select-wrapper">
+                                            <select id="deptoOrigen" disabled>
+                                                <!-- Se cargará dinámicamente -->
+                                            </select>
+                                            <i class="fas fa-chevron-down"></i>
+                                        </div>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="muniOrigen">Municipio de Origen *</label>
+                                        <div class="select-wrapper">
+                                            <select id="muniOrigen" disabled>
+                                                <!-- Se cargará dinámicamente -->
+                                            </select>
+                                            <i class="fas fa-chevron-down"></i>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="form-section">
+                            <div class="section-header">
+                                <h3><i class="fas fa-home"></i> Residencia Actual</h3>
+                                <button class="section-edit-btn" data-section="current-residence">
+                                    <i class="fas fa-edit"></i> Editar
+                                </button>
+                            </div>
+                            <div class="section-content">
+                                <div class="form-row">
+                                    <div class="form-group full-width">
+                                        <label for="direccionResidencia">Dirección *</label>
+                                        <div class="input-with-icon">
+                                            <i class="fas fa-map-signs"></i>
+                                            <input type="text" id="direccionResidencia" disabled>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <label for="deptoResidencia">Departamento de Residencia *</label>
+                                        <div class="select-wrapper">
+                                            <select id="deptoResidencia" disabled>
+                                                <!-- Se cargará dinámicamente -->
+                                            </select>
+                                            <i class="fas fa-chevron-down"></i>
+                                        </div>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="muniResidencia">Municipio de Residencia *</label>
+                                        <div class="select-wrapper">
+                                            <select id="muniResidencia" disabled>
+                                                <!-- Se cargará dinámicamente -->
+                                            </select>
+                                            <i class="fas fa-chevron-down"></i>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Pestaña: Contacto -->
+                    <div class="tab-pane" id="tab-contact">
+                        <div class="form-section">
+                            <div class="section-header">
+                                <h3><i class="fas fa-phone-alt"></i> Información de Contacto</h3>
+                                <button class="section-edit-btn" data-section="contact-info">
+                                    <i class="fas fa-edit"></i> Editar
+                                </button>
+                            </div>
+                            <div class="section-content">
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <label for="telefono1">Teléfono Principal *</label>
+                                        <div class="input-with-icon">
+                                            <i class="fas fa-phone"></i>
+                                            <input type="text" id="telefono1" disabled>
+                                        </div>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="telefono2">Teléfono Secundario</label>
+                                        <div class="input-with-icon">
+                                            <i class="fas fa-phone"></i>
+                                            <input type="text" id="telefono2" disabled>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="form-row">
+                                    <div class="form-group full-width">
+                                        <label for="email">Correo Electrónico *</label>
+                                        <div class="input-with-icon">
+                                            <i class="fas fa-envelope"></i>
+                                            <input type="email" id="email" disabled>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="form-section">
+                            <div class="section-header">
+                                <h3><i class="fas fa-exclamation-circle"></i> Contacto de Emergencia</h3>
+                                <button class="section-edit-btn" data-section="emergency-contact">
+                                    <i class="fas fa-edit"></i> Editar
+                                </button>
+                            </div>
+                            <div class="section-content">
+                                <div class="form-row">
+                                    <div class="form-group full-width">
+                                        <label for="nombreContacto">Nombre Completo *</label>
+                                        <input type="text" id="nombreContacto" disabled>
+                                    </div>
+                                </div>
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <label for="telefonoContacto">Teléfono de Contacto *</label>
+                                        <div class="input-with-icon">
+                                            <i class="fas fa-phone"></i>
+                                            <input type="text" id="telefonoContacto" disabled>
+                                        </div>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="parentesco">Parentesco *</label>
+                                        <div class="select-wrapper">
+                                            <select id="parentesco" disabled>
+                                                <!-- Se cargará dinámicamente -->
+                                            </select>
+                                            <i class="fas fa-chevron-down"></i>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Pestaña: Información Laboral -->
+                    <div class="tab-pane" id="tab-work">
+                        <div class="form-section">
+                            <div class="section-header">
+                                <h3><i class="fas fa-briefcase"></i> Datos Laborales</h3>
+                                <button class="section-edit-btn" data-section="work-info">
+                                    <i class="fas fa-edit"></i> Editar
+                                </button>
+                            </div>
+                            <div class="section-content">
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <label for="tipoPersonal">Tipo de Personal *</label>
+                                        <div class="select-wrapper">
+                                            <select id="tipoPersonal" disabled>
+                                                <!-- Se cargará dinámicamente -->
+                                            </select>
+                                            <i class="fas fa-chevron-down"></i>
+                                        </div>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="planilla">Planilla *</label>
+                                        <div class="select-wrapper">
+                                            <select id="planilla" disabled>
+                                                <!-- Se cargará dinámicamente -->
+                                            </select>
+                                            <i class="fas fa-chevron-down"></i>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <label for="departamento">Departamento *</label>
+                                        <div class="select-wrapper">
+                                            <select id="departamento" disabled>
+                                                <!-- Se cargará dinámicamente -->
+                                            </select>
+                                            <i class="fas fa-chevron-down"></i>
+                                        </div>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="puesto">Puesto *</label>
+                                        <div class="select-wrapper">
+                                            <select id="puesto" disabled>
+                                                <!-- Se cargará dinámicamente -->
+                                            </select>
+                                            <i class="fas fa-chevron-down"></i>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <label for="inicioLaboral">Fecha de Inicio Laboral *</label>
+                                        <div class="input-with-icon">
+                                            <i class="fas fa-calendar-alt"></i>
+                                            <input type="date" id="inicioLaboral" disabled>
+                                        </div>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="fechaContrato">Fecha de Contrato</label>
+                                        <div class="input-with-icon">
+                                            <i class="fas fa-calendar-alt"></i>
+                                            <input type="date" id="fechaContrato" disabled>
+                                        </div>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="fechaPlanilla">Fecha de Planilla</label>
+                                        <div class="input-with-icon">
+                                            <i class="fas fa-calendar-alt"></i>
+                                            <input type="date" id="fechaPlanilla" disabled>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Pestaña: Información Académica -->
+                    <div class="tab-pane" id="tab-academic">
+                        <!-- Primaria -->
+                        <div class="form-section">
+                            <div class="section-header">
+                                <h3><i class="fas fa-school"></i> Educación Primaria</h3>
+                                <button class="section-edit-btn" data-section="primary-education">
+                                    <i class="fas fa-edit"></i> Editar
+                                </button>
+                            </div>
+                            <div class="section-content">
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <label for="estadoPrimaria">Estado *</label>
+                                        <div class="select-wrapper">
+                                            <select id="estadoPrimaria" disabled>
+                                                <!-- Se cargará dinámicamente -->
+                                            </select>
+                                            <i class="fas fa-chevron-down"></i>
+                                        </div>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="planPrimaria">Plan de Estudios</label>
+                                        <div class="select-wrapper">
+                                            <select id="planPrimaria" disabled>
+                                                <!-- Se cargará dinámicamente -->
+                                            </select>
+                                            <i class="fas fa-chevron-down"></i>
+                                        </div>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="nivelPrimaria">Nivel Académico</label>
+                                        <div class="select-wrapper">
+                                            <select id="nivelPrimaria" disabled>
+                                                <!-- Se cargará dinámicamente -->
+                                            </select>
+                                            <i class="fas fa-chevron-down"></i>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Básico -->
+                        <div class="form-section">
+                            <div class="section-header">
+                                <h3><i class="fas fa-school"></i> Educación Básica</h3>
+                                <button class="section-edit-btn" data-section="basic-education">
+                                    <i class="fas fa-edit"></i> Editar
+                                </button>
+                            </div>
+                            <div class="section-content">
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <label for="estadoBasico">Estado *</label>
+                                        <div class="select-wrapper">
+                                            <select id="estadoBasico" disabled>
+                                                <!-- Se cargará dinámicamente -->
+                                            </select>
+                                            <i class="fas fa-chevron-down"></i>
+                                        </div>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="planBasico">Plan de Estudios</label>
+                                        <div class="select-wrapper">
+                                            <select id="planBasico" disabled>
+                                                <!-- Se cargará dinámicamente -->
+                                            </select>
+                                            <i class="fas fa-chevron-down"></i>
+                                        </div>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="nivelBasico">Nivel Académico</label>
+                                        <div class="select-wrapper">
+                                            <select id="nivelBasico" disabled>
+                                                <!-- Se cargará dinámicamente -->
+                                            </select>
+                                            <i class="fas fa-chevron-down"></i>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Diversificado -->
+                        <div class="form-section">
+                            <div class="section-header">
+                                <h3><i class="fas fa-user-graduate"></i> Diversificado</h3>
+                                <button class="section-edit-btn" data-section="high-school">
+                                    <i class="fas fa-edit"></i> Editar
+                                </button>
+                            </div>
+                            <div class="section-content">
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <label for="estadoDiversificado">Estado *</label>
+                                        <div class="select-wrapper">
+                                            <select id="estadoDiversificado" disabled>
+                                                <!-- Se cargará dinámicamente -->
+                                            </select>
+                                            <i class="fas fa-chevron-down"></i>
+                                        </div>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="planDiversificado">Plan de Estudios</label>
+                                        <div class="select-wrapper">
+                                            <select id="planDiversificado" disabled>
+                                                <!-- Se cargará dinámicamente -->
+                                            </select>
+                                            <i class="fas fa-chevron-down"></i>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <label for="nivelDiversificado">Nivel Académico</label>
+                                        <div class="select-wrapper">
+                                            <select id="nivelDiversificado" disabled>
+                                                <!-- Se cargará dinámicamente -->
+                                            </select>
+                                            <i class="fas fa-chevron-down"></i>
+                                        </div>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="gradoDiversificado">Grado Académico</label>
+                                        <div class="select-wrapper">
+                                            <select id="gradoDiversificado" disabled>
+                                                <!-- Se cargará dinámicamente -->
+                                            </select>
+                                            <i class="fas fa-chevron-down"></i>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Universidad -->
+                        <div class="form-section">
+                            <div class="section-header">
+                                <h3><i class="fas fa-university"></i> Educación Universitaria</h3>
+                                <button class="section-edit-btn" data-section="university">
+                                    <i class="fas fa-edit"></i> Editar
+                                </button>
+                            </div>
+                            <div class="section-content">
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <label for="estadoUniversidad">Estado *</label>
+                                        <div class="select-wrapper">
+                                            <select id="estadoUniversidad" disabled>
+                                                <!-- Se cargará dinámicamente -->
+                                            </select>
+                                            <i class="fas fa-chevron-down"></i>
+                                        </div>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="universidad">Universidad</label>
+                                        <div class="select-wrapper">
+                                            <select id="universidad" disabled>
+                                                <!-- Se cargará dinámicamente -->
+                                            </select>
+                                            <i class="fas fa-chevron-down"></i>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <label for="planUniversidad">Plan de Estudios</label>
+                                        <div class="select-wrapper">
+                                            <select id="planUniversidad" disabled>
+                                                <!-- Se cargará dinámicamente -->
+                                            </select>
+                                            <i class="fas fa-chevron-down"></i>
+                                        </div>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="nivelUniversidad">Nivel Académico</label>
+                                        <div class="select-wrapper">
+                                            <select id="nivelUniversidad" disabled>
+                                                <!-- Se cargará dinámicamente -->
+                                            </select>
+                                            <i class="fas fa-chevron-down"></i>
+                                        </div>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="carreraUniversidad">Carrera</label>
+                                        <div class="select-wrapper">
+                                            <select id="carreraUniversidad" disabled>
+                                                <!-- Se cargará dinámicamente -->
+                                            </select>
+                                            <i class="fas fa-chevron-down"></i>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Maestría -->
+                        <div class="form-section">
+                            <div class="section-header">
+                                <h3><i class="fas fa-award"></i> Maestría</h3>
+                                <button class="section-edit-btn" data-section="masters">
+                                    <i class="fas fa-edit"></i> Editar
+                                </button>
+                            </div>
+                            <div class="section-content">
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <label for="estadoMaestria">Estado *</label>
+                                        <div class="select-wrapper">
+                                            <select id="estadoMaestria" disabled>
+                                                <!-- Se cargará dinámicamente -->
+                                            </select>
+                                            <i class="fas fa-chevron-down"></i>
+                                        </div>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="universidadMaestria">Universidad</label>
+                                        <div class="select-wrapper">
+                                            <select id="universidadMaestria" disabled>
+                                                <!-- Se cargará dinámicamente -->
+                                            </select>
+                                            <i class="fas fa-chevron-down"></i>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <label for="planMaestria">Plan de Estudios</label>
+                                        <div class="select-wrapper">
+                                            <select id="planMaestria" disabled>
+                                                <!-- Se cargará dinámicamente -->
+                                            </select>
+                                            <i class="fas fa-chevron-down"></i>
+                                        </div>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="trimestreMaestria">Trimestre</label>
+                                        <div class="select-wrapper">
+                                            <select id="trimestreMaestria" disabled>
+                                                <!-- Se cargará dinámicamente -->
+                                            </select>
+                                            <i class="fas fa-chevron-down"></i>
+                                        </div>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="nombreMaestria">Maestría</label>
+                                        <div class="select-wrapper">
+                                            <select id="nombreMaestria" disabled>
+                                                <!-- Se cargará dinámicamente -->
+                                            </select>
+                                            <i class="fas fa-chevron-down"></i>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Pestaña: Historial de Cambios -->
+                    <div class="tab-pane" id="tab-history">
+                        <div class="form-section">
+                            <div class="section-header">
+                                <h3><i class="fas fa-history"></i> Historial de Cambios</h3>
+                                <div class="history-actions">
+                                    <div class="select-wrapper">
+                                        <select id="historyFilter">
+                                            <option value="all">Todos los cambios</option>
+                                            <option value="personal">Datos Personales</option>
+                                            <option value="location">Ubicación</option>
+                                            <option value="contact">Contacto</option>
+                                            <option value="work">Info Laboral</option>
+                                            <option value="academic">Info Académica</option>
+                                            <option value="status">Estado</option>
+                                        </select>
+                                        <i class="fas fa-chevron-down"></i>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="section-content">
+                                <div class="history-container">
+                                    <div class="history-timeline">
+                                        <!-- El historial se cargará dinámicamente -->
+                                        <div class="no-history-message">
+                                            <i class="fas fa-exclamation-circle"></i>
+                                            <p>No hay registros de cambios para este colaborador</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Mensajes de estado/notificaciones -->
+    <div class="toast-container"></div>
+    
+    <!-- Modal para cargar foto -->
+    <div class="modal-overlay" id="photoModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3><i class="fas fa-camera"></i> Actualizar Foto</h3>
+                <button class="modal-close" id="closePhotoModal">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="photo-upload-container">
+                    <div class="current-photo">
+                        <img src="../Imagenes/user-default.png" alt="Foto actual" id="currentPhoto">
+                    </div>
+                    <div class="upload-controls">
+                        <p>Seleccione una nueva imagen para el colaborador:</p>
+                        <div class="file-upload-wrapper">
+                            <label for="photoUpload" class="file-upload-label">
+                                <i class="fas fa-cloud-upload-alt"></i>
+                                <span>Seleccionar Archivo</span>
+                            </label>
+                            <input type="file" id="photoUpload" accept="image/*">
+                            <p class="file-name" id="fileName">No se ha seleccionado ningún archivo</p>
+                        </div>
+                        <div class="preview-container">
+                            <img id="photoPreview" src="#" alt="Vista previa" style="display: none;">
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" id="cancelPhotoBtn">
+                    <i class="fas fa-times"></i> Cancelar
+                </button>
+                <button class="btn btn-primary" id="savePhotoBtn" disabled>
+                    <i class="fas fa-check"></i> Guardar Foto
+                </button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Modal de confirmación de cambios -->
+    <div class="modal-overlay" id="confirmModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3><i class="fas fa-save"></i> Guardar Cambios</h3>
+                <button class="modal-close" id="closeConfirmModal">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="confirm-message">
+                    <i class="fas fa-info-circle"></i>
+                    <p>¿Está seguro que desea guardar los cambios realizados?</p>
+                    <div class="changes-summary" id="changesSummary">
+                        <!-- Se llenará dinámicamente con los cambios realizados -->
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" id="cancelConfirmBtn">
+                    <i class="fas fa-times"></i> Cancelar
+                </button>
+                <button class="btn btn-primary" id="confirmSaveBtn">
+                    <i class="fas fa-check"></i> Confirmar
+                </button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Scripts -->
+    <script src="../Logica/Editar.js"></script>
+</body>
+</html>
