@@ -1,7 +1,7 @@
 {
   "name": "recursos",
   "version": "1.0.1",
-  "main": "src/index.js",
+  "main": "src/Index.js",
   "scripts": {
     "start": "electron .",
     "package": "electron-builder -p always",
@@ -37,7 +37,7 @@
         "repo": "RRHH"
       }
     ],
-    "appId": "com.tuempresa.syscuareport",
+    "appId": "com.tuempresa.RRHH",
     "productName": "Recursos-Humanos",
     "win": {
       "target": [
