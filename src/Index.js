@@ -27,7 +27,7 @@ function createWindow() {
             nodeIntegration: true,
             contextIsolation: false,
         },
-        icon: path.join(__dirname, 'Logo-Recursos.ico'),
+        icon: path.join(__dirname, 'LogoRecursos.ico'),
         autoHideMenuBar: true
     });
 
@@ -68,7 +68,7 @@ function createPersonalNuevoWindow() {
             nodeIntegration: true,
             contextIsolation: false,
         },
-        icon: path.join(__dirname, 'Logo-Recursos.ico'),
+        icon: path.join(__dirname, 'LogoRecursos.ico'),
         title: 'Registro de Personal Nuevo',
         autoHideMenuBar: true
     });
@@ -97,7 +97,7 @@ function createBusquedaWindow() {
             nodeIntegration: true,
             contextIsolation: false,
         },
-        icon: path.join(__dirname, 'Logo-Recursos.ico'),
+        icon: path.join(__dirname, 'LogoRecursos.ico'),
         title: 'Búsqueda de Personal',
         autoHideMenuBar: true
     });
@@ -126,7 +126,7 @@ function createPlanillaDominicalWindow() {
             nodeIntegration: true,
             contextIsolation: false,
         },
-        icon: path.join(__dirname, 'Logo-Recursos.ico'),
+        icon: path.join(__dirname, 'LogoRecursos.ico'),
         title: 'Planilla Dominical',
         autoHideMenuBar: true
     });
@@ -155,7 +155,7 @@ function createActualizarDepartamentoWindow() {
             nodeIntegration: true,
             contextIsolation: false,
         },
-        icon: path.join(__dirname, 'Logo-Recursos.ico'),
+        icon: path.join(__dirname, 'LogoRecursos.ico'),
         title: 'Actualizar Departamento',
         autoHideMenuBar: true
     });
@@ -184,7 +184,7 @@ function createPagoNominaWindow() {
             nodeIntegration: true,
             contextIsolation: false,
         },
-        icon: path.join(__dirname, 'Logo-Recursos.ico'),
+        icon: path.join(__dirname, 'LogoRecursos.ico'),
         title: 'Pago Nómina',
         autoHideMenuBar: true
     });
@@ -213,7 +213,7 @@ function createembargosalarialWindow() {
             nodeIntegration: true,
             contextIsolation: false,
         },
-        icon: path.join(__dirname, 'Logo-Recursos.ico'),
+        icon: path.join(__dirname, 'LogoRecursos.ico'),
         title: 'Embargo Salarial',
         autoHideMenuBar: true
     });
@@ -242,7 +242,7 @@ function createReporteSuspensionesWindow() {
             nodeIntegration: true,
             contextIsolation: false,
         },
-        icon: path.join(__dirname, 'Logo-Recursos.ico'),
+        icon: path.join(__dirname, 'LogoRecursos.ico'),
         title: 'Reporte',
         autoHideMenuBar: true
     });
@@ -271,7 +271,7 @@ function createReporteDescuentosJudicialesWindow() {
             nodeIntegration: true,
             contextIsolation: false,
         },
-        icon: path.join(__dirname, 'Logo-Recursos.ico'),
+        icon: path.join(__dirname, 'LogoRecursos.ico'),
         title: 'Reporte',
         autoHideMenuBar: true
     });
@@ -300,7 +300,7 @@ function createReportePlanillaEspecialWindow() {
             nodeIntegration: true,
             contextIsolation: false,
         },
-        icon: path.join(__dirname, 'Logo-Recursos.ico'),
+        icon: path.join(__dirname, 'LogoRecursos.ico'),
         title: 'Reporte',
         autoHideMenuBar: true
     });
