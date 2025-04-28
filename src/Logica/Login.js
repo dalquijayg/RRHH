@@ -5,6 +5,7 @@ const { authenticator } = require('otplib');
 const qrcode = require('qrcode');
 const Swal = require('sweetalert2');
 const conexion = 'DSN=recursos2'; // Asegúrate de tener configurado el DSN correctamente
+
 async function connectionString() {
     try {
             const connection = await odbc.connect(conexion, {
@@ -28,6 +29,7 @@ async function connectionString() {
             throw error;
         }
 }
+
 async function verificarDPI(dpi) {
     try {
         const connection = await connectionString();
@@ -37,7 +39,8 @@ async function verificarDPI(dpi) {
                                                 personal.IdSucuDepa, 
                                                 departamentos.NombreDepartamento, 
                                                 PuestosGenerales.Id_Puesto, 
-                                                personal.Secret_2FA, 
+                                                personal.Secret_2FA,
+                                                personal.IngresoSistema,
                                                 CASE 
                                                     WHEN FotosPersonal.Foto IS NOT NULL THEN CONCAT('data:image/jpeg;base64,', TO_BASE64(FotosPersonal.Foto))
                                                     ELSE NULL 
@@ -61,7 +64,6 @@ async function verificarDPI(dpi) {
                                                 ON 
                                                     personal.IdPersonal = FotosPersonal.IdPersonal
                                             WHERE
-                                                Estado = 1 AND
                                                 DPI = ?`, [dpi]);
         await connection.close();
         if (result.length > 0) {
@@ -216,6 +218,24 @@ document.getElementById('loginForm').addEventListener('submit', async (event) =>
         document.querySelector('.login-box').classList.remove('submitting');
         
         if (userData) {
+            // Verificar si el usuario tiene acceso al sistema
+            if (userData.IngresoSistema !== 1 && userData.IngresoSistema !== '1') {
+                document.querySelector('.login-box').classList.add('error');
+                
+                await Swal.fire({
+                    icon: 'error',
+                    title: 'Acceso denegado',
+                    text: 'No tienes permisos para ingresar al sistema. Contacta al administrador.',
+                    confirmButtonText: 'Aceptar',
+                    confirmButtonColor: '#FF9800'
+                });
+                
+                setTimeout(() => {
+                    document.querySelector('.login-box').classList.remove('error');
+                }, 1000);
+                return;
+            }
+            
             // Preparar la imagen del usuario
             const userImage = userData.FotoBase64 || '../Imagenes/user-default.png';
             
