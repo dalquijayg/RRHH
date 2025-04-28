@@ -35,6 +35,7 @@ const pagoNominaBtn = document.getElementById('pagoNominaBtn');
 const SuspensionesBtn = document.getElementById('reporteSuspensiones');
 const DescJudiciales = document.getElementById('reporteDescuentosJudiciales');
 const ReportePlanillaEspecial = document.getElementById('reportePlanillaEspeciales');
+const AsignacionPermisos = document.getElementById('asignarpermisos');
 // Inicializar conexión con la base de datos
 async function getConnection() {
     try {
@@ -1192,6 +1193,44 @@ ReportePlanillaEspecial.addEventListener('click', async () => {
             // Tiene permiso, abrir la ventana
             mostrarNotificacion('Abriendo Embargo Salarial...', 'success');
             ipcRenderer.send('open_Reporte_PlanillaEspecial');
+        } else {
+            // No tiene permiso, mostrar error
+            Swal.fire({
+                icon: 'error',
+                title: 'Acceso denegado',
+                text: 'No tienes permisos para acceder a esta funcionalidad.'
+            });
+        }
+    } catch (error) {
+        console.error('Error al verificar permisos:', error);
+        mostrarNotificacion('Error al verificar permisos', 'error');
+    }
+});
+AsignacionPermisos.addEventListener('click', async () => {
+    try {
+        // Mostrar notificación de verificación
+        mostrarNotificacion('Verificando permisos...', 'info');
+        
+        // Obtener el ID del usuario actual
+        const idPersonal = userData.IdPersonal;
+        
+        // Verificar permisos en la base de datos
+        const connection = await getConnection();
+        
+        const permisosQuery = `
+            SELECT COUNT(*) AS tienePermiso 
+            FROM TransaccionesRRHH 
+            WHERE IdPersonal = ${idPersonal} AND Codigo = 112
+        `;
+        
+        const resultado = await connection.query(permisosQuery);
+        await connection.close();
+        
+        // Verificar si tiene permiso (si el conteo es mayor a 0)
+        if (resultado[0].tienePermiso > 0) {
+            // Tiene permiso, abrir la ventana
+            mostrarNotificacion('Abriendo Embargo Salarial...', 'success');
+            ipcRenderer.send('open_Ventana_Permisos');
         } else {
             // No tiene permiso, mostrar error
             Swal.fire({

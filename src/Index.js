@@ -15,6 +15,7 @@ let embargoSalarialWindow = null;
 let reportesuspensionesWindow = null;
 let reporteDescJudiciales = null;
 let reportePlanillaEspecialWindow = null;
+let AsignarPermisos = null;
 
 if(process.env.NODE_ENV !=='production'){
     require('electron-reload')(__dirname,{
@@ -33,6 +34,10 @@ function createWindow() {
 
     mainWindow.maximize();
     mainWindow.loadURL(`file://${__dirname}/Vistas/Login.html`);
+
+    mainWindow.webContents.once('dom-ready', () => {
+        autoUpdater.checkForUpdatesAndNotify();
+    });
 }
 app.on('ready', createWindow);
 autoUpdater.on('update-available', (info) => {
@@ -312,6 +317,35 @@ function createReportePlanillaEspecialWindow() {
         reportePlanillaEspecialWindow = null;
     });
 }
+function createAsignarPermisosWindow() {
+    // Verifica si la ventana ya está abierta
+    if (AsignarPermisos) {
+        // Si ya está abierta, simplemente enfócala
+        if (AsignarPermisos.isMinimized()) AsignarPermisos.restore();
+        AsignarPermisos.focus();
+        return;
+    }
+    
+    // Crea una nueva ventana si no existe
+    AsignarPermisos = new BrowserWindow({
+        width: 1200,
+        height: 800,
+        webPreferences: {
+            nodeIntegration: true,
+            contextIsolation: false,
+        },
+        icon: path.join(__dirname, 'LogoRecursos.ico'),
+        title: 'Permisos',
+        autoHideMenuBar: true
+    });
+
+    AsignarPermisos.loadURL(`file://${__dirname}/Vistas/Permisos.html`);
+    
+    // Elimina la referencia a la ventana cuando se cierre
+    AsignarPermisos.on('closed', () => {
+        AsignarPermisos = null;
+    });
+}
 // Añade este receptor para abrir la ventana de pago nómina
 ipcMain.on('open_pago_nomina', () => {
     createPagoNominaWindow();
@@ -343,4 +377,7 @@ ipcMain.on('open_Reporte_DescuentosJudiciales', () => {
 });
 ipcMain.on('open_Reporte_PlanillaEspecial', () => {
     createReportePlanillaEspecialWindow();
+});
+ipcMain.on('open_Ventana_Permisos', () => {
+    createAsignarPermisosWindow();
 });

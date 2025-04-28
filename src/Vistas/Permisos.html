@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Asignar Permisos - Recursos Humanos</title>
+    <link rel="stylesheet" href="../Disenos/Permisos.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css">
+</head>
+<body>
+    <!-- Elementos decorativos de fondo -->
+    <div class="bg-decoration bubble bubble1"></div>
+    <div class="bg-decoration bubble bubble2"></div>
+    <div class="bg-decoration bubble bubble3"></div>
+    <div class="bg-decoration wave wave1"></div>
+    <div class="bg-decoration wave wave2"></div>
+    <div class="bg-decoration pattern pattern1"></div>
+    <div class="bg-decoration pattern pattern2"></div>
+    
+    <!-- Contenedor principal -->
+    <div class="container">
+        <!-- Cabecera con información del módulo -->
+        <div class="header animate__animated animate__fadeInDown">
+            <div class="header-title">
+                <div class="header-icon">
+                    <i class="fas fa-key"></i>
+                </div>
+                <h1>Asignar Permisos</h1>
+            </div>
+        </div>
+        
+        <!-- Sección de búsqueda de colaboradores -->
+        <div class="search-section animate__animated animate__fadeIn" style="--delay: 0.2s">
+            <div class="search-card">
+                <div class="search-card-header">
+                    <h2><i class="fas fa-search"></i> Buscar Colaborador</h2>
+                </div>
+                <div class="search-card-body">
+                    <div class="search-form">
+                        <div class="form-group">
+                            <label for="departamento">Departamento</label>
+                            <div class="select-wrapper">
+                                <select id="departamento">
+                                    <option value="">Todos los departamentos</option>
+                                    <!-- Se cargará dinámicamente -->
+                                </select>
+                                <i class="fas fa-chevron-down"></i>
+                            </div>
+                        </div>
+                        <div class="form-group search-input-group">
+                            <label for="searchNombre">Nombre del Colaborador</label>
+                            <div class="input-with-icon">
+                                <i class="fas fa-user"></i>
+                                <input type="text" id="searchNombre" placeholder="Escriba el nombre a buscar">
+                                <button class="search-button" id="btnBuscar">
+                                    <i class="fas fa-search"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Sección de resultados de búsqueda -->
+        <div class="results-section animate__animated animate__fadeIn" style="--delay: 0.4s">
+            <div class="results-card">
+                <div class="results-card-header">
+                    <h2><i class="fas fa-users"></i> Colaboradores</h2>
+                    <div class="results-counter">
+                        <span id="resultCount">0</span> colaboradores encontrados
+                    </div>
+                </div>
+                <div class="results-card-body">
+                    <div class="results-empty-state" id="emptyState">
+                        <i class="fas fa-search"></i>
+                        <p>Utilice los filtros para buscar colaboradores</p>
+                    </div>
+                    <div class="results-table-container" id="resultsContainer" style="display: none;">
+                        <table class="results-table">
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Nombre</th>
+                                    <th>Departamento</th>
+                                    <th>Puesto</th>
+                                    <th>Acción</th>
+                                </tr>
+                            </thead>
+                            <tbody id="resultsList">
+                                <!-- Se cargará dinámicamente -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Sección de asignación de permisos (inicialmente oculta) -->
+        <div class="permissions-section animate__animated animate__fadeIn" style="--delay: 0.6s; display: none;" id="permissionsSection">
+            <div class="permissions-card">
+                <div class="permissions-card-header">
+                    <h2><i class="fas fa-lock"></i> Asignar Permisos</h2>
+                    <div class="employee-info">
+                        <div class="employee-photo">
+                            <img src="../Imagenes/user-default.png" alt="Foto de colaborador" id="selectedEmployeePhoto">
+                        </div>
+                        <div class="employee-details">
+                            <h3 id="selectedEmployeeName">Nombre del Colaborador</h3>
+                            <p id="selectedEmployeePosition">Puesto - Departamento</p>
+                            <span class="employee-id">ID: <span id="selectedEmployeeId">12345</span></span>
+                        </div>
+                    </div>
+                </div>
+                <div class="permissions-card-body">
+                    <h3 class="permissions-subtitle">Seleccione los permisos a asignar</h3>
+                    <div class="permissions-list" id="permissionsList">
+                        <!-- Se cargará dinámicamente con checkboxes -->
+                    </div>
+                    <div class="permissions-actions">
+                        <button class="btn btn-cancel" id="btnCancelarAsignacion">
+                            <i class="fas fa-times"></i> Cancelar
+                        </button>
+                        <button class="btn btn-assign" id="btnAsignarPermisos">
+                            <i class="fas fa-key"></i> Asignar Permisos
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Indicador de carga -->
+    <div id="loadingIndicator" class="loading-container">
+        <div class="loading-spinner"></div>
+        <p>Procesando solicitud...</p>
+    </div>
+    
+    <!-- Contenedor de notificaciones toast -->
+    <div class="toast-container"></div>
+    
+    <!-- Modal de confirmación -->
+    <div class="modal-overlay" id="confirmModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3><i class="fas fa-check-circle"></i> Confirmar Asignación</h3>
+                <button class="modal-close" id="closeConfirmModal">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="confirm-message">
+                    <i class="fas fa-info-circle"></i>
+                    <p>¿Está seguro que desea asignar estos permisos al colaborador?</p>
+                    <div class="permissions-summary" id="permissionsSummary">
+                        <!-- Se llenará dinámicamente con los permisos seleccionados -->
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" id="cancelConfirmBtn">
+                    <i class="fas fa-times"></i> Cancelar
+                </button>
+                <button class="btn btn-primary" id="confirmAssignBtn">
+                    <i class="fas fa-check"></i> Confirmar
+                </button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Scripts -->
+    <script src="../Logica/Permisos.js"></script>
+</body>
+</html>

@@ -1153,20 +1153,22 @@ function habilitarEdicionSeccion(seccion) {
         input.disabled = false;
         input.dataset.original = input.value;
         
-        // Agregar eventos para detectar cambios
-        input.addEventListener('change', function() {
-            registrarCambio(this);
-        });
+        // Limpiar eventos previos para evitar duplicados
+        input.removeEventListener('change', inputChangeHandler);
+        input.removeEventListener('input', inputChangeHandler);
         
-        input.addEventListener('input', function() {
-            registrarCambio(this);
-        });
+        // Agregar eventos para detectar cambios
+        input.addEventListener('change', inputChangeHandler);
+        input.addEventListener('input', inputChangeHandler);
     });
     
     // Cambiar texto del botón
     if (btn) {
         btn.innerHTML = '<i class="fas fa-times"></i> Cancelar';
         btn.classList.add('btn-cancelar');
+        
+        // Limpiar eventos previos para evitar duplicados
+        btn.removeEventListener('click', cancelButtonHandler);
         
         // Cambiar evento para cancelar edición
         btn.onclick = function() {
@@ -1175,6 +1177,17 @@ function habilitarEdicionSeccion(seccion) {
     }
 }
 
+// Manejador de eventos para cambios en inputs
+function inputChangeHandler() {
+    registrarCambio(this);
+}
+
+// Manejador para el botón cancelar
+function cancelButtonHandler(e) {
+    e.preventDefault();
+    const seccion = this.getAttribute('data-section');
+    cancelarEdicionSeccion(seccion);
+}
 // Cancelar edición para una sección
 function cancelarEdicionSeccion(seccion) {
     // Buscar el contenedor de la sección
@@ -1192,6 +1205,10 @@ function cancelarEdicionSeccion(seccion) {
         
         input.disabled = true;
         
+        // Eliminar los event listeners
+        input.removeEventListener('change', inputChangeHandler);
+        input.removeEventListener('input', inputChangeHandler);
+        
         // Eliminar cualquier cambio registrado para este campo
         const fieldName = input.id;
         if (changedFields[fieldName]) {
@@ -1204,10 +1221,14 @@ function cancelarEdicionSeccion(seccion) {
         btn.innerHTML = '<i class="fas fa-edit"></i> Editar';
         btn.classList.remove('btn-cancelar');
         
-        // Restaurar evento para editar
-        btn.onclick = function() {
+        // Limpiar el onclick actual
+        btn.onclick = null;
+        
+        // Asignar un nuevo manejador de eventos
+        btn.addEventListener('click', function(e) {
+            e.preventDefault();
             habilitarEdicionSeccion(seccion);
-        };
+        });
     }
     
     // Actualizar botones de guardar
@@ -1319,9 +1340,14 @@ function configurarBotonesEdicion() {
             input.setAttribute('data-section', section);
         });
         
-        // Evento click para habilitar edición
+        // Eliminar event listeners anteriores para evitar duplicados
+        btn.removeEventListener('click', function() {
+            habilitarEdicionSeccion(section);
+        });
+        
+        // Agregar nuevo event listener
         btn.addEventListener('click', function(e) {
-            e.preventDefault(); // Evitar comportamiento predeterminado
+            e.preventDefault();
             habilitarEdicionSeccion(section);
         });
     });
