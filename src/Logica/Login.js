@@ -61,6 +61,7 @@ async function verificarDPI(dpi) {
                                                 ON 
                                                     personal.IdPersonal = FotosPersonal.IdPersonal
                                             WHERE
+                                                Estado = 1 AND
                                                 DPI = ?`, [dpi]);
         await connection.close();
         if (result.length > 0) {

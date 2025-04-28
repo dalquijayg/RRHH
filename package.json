@@ -4,6 +4,7 @@
   "main": "src/Index.js",
   "scripts": {
     "start": "electron .",
+    "pack":"electron-build",
     "package": "electron-builder -p always",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
