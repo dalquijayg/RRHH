@@ -1473,12 +1473,14 @@ document.addEventListener('DOMContentLoaded', function() {
             isValid = false;
         }
         
-        document.getElementById('siguienteDocumentacionBtn').disabled = !isValid;
+        // Siempre habilitar el botón, independientemente de la validación
+        document.getElementById('siguienteDocumentacionBtn').disabled = false;
+        
         return isValid;
     }
     document.getElementById('siguienteDocumentacionBtn').addEventListener('click', async function() {
         cambiarPestana('documentacionForm', 'pmaForm');
-        
+        await cargarEvaluadores();
         const tabs = document.querySelectorAll('.tab');
         tabs[5].classList.add('active');
         tabs[5].disabled = false;
@@ -1855,6 +1857,7 @@ document.addEventListener('DOMContentLoaded', function() {
             const tabs = document.querySelectorAll('.tab');
             tabs[4].classList.add('active');
             tabs[4].disabled = false;
+            document.getElementById('siguienteDocumentacionBtn').disabled = false;
         } catch (error) {
             console.error('Error al cambiar a documentación:', error);
             Swal.fire({
@@ -1963,13 +1966,14 @@ document.addEventListener('DOMContentLoaded', function() {
     function validatePMAForm() {
         let isValid = true;
         const fechaPMA = document.getElementById('fechaPMA').value;
+        const evaluadorPMA = document.getElementById('evaluadorPMA').value;
         const factores = ['V', 'E', 'R', 'N', 'F'];
-
-        // Validar fecha
-        if (!fechaPMA) {
+    
+        // Validar fecha y evaluador
+        if (!fechaPMA || !evaluadorPMA) {
             isValid = false;
         }
-
+    
         // Validar factores
         factores.forEach(factor => {
             const valor = document.getElementById(`factor${factor}`).value;
@@ -1977,7 +1981,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 isValid = false;
             }
         });
-
+    
         document.getElementById('finalizarBtn').disabled = !isValid;
         return isValid;
     }
@@ -1993,6 +1997,42 @@ document.addEventListener('DOMContentLoaded', function() {
             validatePMAForm();
         });
     });
+    async function cargarEvaluadores() {
+        const evaluadorSelect = document.getElementById('evaluadorPMA');
+        try {
+            const connection = await getConnection();
+            const result = await connection.query(`
+                SELECT
+                    personal.IdPersonal, 
+                    CONCAT(personal.PrimerNombre, ' ', IFNULL(personal.SegundoNombre, ''), ' ', 
+                    IFNULL(personal.TercerNombre, ''), ' ', personal.PrimerApellido, ' ', 
+                    IFNULL(personal.SegundoApellido, '')) AS NombreCompleto
+                FROM
+                    personal
+                WHERE
+                    personal.IdSucuDepa = 20
+                ORDER BY
+                    NombreCompleto
+            `);
+            
+            evaluadorSelect.innerHTML = '<option value="">Seleccione...</option>';
+            result.forEach(evaluador => {
+                const option = document.createElement('option');
+                option.value = evaluador.IdPersonal;
+                option.textContent = evaluador.NombreCompleto;
+                evaluadorSelect.appendChild(option);
+            });
+            
+            await connection.close();
+        } catch (error) {
+            console.error('Error al cargar evaluadores:', error);
+            Swal.fire({
+                icon: 'error',
+                title: 'Error',
+                text: 'No se pudieron cargar los evaluadores'
+            });
+        }
+    }
     async function guardarDatosPersonales() {
         let connection;
         try {
@@ -2261,8 +2301,10 @@ document.addEventListener('DOMContentLoaded', function() {
                     FactorE,
                     FactorN,
                     FactorF,
-                    FechaEvaluacion
-                ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                    FechaEvaluacion,
+                    IdUsuario,
+                    IdUsuarioEvaluo
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             `, [
                 idPersonal,
                 factorV,
@@ -2270,7 +2312,9 @@ document.addEventListener('DOMContentLoaded', function() {
                 factorE,
                 factorN,
                 factorF,
-                fechaEvaluacion
+                fechaEvaluacion,
+                IdUsuario,                                           // Usuario que registra
+                document.getElementById('evaluadorPMA').value        // Usuario que evaluó
             ]);
             // Guardar la foto
             const photoInput = document.getElementById('photo');
@@ -2335,6 +2379,7 @@ document.addEventListener('DOMContentLoaded', function() {
     document.getElementById('maestriaUniversidad').addEventListener('change', validateAcademicoForm);
     document.getElementById('nit').addEventListener('input', validateDocumentacionForm);
     document.getElementById('tipoLicencia').addEventListener('change', validateDocumentacionForm);
+    document.getElementById('evaluadorPMA').addEventListener('change', validatePMAForm);
     document.querySelectorAll('input[name="tienePorteArma"]').forEach(radio => {
         radio.addEventListener('change', validateDocumentacionForm);
     });

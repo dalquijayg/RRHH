@@ -120,7 +120,30 @@ async function cargarTiposPersonal() {
         mostrarNotificacion('Error al cargar tipos de personal', 'error');
     }
 }
-
+async function cargarEstadosPersonal() {
+    try {
+        const connection = await getConnection();
+        const result = await connection.query(`
+            SELECT IdEstado, EstadoPersonal
+            FROM EstadoPersonal
+            ORDER BY IdEstado
+        `);
+        await connection.close();
+        
+        // Agregar opciones al select
+        let options = '<option value="0">Todos</option>';
+        result.forEach(estado => {
+            // Valor por defecto: si es IdEstado=1 (asumiendo que es "Activo"), seleccionarlo
+            const selected = estado.IdEstado === 1 ? 'selected' : '';
+            options += `<option value="${estado.IdEstado}" ${selected}>${estado.EstadoPersonal}</option>`;
+        });
+        
+        estadoFilter.innerHTML = options;
+    } catch (error) {
+        console.error('Error al cargar estados de personal:', error);
+        mostrarNotificacion('Error al cargar estados de personal', 'error');
+    }
+}
 // Función para realizar la búsqueda
 async function buscarPersonal() {
     mostrarCargando(true);
@@ -678,8 +701,11 @@ function resetearFiltros() {
         colapsarFiltros(false);
     }
     
-    // Realizar búsqueda con los filtros reseteados
-    buscarPersonal();
+    // En su lugar, mostrar instrucciones
+    mostrarInstruccionesBusqueda();
+    
+    // Mostrar notificación
+    mostrarNotificacion('Filtros restablecidos', 'info');
 }
 
 // Limpiar campo de búsqueda
@@ -1182,16 +1208,41 @@ function mostrarResultadosPMA(datosPMA) {
         }
     });
 }
+function mostrarInstruccionesBusqueda() {
+    // Ocultar indicador de carga
+    loadingIndicator.style.display = 'none';
+    
+    // Ocultar otras vistas
+    gridView.style.display = 'none';
+    tableView.style.display = 'none';
+    
+    // Actualizar contador de resultados
+    resultsCount.textContent = '0';
+    currentPageSpan.textContent = '1';
+    totalPagesSpan.textContent = '1';
+    
+    // Deshabilitar botones de paginación
+    prevPageBtn.disabled = true;
+    nextPageBtn.disabled = true;
+    
+    // Mostrar mensaje de selección de filtros
+    noResults.style.display = 'flex';
+    noResults.innerHTML = `
+        <div class="no-results-icon">
+            <i class="fas fa-search"></i>
+        </div>
+        <h3>Seleccione filtros para buscar</h3>
+        <p>Utilice los filtros de búsqueda y haga clic en "Buscar" para ver resultados</p>
+    `;
+}
 // Event Listeners
 document.addEventListener('DOMContentLoaded', () => {
     
     // Cargar datos iniciales para los filtros
     cargarDepartamentos();
     cargarTiposPersonal();
-    
-    // Realizar búsqueda inicial al cargar la página
-    buscarPersonal();
-    
+    cargarEstadosPersonal();
+    mostrarInstruccionesBusqueda();
     // Event listeners para filtros
     searchButton.addEventListener('click', buscarPersonal);
     resetFiltersButton.addEventListener('click', resetearFiltros);

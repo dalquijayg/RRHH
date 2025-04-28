@@ -728,16 +728,71 @@ html, body {
     content: '';
 }
 
-/* Estilos para el historial */
-.history-actions {
+/* Estilos actualizados para el área de historial */
+.history-filters {
+    margin-bottom: 25px;
+    background-color: var(--color-light);
+    border-radius: var(--border-radius);
+    padding: 20px;
+    border: 1px solid rgba(0, 0, 0, 0.05);
+}
+
+.history-filter-group {
     display: flex;
+    flex-wrap: wrap;
+    gap: 20px;
+    align-items: flex-end;
+}
+
+.filter-date-range {
+    display: flex;
+    gap: 15px;
+    flex: 2;
+}
+
+.filter-type {
+    flex: 1;
+}
+
+.filter-actions {
+    display: flex;
+    align-items: flex-end;
+    margin-left: auto;
+}
+
+.history-results-header {
+    display: flex;
+    justify-content: space-between;
     align-items: center;
-    gap: 10px;
+    margin-bottom: 15px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+}
+
+.history-results-header h4 {
+    font-size: 1.1rem;
+    color: var(--color-primary);
+    font-weight: 600;
+}
+
+.history-counter {
+    font-size: 0.9rem;
+    color: var(--color-gray);
+    background-color: var(--color-light);
+    padding: 5px 10px;
+    border-radius: 15px;
 }
 
 .history-container {
     position: relative;
-    min-height: 200px;
+    min-height: 300px;
+    background-color: white;
+    border-radius: var(--border-radius);
+    padding: 20px;
+    border: 1px solid rgba(0, 0, 0, 0.05);
+    box-shadow: var(--shadow-sm);
+    overflow-y: auto;
+    max-height: 500px;
 }
 
 .history-timeline {
@@ -759,6 +814,7 @@ html, body {
     display: flex;
     margin-bottom: 25px;
     position: relative;
+    animation: fadeIn 0.5s ease-in-out;
 }
 
 .history-item:last-child {
@@ -1276,6 +1332,11 @@ input[type="file"] {
     100% { transform: translateX(-100%) translateY(-100%) rotate(45deg); }
 }
 
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
 /* Responsive */
 @media (max-width: 992px) {
     .employee-profile {
@@ -1299,6 +1360,25 @@ input[type="file"] {
     
     .form-group {
         min-width: 100%;
+    }
+    
+    .history-filter-group {
+        flex-direction: column;
+        gap: 15px;
+    }
+    
+    .filter-date-range {
+        flex-direction: column;
+        width: 100%;
+    }
+    
+    .filter-actions {
+        width: 100%;
+    }
+    
+    .filter-actions button {
+        width: 100%;
+        justify-content: center;
     }
 }
 
@@ -1385,5 +1465,16 @@ input[type="file"] {
     
     .section-content {
         padding: 15px;
+    }
+    
+    .history-icon {
+        width: 30px;
+        height: 30px;
+        font-size: 0.9rem;
+    }
+    
+    .history-content {
+        margin-left: 15px;
+        padding: 12px;
     }
 }

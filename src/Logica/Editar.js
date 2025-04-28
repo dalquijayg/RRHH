@@ -214,9 +214,6 @@ async function cargarDatosColaborador(id) {
         // Mostrar datos en la interfaz
         mostrarDatosColaborador();
         
-        // Cargar historial de cambios
-        await cargarHistorialCambios(id);
-        
         // Cargar selectores
         await Promise.all([
             cargarEstados(),
@@ -326,8 +323,6 @@ function mostrarDatosColaborador() {
     document.getElementById('fechaContrato').value = formatDate(employeeData.FechaContrato);
     document.getElementById('fechaPlanilla').value = formatDate(employeeData.FechaPlanilla);
 }
-
-// Guardar valores originales para comparación
 // Guardar valores originales para comparación
 function guardarValoresOriginales() {
     originalValues = {};
@@ -370,59 +365,112 @@ function guardarValoresOriginales() {
     
     // Guarda también los valores académicos si existen
     if (employeeData.infoAcademica) {
-        // Agrega aquí los campos académicos
         originalValues.estadoPrimaria = employeeData.infoAcademica.EstadoPrimaria;
         originalValues.planPrimaria = employeeData.infoAcademica.IdPlanEstudioPrimaria;
-        // ... etc para los demás campos académicos
     }
 }
 
 // Mostrar/ocultar indicador de carga
 function mostrarCargando(mostrar) {
+    if (!loadingIndicator) return;
+    
     if (mostrar) {
         loadingIndicator.style.display = 'flex';
     } else {
         loadingIndicator.style.display = 'none';
     }
+    void loadingIndicator.offsetWidth;
 }
-async function cargarHistorialCambios(idPersonal) {
+
+async function cargarHistorialCambios(idPersonal, filtros = {}) {
     try {
+        mostrarCargando(true);
+        
         const connection = await getConnection();
-        const query = `
+        
+        // Base de la consulta
+        let query = `
             SELECT 
-                HistorialCambios.IdHistorial,
-                HistorialCambios.IdPersonal,
-                HistorialCambios.Seccion,
-                HistorialCambios.Campo,
-                HistorialCambios.ValorAnterior,
-                HistorialCambios.ValorNuevo,
-                HistorialCambios.FechaCambio,
-                HistorialCambios.IdUsuario,
-                CONCAT(p.PrimerNombre, ' ', IFNULL(p.PrimerApellido, '')) AS NombreUsuario
+                h.IdPersonal,
+                h.NombrePersonal,
+                h.TipoCambio,
+                h.Cambio,
+                h.ValorAnterior,
+                h.ValorNuevo,
+                h.IdUsuario,
+                h.NombreUsuario,
+                h.FechaCambio,
+                h.FechaHoraCambio
             FROM 
-                HistorialCambios
-                LEFT JOIN personal p ON HistorialCambios.IdUsuario = p.IdPersonal
+                HistorialCambiosPersonal h
             WHERE 
-                HistorialCambios.IdPersonal = ?
-            ORDER BY 
-                HistorialCambios.FechaCambio DESC
+                h.IdPersonal = ?
         `;
         
-        const result = await connection.query(query, [idPersonal]);
+        // Arreglo para parámetros
+        const queryParams = [idPersonal];
+        
+        // Agregar filtros si se especifican
+        if (filtros.tipoCambio && filtros.tipoCambio !== 'all') {
+            query += ` AND h.TipoCambio = ?`;
+            queryParams.push(parseInt(filtros.tipoCambio));
+        }
+        
+        if (filtros.fechaDesde) {
+            query += ` AND h.FechaCambio >= ?`;
+            queryParams.push(filtros.fechaDesde);
+        }
+        
+        if (filtros.fechaHasta) {
+            query += ` AND h.FechaCambio <= ?`;
+            queryParams.push(filtros.fechaHasta);
+        }
+        
+        // Ordenar por fecha más reciente primero
+        query += ` ORDER BY h.FechaHoraCambio DESC`;
+        
+        console.log("Query historial:", query);
+        console.log("Parámetros:", queryParams);
+        
+        const result = await connection.query(query, queryParams);
         await connection.close();
         
         // Mostrar historial en la interfaz
         mostrarHistorialCambios(result);
         
+        // Asegurar que se oculte el cargando
+        mostrarCargando(false);
+        
     } catch (error) {
         console.error('Error al cargar historial de cambios:', error);
         mostrarNotificacion('Error al cargar el historial de cambios', 'error');
+        
+        // Asegurar que se oculte el cargando incluso en caso de error
+        mostrarCargando(false);
+        
+        // Mostrar mensaje de error en el historial
+        const historialContainer = document.querySelector('.history-timeline');
+        if (historialContainer) {
+            historialContainer.innerHTML = `
+                <div class="no-history-message">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    <p>Error al cargar el historial de cambios. Por favor intente nuevamente.</p>
+                </div>
+            `;
+        }
+        
+        // Actualizar contador de registros
+        const historyCounter = document.getElementById('historyCounter');
+        if (historyCounter) {
+            historyCounter.textContent = '0 registros encontrados';
+        }
     }
 }
-
-// Mostrar historial de cambios en la interfaz
 // Mostrar historial de cambios en la interfaz
 function mostrarHistorialCambios(historial) {
+    // Asegurar que el indicador de carga se oculte
+    mostrarCargando(false);
+    
     const historialContainer = document.querySelector('.history-timeline');
     
     if (!historialContainer) {
@@ -430,102 +478,123 @@ function mostrarHistorialCambios(historial) {
         return;
     }
     
-    const noHistoryMessage = document.querySelector('.no-history-message');
+    // Actualizar contador de registros
+    const historyCounter = document.getElementById('historyCounter');
+    if (historyCounter) {
+        const cantidad = historial ? historial.length : 0;
+        historyCounter.textContent = `${cantidad} registro${cantidad !== 1 ? 's' : ''} encontrado${cantidad !== 1 ? 's' : ''}`;
+    }
+    
+    // Limpiar el contenedor
+    historialContainer.innerHTML = '';
     
     if (!historial || historial.length === 0) {
-        // Si no existe el mensaje de "no hay historial", lo creamos
-        if (!noHistoryMessage) {
-            const messageElement = document.createElement('div');
-            messageElement.className = 'no-history-message';
-            messageElement.innerHTML = `
-                <i class="fas fa-exclamation-circle"></i>
-                <p>No hay registros de cambios para este colaborador</p>
-            `;
-            historialContainer.appendChild(messageElement);
-        } else {
-            noHistoryMessage.style.display = 'flex';
-        }
+        // Si no hay historial, mostrar mensaje
+        const messageElement = document.createElement('div');
+        messageElement.className = 'no-history-message';
+        messageElement.innerHTML = `
+            <i class="fas fa-exclamation-circle"></i>
+            <p>No hay registros de cambios para este colaborador con los filtros aplicados</p>
+        `;
+        historialContainer.appendChild(messageElement);
         return;
     }
     
-    // Si hay historial, ocultamos el mensaje (si existe)
-    if (noHistoryMessage) {
-        noHistoryMessage.style.display = 'none';
-    }
-    
-    let historialHTML = '';
-    
-    // Resto de la función...
-    // Agrupar cambios por fecha y usuario
-    const cambiosPorFecha = {};
+    // Agrupar cambios por fecha, hora y usuario
+    const cambiosPorGrupo = {};
     
     historial.forEach(cambio => {
-        const fecha = new Date(cambio.FechaCambio).toISOString().split('T')[0];
-        const clave = `${fecha}-${cambio.IdUsuario}`;
+        // Crear una clave única para agrupar por fecha+hora+usuario
+        const fechaHora = new Date(cambio.FechaHoraCambio);
+        const clave = `${fechaHora.getTime()}-${cambio.IdUsuario}`;
         
-        if (!cambiosPorFecha[clave]) {
-            cambiosPorFecha[clave] = {
+        if (!cambiosPorGrupo[clave]) {
+            cambiosPorGrupo[clave] = {
                 fecha: cambio.FechaCambio,
+                fechaHora: cambio.FechaHoraCambio,
+                tipoCambio: cambio.TipoCambio, // Guardar el tipo de cambio para el filtrado
                 usuario: cambio.NombreUsuario,
                 idUsuario: cambio.IdUsuario,
                 cambios: []
             };
         }
         
-        cambiosPorFecha[clave].cambios.push(cambio);
+        cambiosPorGrupo[clave].cambios.push(cambio);
     });
     
     // Crear elementos HTML para cada grupo de cambios
-    Object.values(cambiosPorFecha).forEach(grupo => {
-        const fechaFormateada = new Date(grupo.fecha).toLocaleDateString('es-ES', {
-            year: 'numeric',
-            month: 'long',
-            day: 'numeric',
-            hour: '2-digit',
-            minute: '2-digit'
-        });
-        
-        let cambiosHTML = '';
-        
-        grupo.cambios.forEach(cambio => {
-            // Obtener el icono para la sección
-            const seccionIcono = obtenerIconoSeccion(cambio.Seccion);
+    Object.values(cambiosPorGrupo)
+        .sort((a, b) => new Date(b.fechaHora) - new Date(a.fechaHora)) // Ordenar por fecha más reciente
+        .forEach(grupo => {
+            const fechaFormateada = new Date(grupo.fechaHora).toLocaleDateString('es-ES', {
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric'
+            });
             
-            cambiosHTML += `
-                <div class="history-change">
-                    <span class="history-field">${obtenerNombreCampo(cambio.Campo)}:</span>
-                    <span class="history-old">${formatearValorCampo(cambio.Campo, cambio.ValorAnterior)}</span>
-                    <i class="fas fa-arrow-right"></i>
-                    <span class="history-new">${formatearValorCampo(cambio.Campo, cambio.ValorNuevo)}</span>
+            const horaFormateada = new Date(grupo.fechaHora).toLocaleTimeString('es-ES', {
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+            
+            let cambiosHTML = '';
+            
+            grupo.cambios.forEach(cambio => {
+                cambiosHTML += `
+                    <div class="history-change">
+                        <span class="history-field">${cambio.Cambio}:</span>
+                        <span class="history-old">${cambio.ValorAnterior}</span>
+                        <i class="fas fa-arrow-right"></i>
+                        <span class="history-new">${cambio.ValorNuevo}</span>
+                    </div>
+                `;
+            });
+            
+            // Convertir tipo de cambio numérico a texto para mostrar
+            const tiposCambio = {
+                1: 'Datos Personales',
+                2: 'Ubicación',
+                3: 'Contacto',
+                4: 'Info Laboral',
+                5: 'Info Académica',
+                6: 'Estado'
+            };
+            
+            const tipoCambioTexto = tiposCambio[grupo.tipoCambio] || 'Otro';
+            const iconosCambio = {
+                1: 'fa-user',
+                2: 'fa-map-marker-alt',
+                3: 'fa-phone-alt',
+                4: 'fa-briefcase',
+                5: 'fa-graduation-cap',
+                6: 'fa-toggle-on'
+            };
+            
+            const icono = iconosCambio[grupo.tipoCambio] || 'fa-history';
+            
+            // Crear elemento historial
+            const historialItemHTML = `
+                <div class="history-item" data-tipo="${grupo.tipoCambio}" data-fecha="${grupo.fecha}">
+                    <div class="history-icon">
+                        <i class="fas ${icono}"></i>
+                    </div>
+                    <div class="history-content">
+                        <div class="history-header">
+                            <div class="history-title">${tipoCambioTexto}</div>
+                            <div class="history-date">${fechaFormateada} - ${horaFormateada}</div>
+                        </div>
+                        <div class="history-details">
+                            ${cambiosHTML}
+                        </div>
+                        <div class="history-by">
+                            Modificado por: ${grupo.usuario || 'Usuario desconocido'}
+                        </div>
+                    </div>
                 </div>
             `;
+            
+            historialContainer.innerHTML += historialItemHTML;
         });
-        
-        historialHTML += `
-            <div class="history-item" data-section="${grupo.cambios[0].Seccion}">
-                <div class="history-icon">
-                    <i class="fas ${obtenerIconoSeccion(grupo.cambios[0].Seccion)}"></i>
-                </div>
-                <div class="history-content">
-                    <div class="history-header">
-                        <div class="history-title">${obtenerTituloSeccion(grupo.cambios[0].Seccion)}</div>
-                        <div class="history-date">${fechaFormateada}</div>
-                    </div>
-                    <div class="history-details">
-                        ${cambiosHTML}
-                    </div>
-                    <div class="history-by">
-                        Modificado por: ${grupo.usuario || 'Usuario desconocido'}
-                    </div>
-                </div>
-            </div>
-        `;
-    });
-    
-    historialContainer.innerHTML = historialHTML;
-    
-    // Configurar filtro de historial
-    configurarFiltroHistorial();
 }
 
 // Configurar filtro para el historial
@@ -1237,9 +1306,99 @@ function mostrarModalConfirmacion() {
     // Mostrar modal
     confirmModal.classList.add('active');
 }
+// Guardar cambios
+// Modificar la configuración de los botones del modal de confirmación
+function configurarBotonesEdicion() {
+    // Botones de edición por sección
+    sectionEditBtns.forEach(btn => {
+        const section = btn.getAttribute('data-section');
+        
+        // Verificar que todos los inputs dentro de la sección tengan el atributo data-section
+        const sectionInputs = btn.closest('.form-section').querySelectorAll('input, select, textarea');
+        sectionInputs.forEach(input => {
+            input.setAttribute('data-section', section);
+        });
+        
+        // Evento click para habilitar edición
+        btn.addEventListener('click', function(e) {
+            e.preventDefault(); // Evitar comportamiento predeterminado
+            habilitarEdicionSeccion(section);
+        });
+    });
+    
+    // Botón de editar foto
+    btnEditPhoto.addEventListener('click', function() {
+        if (!canEdit) {
+            mostrarNotificacion('No tiene permisos para editar', 'error');
+            return;
+        }
+        
+        // Configurar y mostrar modal
+        configurarModalFoto();
+        photoModal.classList.add('active');
+    });
+    
+    // Botón de guardar todo
+    btnGuardarTodo.addEventListener('click', function() {
+        if (!canEdit) {
+            mostrarNotificacion('No tiene permisos para guardar cambios', 'error');
+            return;
+        }
+        
+        mostrarModalConfirmacion();
+    });
+    
+    // Botones del modal de confirmación
+    const confirmSaveBtn = document.getElementById('confirmSaveBtn');
+    const cancelConfirmBtn = document.getElementById('cancelConfirmBtn');
+    const closeConfirmModal = document.getElementById('closeConfirmModal');
+    
+    // Botón de confirmar guardado con indicador de carga
+    if (confirmSaveBtn) {
+        confirmSaveBtn.addEventListener('click', function() {
+            // Guardar el contenido original del botón
+            const originalContent = confirmSaveBtn.innerHTML;
+            
+            // Cambiar el botón a estado de carga
+            confirmSaveBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Guardando...';
+            confirmSaveBtn.disabled = true;
+            
+            // Deshabilitar otros botones del modal para evitar acciones múltiples
+            if (cancelConfirmBtn) cancelConfirmBtn.disabled = true;
+            if (closeConfirmModal) closeConfirmModal.disabled = true;
+            
+            // Mostrar indicador de carga global
+            mostrarCargando(true);
+            
+            // Iniciar el proceso de guardado
+            guardarCambios().finally(() => {
+                // Restaurar el botón independientemente del resultado
+                confirmSaveBtn.innerHTML = originalContent;
+                confirmSaveBtn.disabled = false;
+                
+                // Reactivar otros botones
+                if (cancelConfirmBtn) cancelConfirmBtn.disabled = false;
+                if (closeConfirmModal) closeConfirmModal.disabled = false;
+            });
+        });
+    }
+    
+    // Botón de cancelar confirmación
+    if (cancelConfirmBtn) {
+        cancelConfirmBtn.addEventListener('click', function() {
+            confirmModal.classList.remove('active');
+        });
+    }
+    
+    // Botón de cerrar modal de confirmación
+    if (closeConfirmModal) {
+        closeConfirmModal.addEventListener('click', function() {
+            confirmModal.classList.remove('active');
+        });
+    }
+}
 
-// Guardar cambios
-// Guardar cambios
+// Modificar la función guardarCambios para que retorne una promesa
 async function guardarCambios() {
     try {
         mostrarCargando(true);
@@ -1310,11 +1469,115 @@ async function guardarCambios() {
         // Registros para el historial
         const historialRegistros = [];
         
-        // Fecha actual para el historial
-        const fechaActual = new Date().toISOString().slice(0, 19).replace('T', ' ');
-        
         // Log de los cambios para depuración
         console.log("Campos cambiados:", changedFields);
+        
+        // Mapeo de secciones a tipos de cambio
+        const sectionToTipoCambio = {
+            'personal': 1,  // Datos personales
+            'location': 2,  // Ubicación
+            'contact': 3,   // Contacto
+            'work': 4,      // Info Laboral
+            'academic': 5,  // Info Académica
+            'status': 6     // Estado
+        };
+        
+        // Función para obtener el valor descriptivo de un campo
+        async function obtenerValorDescriptivo(campo, id) {
+            if (id === null || id === undefined || id === '') return "Sin valor";
+            
+            // Si no es un ID o no requiere conversión, devolver el valor tal cual
+            if (typeof id !== 'number' && !Number.isInteger(Number(id))) return String(id);
+            
+            try {
+                // Según el campo, buscar el valor descriptivo correspondiente
+                switch (campo) {
+                    case 'IdEstadoCivil':
+                        const estadoCivilQuery = "SELECT EstadoCivil FROM estadocivil WHERE IdCivil = ?";
+                        const estadoCivilResult = await connection.query(estadoCivilQuery, [id]);
+                        return estadoCivilResult.length > 0 ? estadoCivilResult[0].EstadoCivil : String(id);
+                        
+                    case 'IdDepartamentoOrigen':
+                    case 'IdDepartamentoG':
+                        const deptoQuery = "SELECT NombreDepartamento FROM departamentosguatemala WHERE IdDepartamentoG = ?";
+                        const deptoResult = await connection.query(deptoQuery, [id]);
+                        return deptoResult.length > 0 ? deptoResult[0].NombreDepartamento : String(id);
+                        
+                    case 'IdMunicipioOrigen':
+                    case 'IdMunicipioG':
+                        const muniQuery = "SELECT NombreMunicipio FROM municipios WHERE IdMunicipio = ?";
+                        const muniResult = await connection.query(muniQuery, [id]);
+                        return muniResult.length > 0 ? muniResult[0].NombreMunicipio : String(id);
+                        
+                    case 'IdParentesco':
+                        const parentescoQuery = "SELECT Parentesco FROM parentesco WHERE IdParentesco = ?";
+                        const parentescoResult = await connection.query(parentescoQuery, [id]);
+                        return parentescoResult.length > 0 ? parentescoResult[0].Parentesco : String(id);
+                        
+                    case 'TipoPersonal':
+                        const tipoPersonalQuery = "SELECT TipoPersonal FROM TipoPersonal WHERE IdTipo = ?";
+                        const tipoPersonalResult = await connection.query(tipoPersonalQuery, [id]);
+                        return tipoPersonalResult.length > 0 ? tipoPersonalResult[0].TipoPersonal : String(id);
+                        
+                    case 'IdPlanilla':
+                        const planillaQuery = "SELECT Nombre_Planilla FROM planillas WHERE IdPlanilla = ?";
+                        const planillaResult = await connection.query(planillaQuery, [id]);
+                        return planillaResult.length > 0 ? planillaResult[0].Nombre_Planilla : String(id);
+                        
+                    case 'IdSucuDepa':
+                        const departamentoQuery = "SELECT NombreDepartamento FROM departamentos WHERE IdDepartamento = ?";
+                        const departamentoResult = await connection.query(departamentoQuery, [id]);
+                        return departamentoResult.length > 0 ? departamentoResult[0].NombreDepartamento : String(id);
+                        
+                    case 'IdPuesto':
+                        const puestoQuery = `
+                            SELECT pg.Nombre 
+                            FROM Puestos p
+                            INNER JOIN PuestosGenerales pg ON p.Id_PuestoGeneral = pg.Id_Puesto
+                            WHERE p.IdPuesto = ?
+                        `;
+                        const puestoResult = await connection.query(puestoQuery, [id]);
+                        return puestoResult.length > 0 ? puestoResult[0].Nombre : String(id);
+                        
+                    case 'Estado':
+                        const estadoQuery = "SELECT EstadoPersonal FROM EstadoPersonal WHERE IdEstado = ?";
+                        const estadoResult = await connection.query(estadoQuery, [id]);
+                        return estadoResult.length > 0 ? estadoResult[0].EstadoPersonal : String(id);
+                        
+                    // Estados académicos
+                    case 'EstadoPrimaria':
+                    case 'EstadoBasico':
+                    case 'EstadoDiversificado':
+                    case 'EstadoUniversidad':
+                    case 'EstadoMaestria':
+                        const estadoEduQuery = "SELECT DescripcionEstado FROM EstadosEducacion WHERE IdEstadoEducacion = ?";
+                        const estadoEduResult = await connection.query(estadoEduQuery, [id]);
+                        return estadoEduResult.length > 0 ? estadoEduResult[0].DescripcionEstado : String(id);
+                        
+                    // Planes de estudio
+                    case 'IdPlanEstudioPrimaria':
+                    case 'IdPlanEstudioBasico':
+                    case 'IdPlanEstudioDiversificado':
+                    case 'IdPlanEstudioUniversitario':
+                    case 'IdPlanEstudio':
+                        const planQuery = "SELECT Plan FROM planestudios WHERE IdPlanEstudio = ?";
+                        const planResult = await connection.query(planQuery, [id]);
+                        return planResult.length > 0 ? planResult[0].Plan : String(id);
+                        
+                    case 'IdUniversidad':
+                    case 'IdUniversidadMaestria':
+                        const univQuery = "SELECT Nombre FROM universidades WHERE IdUniversidad = ?";
+                        const univResult = await connection.query(univQuery, [id]);
+                        return univResult.length > 0 ? univResult[0].Nombre : String(id);
+                        
+                    default:
+                        return String(id);
+                }
+            } catch (error) {
+                console.error(`Error al obtener valor descriptivo para ${campo}:`, error);
+                return String(id);
+            }
+        }
         
         // Procesar cada campo cambiado
         for (const fieldName in changedFields) {
@@ -1357,15 +1620,21 @@ async function guardarCambios() {
                 }
             }
             
-            // Registrar en historial
+            // Obtener valores descriptivos para el historial
+            const valorAntiguo = await obtenerValorDescriptivo(dbFieldName, oldValue);
+            const valorNuevo = await obtenerValorDescriptivo(dbFieldName, newValue);
+            
+            // Registrar en historial usando la nueva estructura y valores descriptivos
             historialRegistros.push({
                 IdPersonal: employeeData.IdPersonal,
-                Seccion: section,
-                Campo: dbFieldName,
-                ValorAnterior: oldValue,
-                ValorNuevo: newValue,
-                FechaCambio: fechaActual,
-                IdUsuario: currentUser.IdPersonal
+                NombrePersonal: employeeData.NombreCompleto,
+                TipoCambio: sectionToTipoCambio[section] || 0, // Mapeo de sección a tipo de cambio
+                Cambio: obtenerNombreCampo(dbFieldName), // Nombre amigable del campo
+                ValorAnterior: valorAntiguo,
+                ValorNuevo: valorNuevo,
+                IdUsuario: currentUser.IdPersonal,
+                NombreUsuario: currentUser.NombreCompleto || `${currentUser.PrimerNombre} ${currentUser.PrimerApellido}`
+                // FechaCambio y FechaHoraCambio son generados automáticamente por la base de datos
             });
         }
         
@@ -1378,9 +1647,6 @@ async function guardarCambios() {
             `;
             
             updateValues.push(employeeData.IdPersonal);
-            
-            console.log("Query personal:", updateQuery);
-            console.log("Valores:", updateValues);
             
             try {
                 await connection.query(updateQuery, updateValues);
@@ -1448,23 +1714,25 @@ async function guardarCambios() {
             }
         }
         
-        // Insertar registros en el historial
+        // Insertar registros en el historial usando la nueva tabla
         if (historialRegistros.length > 0) {
             for (const registro of historialRegistros) {
                 const historialQuery = `
-                    INSERT INTO HistorialCambios 
-                    (IdPersonal, Seccion, Campo, ValorAnterior, ValorNuevo, FechaCambio, IdUsuario)
-                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                    INSERT INTO HistorialCambiosPersonal 
+                    (IdPersonal, NombrePersonal, TipoCambio, Cambio, 
+                     ValorAnterior, ValorNuevo, IdUsuario, NombreUsuario)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                 `;
                 
                 const historialValues = [
                     registro.IdPersonal,
-                    registro.Seccion,
-                    registro.Campo,
+                    registro.NombrePersonal,
+                    registro.TipoCambio,
+                    registro.Cambio,
                     registro.ValorAnterior,
                     registro.ValorNuevo,
-                    registro.FechaCambio,
-                    registro.IdUsuario
+                    registro.IdUsuario,
+                    registro.NombreUsuario
                 ];
                 
                 try {
@@ -1496,6 +1764,9 @@ async function guardarCambios() {
         console.error('Error al guardar cambios:', error);
         mostrarNotificacion('Error al guardar los cambios: ' + (error.message || 'Revise la consola para más detalles'), 'error');
         mostrarCargando(false);
+        
+        // Volver a lanzar el error para que pueda ser manejado por el llamador
+        throw error;
     }
 }
 // Actualizar foto del colaborador
@@ -1545,22 +1816,23 @@ async function actualizarFoto(file) {
             await connection.query(insertQuery, [employeeData.IdPersonal, fileBuffer]);
         }
         
-        // Registrar cambio en el historial
-        const fechaActual = new Date().toISOString().slice(0, 19).replace('T', ' ');
+        // Registrar cambio en el historial usando la nueva tabla
         const historialQuery = `
-            INSERT INTO HistorialCambios 
-            (IdPersonal, Seccion, Campo, ValorAnterior, ValorNuevo, FechaCambio, IdUsuario)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO HistorialCambiosPersonal 
+            (IdPersonal, NombrePersonal, TipoCambio, Cambio, 
+             ValorAnterior, ValorNuevo, IdUsuario, NombreUsuario)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         `;
         
         await connection.query(historialQuery, [
             employeeData.IdPersonal,
-            'personal',
-            'Foto',
+            employeeData.NombreCompleto,
+            1, // TipoCambio = 1 (Datos Personales)
+            'Foto de Perfil',
             'Foto anterior',
             'Foto actualizada',
-            fechaActual,
-            currentUser.IdPersonal
+            currentUser.IdPersonal,
+            currentUser.NombreCompleto || `${currentUser.PrimerNombre} ${currentUser.PrimerApellido}`
         ]);
         
         await connection.close();
@@ -1673,12 +1945,101 @@ function configurarTabs() {
             const tabId = this.getAttribute('data-tab');
             document.getElementById(`tab-${tabId}`).classList.add('active');
             
+            // Si la pestaña seleccionada es historial, inicializar su vista
+            if (tabId === 'history') {
+                mostrarPestanaHistorial();
+            }
+            
             // Actualizar pestaña actual
             currentTab = tabId;
         });
     });
 }
-
+function mostrarPestanaHistorial() {
+    // Preparar la interfaz de historial sin cargar datos
+    const historialContainer = document.querySelector('.history-timeline');
+    
+    if (historialContainer) {
+        historialContainer.innerHTML = `
+            <div class="no-history-message">
+                <i class="fas fa-search"></i>
+                <p>Utilice los filtros y presione el botón "Buscar" para ver el historial de cambios</p>
+            </div>
+        `;
+    }
+    
+    // Reiniciar el contador de registros
+    const historyCounter = document.getElementById('historyCounter');
+    if (historyCounter) {
+        historyCounter.textContent = '0 registros encontrados';
+    }
+    
+    // Establecer fecha actual en el campo "hasta"
+    const historyDateTo = document.getElementById('historyDateTo');
+    if (historyDateTo) {
+        const fechaActual = new Date().toISOString().split('T')[0];
+        historyDateTo.value = fechaActual;
+    }
+    
+    // Establecer fecha hace un mes en el campo "desde"
+    const historyDateFrom = document.getElementById('historyDateFrom');
+    if (historyDateFrom) {
+        const fechaUnMesAtras = new Date();
+        fechaUnMesAtras.setMonth(fechaUnMesAtras.getMonth() - 1);
+        historyDateFrom.value = fechaUnMesAtras.toISOString().split('T')[0];
+    }
+}
+function configurarBusquedaHistorial() {
+    const btnBuscarHistorial = document.getElementById('btnBuscarHistorial');
+    
+    if (btnBuscarHistorial) {
+        btnBuscarHistorial.addEventListener('click', function() {
+            // Obtener elementos de filtro
+            const historyDateFrom = document.getElementById('historyDateFrom');
+            const historyDateTo = document.getElementById('historyDateTo');
+            const historyFilter = document.getElementById('historyFilter');
+            
+            // Validar que tengamos lo necesario
+            if (!historyDateFrom || !historyDateTo || !historyFilter || !employeeData) {
+                mostrarNotificacion('No se puede realizar la búsqueda en este momento', 'error');
+                return;
+            }
+            
+            const filtros = {
+                tipoCambio: historyFilter.value,
+                fechaDesde: historyDateFrom.value,
+                fechaHasta: historyDateTo.value
+            };
+            
+            // Validar fechas
+            if (filtros.fechaDesde && filtros.fechaHasta) {
+                if (new Date(filtros.fechaDesde) > new Date(filtros.fechaHasta)) {
+                    mostrarNotificacion('La fecha "Desde" no puede ser mayor que la fecha "Hasta"', 'error');
+                    return;
+                }
+            }
+            
+            // Mostrar cargando antes de la búsqueda
+            mostrarCargando(true);
+            
+            // Actualizar texto del botón para indicar carga
+            const textoOriginal = btnBuscarHistorial.innerHTML;
+            btnBuscarHistorial.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Buscando...';
+            btnBuscarHistorial.disabled = true;
+            
+            // Cargar historial con los filtros seleccionados
+            cargarHistorialCambios(employeeData.IdPersonal, filtros)
+                .finally(() => {
+                    // Restaurar estado del botón independientemente del resultado
+                    btnBuscarHistorial.innerHTML = textoOriginal;
+                    btnBuscarHistorial.disabled = false;
+                    
+                    // Asegurar que el indicador de carga se oculte
+                    mostrarCargando(false);
+                });
+        });
+    }
+}
 // Configurar eventos de los botones de edición
 function configurarBotonesEdicion() {
     // Botones de edición por sección
@@ -1721,17 +2082,53 @@ function configurarBotonesEdicion() {
     });
     
     // Botones del modal de confirmación
-    document.getElementById('confirmSaveBtn').addEventListener('click', function() {
-        guardarCambios();
-    });
+    const confirmSaveBtn = document.getElementById('confirmSaveBtn');
+    const cancelConfirmBtn = document.getElementById('cancelConfirmBtn');
+    const closeConfirmModal = document.getElementById('closeConfirmModal');
     
-    document.getElementById('cancelConfirmBtn').addEventListener('click', function() {
-        confirmModal.classList.remove('active');
-    });
+    // Botón de confirmar guardado con indicador de carga
+    if (confirmSaveBtn) {
+        confirmSaveBtn.addEventListener('click', function() {
+            // Guardar el contenido original del botón
+            const originalContent = confirmSaveBtn.innerHTML;
+            
+            // Cambiar el botón a estado de carga
+            confirmSaveBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Guardando...';
+            confirmSaveBtn.disabled = true;
+            
+            // Deshabilitar otros botones del modal para evitar acciones múltiples
+            if (cancelConfirmBtn) cancelConfirmBtn.disabled = true;
+            if (closeConfirmModal) closeConfirmModal.disabled = true;
+            
+            // Mostrar indicador de carga global
+            mostrarCargando(true);
+            
+            // Iniciar el proceso de guardado
+            guardarCambios().finally(() => {
+                // Restaurar el botón independientemente del resultado
+                confirmSaveBtn.innerHTML = originalContent;
+                confirmSaveBtn.disabled = false;
+                
+                // Reactivar otros botones
+                if (cancelConfirmBtn) cancelConfirmBtn.disabled = false;
+                if (closeConfirmModal) closeConfirmModal.disabled = false;
+            });
+        });
+    }
     
-    document.getElementById('closeConfirmModal').addEventListener('click', function() {
-        confirmModal.classList.remove('active');
-    });
+    // Botón de cancelar confirmación
+    if (cancelConfirmBtn) {
+        cancelConfirmBtn.addEventListener('click', function() {
+            confirmModal.classList.remove('active');
+        });
+    }
+    
+    // Botón de cerrar modal de confirmación
+    if (closeConfirmModal) {
+        closeConfirmModal.addEventListener('click', function() {
+            confirmModal.classList.remove('active');
+        });
+    }
 }
 
 // Configurar evento para volver a la pantalla de búsqueda
@@ -1814,6 +2211,7 @@ async function inicializar() {
         configurarBotonesEdicion();
         configurarBotonVolver();
         configurarClicFueraModal();
+        configurarBusquedaHistorial(); // Nueva línea para configurar el botón de búsqueda
         
     } catch (error) {
         console.error('Error al inicializar la aplicación:', error);

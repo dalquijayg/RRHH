@@ -664,28 +664,63 @@
                         </div>
                     </div>
                     
-                    <!-- Pestaña: Historial de Cambios -->
+                    <!-- Pestaña: Historial de Cambios actualizada -->
                     <div class="tab-pane" id="tab-history">
                         <div class="form-section">
                             <div class="section-header">
                                 <h3><i class="fas fa-history"></i> Historial de Cambios</h3>
-                                <div class="history-actions">
-                                    <div class="select-wrapper">
-                                        <select id="historyFilter">
-                                            <option value="all">Todos los cambios</option>
-                                            <option value="personal">Datos Personales</option>
-                                            <option value="location">Ubicación</option>
-                                            <option value="contact">Contacto</option>
-                                            <option value="work">Info Laboral</option>
-                                            <option value="academic">Info Académica</option>
-                                            <option value="status">Estado</option>
-                                        </select>
-                                        <i class="fas fa-chevron-down"></i>
-                                    </div>
-                                </div>
                             </div>
                             <div class="section-content">
+                                <!-- Filtros de historial -->
+                                <div class="history-filters">
+                                    <div class="history-filter-group">
+                                        <div class="filter-date-range">
+                                            <div class="form-group">
+                                                <label for="historyDateFrom">Desde</label>
+                                                <div class="input-with-icon">
+                                                    <i class="fas fa-calendar-alt"></i>
+                                                    <input type="date" id="historyDateFrom">
+                                                </div>
+                                            </div>
+                                            <div class="form-group">
+                                                <label for="historyDateTo">Hasta</label>
+                                                <div class="input-with-icon">
+                                                    <i class="fas fa-calendar-alt"></i>
+                                                    <input type="date" id="historyDateTo">
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="filter-type">
+                                            <div class="form-group">
+                                                <label for="historyFilter">Tipo de Cambio</label>
+                                                <div class="select-wrapper">
+                                                    <select id="historyFilter">
+                                                        <option value="all">Todos los cambios</option>
+                                                        <option value="1">Datos Personales</option>
+                                                        <option value="2">Ubicación</option>
+                                                        <option value="3">Contacto</option>
+                                                        <option value="4">Info Laboral</option>
+                                                        <option value="5">Info Académica</option>
+                                                        <option value="6">Estado</option>
+                                                    </select>
+                                                    <i class="fas fa-chevron-down"></i>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="filter-actions">
+                                            <button class="btn btn-primary" id="btnBuscarHistorial">
+                                                <i class="fas fa-search"></i> Buscar
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <!-- Resultados del historial -->
                                 <div class="history-container">
+                                    <div class="history-results-header">
+                                        <h4>Resultados</h4>
+                                        <span class="history-counter" id="historyCounter">0 registros encontrados</span>
+                                    </div>
                                     <div class="history-timeline">
                                         <!-- El historial se cargará dinámicamente -->
                                         <div class="no-history-message">
