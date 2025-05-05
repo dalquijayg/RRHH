@@ -247,6 +247,8 @@ async function buscarPersonal() {
             // Calcular edad
             let edad = 'No registrada';
             if (employee.FechaNacimiento) {
+                // Aquí ya no usamos new Date() para evitar problemas de zona horaria
+                // En lugar de eso, trabajamos directamente con las partes de la fecha
                 const fechaNac = new Date(employee.FechaNacimiento);
                 const hoy = new Date();
                 edad = hoy.getFullYear() - fechaNac.getFullYear();
@@ -281,6 +283,26 @@ async function buscarPersonal() {
                 }
             }
             
+            // Función auxiliar para formatear fechas correctamente
+            const formatearFechaSinZonaHoraria = (fecha) => {
+                if (!fecha) return 'No registrado';
+                
+                // Convertir a objeto Date
+                const fechaObj = new Date(fecha);
+                
+                // Verificar si es una fecha válida
+                if (isNaN(fechaObj.getTime())) return 'No registrado';
+                
+                // Obtener componentes de la fecha (día, mes, año)
+                // Usamos getUTCDate(), getUTCMonth() y getUTCFullYear() para evitar ajustes por zona horaria
+                const dia = fechaObj.getUTCDate().toString().padStart(2, '0');
+                const mes = (fechaObj.getUTCMonth() + 1).toString().padStart(2, '0'); // +1 porque los meses empiezan en 0
+                const año = fechaObj.getUTCFullYear();
+                
+                // Retornar fecha formateada como DD/MM/YYYY
+                return `${dia}/${mes}/${año}`;
+            };
+            
             return {
                 id: employee.IdPersonal,
                 nombre: employee.NombreCompleto,
@@ -289,14 +311,18 @@ async function buscarPersonal() {
                 estadoCivil: employee.EstadoCivil,
                 tipoPersonal: employee.TipoPersonal,
                 planilla: employee.Nombre_Planilla,
-                fechaContrato: employee.FechaContrato,
-                fechaPlanilla: employee.FechaPlanilla,
-                inicioLaboral: employee.InicioLaboral ? new Date(employee.InicioLaboral).toLocaleDateString() : 'No registrado',
+                fechaContrato: employee.FechaContrato === 'No asignado' ? 
+                    'No asignado' : formatearFechaSinZonaHoraria(employee.FechaContrato),
+                fechaPlanilla: employee.FechaPlanilla === 'No asignado' ? 
+                    'No asignado' : formatearFechaSinZonaHoraria(employee.FechaPlanilla),
+                inicioLaboral: employee.InicioLaboral === 'No asignado' ? 
+                    'No registrado' : formatearFechaSinZonaHoraria(employee.InicioLaboral),
                 tiempoTrabajado: tiempoTrabajado,
                 estado: employee.EstadoPersonal,
                 estadoId: employee.EstadoId,
                 dpi: employee.DPI || 'No registrado',
-                fechaNacimiento: employee.FechaNacimiento ? new Date(employee.FechaNacimiento).toLocaleDateString() : 'No registrado',
+                fechaNacimiento: employee.FechaNacimiento ? 
+                    formatearFechaSinZonaHoraria(employee.FechaNacimiento) : 'No registrado',
                 edad: edad,
                 departamentoOrigen: employee.DepartamentoOrigen || 'No especificado',
                 municipioOrigen: employee.MunicipioOrigen || 'No especificado',
@@ -546,6 +572,7 @@ function initTabs() {
     });
 }
 // Mostrar detalles de un empleado
+// Mostrar detalles de un empleado
 async function mostrarDetallesEmpleado(id) {
     // Encuentra el empleado en la lista (código existente)
     const empleado = filteredEmployees.find(emp => emp.id === id);
@@ -569,7 +596,22 @@ async function mostrarDetallesEmpleado(id) {
     document.getElementById('modalEmployeeId').textContent = empleado.id;
     document.getElementById('modalEmployeeDpi').textContent = empleado.dpi;
     document.getElementById('modalEmployeeCivilStatus').textContent = empleado.estadoCivil;
-    document.getElementById('modalEmployeeBirthdate').textContent = empleado.fechaNacimiento;
+    
+    // Corrección para la fecha de nacimiento
+    if (empleado.fechaNacimiento && empleado.fechaNacimiento !== 'No registrado') {
+        // Ajustar la fecha para evitar el problema de zona horaria
+        const fechaNacPartes = empleado.fechaNacimiento.split('/');
+        if (fechaNacPartes.length === 3) {
+            // Formato DD/MM/YYYY
+            const fechaCorrecta = `${fechaNacPartes[0]}/${fechaNacPartes[1]}/${fechaNacPartes[2]}`;
+            document.getElementById('modalEmployeeBirthdate').textContent = fechaCorrecta;
+        } else {
+            document.getElementById('modalEmployeeBirthdate').textContent = empleado.fechaNacimiento;
+        }
+    } else {
+        document.getElementById('modalEmployeeBirthdate').textContent = 'No registrado';
+    }
+    
     document.getElementById('modalEmployeeAge').textContent = empleado.edad;
     document.getElementById('modalEmployeeChildren').textContent = empleado.hijos;
     
@@ -595,7 +637,22 @@ async function mostrarDetallesEmpleado(id) {
     // Información Laboral
     document.getElementById('modalEmployeeType').textContent = empleado.tipoPersonal;
     document.getElementById('modalEmployeePayroll').textContent = empleado.planilla;
-    document.getElementById('modalEmployeeStartDate').textContent = empleado.inicioLaboral;
+    
+    // Corrección para la fecha de inicio laboral
+    if (empleado.inicioLaboral && empleado.inicioLaboral !== 'No registrado') {
+        // Ajustar la fecha para evitar el problema de zona horaria
+        const fechaInicioPartes = empleado.inicioLaboral.split('/');
+        if (fechaInicioPartes.length === 3) {
+            // Formato DD/MM/YYYY
+            const fechaCorrecta = `${fechaInicioPartes[0]}/${fechaInicioPartes[1]}/${fechaInicioPartes[2]}`;
+            document.getElementById('modalEmployeeStartDate').textContent = fechaCorrecta;
+        } else {
+            document.getElementById('modalEmployeeStartDate').textContent = empleado.inicioLaboral;
+        }
+    } else {
+        document.getElementById('modalEmployeeStartDate').textContent = 'No registrado';
+    }
+    
     document.getElementById('modalEmployeeWorkTime').textContent = empleado.tiempoTrabajado;
     document.getElementById('modalEmployeeContractDate').textContent = empleado.fechaContrato;
     document.getElementById('modalEmployeePayrollDate').textContent = empleado.fechaPlanilla;
