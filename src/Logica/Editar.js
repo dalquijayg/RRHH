@@ -289,6 +289,18 @@ const btnSavePMA = document.getElementById('btnSavePMA');
 const btnCancelPMA = document.getElementById('btnCancelPMA');
 const btnHistoryPMA = document.getElementById('btnHistoryPMA');
 const btnBackToPMAList = document.getElementById('btnBackToPMAList');
+
+let selectedFile = null;
+
+// Referencias a elementos DOM para cambio de foto
+const photoModal = document.getElementById('photoModal');
+const currentPhoto = document.getElementById('currentPhoto');
+const newPhoto = document.getElementById('newPhoto');
+const newPhotoPreview = document.getElementById('newPhotoPreview');
+const photoInput = document.getElementById('photoInput');
+const btnSavePhoto = document.getElementById('btnSavePhoto');
+const btnCancelPhoto = document.getElementById('btnCancelPhoto');
+const closePhotoModal = document.getElementById('closePhotoModal');
 // Inicialización
 document.addEventListener('DOMContentLoaded', async function() {
     try {
@@ -326,7 +338,7 @@ document.addEventListener('DOMContentLoaded', async function() {
         inicializarEventosAcademicos();
         inicializarEventosDocumentos();
         inicializarEventosPMA();
-        
+        inicializarEventosFoto();
         // Mostrar sección personal por defecto
         mostrarSeccion('personal');
         
@@ -5483,6 +5495,182 @@ function mostrarSeccion(seccion) {
     if (seccion === 'pma') {
         cargarResultadosPMA();
     }
+}
+function inicializarEventosFoto() {
+    // Evento para mostrar el modal de cambio de foto
+    changePhotoBtn.addEventListener('click', function() {
+        mostrarModalFoto();
+    });
+    
+    // Evento para seleccionar una nueva foto
+    photoInput.addEventListener('change', function(event) {
+        manejarSeleccionFoto(event);
+    });
+    
+    // Evento de clic en el área de preview para abrir el selector de archivos
+    newPhotoPreview.addEventListener('click', function() {
+        photoInput.click();
+    });
+    
+    // Eventos para cerrar el modal
+    closePhotoModal.addEventListener('click', cerrarModalFoto);
+    btnCancelPhoto.addEventListener('click', cerrarModalFoto);
+    
+    // Evento para guardar la nueva foto
+    btnSavePhoto.addEventListener('click', guardarNuevaFoto);
+    
+    // Si hace clic fuera del modal, cerrar
+    photoModal.addEventListener('click', function(event) {
+        if (event.target === photoModal) {
+            cerrarModalFoto();
+        }
+    });
+}
+
+// Mostrar el modal de cambio de foto
+function mostrarModalFoto() {
+    // Mostrar la foto actual del empleado
+    currentPhoto.src = employeePhoto.src;
+    
+    // Restablecer la imagen de selección para nueva foto
+    newPhoto.src = '../Imagenes/upload-photo.png';
+    
+    // Limpiar archivo seleccionado
+    selectedFile = null;
+    photoInput.value = '';
+    
+    // Deshabilitar botón guardar
+    btnSavePhoto.disabled = true;
+    
+    // Mostrar modal
+    photoModal.classList.add('show');
+}
+
+// Cerrar el modal de cambio de foto
+function cerrarModalFoto() {
+    photoModal.classList.remove('show');
+}
+
+// Manejar la selección de un archivo de imagen
+function manejarSeleccionFoto(event) {
+    const file = event.target.files[0];
+    
+    if (!file) {
+        return;
+    }
+    
+    // Verificar tipo de archivo
+    const tiposValidos = ['image/jpeg', 'image/png', 'image/jpg'];
+    if (!tiposValidos.includes(file.type)) {
+        mostrarNotificacion('Formato de imagen no válido. Sólo se permiten formatos JPG y PNG.', 'warning');
+        return;
+    }
+    
+    // Verificar tamaño del archivo (máximo 2MB)
+    const tamanoMaximo = 2 * 1024 * 1024; // 2MB en bytes
+    if (file.size > tamanoMaximo) {
+        mostrarNotificacion('La imagen es demasiado grande. El tamaño máximo es 2MB.', 'warning');
+        return;
+    }
+    
+    // Guardar el archivo seleccionado
+    selectedFile = file;
+    
+    // Mostrar vista previa
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        newPhoto.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+    
+    // Habilitar botón guardar
+    btnSavePhoto.disabled = false;
+}
+
+// Guardar la nueva foto
+async function guardarNuevaFoto() {
+    try {
+        if (!selectedFile) {
+            mostrarNotificacion('Por favor seleccione una imagen', 'warning');
+            return;
+        }
+        
+        // Mostrar indicador de carga
+        btnSavePhoto.innerHTML = '<span class="loading-spinner"></span> Guardando...';
+        btnSavePhoto.disabled = true;
+        
+        // Leer el archivo como array buffer
+        const arrayBuffer = await readFileAsArrayBuffer(selectedFile);
+        
+        // Conectar a la base de datos
+        const connection = await getConnection();
+        
+        // Verificar si ya existe una foto para este empleado
+        const checkQuery = `
+            SELECT IdPersonal FROM FotosPersonal 
+            WHERE IdPersonal = ?
+        `;
+        
+        const existingPhoto = await connection.query(checkQuery, [empleadoActual.IdPersonal]);
+        
+        let query, params;
+        
+        if (existingPhoto.length > 0) {
+            // Actualizar foto existente
+            query = `
+                UPDATE FotosPersonal 
+                SET Foto = ? 
+                WHERE IdPersonal = ?
+            `;
+            params = [arrayBuffer, empleadoActual.IdPersonal];
+        } else {
+            // Insertar nueva foto
+            query = `
+                INSERT INTO FotosPersonal 
+                (IdPersonal, Foto) 
+                VALUES (?, ?)
+            `;
+            params = [empleadoActual.IdPersonal, arrayBuffer];
+        }
+        
+        // Ejecutar la consulta
+        await connection.query(query, params);
+        await connection.close();
+        
+        // Actualizar la foto en la interfaz
+        employeePhoto.src = newPhoto.src;
+        
+        // Cerrar modal
+        cerrarModalFoto();
+        
+        // Mostrar notificación de éxito
+        mostrarNotificacion('Foto actualizada correctamente', 'success');
+        
+    } catch (error) {
+        console.error('Error al guardar foto:', error);
+        mostrarNotificacion('Error al guardar la foto: ' + error.message, 'error');
+        
+        // Restaurar botón
+        btnSavePhoto.innerHTML = '<i class="fas fa-save"></i> Guardar Foto';
+        btnSavePhoto.disabled = false;
+    } finally {
+        // Restaurar botón en caso de éxito
+        btnSavePhoto.innerHTML = '<i class="fas fa-save"></i> Guardar Foto';
+    }
+}
+
+// Función para leer un archivo como ArrayBuffer
+function readFileAsArrayBuffer(file) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            resolve(e.target.result);
+        };
+        reader.onerror = function(error) {
+            reject(error);
+        };
+        reader.readAsArrayBuffer(file);
+    });
 }
 // Agregar estilos CSS para el overlay de carga
 const style = document.createElement('style');
