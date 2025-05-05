@@ -2193,3 +2193,50 @@ html, body {
     overflow: hidden;
     text-overflow: ellipsis;
 }
+.btn-export {
+    background-color: #1D6F42; /* Color verde de Excel */
+    color: white;
+    border: none;
+    padding: 8px 16px;
+    border-radius: var(--border-radius);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    transition: all var(--transition-speed);
+    margin-right: 15px;
+    font-weight: 500;
+    font-size: 0.9rem;
+}
+
+.btn-export:hover {
+    background-color: #174f2f;
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(29, 111, 66, 0.3);
+}
+
+.btn-export i {
+    font-size: 1rem;
+}
+
+/* Estilos responsivos */
+@media (max-width: 768px) {
+    .btn-export {
+        padding: 8px 12px;
+    }
+    
+    .btn-export .btn-text {
+        display: none;
+    }
+}
+
+/* Añadir estilos al cargando para exportación */
+.loading-container p.export-loading {
+    margin-top: 10px;
+    background-color: rgba(29, 111, 66, 0.1);
+    color: #1D6F42;
+    padding: 8px 15px;
+    border-radius: 20px;
+    font-weight: 500;
+    border: 1px solid rgba(29, 111, 66, 0.2);
+}

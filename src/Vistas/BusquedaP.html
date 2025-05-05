@@ -102,6 +102,10 @@
                     <span id="resultsCount">0</span> Colaboradores encontrados
                 </div>
                 <div class="results-actions">
+                    <!-- Añadir botón de exportar antes del toggle de vista -->
+                    <button id="exportToExcel" class="btn btn-export" title="Exportar a Excel">
+                        <i class="fas fa-file-excel"></i> <span class="btn-text">Exportar a Excel</span>
+                    </button>
                     <div class="view-toggle">
                         <button class="view-toggle-btn active" data-view="grid" title="Vista de tarjetas">
                             <i class="fas fa-th"></i>
@@ -532,7 +536,6 @@
                                                 <th>Factor</th>
                                                 <th>Descripción</th>
                                                 <th>Puntuación</th>
-                                                <th>Interpretación</th>
                                             </tr>
                                         </thead>
                                         <tbody>
@@ -540,36 +543,30 @@
                                                 <td><strong>V</strong></td>
                                                 <td>Comprensión Verbal</td>
                                                 <td id="modalPmaV">-</td>
-                                                <td id="modalPmaVDesc">No registrado</td>
                                             </tr>
                                             <tr>
                                                 <td><strong>E</strong></td>
                                                 <td>Concepción Espacial</td>
                                                 <td id="modalPmaE">-</td>
-                                                <td id="modalPmaEDesc">No registrado</td>
                                             </tr>
                                             <tr>
                                                 <td><strong>R</strong></td>
                                                 <td>Razonamiento</td>
                                                 <td id="modalPmaR">-</td>
-                                                <td id="modalPmaRDesc">No registrado</td>
                                             </tr>
                                             <tr>
                                                 <td><strong>N</strong></td>
                                                 <td>Cálculo Numérico</td>
                                                 <td id="modalPmaN">-</td>
-                                                <td id="modalPmaNDesc">No registrado</td>
                                             </tr>
                                             <tr>
                                                 <td><strong>F</strong></td>
                                                 <td>Fluidez Verbal</td>
                                                 <td id="modalPmaF">-</td>
-                                                <td id="modalPmaFDesc">No registrado</td>
                                             </tr>
                                             <tr class="pma-average-row">
                                                 <td colspan="2"><strong>PROMEDIO</strong></td>
                                                 <td id="modalPmaPromedio">-</td>
-                                                <td id="modalPmaPromedioDesc">No registrado</td>
                                             </tr>
                                         </tbody>
                                     </table>
@@ -582,9 +579,6 @@
             <div class="modal-footer">
                 <button class="btn btn-secondary close-modal-btn">
                     <i class="fas fa-times"></i> Cerrar
-                </button>
-                <button class="btn btn-primary" id="editEmployeeBtn">
-                    <i class="fas fa-edit"></i> Editar
                 </button>
             </div>
         </div>

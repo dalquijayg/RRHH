@@ -27,7 +27,85 @@ document.addEventListener('DOMContentLoaded', function() {
         tercerNombreRequired: false,
         cantidadHijosRequired: false
     };
-
+    async function cargarGerentesRegionales() {
+        const gerenteSelect = document.getElementById('gerenteRegional');
+        try {
+            const connection = await getConnection();
+            const result = await connection.query(`
+                SELECT
+                    personal.IdPersonal, 
+                    CONCAT(personal.PrimerNombre, ' ', IFNULL(personal.SegundoNombre, ''), ' ', 
+                    IFNULL(personal.TercerNombre, ''), ' ', personal.PrimerApellido, ' ', 
+                    IFNULL(personal.SegundoApellido, '')) AS NombreCompleto
+                FROM
+                    personal
+                WHERE
+                    personal.IdPuesto IN(441,443,1408) AND
+                    personal.Estado IN(1,5)
+                ORDER BY
+                    NombreCompleto
+            `);
+            
+            // Mantener la opción "Ninguno" como valor por defecto
+            gerenteSelect.innerHTML = '<option value="0">Ninguno</option>';
+            
+            // Agregar los gerentes regionales
+            result.forEach(gerente => {
+                const option = document.createElement('option');
+                option.value = gerente.IdPersonal;
+                option.textContent = gerente.NombreCompleto;
+                gerenteSelect.appendChild(option);
+            });
+            
+            await connection.close();
+        } catch (error) {
+            console.error('Error al cargar gerentes regionales:', error);
+            Swal.fire({
+                icon: 'error',
+                title: 'Error',
+                text: 'No se pudieron cargar los gerentes regionales'
+            });
+        }
+    }
+    
+    // Función para cargar las sucursales de entrenamiento
+    async function cargarSucursalesEntrenamiento() {
+        const sucursalEntrenamientoSelect = document.getElementById('sucursalEntrenamiento');
+        try {
+            const connection = await getConnection();
+            const result = await connection.query(`
+                SELECT
+                    departamentos.IdDepartamento, 
+                    departamentos.NombreDepartamento
+                FROM
+                    departamentos
+                WHERE
+                    departamentos.IdDivision != 6
+                ORDER BY
+                    NombreDepartamento ASC
+            `);
+            
+            // Mantener la opción "Ninguno" como valor por defecto
+            sucursalEntrenamientoSelect.innerHTML = '<option value="0">Ninguno</option>';
+            
+            // Agregar las sucursales
+            result.forEach(sucursal => {
+                const option = document.createElement('option');
+                option.value = sucursal.IdDepartamento;
+                option.textContent = sucursal.NombreDepartamento;
+                sucursalEntrenamientoSelect.appendChild(option);
+            });
+            
+            await connection.close();
+        } catch (error) {
+            console.error('Error al cargar sucursales de entrenamiento:', error);
+            Swal.fire({
+                icon: 'error',
+                title: 'Error',
+                text: 'No se pudieron cargar las sucursales de entrenamiento'
+            });
+        }
+    }
     // Función para establecer la conexión
     async function getConnection() {
         try {
@@ -952,7 +1030,8 @@ document.addEventListener('DOMContentLoaded', function() {
             // Inicializar carga de datos laborales
             await cargarDivisiones();
             cargarRegiones();
-            
+            await cargarGerentesRegionales();
+            await cargarSucursalesEntrenamiento();
             // Cambiar a la pestaña laboral
             cambiarPestana('contactoForm', 'laboralForm');
             
@@ -2085,6 +2164,8 @@ document.addEventListener('DOMContentLoaded', function() {
             const idPuesto = document.getElementById('puesto').value;
             const inicioLaboral = document.getElementById('inicioLaboral').value;
             const divisionId = parseInt(document.getElementById('division').value);
+            const idGerenteRegional = document.getElementById('gerenteRegional').value;
+            const idSucursalEntrenamiento = document.getElementById('sucursalEntrenamiento').value;
             let tipoUniforme = '0';
             let talla = null;
             
@@ -2201,8 +2282,10 @@ document.addEventListener('DOMContentLoaded', function() {
                     IdLicencia,
                     FechaVencimientoTS,
                     FechaVencimientoTM,
-                    IdUsuario
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    IdUsuario,
+                    IdGerenteRegional,
+                    IdSucursalEntrenamiento
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             `, [
                 tipoPersonal,
                 primerNombre, 
@@ -2236,7 +2319,9 @@ document.addEventListener('DOMContentLoaded', function() {
                 idLicencia,
                 fechaVencimientoTS,
                 fechaVencimientoTM,
-                IdUsuario
+                IdUsuario,
+                idGerenteRegional,
+                idSucursalEntrenamiento
             ]);
     
             // Obtener el ID del registro insertado
@@ -2380,6 +2465,8 @@ document.addEventListener('DOMContentLoaded', function() {
     document.getElementById('nit').addEventListener('input', validateDocumentacionForm);
     document.getElementById('tipoLicencia').addEventListener('change', validateDocumentacionForm);
     document.getElementById('evaluadorPMA').addEventListener('change', validatePMAForm);
+    document.getElementById('gerenteRegional').addEventListener('change', validateLaboralForm);
+    ocument.getElementById('sucursalEntrenamiento').addEventListener('change', validateLaboralForm);
     document.querySelectorAll('input[name="tienePorteArma"]').forEach(radio => {
         radio.addEventListener('change', validateDocumentacionForm);
     });

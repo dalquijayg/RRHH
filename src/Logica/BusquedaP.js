@@ -3,6 +3,7 @@ const { ipcRenderer } = require('electron');
 const odbc = require('odbc');
 const Swal = require('sweetalert2');
 const conexion = 'DSN=recursos2';
+const XLSX = require('xlsx');
 
 // Variables globales
 let currentPage = 1;
@@ -382,9 +383,19 @@ function colapsarFiltros(colapsar) {
 }
 
 // Función para mostrar/ocultar el indicador de carga
-function mostrarCargando(mostrar) {
+function mostrarCargando(mostrar, mensaje = 'Cargando personal...') {
     if (mostrar) {
         loadingIndicator.style.display = 'flex';
+        loadingIndicator.innerHTML = `
+            <div class="loading-spinner"></div>
+            <p>${mensaje}</p>
+        `;
+        
+        // Si es exportación, añadir clase especial
+        if (mensaje.includes('Excel')) {
+            loadingIndicator.querySelector('p').classList.add('export-loading');
+        }
+        
         gridView.style.display = 'none';
         tableView.style.display = 'none';
         noResults.style.display = 'none';
@@ -627,9 +638,47 @@ document.getElementById('modalEmployeePhoto').addEventListener('click', function
     abrirVisorFoto(fotoSrc, nombreEmpleado);
 });
 // Editar empleado
-function editarEmpleado(id) {
-    // Esto se implementará más adelante o puede redirigir a otra pantalla
-    window.location.href = `Editar.html?id=${id}`;
+async function editarEmpleado(id) {
+    try {
+        // Mostrar cargando
+        mostrarCargando(true, 'Verificando permisos...');
+        
+        // Obtener datos del usuario desde localStorage
+        const userData = JSON.parse(localStorage.getItem('userData'));
+        
+        if (!userData || !userData.IdPersonal) {
+            mostrarNotificacion('No se puede identificar al usuario. Inicie sesión nuevamente.', 'error');
+            mostrarCargando(false);
+            return;
+        }
+        
+        // Verificar si el usuario tiene la transacción 103 activa
+        const connection = await getConnection();
+        const query = `
+            SELECT Activo 
+            FROM TransaccionesRRHH 
+            WHERE IdPersonal = ? AND Codigo = 103 AND Activo = 1
+        `;
+        
+        const result = await connection.query(query, [userData.IdPersonal]);
+        await connection.close();
+        
+        if (result.length === 0 || result[0].Activo !== 1) {
+            // El usuario no tiene permisos
+            mostrarCargando(false);
+            mostrarNotificacion('No tiene permisos para editar colaboradores. Se requiere la transacción 103 activa.', 'warning');
+            return;
+        }
+        
+        // Si tiene permisos, redirigir a la página de edición
+        mostrarCargando(false);
+        window.location.href = `Editar.html?id=${id}`;
+        
+    } catch (error) {
+        console.error('Error al verificar permisos:', error);
+        mostrarCargando(false);
+        mostrarNotificacion('Error al verificar permisos de edición', 'error');
+    }
 }
 
 // Función para mostrar notificaciones
@@ -806,9 +855,13 @@ async function cargarResultadosPMA(idPersonal) {
                 ResultadosPMA.FactorR, 
                 ResultadosPMA.FactorN, 
                 ResultadosPMA.FactorF, 
-                ResultadosPMA.FechaEvaluacion
+                ResultadosPMA.FechaEvaluacion,
+                CONCAT(personal.PrimerNombre, ' ', IFNULL(personal.SegundoNombre, ''), ' ', 
+                IFNULL(personal.TercerNombre, ''), ' ', personal.PrimerApellido, ' ', 
+                IFNULL(personal.SegundoApellido, '')) AS NombreEvaluador
             FROM
                 ResultadosPMA
+                LEFT JOIN personal ON ResultadosPMA.IdUsuarioEvaluo = personal.IdPersonal
             WHERE
                 ResultadosPMA.IdPersonal = ?
             ORDER BY
@@ -984,7 +1037,7 @@ function colorPuntuacionPMA(puntuacion) {
 // Variable para almacenar la instancia del gráfico PMA
 let pmaChart = null;
 
-// Función para mostrar resultados PMA en el modal
+// Actualizar la función que muestra los resultados PMA
 function mostrarResultadosPMA(datosPMA) {
     const seccionPMA = document.querySelector('#tab-pma .details-section');
     
@@ -1018,78 +1071,79 @@ function mostrarResultadosPMA(datosPMA) {
         return;
     }
     
-    // Restaurar contenido original si fue reemplazado
-    if (!document.getElementById('modalPmaFecha')) {
-        seccionPMA.innerHTML = `
-            <h4><i class="fas fa-brain"></i> Resultados Evaluación PMA</h4>
-            <div class="details-grid pma-grid">
-                <div class="detail-item">
-                    <label>Fecha de Evaluación:</label>
-                    <span id="modalPmaFecha">No registrado</span>
-                </div>
+    // Reconstruir completamente el contenido del contenedor PMA
+    // Esto garantiza que los elementos DOM existan antes de intentar establecer su contenido
+    seccionPMA.innerHTML = `
+        <h4><i class="fas fa-brain"></i> Resultados Evaluación PMA</h4>
+        <div class="details-grid pma-grid">
+            <div class="detail-item">
+                <label>Fecha de Evaluación:</label>
+                <span id="modalPmaFecha">No registrado</span>
             </div>
-            
-            <!-- Gráfico de radar para visualizar resultados PMA -->
-            <div class="pma-chart-container">
-                <canvas id="pmaRadarChart" height="250"></canvas>
+            <div class="detail-item">
+                <label>Evaluador:</label>
+                <span id="modalPmaEvaluador">No registrado</span>
             </div>
-            
-            <!-- Tabla de resultados detallados -->
-            <div class="pma-table-container">
-                <table class="pma-table">
-                    <thead>
-                        <tr>
-                            <th>Factor</th>
-                            <th>Descripción</th>
-                            <th>Puntuación</th>
-                            <th>Interpretación</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr>
-                            <td><strong>V</strong></td>
-                            <td>Comprensión Verbal</td>
-                            <td id="modalPmaV">-</td>
-                            <td id="modalPmaVDesc">No registrado</td>
-                        </tr>
-                        <tr>
-                            <td><strong>E</strong></td>
-                            <td>Concepción Espacial</td>
-                            <td id="modalPmaE">-</td>
-                            <td id="modalPmaEDesc">No registrado</td>
-                        </tr>
-                        <tr>
-                            <td><strong>R</strong></td>
-                            <td>Razonamiento</td>
-                            <td id="modalPmaR">-</td>
-                            <td id="modalPmaRDesc">No registrado</td>
-                        </tr>
-                        <tr>
-                            <td><strong>N</strong></td>
-                            <td>Cálculo Numérico</td>
-                            <td id="modalPmaN">-</td>
-                            <td id="modalPmaNDesc">No registrado</td>
-                        </tr>
-                        <tr>
-                            <td><strong>F</strong></td>
-                            <td>Fluidez Verbal</td>
-                            <td id="modalPmaF">-</td>
-                            <td id="modalPmaFDesc">No registrado</td>
-                        </tr>
-                        <tr class="pma-average-row">
-                            <td colspan="2"><strong>PROMEDIO</strong></td>
-                            <td id="modalPmaPromedio">-</td>
-                            <td id="modalPmaPromedioDesc">No registrado</td>
-                        </tr>
-                    </tbody>
-                </table>
-            </div>
-        `;
-    }
+        </div>
+        
+        <!-- Gráfico de radar para visualizar resultados PMA -->
+        <div class="pma-chart-container">
+            <canvas id="pmaRadarChart" height="250"></canvas>
+        </div>
+        
+        <!-- Tabla de resultados detallados (sin columna de interpretación) -->
+        <div class="pma-table-container">
+            <table class="pma-table">
+                <thead>
+                    <tr>
+                        <th>Factor</th>
+                        <th>Descripción</th>
+                        <th>Puntuación</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><strong>V</strong></td>
+                        <td>Comprensión Verbal</td>
+                        <td id="modalPmaV">-</td>
+                    </tr>
+                    <tr>
+                        <td><strong>E</strong></td>
+                        <td>Concepción Espacial</td>
+                        <td id="modalPmaE">-</td>
+                    </tr>
+                    <tr>
+                        <td><strong>R</strong></td>
+                        <td>Razonamiento</td>
+                        <td id="modalPmaR">-</td>
+                    </tr>
+                    <tr>
+                        <td><strong>N</strong></td>
+                        <td>Cálculo Numérico</td>
+                        <td id="modalPmaN">-</td>
+                    </tr>
+                    <tr>
+                        <td><strong>F</strong></td>
+                        <td>Fluidez Verbal</td>
+                        <td id="modalPmaF">-</td>
+                    </tr>
+                    <tr class="pma-average-row">
+                        <td colspan="2"><strong>PROMEDIO</strong></td>
+                        <td id="modalPmaPromedio">-</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    `;
     
+    // Ahora que los elementos DOM existen, podemos establecer su contenido
     // Formatear fecha
     const fechaEvaluacion = datosPMA.FechaEvaluacion ? new Date(datosPMA.FechaEvaluacion).toLocaleDateString() : 'No registrado';
     document.getElementById('modalPmaFecha').textContent = fechaEvaluacion;
+    
+    // Mostrar el nombre del evaluador
+    const nombreEvaluador = datosPMA.NombreEvaluador || 'No registrado';
+    document.getElementById('modalPmaEvaluador').textContent = nombreEvaluador;
     
     // Mostrar factores individuales
     document.getElementById('modalPmaV').textContent = factorV;
@@ -1097,13 +1151,6 @@ function mostrarResultadosPMA(datosPMA) {
     document.getElementById('modalPmaR').textContent = factorR;
     document.getElementById('modalPmaN').textContent = factorN;
     document.getElementById('modalPmaF').textContent = factorF;
-    
-    // Mostrar interpretaciones
-    document.getElementById('modalPmaVDesc').textContent = interpretarPuntuacionPMA(factorV);
-    document.getElementById('modalPmaEDesc').textContent = interpretarPuntuacionPMA(factorE);
-    document.getElementById('modalPmaRDesc').textContent = interpretarPuntuacionPMA(factorR);
-    document.getElementById('modalPmaNDesc').textContent = interpretarPuntuacionPMA(factorN);
-    document.getElementById('modalPmaFDesc').textContent = interpretarPuntuacionPMA(factorF);
     
     // Calcular promedio
     const valoresValidos = [factorV, factorE, factorR, factorN, factorF].filter(valor => 
@@ -1118,7 +1165,6 @@ function mostrarResultadosPMA(datosPMA) {
     }
     
     document.getElementById('modalPmaPromedio').textContent = promedio;
-    document.getElementById('modalPmaPromedioDesc').textContent = interpretarPuntuacionPMA(promedio);
     
     // Crear gráfico de radar
     const ctx = document.getElementById('pmaRadarChart').getContext('2d');
@@ -1176,7 +1222,7 @@ function mostrarResultadosPMA(datosPMA) {
                     callbacks: {
                         label: function(context) {
                             const value = context.raw;
-                            return `Puntuación: ${value} - ${interpretarPuntuacionPMA(value)}`;
+                            return `Puntuación: ${value}`;
                         }
                     }
                 }
@@ -1371,7 +1417,221 @@ window.renderizarTableView = function(empleados) {
         });
     });
 };
+document.getElementById('exportToExcel').addEventListener('click', () => {
+    if (filteredEmployees.length > 0) {
+        exportarAExcel();
+    } else {
+        mostrarNotificacion('No hay datos para exportar', 'warning');
+    }
+});
+async function exportarAExcel() {
+    try {
+        // Mostrar indicador de carga
+        mostrarNotificacion('Preparando exportación a Excel...', 'info');
+        mostrarCargando(true);
+        
+        // Verificar si hay datos para exportar
+        if (filteredEmployees.length === 0) {
+            mostrarNotificacion('No hay datos para exportar', 'warning');
+            mostrarCargando(false);
+            return;
+        }
+        
+        // Obtener todos los datos con detalles académicos y PMA
+        const datosCompletos = await obtenerDatosCompletosEmpleados();
+        
+        // Estructurar los datos para Excel (una hoja principal y hojas adicionales)
+        const workbook = XLSX.utils.book_new();
+        
+        // Hoja 1: Información General
+        const datosGenerales = datosCompletos.map(empleado => ({
+            'ID': empleado.id,
+            'Nombre Completo': empleado.nombre,
+            'DPI': empleado.dpi,
+            'Departamento': empleado.departamento,
+            'Puesto': empleado.puesto,
+            'Estado': empleado.estado,
+            'Tipo Personal': empleado.tipoPersonal,
+            'Planilla': empleado.planilla,
+            'Fecha Contrato': empleado.fechaContrato,
+            'Fecha Planilla': empleado.fechaPlanilla,
+            'Inicio Laboral': empleado.inicioLaboral,
+            'Tiempo Trabajado': empleado.tiempoTrabajado,
+            'Estado Civil': empleado.estadoCivil,
+            'Fecha Nacimiento': empleado.fechaNacimiento,
+            'Edad': empleado.edad,
+            'Hijos': empleado.hijos
+        }));
+        
+        const worksheetGeneral = XLSX.utils.json_to_sheet(datosGenerales);
+        XLSX.utils.book_append_sheet(workbook, worksheetGeneral, 'Información General');
+        
+        // Hoja 2: Ubicación y Contacto
+        const datosUbicacion = datosCompletos.map(empleado => ({
+            'ID': empleado.id,
+            'Nombre Completo': empleado.nombre,
+            'Depto. Origen': empleado.departamentoOrigen,
+            'Municipio Origen': empleado.municipioOrigen,
+            'Dirección Residencia': empleado.direccionResidencia,
+            'Depto. Residencia': empleado.departamentoResidencia,
+            'Municipio Residencia': empleado.municipioResidencia,
+            'Teléfono 1': empleado.telefono1,
+            'Teléfono 2': empleado.telefono2,
+            'Correo Electrónico': empleado.correoElectronico,
+            'Contacto Emergencia': empleado.nombreContactoEmergencia,
+            'Teléfono Emergencia': empleado.telefonoContactoEmergencia,
+            'Parentesco': empleado.parentescoEmergencia
+        }));
+        
+        const worksheetUbicacion = XLSX.utils.json_to_sheet(datosUbicacion);
+        XLSX.utils.book_append_sheet(workbook, worksheetUbicacion, 'Ubicación y Contacto');
+        
+        // Hoja 3: Información Académica
+        const datosAcademicos = datosCompletos.map(empleado => {
+            const academica = empleado.datosAcademicos || {};
+            return {
+                'ID': empleado.id,
+                'Nombre Completo': empleado.nombre,
+                // Primaria
+                'Estado Primaria': academica.EstadoPrimaria || 'No registrado',
+                'Plan Primaria': academica.PlanPrimaria || 'No registrado',
+                'Nivel Primaria': academica.NivelPrimaria || 'No registrado',
+                // Básico
+                'Estado Básico': academica.EstadoBasico || 'No registrado',
+                'Plan Básico': academica.PlanBasico || 'No registrado',
+                'Nivel Básico': academica.NivelBasico || 'No registrado',
+                // Diversificado
+                'Estado Diversificado': academica.EstadoDiversificado || 'No registrado',
+                'Plan Diversificado': academica.PlanDiversificado || 'No registrado',
+                'Nivel Diversificado': academica.NivelDiversificado || 'No registrado',
+                'Grado Académico': academica.GradoAcademico || 'No registrado',
+                // Universidad
+                'Estado Universidad': academica.EstadoUniversidad || 'No registrado',
+                'Plan Universitario': academica.PlanUniversitario || 'No registrado',
+                'Nivel Universidad': academica.NivelUniversidad || 'No registrado',
+                'Universidad': academica.Universidad || 'No registrado',
+                'Carrera': academica.CarrerasUniversitarias || 'No registrado',
+                // Maestría
+                'Estado Maestría': academica.EstadoMaestria || 'No registrado',
+                'Plan Maestría': academica.NivelMaestria || 'No registrado',
+                'Trimestre Maestría': academica.Trimestrecursando || 'No registrado',
+                'Universidad Maestría': academica.UniversidadMaestria || 'No registrado',
+                'Nombre Maestría': academica.Maestria || 'No registrado'
+            };
+        });
+        
+        const worksheetAcademica = XLSX.utils.json_to_sheet(datosAcademicos);
+        XLSX.utils.book_append_sheet(workbook, worksheetAcademica, 'Información Académica');
+        
+        // Hoja 4: Evaluación PMA
+        const datosPMA = datosCompletos.map(empleado => {
+            const pma = empleado.datosPMA || {};
+            return {
+                'ID': empleado.id,
+                'Nombre Completo': empleado.nombre,
+                'Fecha Evaluación': pma.FechaEvaluacion ? new Date(pma.FechaEvaluacion).toLocaleDateString() : 'No registrado',
+                'Evaluador': pma.NombreEvaluador || 'No registrado',
+                'Factor V (Comprensión Verbal)': pma.FactorV || 'No registrado',
+                'Factor E (Concepción Espacial)': pma.FactorE || 'No registrado',
+                'Factor R (Razonamiento)': pma.FactorR || 'No registrado',
+                'Factor N (Cálculo Numérico)': pma.FactorN || 'No registrado',
+                'Factor F (Fluidez Verbal)': pma.FactorF || 'No registrado',
+                'Promedio': calcularPromedioPMA(pma)
+            };
+        });
+        // Hoja 5: Información Laboral (nueva)
+        const datosLaborales = datosCompletos.map(empleado => ({
+            'ID': empleado.id,
+            'Nombre Completo': empleado.nombre,
+            'Departamento': empleado.departamento,
+            'Puesto': empleado.puesto,
+            'Tipo Personal': empleado.tipoPersonal,
+            'Planilla': empleado.planilla,
+            'Estado': empleado.estado,
+            'Fecha Contrato': empleado.fechaContrato,
+            'Fecha Planilla': empleado.fechaPlanilla,
+            'Inicio Laboral': empleado.inicioLaboral,
+            'Tiempo Trabajado': empleado.tiempoTrabajado
+        }));
 
+        const worksheetLaboral = XLSX.utils.json_to_sheet(datosLaborales);
+        XLSX.utils.book_append_sheet(workbook, worksheetLaboral, 'Información Laboral');
+        const worksheetPMA = XLSX.utils.json_to_sheet(datosPMA);
+        XLSX.utils.book_append_sheet(workbook, worksheetPMA, 'Evaluación PMA');
+        
+        // Generar el archivo y descargarlo
+        // Crear nombre de archivo con fecha actual
+        const fecha = new Date();
+        const fechaStr = `${fecha.getDate()}-${fecha.getMonth() + 1}-${fecha.getFullYear()}_${fecha.getHours()}-${fecha.getMinutes()}`;
+        const fileName = `Personal_Filtrado_${fechaStr}.xlsx`;
+        
+        // Convertir a ArrayBuffer
+        const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
+        
+        // Crear un Blob a partir del ArrayBuffer
+        const blob = new Blob([excelBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+        
+        // Crear un enlace temporal para descargar
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = fileName;
+        document.body.appendChild(a);
+        a.click();
+        
+        // Limpiar
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+        
+        // Ocultar cargando y mostrar notificación
+        mostrarCargando(false);
+        mostrarNotificacion(`Exportación exitosa: ${fileName}`, 'success');
+    } catch (error) {
+        console.error('Error al exportar a Excel:', error);
+        mostrarCargando(false);
+        mostrarNotificacion('Error al exportar a Excel: ' + error.message, 'error');
+    }
+}
+function calcularPromedioPMA(pma) {
+    if (!pma) return 'No registrado';
+    
+    const valores = [
+        pma.FactorV ? parseFloat(pma.FactorV) : null,
+        pma.FactorE ? parseFloat(pma.FactorE) : null,
+        pma.FactorR ? parseFloat(pma.FactorR) : null,
+        pma.FactorN ? parseFloat(pma.FactorN) : null,
+        pma.FactorF ? parseFloat(pma.FactorF) : null
+    ].filter(v => v !== null);
+    
+    if (valores.length === 0) return 'No registrado';
+    
+    const suma = valores.reduce((a, b) => a + b, 0);
+    return (suma / valores.length).toFixed(1);
+}
+
+// Función para obtener datos completos de empleados
+async function obtenerDatosCompletosEmpleados() {
+    // Copia profunda de los empleados filtrados
+    const empleadosCompletos = JSON.parse(JSON.stringify(filteredEmployees));
+    
+    // Para cada empleado, obtener datos académicos y PMA
+    for (const empleado of empleadosCompletos) {
+        try {
+            // Obtener datos académicos
+            const datosAcademicos = await cargarInfoAcademica(empleado.id);
+            empleado.datosAcademicos = datosAcademicos;
+            
+            // Obtener resultados PMA
+            const datosPMA = await cargarResultadosPMA(empleado.id);
+            empleado.datosPMA = datosPMA;
+        } catch (error) {
+            console.error(`Error al obtener datos completos para empleado ID ${empleado.id}:`, error);
+        }
+    }
+    
+    return empleadosCompletos;
+}
+window.exportarAExcel = exportarAExcel;
 // Asegúrate de hacer globales las funciones del visor
 window.abrirVisorFoto = abrirVisorFoto;
 window.cerrarVisorFoto = cerrarVisorFoto;
