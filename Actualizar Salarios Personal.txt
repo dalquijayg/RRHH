@@ -1,0 +1,72 @@
+DELIMITER $$
+
+CREATE PROCEDURE ActualizarSalariosPersonal()
+BEGIN
+    -- Todas las variables primero
+    DECLARE anio_actual INT;
+
+    DECLARE s_diario DECIMAL(10,2);
+    DECLARE s_quincena DECIMAL(10,2);
+    DECLARE s_finmes DECIMAL(10,2);
+    DECLARE s_base DECIMAL(10,2);
+    DECLARE s_bonif DECIMAL(10,2);
+
+    DECLARE done INT DEFAULT FALSE;
+    DECLARE cur_id INT;
+    DECLARE cur_planilla INT;
+    DECLARE cur_es_capital INT;
+
+    DECLARE cur CURSOR FOR
+        SELECT IdPersonal, IdPlanilla
+        FROM personal
+        WHERE TipoPersonal = '1' AND IdPlanilla <> 0;
+
+    DECLARE CONTINUE HANDLER FOR NOT FOUND SET done = TRUE;
+
+    -- Luego de declarar todo, se pueden hacer operaciones
+    SET anio_actual = YEAR(CURDATE());
+
+    OPEN cur;
+
+    read_loop: LOOP
+        FETCH cur INTO cur_id, cur_planilla;
+
+        IF done THEN
+            LEAVE read_loop;
+        END IF;
+
+        -- Obtener si la planilla es capital o no
+        SELECT EsCapital INTO cur_es_capital
+        FROM planillas
+        WHERE IdPlanilla = cur_planilla;
+
+        -- Obtener los salarios base según EsCapital
+        IF cur_es_capital = 0 THEN
+            SELECT SalarioDiario, SalarioQuincena, SalarioQuincenaFin, SalarioBase, SalarioBonificacion
+            INTO s_diario, s_quincena, s_finmes, s_base, s_bonif
+            FROM salariosbase
+            WHERE Anyo = anio_actual
+            LIMIT 1;
+        ELSE
+            SELECT SalarioDiarioGuate, SalarioQuincenaGuate, SalarioQuincenaFinGuate, SalarioBaseGuate, SalarioBonificacionGuate
+            INTO s_diario, s_quincena, s_finmes, s_base, s_bonif
+            FROM salariosbase
+            WHERE Anyo = anio_actual
+            LIMIT 1;
+        END IF;
+
+        -- Actualizar los campos de la tabla personal
+        UPDATE personal
+        SET SalarioDiario = s_diario,
+            SalarioQuincena = s_quincena,
+            SalarioQuincenaFinMes = s_finmes,
+            SalarioBase = s_base,
+            Bonificacion = s_bonif
+        WHERE IdPersonal = cur_id;
+
+    END LOOP;
+
+    CLOSE cur;
+END $$
+
+DELIMITER ;

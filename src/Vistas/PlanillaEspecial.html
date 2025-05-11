@@ -326,45 +326,105 @@
     <div class="modal" id="helpModal">
         <div class="modal-content">
             <div class="modal-header">
-                <h3><i class="fas fa-question-circle"></i> Ayuda - Planilla Especial</h3>
-                <button class="close-modal"><i class="fas fa-times"></i></button>
+                <h2><i class="fas fa-question-circle"></i> Ayuda - Planillas Especiales</h2>
+                <button class="modal-close" id="closeHelpBtn">
+                    <i class="fas fa-times"></i>
+                </button>
             </div>
             <div class="modal-body">
-                <div class="help-section">
-                    <h4><i class="fas fa-info-circle"></i> Información General</h4>
-                    <p>Esta pantalla le permite generar planillas para pagos dominicales o días especiales para el personal seleccionado.</p>
+                <div class="help-intro">
+                    <p>Este módulo permite generar planillas de pago para días especiales (feriados) y domingos. A continuación, encontrará instrucciones detalladas sobre cómo utilizar cada función.</p>
                 </div>
                 
                 <div class="help-section">
-                    <h4><i class="fas fa-filter"></i> Filtros</h4>
+                    <h4><i class="fas fa-filter"></i> Paso 1: Selección de Filtros</h4>
+                    <p>Para comenzar, debe seleccionar los filtros iniciales:</p>
                     <ul class="help-list">
-                        <li><strong>Departamento:</strong> Seleccione el departamento para el que desea generar la planilla.</li>
-                        <li><strong>Tipo de Personal:</strong> Seleccione el tipo de personal (Fijo, Parcial, etc.).</li>
-                        <li><strong>Fecha:</strong> Seleccione la fecha para la planilla. El sistema determinará automáticamente si es un domingo o un día especial.</li>
+                        <li><strong>Departamento:</strong> Seleccione el departamento para el cual desea generar la planilla. Si es usuario normal, este campo estará bloqueado con su departamento asignado.</li>
+                        <li><strong>Tipo de Personal:</strong> Puede filtrar por un tipo específico o seleccionar "Todos" para incluir todos los tipos.</li>
+                        <li><strong>Fecha:</strong> Seleccione la fecha para la cual desea generar la planilla. Solo se pueden generar planillas para la fecha actual o fechas futuras.</li>
+                        <li>Presione el botón <strong>"Buscar"</strong> para cargar el personal según los filtros seleccionados.</li>
+                    </ul>
+                    <div class="help-important">
+                        <i class="fas fa-exclamation-triangle"></i>
+                        <p>Importante: El sistema verificará automáticamente si la fecha seleccionada es domingo o un día especial registrado en el sistema. Las planillas especiales solo pueden generarse para estas fechas.</p>
+                    </div>
+                </div>
+                
+                <div class="help-section">
+                    <h4><i class="fas fa-info-circle"></i> Verificación de Días Especiales</h4>
+                    <p>El sistema determina si un día es especial siguiendo estas reglas:</p>
+                    <ul class="help-list">
+                        <li>Si la fecha seleccionada es domingo, se aplicará automáticamente el pago dominical.</li>
+                        <li>Si la fecha existe en la tabla DiasEspeciales para el departamento seleccionado, se considerará como día especial para ese departamento.</li>
+                        <li>Si no existe para el departamento específico pero existe con IdDepartamento = 0, se considerará como día especial global que aplica para todos los departamentos.</li>
+                        <li>Si no cumple ninguna de las condiciones anteriores, se considerará como día regular y no se podrá generar planilla especial.</li>
                     </ul>
                 </div>
                 
                 <div class="help-section">
-                    <h4><i class="fas fa-clipboard-list"></i> Tipos de Pago</h4>
+                    <h4><i class="fas fa-users"></i> Paso 2: Selección de Colaboradores</h4>
+                    <p>Una vez cargado el personal, puede:</p>
                     <ul class="help-list">
-                        <li><strong>Pago Dominical:</strong> Se aplica cuando la fecha seleccionada es domingo y no está registrada como día especial.</li>
-                        <li><strong>Pago Día Especial:</strong> Se aplica cuando la fecha está registrada como día especial para el departamento seleccionado.</li>
+                        <li>Seleccionar colaboradores individualmente marcando sus casillas.</li>
+                        <li>Usar "Seleccionar Todos" para marcar todos los colaboradores a la vez.</li>
+                        <li>Buscar colaboradores específicos utilizando el campo de búsqueda.</li>
+                        <li>Eliminar colaboradores de la lista usando el botón "Eliminar Seleccionados".</li>
+                        <li>Agregar colaboradores externos de otros departamentos usando el botón "Agregar Externos" (si tiene los permisos necesarios).</li>
                     </ul>
                 </div>
                 
                 <div class="help-section">
-                    <h4><i class="fas fa-exclamation-triangle"></i> Restricciones</h4>
-                    <p>No se podrá generar una planilla si:</p>
+                    <h4><i class="fas fa-exchange-alt"></i> Colaboradores Externos</h4>
+                    <p>Si cuenta con los permisos necesarios (código 111), puede agregar colaboradores de otros departamentos:</p>
                     <ul class="help-list">
-                        <li>La fecha seleccionada no es domingo ni está registrada como día especial.</li>
-                        <li>No hay personal asignado al departamento seleccionado.</li>
+                        <li>Haga clic en "Agregar Externos" para abrir el modal de colaboradores externos.</li>
+                        <li>Seleccione el departamento de origen de los colaboradores.</li>
+                        <li>Marque los colaboradores que desea incluir en su planilla.</li>
+                        <li>El sistema verificará que no se excedan los límites establecidos para cada tipo de personal.</li>
+                        <li>Confirme la selección para agregar los colaboradores a su planilla.</li>
+                    </ul>
+                    <div class="help-tip">
+                        <i class="fas fa-lightbulb"></i>
+                        <p>Los colaboradores externos se identificarán en la tabla con un borde izquierdo naranja y un ícono especial junto a su nombre.</p>
+                    </div>
+                </div>
+                
+                <div class="help-section">
+                    <h4><i class="fas fa-file-invoice-dollar"></i> Paso 3: Generar Planilla</h4>
+                    <p>Cuando haya seleccionado los colaboradores necesarios:</p>
+                    <ul class="help-list">
+                        <li>Verifique los contadores en la parte superior para asegurarse de que no exceden los límites establecidos.</li>
+                        <li>Haga clic en "Generar Planilla" para iniciar el proceso.</li>
+                        <li>Confirme la generación en el modal de confirmación.</li>
+                        <li>El sistema guardará la planilla en la base de datos y generará un documento oficial en PDF.</li>
+                    </ul>
+                    <div class="help-important">
+                        <i class="fas fa-exclamation-triangle"></i>
+                        <p>No se puede generar más de una planilla para la misma fecha y departamento. El sistema verificará esto automáticamente.</p>
+                    </div>
+                </div>
+                
+                <div class="help-section">
+                    <h4><i class="fas fa-chart-bar"></i> Información de Estado</h4>
+                    <p>En la parte superior de la pantalla encontrará tarjetas con información importante:</p>
+                    <ul class="help-list">
+                        <li><strong>Tipo de Fecha:</strong> Indica si la fecha seleccionada es Domingo, Día Especial o Día Regular.</li>
+                        <li><strong>Tipo de Pago:</strong> Muestra el tipo de pago aplicable (Dominical, Especial o No Aplica).</li>
+                        <li><strong>Total de Personal:</strong> Muestra el número total de colaboradores seleccionados.</li>
+                        <li><strong>Total a Pagar:</strong> Muestra la suma total de los pagos para los colaboradores seleccionados.</li>
                     </ul>
                 </div>
-            </div>
-            <div class="modal-footer">
-                <button class="btn btn-primary" id="closeHelpBtn">
-                    <i class="fas fa-check"></i> Entendido
-                </button>
+                
+                <div class="help-section">
+                    <h4><i class="fas fa-key"></i> Permisos Especiales</h4>
+                    <p>Algunas funciones requieren permisos especiales:</p>
+                    <ul class="help-list">
+                        <li><strong>Administrador (código 100):</strong> Puede seleccionar cualquier departamento.</li>
+                        <li><strong>Colaboradores Externos (código 111):</strong> Puede agregar colaboradores de otros departamentos.</li>
+                    </ul>
+                    <p>Si necesita estos permisos, contacte con su Regional o Auditor.</p>
+                </div>
             </div>
         </div>
     </div>

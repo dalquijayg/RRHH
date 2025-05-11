@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gestión de Vacaciones - Recursos Humanos</title>
+    <link rel="stylesheet" href="../Disenos/Vacaciones/Vacaciones.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <!-- FullCalendar -->
+    <link href="https://cdn.jsdelivr.net/npm/fullcalendar@5.10.0/main.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/fullcalendar@5.10.0/main.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/fullcalendar@5.10.0/locales/es.js"></script>
+</head>
+<body>
+    <!-- Encabezado con logos y título -->
+    <header class="header">
+        <div class="header-center">
+            <h1 class="page-title">Gestión de Vacaciones</h1>
+            <!-- Franja de colores inspirada en los colores del logo -->
+            <div class="color-strip">
+                <div class="color-strip-item color-red"></div>
+                <div class="color-strip-item color-blue"></div>
+                <div class="color-strip-item color-green"></div>
+                <div class="color-strip-item color-yellow"></div>
+                <div class="color-strip-item color-orange"></div>
+            </div>
+        </div>
+        <div class="header-right">
+            <img src="../Imagenes/Logo Recursos Humanos new.png" alt="RRHH Logo" class="rrhh-logo">
+        </div>
+    </header>
+
+    <!-- Contenido principal -->
+    <main class="content">
+        <!-- Panel de control integrado con información del departamento -->
+        <section class="control-panel">
+            <div class="department-info-compact">
+                <i class="fas fa-building"></i>
+                <h2 id="departmentName">Sistemas</h2>
+                    <div class="department-stats">
+                        <span><i class="fas fa-users"></i> Total: <span id="departmentManager">14</span></span>
+                        <span><i class="fas fa-user-check"></i> Activos: <span id="employeeCount">14</span></span>
+                    </div>
+            </div>
+            <div class="search-bar">
+                <i class="fas fa-search"></i>
+                <input type="text" id="searchInput" placeholder="Buscar colaborador por nombre o puesto...">
+            </div>
+            <div class="filter-controls">
+                <button id="refreshBtn" class="refresh-btn">
+                    <i class="fas fa-sync-alt"></i> Actualizar
+                </button>
+                <button id="exportBtn" class="export-btn">
+                    <i class="fas fa-file-export"></i> Exportar
+                </button>
+            </div>
+        </section>
+
+        <!-- Tabla de colaboradores -->
+        <section class="employees-table-section">
+            <div class="table-container">
+                <table id="employeesTable" class="employees-table">
+                    <thead>
+                        <tr>
+                            <th class="photo-column">Foto</th>
+                            <th class="sortable" data-sort="name">Nombre Completo</th>
+                            <th class="sortable" data-sort="hireDate">Fecha de Ingreso</th>
+                            <th class="sortable" data-sort="years">Años de Servicio</th>
+                            <th class="sortable" data-sort="days">Días Disponibles</th>
+                            <th class="sortable" data-sort="position">Puesto</th>
+                            <th>Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <!-- Los datos se cargarán dinámicamente con JavaScript -->
+                    </tbody>
+                </table>
+            </div>
+            
+            <!-- Paginación -->
+            <div class="pagination">
+                <button id="prevPage" class="pagination-btn"><i class="fas fa-chevron-left"></i> Anterior</button>
+                <div id="pageIndicator" class="page-indicator">Página 1 de 1</div>
+                <button id="nextPage" class="pagination-btn">Siguiente <i class="fas fa-chevron-right"></i></button>
+            </div>
+        </section>
+    </main>
+
+    <!-- Elementos decorativos de fondo -->
+    <!-- Burbujas -->
+    <div class="bg-decoration bubble bubble1"></div>
+    <div class="bg-decoration bubble bubble2"></div>
+    <div class="bg-decoration bubble bubble3"></div>
+    
+    <!-- Patrones -->
+    <div class="bg-decoration pattern pattern1"></div>
+    <div class="bg-decoration pattern pattern2"></div>
+    
+    <!-- Pie de página -->
+    <footer class="footer">
+        <p>Sistema de Recursos Humanos</p>
+        <p>© New Technology 2025</p>
+    </footer>
+
+    <!-- Modal para solicitud de vacaciones (mejorado con calendario) -->
+    <div id="vacationModal" class="modal">
+        <div class="modal-content modal-compact">
+            <div class="modal-header">
+                <h2>Solicitud de Vacaciones</h2>
+                <span class="close-modal">&times;</span>
+            </div>
+            <div class="modal-body">
+                <div class="modal-layout">
+                    <!-- Columna izquierda: Información del empleado -->
+                    <div class="modal-column employee-profile-column">
+                        <div class="employee-profile">
+                            <div class="employee-photo">
+                                <img id="modalEmployeePhoto" src="../Imagenes/user-default.png" alt="Foto del colaborador">
+                            </div>
+                            <div class="employee-info">
+                                <h3 id="modalEmployeeName">Nombre del Colaborador</h3>
+                                <p id="modalEmployeePosition">Puesto</p>
+                                <div class="days-available-badge">
+                                    <span id="modalAvailableDays">15</span>
+                                    <span class="days-text">días disponibles</span>
+                                </div>
+                                <div class="years-service">
+                                    <i class="fas fa-briefcase"></i>
+                                    <span id="modalYearsOfService">3</span> años de servicio
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Fechas seleccionadas -->
+                        <div class="selected-dates-summary">
+                            <div class="selected-dates">
+                                <div class="date-range">
+                                    <span class="date-label">Desde:</span>
+                                    <span id="selectedStartDate" class="date-value">No seleccionado</span>
+                                </div>
+                                <div class="date-range">
+                                    <span class="date-label">Hasta:</span>
+                                    <span id="selectedEndDate" class="date-value">No seleccionado</span>
+                                </div>
+                                <div class="date-range">
+                                    <span class="date-label">Total:</span>
+                                    <span id="selectedDays" class="date-value highlight">0 días</span>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Días seleccionados (mini visualización) -->
+                        <div class="days-visualization mini">
+                            <h4>Días seleccionados</h4>
+                            <div id="daysVisual" class="days-grid"></div>
+                        </div>
+                        
+                        <!-- Acción del formulario -->
+                        <div class="form-actions">
+                            <button type="button" id="cancelVacationBtn" class="btn-cancel">
+                                <i class="fas fa-times"></i> Cancelar
+                            </button>
+                            <button type="submit" id="submitVacationBtn" class="btn-submit">
+                                <i class="fas fa-paper-plane"></i> Enviar Solicitud
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <!-- Columna derecha: Calendario -->
+                    <div class="modal-column calendar-column">
+                        <div class="instruction">
+                            <i class="fas fa-info-circle"></i>
+                            <p>Seleccione las fechas de sus vacaciones <strong>arrastrando</strong> en el calendario</p>
+                        </div>
+                        
+                        <!-- Calendario completo -->
+                        <div id="vacationCalendar" class="calendar-container compact-calendar"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Formulario oculto para enviar datos (sin incluir el campo de motivo/observaciones) -->
+    <form id="vacationForm" style="display:none;"></form>
+    <!-- Modal para ver información del empleado -->
+    <div id="infoModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Información del Colaborador</h2>
+                <span class="close-modal">&times;</span>
+            </div>
+            <div class="modal-body">
+                <div class="employee-profile">
+                    <div class="employee-photo">
+                        <img id="infoEmployeePhoto" src="../Imagenes/user-default.png" alt="Foto del colaborador">
+                    </div>
+                    <div class="employee-info">
+                        <h3 id="infoEmployeeName">Nombre del Colaborador</h3>
+                        <p id="infoEmployeePosition">Puesto</p>
+                    </div>
+                </div>
+                
+                <div class="info-details">
+                    <div class="info-item">
+                        <span class="info-label">Fecha de ingreso:</span>
+                        <span id="infoHireDate" class="info-value">01/01/2020</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">Años de servicio:</span>
+                        <span id="infoYearsService" class="info-value">3 años</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">Días disponibles:</span>
+                        <span id="infoAvailableDays" class="info-value">15 días</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">ID de empleado:</span>
+                        <span id="infoEmployeeId" class="info-value">12345</span>
+                    </div>
+                </div>
+                
+                <div class="info-actions">
+                    <button id="infoRequestVacationBtn" class="btn-submit">
+                        <i class="fas fa-calendar-plus"></i> Solicitar Vacaciones
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/sweetalert2/11.0.19/sweetalert2.min.js"></script>
+    <script src="../Logica/Vacaciones/Vacaciones.js"></script>
+</body>
+</html>

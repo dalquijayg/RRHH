@@ -1,0 +1,4 @@
+CREATE EVENT IF NOT EXISTS EventoActualizarSalarios
+ON SCHEDULE EVERY 30 MINUTE
+DO
+  CALL ActualizarSalariosPersonal();

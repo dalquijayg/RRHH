@@ -1385,51 +1385,6 @@ html, body {
     font-size: 1.2rem;
 }
 
-/* Modal de Ayuda */
-.help-section {
-    margin-bottom: 20px;
-    padding: 15px;
-    background-color: var(--color-dark-lighter);
-    border-radius: var(--border-radius);
-    border: 1px solid var(--color-dark-border);
-    transition: transform var(--transition-speed), box-shadow var(--transition-speed);
-}
-
-.help-section:hover {
-    transform: translateY(-2px);
-    box-shadow: var(--shadow);
-}
-
-.help-section h4 {
-    font-size: 1rem;
-    margin-bottom: 12px;
-    color: var(--color-primary);
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding-bottom: 8px;
-    border-bottom: 1px solid var(--color-dark-border);
-}
-
-.help-section h4 i {
-    color: var(--color-primary);
-}
-
-.help-list {
-    padding-left: 20px;
-    margin-bottom: 12px;
-    color: var(--color-light);
-}
-
-.help-list li {
-    margin-bottom: 8px;
-    line-height: 1.5;
-}
-
-.help-list li strong {
-    color: var(--color-primary);
-}
-
 /* Modal de Proceso */
 .process-container {
     display: flex;
@@ -2349,4 +2304,145 @@ html, body {
         font-weight: bold;
         font-size: 10pt;
     }
+}
+/* Estilos para la ayuda mejorada */
+.help-intro {
+    margin-bottom: 20px;
+    line-height: 1.6;
+}
+
+.help-section {
+    margin-bottom: 25px;
+    padding: 16px;
+    background-color: var(--color-dark-lighter);
+    border-radius: var(--border-radius);
+    border: 1px solid var(--color-dark-border);
+    transition: transform var(--transition-speed), box-shadow var(--transition-speed);
+}
+
+.help-section:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow);
+}
+
+.help-section h4 {
+    font-size: 1.1rem;
+    margin-bottom: 12px;
+    color: var(--color-primary);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--color-dark-border);
+}
+
+.help-section h4 i {
+    color: var(--color-primary);
+}
+
+.help-list {
+    padding-left: 25px;
+    margin-bottom: 15px;
+    color: var(--color-light);
+    list-style-type: disc;
+}
+
+.help-list li {
+    margin-bottom: 10px;
+    line-height: 1.6;
+}
+
+.help-list li strong {
+    color: var(--color-primary);
+}
+
+.help-important, .help-tip {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 12px 15px;
+    border-radius: var(--border-radius);
+    margin-top: 15px;
+}
+
+.help-important {
+    background-color: rgba(255, 82, 82, 0.1);
+    border: 1px solid rgba(255, 82, 82, 0.2);
+}
+
+.help-important i {
+    color: var(--color-danger);
+    font-size: 1.2rem;
+    margin-top: 2px;
+}
+
+.help-tip {
+    background-color: rgba(52, 152, 219, 0.1);
+    border: 1px solid rgba(52, 152, 219, 0.2);
+}
+
+.help-tip i {
+    color: var(--color-info);
+    font-size: 1.2rem;
+    margin-top: 2px;
+}
+
+.help-important p, .help-tip p {
+    margin: 0;
+    flex: 1;
+    line-height: 1.5;
+}
+
+/* Hacer el modal de ayuda más grande */
+#helpModal .modal-content {
+    max-width: 700px;
+    max-height: 80vh;
+}
+/* Estilo mejorado para botones de cerrar */
+.modal .close-modal,
+.modal-button,
+button.close-modal,
+#closeHelpBtn,
+button[id^="close"] {
+    background-color: var(--color-primary-light);
+    color: white;
+    border: none;
+    border-radius: var(--border-radius-sm);
+    padding: 8px 15px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: 500;
+    transition: all var(--transition-speed);
+    cursor: pointer;
+    box-shadow: 0 2px 4px rgba(255, 127, 39, 0.2);
+}
+
+.modal .close-modal:hover,
+.modal-button:hover,
+button.close-modal:hover,
+#closeHelpBtn:hover,
+button[id^="close"]:hover {
+    background-color: var(--color-primary);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(255, 127, 39, 0.3);
+}
+
+/* Estilo específico para botón cerrar en esquina de modal */
+.modal-header .close-modal {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    background-color: rgba(255, 82, 82, 0.1);
+    color: var(--color-danger);
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.modal-header .close-modal:hover {
+    background-color: var(--color-danger);
+    color: white;
+    transform: rotate(90deg);
 }

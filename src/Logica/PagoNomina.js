@@ -256,11 +256,15 @@ async function obtenerDatosNomina() {
                 planillas.IdPlanilla, 
                 planillas.Nombre_Planilla, 
                 planillas.EsCapital, 
+                planillas.NoCentroTrabajo,
+                planillas.Division,
+                divisiones.Nombre AS NombreDivision,
                 personal.SalarioDiario, 
                 personal.SalarioQuincena, 
                 personal.SalarioQuincenaFinMes,
                 personal.Bonificacion,
-                personal.SalarioBase
+                personal.SalarioBase,
+                personal.NoCuenta
             FROM
                 personal
                 INNER JOIN
@@ -275,6 +279,10 @@ async function obtenerDatosNomina() {
                 departamentos
                 ON 
                     personal.IdSucuDepa = departamentos.IdDepartamento
+                LEFT JOIN
+                divisiones
+                ON
+                    planillas.Division = divisiones.IdDivision
             WHERE
                 personal.Estado IN (1,5) AND
                 personal.TipoPersonal = 1`;
@@ -563,6 +571,17 @@ async function cargarDatosNomina() {
         
         // Filtrar los datos para eliminar empleados de planillas ya guardadas
         if (datosCompletos && datosCompletos.length > 0) {
+            datosCompletos.sort((a, b) => {
+                // Primero ordenar por División
+                if (a.NombreDivision !== b.NombreDivision) {
+                    return (a.NombreDivision || '').localeCompare(b.NombreDivision || '');
+                }
+                
+                // Si están en la misma División, ordenar por NoCentroTrabajo
+                const centroTrabajoA = parseInt(a.NoCentroTrabajo || '0', 10);
+                const centroTrabajoB = parseInt(b.NoCentroTrabajo || '0', 10);
+                return centroTrabajoA - centroTrabajoB;
+            });
             // Si se seleccionó una planilla específica
             if (planillaFilterValue !== 'todos') {
                 // Verificar si esa planilla ya está guardada
@@ -653,11 +672,24 @@ async function exportarExcel() {
         const tipoQuincenaField = document.getElementById('tipoQuincenaFilter').value;
         const campoSalario = tipoQuincenaField === 'normal' ? 'SalarioQuincena' : 'SalarioQuincenaFinMes';
         
-        const excelData = filteredData.map(row => ({
+        const datosOrdenados = [...filteredData].sort((a, b) => {
+            // Primero ordenar por División
+            if (a.NombreDivision !== b.NombreDivision) {
+                return (a.NombreDivision || '').localeCompare(b.NombreDivision || '');
+            }
+            
+            // Si están en la misma División, ordenar por NoCentroTrabajo
+            const centroTrabajoA = parseInt(a.NoCentroTrabajo || '0', 10);
+            const centroTrabajoB = parseInt(b.NoCentroTrabajo || '0', 10);
+            return centroTrabajoA - centroTrabajoB;
+        });
+        
+        const excelData = datosOrdenados.map(row => ({
             'ID': row.IdPersonal,
             'Nombre Completo': row.NombreCompleto,
             'Departamento': row.NombreDepartamento,
-            'Planilla': row.Nombre_Planilla,
+            'Planilla': `${row.NombreDivision || ''} - ${row.Nombre_Planilla}`, // Combinar División y Planilla
+            'Centro Trabajo': row.NoCentroTrabajo || '',
             'Tipo': row.EsCapital ? 'Capital' : 'Regional',
             'Salario Diario': row.SalarioDiario,
             'Salario Quincenal': row[campoSalario],
@@ -666,6 +698,7 @@ async function exportarExcel() {
             'Salario Proporcional': row.SalarioProporcional,
             'Descuento Judicial': row.DescuentoJudicial,
             'No. Documento': row.NoDocumentoJudicial,
+            'No. Cuenta': row.NoCuenta || '',
             'Salario a Pagar': row.SalarioFinalAPagar
         }));
         
@@ -1034,7 +1067,8 @@ async function guardarPlanilla() {
                     MontoPagado: empleado.SalarioFinalAPagar,
                     Bonificacion: empleado.Bonificacion || 0,
                     PagoIGSS: pagoIGSS,
-                    DiasLaborados: empleado.DiasLaborados
+                    DiasLaborados: empleado.DiasLaborados,
+                    NoCuenta: empleado.NoCuenta || ''
                 };
                 
                 await insertarDetallePlanilla(detallePlanilla);
@@ -1141,8 +1175,9 @@ async function insertarDetallePlanilla(detalle) {
                     MontoPagado,
                     Bonificacion,
                     PagoIGSS,
-                    DiasLaborados
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    DiasLaborados,
+                    NoCuenta
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             `;
             
             params = [
@@ -1154,7 +1189,8 @@ async function insertarDetallePlanilla(detalle) {
                 detalle.MontoPagado,
                 detalle.Bonificacion,
                 detalle.PagoIGSS,
-                detalle.DiasLaborados
+                detalle.DiasLaborados,
+                detalle.NoCuenta
             ];
         } else {
             query = `
@@ -1165,8 +1201,9 @@ async function insertarDetallePlanilla(detalle) {
                     SalarioQuincenal,
                     SalarioDiario,
                     MontoPagado,
-                    DiasLaborados
-                ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                    DiasLaborados,
+                    NoCuenta
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             `;
             
             params = [
@@ -1176,7 +1213,8 @@ async function insertarDetallePlanilla(detalle) {
                 detalle.SalarioQuincenal,
                 detalle.SalarioDiario,
                 detalle.MontoPagado,
-                detalle.DiasLaborados
+                detalle.DiasLaborados,
+                detalle.NoCuenta
             ];
         }
         
@@ -1339,16 +1377,20 @@ async function obtenerDatosPlanillasParaReporte() {
                 PP.TipoPago,
                 PP.Mes,
                 PP.Anyo,
-                P.Division
+                P.Division,
+                D.Nombre AS NombreDivision,
+                P.NoCentroTrabajo
             FROM 
                 PagoPlanilla PP
                 INNER JOIN planillas P ON PP.IdPlanilla = P.IdPlanilla
+                LEFT JOIN divisiones D ON P.Division = D.IdDivision
             WHERE 
                 PP.IdTipoPago = ? 
                 AND PP.Mes = ? 
                 AND PP.Anyo = ?
             ORDER BY 
-                PP.NombrePlanilla
+                D.Nombre ASC,
+                CAST(P.NoCentroTrabajo AS UNSIGNED) ASC
         `;
         
         const planillas = await connection.query(queryPlanillas, [idTipoPago, mes, anio]);
@@ -1383,7 +1425,7 @@ async function obtenerDatosPlanillasParaReporte() {
                 }
             }
             
-            // 3. Obtener los detalles de cada empleado en la planilla
+            // 3. Obtener los detalles de cada empleado en la planilla, incluyendo el NoCuenta
             const queryDetalles = `
                 SELECT 
                     PPD.IdPersonal,
@@ -1394,7 +1436,8 @@ async function obtenerDatosPlanillasParaReporte() {
                     PPD.DiasLaborados,
                     PPD.Bonificacion,
                     PPD.PagoIGSS,
-                    p.Sexo
+                    p.Sexo,
+                    COALESCE(PPD.NoCuenta, p.NoCuenta) AS NoCuenta
                 FROM 
                     PagoPlanillaDetalle PPD
                     LEFT JOIN personal p ON PPD.IdPersonal = p.IdPersonal
@@ -1406,7 +1449,7 @@ async function obtenerDatosPlanillasParaReporte() {
             
             const detalles = await connection.query(queryDetalles, [planilla.IdPagoPlanilla]);
             
-            // Agregar planilla con sus detalles y logo al resultado
+            // Agregar planilla con sus detalles, logo y nombre de división al resultado
             datosCompletos.push({
                 ...planilla,
                 logo: logo,
@@ -1592,15 +1635,20 @@ async function generarPDF() {
                 }
             }
             
-            doc.setFontSize(18);
+            // Nombre de la División (texto grande y prominente)
+            doc.setFontSize(20);
             doc.setFont(undefined, 'bold');
-            doc.text(planilla.NombrePlanilla, pageWidth / 2, yPos + 10, { align: 'center' });
+            doc.text(planilla.NombreDivision || 'División no especificada', pageWidth / 2, yPos + 10, { align: 'center' });
+
+            // Nombre de la Planilla (texto más pequeño debajo)
+            doc.setFontSize(14);
+            doc.setFont(undefined, 'normal');
+            doc.text(planilla.NombrePlanilla, pageWidth / 2, yPos + 18, { align: 'center' });
 
             // Subtítulos centrados (tipo de quincena y periodo)
             doc.setFontSize(11);
-            doc.setFont(undefined, 'normal');
             const mesNombre = nombresMeses[planilla.Mes - 1];
-            doc.text(`Tipo de Pago: ${planilla.TipoPago}`, pageWidth / 2, yPos + 18, { align: 'center' });
+            doc.text(`Tipo de Pago: ${planilla.TipoPago}`, pageWidth / 2, yPos + 26, { align: 'center' });
 
             // Formato de período según tipo de quincena
             let textoPeríodo = '';
@@ -1612,7 +1660,7 @@ async function generarPDF() {
                 const ultimoDia = obtenerUltimoDiaMes(planilla.Mes, planilla.Anyo);
                 textoPeríodo = `Periodo: 16 al ${ultimoDia} de ${mesNombre} ${planilla.Anyo}`;
             }
-            doc.text(textoPeríodo, pageWidth / 2, yPos + 25, { align: 'center' });
+            doc.text(textoPeríodo, pageWidth / 2, yPos + 33, { align: 'center' });
                         
             // Avanzar posición Y después del encabezado y logo
             yPos += 35;
@@ -1626,7 +1674,8 @@ async function generarPDF() {
             doc.setFontSize(10);
             doc.setFont(undefined, 'bold');
             doc.text(`ID de Planilla: ${planilla.IdPagoPlanilla}`, marginLeft + 5, yPos + 7);
-            doc.text(`Centro de trabajo: #${planilla.IdPlanilla}`, marginLeft + contentWidth - 80, yPos + 7);
+            const centroTrabajo = planilla.NoCentroTrabajo || 'No especificado';
+            doc.text(`Centro de trabajo: ${centroTrabajo}`, marginLeft + contentWidth - 80, yPos + 7);
             doc.text(`Colaboradores: ${planilla.CantColaboradores} (Masculino: ${masculinos}, Femenino: ${femeninos})`, marginLeft + 5, yPos + 14);
             
             // Avanzar posición Y después de la información de resumen
@@ -1638,13 +1687,13 @@ async function generarPDF() {
             
             let headers = [];
             let colWidths = [];
-            
+
             if (esQuincenaFinMes) {
-                headers = ['ID', 'Nombre', 'Salario Diario', 'Días Lab.', 'Bonificación', 'IGSS', 'Monto Pagado'];
-                colWidths = [20, contentWidth - 170, 30, 25, 35, 25, 35]; // Total = contentWidth
+                headers = ['ID', 'Nombre', 'No. Cuenta', 'Salario Diario', 'Días Lab.', 'Bonificación', 'IGSS', 'Monto Pagado'];
+                colWidths = [15, contentWidth - 205, 40, 25, 25, 35, 25, 40]; // Total = contentWidth
             } else {
-                headers = ['ID', 'Nombre', 'Salario Diario', 'Días Lab.', 'Monto Pagado'];
-                colWidths = [20, contentWidth - 110, 30, 25, 35]; // Total = contentWidth
+                headers = ['ID', 'Nombre', 'No. Cuenta', 'Salario Diario', 'Días Lab.', 'Monto Pagado'];
+                colWidths = [15, contentWidth - 165, 40, 25, 25, 40]; // Total = contentWidth
             }
             
             // Dibujar encabezado de la tabla
@@ -1703,24 +1752,27 @@ async function generarPDF() {
                     // Nombre (alineado a la izquierda)
                     doc.text(empleado.NombrePersonal, xPositions[1] + 3, yPos + 5.5, { align: 'left' });
                     
+                    // Número de Cuenta (alineado al centro)
+                    doc.text(empleado.NoCuenta || 'No disponible', xPositions[2] + colWidths[2] / 2, yPos + 5.5, { align: 'center' });
+                    
                     // Salario Diario (alineado al centro)
-                    doc.text(`Q${formatearNumero(empleado.SalarioDiario)}`, xPositions[2] + colWidths[2] / 2, yPos + 5.5, { align: 'center' });
+                    doc.text(`Q${formatearNumero(empleado.SalarioDiario)}`, xPositions[3] + colWidths[3] / 2, yPos + 5.5, { align: 'center' });
                     
                     // Días Laborados (alineado al centro)
-                    doc.text(empleado.DiasLaborados.toString(), xPositions[3] + colWidths[3] / 2, yPos + 5.5, { align: 'center' });
+                    doc.text(empleado.DiasLaborados.toString(), xPositions[4] + colWidths[4] / 2, yPos + 5.5, { align: 'center' });
                     
                     if (esQuincenaFinMes) {
                         // Bonificación (alineado al centro)
-                        doc.text(`Q${formatearNumero(empleado.Bonificacion || 0)}`, xPositions[4] + colWidths[4] / 2, yPos + 5.5, { align: 'center' });
+                        doc.text(`Q${formatearNumero(empleado.Bonificacion || 0)}`, xPositions[5] + colWidths[5] / 2, yPos + 5.5, { align: 'center' });
                         
                         // IGSS (alineado al centro)
-                        doc.text(`Q${formatearNumero(empleado.PagoIGSS || 0)}`, xPositions[5] + colWidths[5] / 2, yPos + 5.5, { align: 'center' });
+                        doc.text(`Q${formatearNumero(empleado.PagoIGSS || 0)}`, xPositions[6] + colWidths[6] / 2, yPos + 5.5, { align: 'center' });
                         
                         // Monto Pagado (alineado al centro)
-                        doc.text(`Q${formatearNumero(empleado.MontoPagado)}`, xPositions[6] + colWidths[6] / 2, yPos + 5.5, { align: 'center' });
+                        doc.text(`Q${formatearNumero(empleado.MontoPagado)}`, xPositions[7] + colWidths[7] / 2, yPos + 5.5, { align: 'center' });
                     } else {
                         // Monto Pagado (alineado al centro)
-                        doc.text(`Q${formatearNumero(empleado.MontoPagado)}`, xPositions[4] + colWidths[4] / 2, yPos + 5.5, { align: 'center' });
+                        doc.text(`Q${formatearNumero(empleado.MontoPagado)}`, xPositions[5] + colWidths[5] / 2, yPos + 5.5, { align: 'center' });
                     }
                     
                     // Avanzar a la siguiente fila

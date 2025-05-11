@@ -320,70 +320,91 @@ function esFechaDomingo(fecha) {
     const day = new Date(fecha).getDay();
     return day === 0; // 0 = Domingo en JavaScript
 }
-
 // Función para verificar si una fecha es día especial para un departamento
 async function verificarDiaEspecial(fecha, idDepartamento) {
     try {
         const connection = await getConnection();
         
-        // Extraer día y mes de la fecha
-        const fechaObj = new Date(fecha);
+        // Extraer día y mes de la fecha correctamente, usando UTC para evitar problemas de zona horaria
+        let fechaObj;
+        
+        // Verificar el formato de la fecha y crear el objeto Date adecuado
+        if (fecha.includes('T')) {
+            // Si ya tiene formato ISO con hora
+            fechaObj = new Date(fecha);
+        } else {
+            // Si es solo fecha (YYYY-MM-DD), agregar hora mediodía para evitar problemas con zonas horarias
+            fechaObj = new Date(`${fecha}T12:00:00`);
+        }
+        
         const dia = fechaObj.getDate(); // Día del mes (1-31)
         const mes = fechaObj.getMonth() + 1; // Mes (1-12)
         
-        // Consulta principal - asegúrate de que el número de parámetros coincida
-        const query = `
-            SELECT Dia, Mes, Descripcion 
+        console.log(`Verificando día especial exacto: ${dia}/${mes} para departamento: ${idDepartamento}`);
+        
+        // Primero buscar registros específicos para este departamento
+        const queryDepartamento = `
+            SELECT Dia, Mes, Descripcion, IdDepartamento 
             FROM DiasEspeciales
-            WHERE (Dia = ? AND Mes = ? AND IdDepartamento = ?)
+            WHERE Dia = ? AND Mes = ? AND IdDepartamento = ?
         `;
         
-        // Asegúrate de pasar exactamente 3 parámetros como se especifican en la consulta
-        const params = [dia.toString(), mes.toString(), idDepartamento];
+        const resultDepartamento = await connection.query(queryDepartamento, [
+            dia.toString(), 
+            mes.toString(), 
+            idDepartamento
+        ]);
         
-        const result = await connection.query(query, params);
+        // Si encontramos un registro específico para este departamento
+        if (resultDepartamento && resultDepartamento.length > 0) {
+            console.log("Encontrado día especial específico para este departamento", resultDepartamento[0]);
+            await connection.close();
+            return {
+                esDiaEspecial: true,
+                descripcion: resultDepartamento[0].Descripcion,
+                esGlobal: false
+            };
+        }
+        
+        // Si no encontramos específico, buscamos global (IdDepartamento = 0)
+        const queryGlobal = `
+            SELECT Dia, Mes, Descripcion, IdDepartamento 
+            FROM DiasEspeciales
+            WHERE Dia = ? AND Mes = ? AND IdDepartamento = 0
+        `;
+        
+        const resultGlobal = await connection.query(queryGlobal, [
+            dia.toString(), 
+            mes.toString()
+        ]);
         
         await connection.close();
         
-        if (result && result.length > 0) {
+        // Si encontramos un día especial global
+        if (resultGlobal && resultGlobal.length > 0) {
+            console.log("Encontrado día especial global", resultGlobal[0]);
             return {
                 esDiaEspecial: true,
-                descripcion: result[0].Descripcion
-            };
-        } else {
-            // También verificar departamento global (0) si no se encontró en el departamento específico
-            try {
-                const connectionGlobal = await getConnection();
-                const queryGlobal = `
-                    SELECT Dia, Mes, Descripcion 
-                    FROM DiasEspeciales
-                    WHERE Dia = ? AND Mes = ? AND IdDepartamento = 0
-                `;
-                
-                const resultGlobal = await connectionGlobal.query(queryGlobal, [dia.toString(), mes.toString()]);
-                await connectionGlobal.close();
-                
-                if (resultGlobal && resultGlobal.length > 0) {
-                    return {
-                        esDiaEspecial: true,
-                        descripcion: resultGlobal[0].Descripcion
-                    };
-                }
-            } catch (error) {
-                console.error('Error al verificar día especial global:', error);
-            }
-            
-            return {
-                esDiaEspecial: false,
-                descripcion: ''
+                descripcion: resultGlobal[0].Descripcion,
+                esGlobal: true // Explícitamente true cuando IdDepartamento = 0
             };
         }
+        
+        // Si no encontramos ningún día especial
+        console.log("No se encontró ningún día especial");
+        return {
+            esDiaEspecial: false,
+            descripcion: '',
+            esGlobal: false
+        };
+        
     } catch (error) {
         console.error('Error al verificar día especial:', error);
         mostrarNotificacion('Error al verificar si es día especial', 'error');
         return {
             esDiaEspecial: false,
-            descripcion: ''
+            descripcion: '',
+            esGlobal: false
         };
     }
 }
@@ -1405,7 +1426,7 @@ async function generarPDFOficial(idPlanilla) {
         
         // Para obtener el día de la semana, necesitamos crear un objeto Date
         // pero asegurándonos de usar UTC para evitar problemas de zona horaria
-        const fechaObj = new Date(Date.UTC(anio, mes-1, dia));
+        const fechaObj = new Date(`${fechaSeleccionada}T12:00:00`);
         
         // Array con los nombres de los días de la semana en español
         const diasSemana = [
@@ -1420,10 +1441,35 @@ async function generarPDFOficial(idPlanilla) {
         ];
         
         // Obtener el día de la semana (0-6, donde 0 es domingo)
-        const diaSemana = fechaObj.getUTCDay();
+        const diaSemana = fechaObj.getDay();
         
         // Crear la fecha formateada con el día de la semana
         const fechaFormateada = `${diasSemana[diaSemana]}, ${dia} de ${meses[mes-1]} de ${anio}`;
+        
+        // Determinar el título del documento según el tipo de día especial
+        let tituloPDF = "PLANILLA ESPECIAL - OFICIAL"; // Título por defecto
+        
+        // Verificar si es domingo o día especial y ajustar el título
+        if (esDomingo) {
+            tituloPDF = "PLANILLA DOMINICAL";
+            console.log("Estableciendo título: PLANILLA DOMINICAL");
+        } else if (esDiaEspecial) {
+            // Obtener la información del día especial nuevamente para confirmar si es global o específico
+            const resultadoDiaEspecial = await verificarDiaEspecial(fechaSeleccionada, idDepartamento);
+            
+            console.log('Resultado día especial para título:', JSON.stringify(resultadoDiaEspecial, null, 2));
+            
+            // Verificación explícita y detallada para depuración
+            if (resultadoDiaEspecial.esGlobal === true) {
+                tituloPDF = "PLANILLA POR ASUETO";
+                console.log("Es un día global (IdDepartamento=0). Estableciendo título: PLANILLA POR ASUETO");
+            } else {
+                tituloPDF = "PLANILLA POR FERIADO";
+                console.log("Es un día específico para este departamento. Estableciendo título: PLANILLA POR FERIADO");
+            }
+        }
+        
+        console.log("Título final del PDF:", tituloPDF);
         
         // Determinar tipo de pago
         const tipoPago = pagoAplicable === 'dominical' ? 'Pago Dominical' : 'Pago Día Especial';
@@ -1472,7 +1518,7 @@ async function generarPDFOficial(idPlanilla) {
         
         // Mejorar presentación general del PDF
         doc.setProperties({
-            title: 'Pago Planilla',
+            title: tituloPDF,
             subject: 'Planilla Especial',
             author: 'Sistema de Recursos Humanos',
             keywords: 'planilla, especial, oficial',
@@ -1485,15 +1531,16 @@ async function generarPDFOficial(idPlanilla) {
         const anchoUtil = 210 - margenIzquierdo - margenDerecho; // 210mm es el ancho de una página A4
         
         // Definir posiciones de las columnas de la tabla con mejor distribución
-        const colNombre = margenIzquierdo + 5;
-        const colPuesto = margenIzquierdo + anchoUtil * 0.40; // 50% del ancho útil
-        const colMonto = margenIzquierdo + anchoUtil * 0.65; // 75% del ancho útil
-        const colFirma = margenIzquierdo + anchoUtil * 0.80; // 88% del ancho útil
+        const colNum = margenIzquierdo + 7; // Centrar la numeración
+        const colNombre = margenIzquierdo + 17; // Reducir espacio para inicio de la columna nombre
+        const colPuesto = margenIzquierdo + anchoUtil * 0.35; // Reducir columna de nombre (35% en lugar de 40%)
+        const colMonto = margenIzquierdo + anchoUtil * 0.60; // Ajustar monto (60% en lugar de 65%)
+        const colFirma = margenIzquierdo + anchoUtil * 0.75; // Iniciar firma antes (75% en lugar de 80%)
         
         // Configurar encabezado con más espacio - ahora con número de planilla
         doc.setFontSize(18); 
         doc.setFont('helvetica', 'bold');
-        doc.text('PLANILLA ESPECIAL - OFICIAL', 105, 25, { align: 'center' });
+        doc.text(tituloPDF, 105, 25, { align: 'center' });
         
         // Dibujar una caja de énfasis para el número de planilla
         doc.setFillColor(230, 230, 250); // Color lavanda claro
@@ -1578,7 +1625,7 @@ async function generarPDFOficial(idPlanilla) {
             doc.setFontSize(10);
             doc.setFont('helvetica', 'italic');
             doc.setTextColor(100, 100, 100);
-            doc.text(`PLANILLA OFICIAL #${idPlanilla} - Página ${paginaActual}`, 210 - margenDerecho, 10, { align: 'right' });
+            doc.text(`${tituloPDF} #${idPlanilla} - Página ${paginaActual}`, 210 - margenDerecho, 10, { align: 'right' });
             doc.setTextColor(0, 0, 0);
             doc.setFont('helvetica', 'normal');
         };
@@ -1608,7 +1655,8 @@ async function generarPDFOficial(idPlanilla) {
         doc.line(margenIzquierdo, yPosition - 6, margenIzquierdo + anchoUtil, yPosition - 6);
 
         // Líneas verticales para separar columnas
-        doc.line(colPuesto - 5, yPosition - 6, colPuesto - 5, yPosition + 4); 
+        doc.line(colNombre - 5, yPosition - 6, colNombre - 5, yPosition + 4);
+        doc.line(colPuesto - 5, yPosition - 6, colPuesto - 5, yPosition + 4);
         doc.line(colMonto - 5, yPosition - 6, colMonto - 5, yPosition + 4);
         doc.line(colFirma - 5, yPosition - 6, colFirma - 5, yPosition + 4);
 
@@ -1616,7 +1664,8 @@ async function generarPDFOficial(idPlanilla) {
         doc.line(margenIzquierdo, yPosition + 4, margenIzquierdo + anchoUtil, yPosition + 4);
 
         // Textos de encabezado
-        doc.text('Nombre del Colaborador', colNombre, yPosition);
+        doc.text('No.', colNum, yPosition, { align: 'center' });
+        doc.text('Colaboradores', colNombre, yPosition);
         doc.text('Puesto', colPuesto, yPosition);
         doc.text('Monto', colMonto, yPosition);
         doc.text('Firma', colFirma, yPosition);
@@ -1650,11 +1699,13 @@ async function generarPDFOficial(idPlanilla) {
                 doc.setDrawColor(150, 150, 150);
                 doc.setLineWidth(0.3);
                 doc.line(margenIzquierdo, yPosition - 6, margenIzquierdo + anchoUtil, yPosition - 6);
+                doc.line(colNombre - 5, yPosition - 6, colNombre - 5, yPosition + 4);
                 doc.line(colPuesto - 5, yPosition - 6, colPuesto - 5, yPosition + 4);
                 doc.line(colMonto - 5, yPosition - 6, colMonto - 5, yPosition + 4);
                 doc.line(colFirma - 5, yPosition - 6, colFirma - 5, yPosition + 4);
                 doc.line(margenIzquierdo, yPosition + 4, margenIzquierdo + anchoUtil, yPosition + 4);
                 
+                doc.text('No.', colNum, yPosition);
                 doc.text('Nombre del Colaborador', colNombre, yPosition);
                 doc.text('Puesto', colPuesto, yPosition);
                 doc.text('Monto', colMonto, yPosition);
@@ -1682,10 +1733,15 @@ async function generarPDFOficial(idPlanilla) {
             
             // Líneas verticales
             doc.line(margenIzquierdo, yPosition - 6, margenIzquierdo, yPosition + 9);
+            doc.line(colNombre - 5, yPosition - 6, colNombre - 5, yPosition + 9);
             doc.line(colPuesto - 5, yPosition - 6, colPuesto - 5, yPosition + 9);
             doc.line(colMonto - 5, yPosition - 6, colMonto - 5, yPosition + 9);
             doc.line(colFirma - 5, yPosition - 6, colFirma - 5, yPosition + 9);
             doc.line(margenIzquierdo + anchoUtil, yPosition - 6, margenIzquierdo + anchoUtil, yPosition + 9);
+            
+            // Agregar el número secuencial (índice + 1)
+            doc.setFont('helvetica', 'bold');
+            doc.text((index + 1).toString(), colNum, yPosition + 1, { align: 'center' });
             
             // Dividir el nombre completo en apellidos y nombres
             // Asumiendo formato: "Apellido1 Apellido2, Nombre1 Nombre2"
@@ -1812,7 +1868,7 @@ async function generarPDFOficial(idPlanilla) {
         doc.setFont('helvetica', 'italic');
         doc.text(`Documento oficial generado por el Sistema de Recursos Humanos`, margenIzquierdo, yPosition);
         doc.text(`Fecha de generación: ${new Date().toLocaleString()}`, margenIzquierdo, yPosition + 5);
-        doc.text(`Planilla No. ${idPlanilla}`, 210 - margenDerecho, yPosition, {align: 'right'});
+        doc.text(`${tituloPDF} No. ${idPlanilla}`, 210 - margenDerecho, yPosition, {align: 'right'});
         
         updateProgress(100, '¡Documento oficial generado con éxito!');
         
