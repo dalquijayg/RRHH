@@ -1123,3 +1123,42 @@ tr:has(.descuento-judicial:not(:empty):not([data-tooltip=""])):hover {
     display: flex;
     align-items: center;
 }
+
+
+/* Estilos para empleados con baja */
+.empleado-baja {
+    background-color: rgba(255, 193, 7, 0.05);
+}
+
+.dark-theme .empleado-baja {
+    background-color: rgba(255, 193, 7, 0.1);
+}
+
+.indicador-baja {
+    font-size: 12px;
+    color: var(--warning);
+    font-weight: 600;
+    margin-left: 5px;
+}
+
+/* Hover para filas de bajas */
+.empleado-baja:hover {
+    background-color: rgba(255, 193, 7, 0.1);
+}
+
+.dark-theme .empleado-baja:hover {
+    background-color: rgba(255, 193, 7, 0.15);
+}
+
+/* Tooltip mejorado para bajas */
+.diasLaborados.reducido[data-tooltip*="Despedido"],
+.diasLaborados.reducido[data-tooltip*="Renuncia"] {
+    color: var(--warning);
+    font-weight: 600;
+}
+
+.diasLaborados.reducido[data-tooltip*="Despedido"]::before,
+.diasLaborados.reducido[data-tooltip*="Renuncia"]::before {
+    content: "👤 ";
+    font-size: 14px;
+}

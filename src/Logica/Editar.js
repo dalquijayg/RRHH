@@ -2875,7 +2875,7 @@ async function guardarCambiosLaboral() {
             if (cambioARetiro) {
                 const retiroQuery = `
                     INSERT INTO DespidosRenuncias 
-                    (IdPesonal, NombrePersonal, IdEstadoPersonal, EstadoPersonal, 
+                    (IdPersonal, NombrePersonal, IdEstadoPersonal, EstadoPersonal, 
                     FechaFinColaborador, ObservacionRetiro, IdUsuario, NombreUsuario)
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                 `;

@@ -365,7 +365,6 @@ body {
     background-color: rgba(255, 152, 0, 0.05);
     transform: none; /* Quitar el efecto de desplazamiento */
 }
-
 /* Estilos similares a la imagen compartida */
 .days-count {
     background: #FF9800;
@@ -649,19 +648,6 @@ body {
     }
 }
 
-/* Pie de página */
-.footer {
-    background-color: white;
-    padding: 15px;
-    text-align: center;
-    box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.05);
-    color: var(--color-gray);
-    font-size: 12px;
-    line-height: 1.5;
-    z-index: 10;
-    position: relative;
-}
-
 /* Modales */
 .modal {
     display: none;
@@ -710,7 +696,7 @@ body {
     max-width: 1100px;
     width: 98%;
     max-height: 90vh;
-    overflow: hidden;
+    overflow: auto; /* Cambiado de 'hidden' a 'auto' para permitir scroll */
 }
 
 @keyframes modalSlideIn {
@@ -768,6 +754,9 @@ body {
 }
 
 .modal-body {
+    display: flex;
+    flex-direction: row;
+    gap: 20px;
     padding: 15px;
 }
 
@@ -776,6 +765,20 @@ body {
     display: flex;
     gap: 20px;
     height: 100%;
+}
+
+/* Columna izquierda para información del empleado */
+.employee-info-column {
+    flex: 0 0 28%;
+    display: flex;
+    flex-direction: column;
+}
+
+/* Columna derecha para el calendario */
+.calendar-column {
+    flex: 0 0 70%;
+    display: flex;
+    flex-direction: column;
 }
 
 .modal-column {
@@ -836,7 +839,6 @@ body {
     margin-bottom: 10px;
     font-size: 0.9rem;
 }
-
 /* Estilos para contador de días disponibles */
 .days-available-badge {
     background: linear-gradient(135deg, #FF9800, #FFC107);
@@ -912,24 +914,24 @@ body {
 
 /* Mejorar información de fechas seleccionadas */
 .selected-dates-summary {
-    margin-top: 10px;
+    margin: 15px 0;
 }
 
 .selected-dates {
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
     background-color: #f9f9f9;
-    padding: 10px;
-    border-radius: var(--radius-sm);
-    box-shadow: var(--shadow-sm);
+    border-radius: 8px;
+    padding: 15px;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.08);
 }
 
 .date-range {
+    margin-bottom: 10px;
     display: flex;
-    flex-direction: row;
-    justify-content: space-between;
     align-items: center;
+}
+
+.date-range:last-child {
+    margin-bottom: 0;
 }
 
 .date-label {
@@ -955,6 +957,8 @@ body {
     color: white;
     font-size: 16px;
     padding: 10px 12px;
+    border-radius: 8px;
+    font-weight: 600;
 }
 
 /* Calendario */
@@ -962,11 +966,11 @@ body {
     background-color: white;
     border-radius: var(--radius-sm);
     padding: 15px;
-    margin-bottom: 20px;
     box-shadow: var(--shadow-sm);
-    height: auto;
-    max-height: 450px;
-    overflow-y: auto;
+    height: 100%;
+    min-height: 450px;
+    display: flex;
+    flex-direction: column;
 }
 
 /* Calendario compacto (actualizado) */
@@ -979,7 +983,8 @@ body {
 
 /* Asegurar que FullCalendar se ajuste al contenedor */
 .fc {
-    height: auto !important;
+    flex: 1;
+    height: 100% !important;
     max-width: 100% !important;
     font-family: 'Poppins', sans-serif !important;
 }
@@ -1001,6 +1006,7 @@ body {
     background-color: white;
     border-radius: var(--radius-sm);
     height: auto !important;
+    min-height: 400px;
 }
 
 .fc-scrollgrid {
@@ -1240,136 +1246,50 @@ body {
     opacity: 1;
 }
 
-/* Tooltips para cajas de días en visualización */
-.box-tooltip {
-    display: none;
-    position: absolute;
-    background-color: rgba(0, 0, 0, 0.8);
-    color: white;
-    padding: 5px 10px;
-    border-radius: 4px;
-    font-size: 11px;
-    width: 140px;
-    bottom: 100%;
-    left: 50%;
-    transform: translateX(-50%);
-    margin-bottom: 5px;
-    z-index: 5;
-    white-space: normal;
-    text-align: center;
+/* Estilos para días de meses adyacentes */
+.fc .fc-day-other {
+    background-color: #f8f8f8;
+    opacity: 0.9 !important;
 }
 
-.day-box:hover .box-tooltip {
-    display: block;
-}
-
-/* Tooltip para días especiales y de Semana Santa */
-.day-tooltip {
-    display: none;
-    position: absolute;
-    background-color: rgba(0, 0, 0, 0.8);
-    color: white;
-    padding: 5px 10px;
-    border-radius: 4px;
-    font-size: 12px;
-    z-index: 10;
-    width: 150px;
-    top: 100%;
-    left: 50%;
-    transform: translateX(-50%);
-    pointer-events: none;
-}
-
-.special-day:hover .day-tooltip,
-.holy-week-day:hover .day-tooltip {
-    display: block;
-}
-
-/* Estilos para la visualización de un solo día */
-.single-day-selection {
-    display: flex;
-    align-items: center;
-    gap: 20px;
-    padding: 15px;
-    background-color: var(--color-light);
-    border-radius: var(--radius-md);
-    margin-bottom: 10px;
-}
-
-.single-day-box {
-    width: 70px;
-    height: 70px;
-    border-radius: 10px;
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    align-items: center;
-    box-shadow: 0 4px 10px rgba(0,0,0,0.1);
-    animation: popIn 0.5s;
-}
-
-.single-day-box.vacation {
-    background-color: var(--color-accent-3);
-    color: white;
-}
-
-.single-day-box.weekend {
-    background-color: #f0f0f0;
+.fc .fc-day-other .fc-daygrid-day-number {
     color: #aaa;
 }
 
-.single-day-box.special {
-    background-color: rgba(255, 82, 82, 0.2);
-    color: #FF5252;
+/* Botón de enviar solicitud */
+.form-actions {
+    margin-top: auto;
+    padding: 15px 0;
+    display: flex;
+    justify-content: center;
+    border-top: 1px solid var(--color-light-gray);
 }
 
-.single-day-box.holy-week {
-    background-color: rgba(156, 39, 176, 0.2);
-    color: #9C27B0;
-}
-
-.single-day-box .day-number {
-    font-size: 24px;
-    font-weight: 600;
-    line-height: 1;
-}
-
-.single-day-box .day-name {
-    font-size: 12px;
-    margin-top: 5px;
-}
-
-.single-day-info {
-    flex: 1;
-}
-
-.single-day-info p {
-    margin: 0 0 5px 0;
-    color: var(--color-dark);
-}
-
-.single-day-status {
+.btn-submit {
+    width: 100%;
+    padding: 12px 25px;
+    border-radius: var(--radius-sm);
+    font-size: 15px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.3s;
+    background-color: #FF9800;
+    border: none;
+    color: white;
     display: flex;
     align-items: center;
-    gap: 8px;
-    font-size: 14px;
-    margin-top: 8px !important;
+    justify-content: center;
+    gap: 10px;
 }
 
-.single-day-status .fa-check-circle {
-    color: var(--color-accent-3);
+.btn-submit:hover {
+    background-color: #F57C00;
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(255, 152, 0, 0.3);
 }
 
-.single-day-status .fa-times-circle {
-    color: var(--color-gray);
-}
-
-.single-day-status .fa-exclamation-circle {
-    color: #FF5252;
-}
-
-.single-day-status .fa-church {
-    color: #9C27B0;
+.btn-submit:active {
+    transform: scale(0.98);
 }
 
 /* Estilos para la leyenda de días */
@@ -1461,152 +1381,7 @@ body {
     font-size: 10px;
 }
 
-/* Resumen de días seleccionados */
-.days-summary {
-    margin-top: 20px;
-    padding: 15px;
-    background-color: white;
-    border-radius: var(--radius-sm);
-    box-shadow: var(--shadow-sm);
-}
-
-.summary-item {
-    display: flex;
-    justify-content: space-between;
-    margin-bottom: 10px;
-    padding-bottom: 10px;
-    border-bottom: 1px solid #f0f0f0;
-}
-
-.summary-item:last-child {
-    border-bottom: none;
-    margin-bottom: 0;
-    padding-bottom: 0;
-}
-
-.summary-label {
-    color: var(--color-gray);
-    font-weight: 500;
-}
-
-.summary-value {
-    color: var(--color-primary);
-    font-weight: 600;
-}
-
-/* Resaltar el elemento principal del resumen */
-.highlight-summary {
-    background-color: var(--color-light);
-    padding: 10px;
-    border-radius: var(--radius-sm);
-    border-left: 4px solid var(--color-secondary);
-    margin-bottom: 10px;
-}
-
-.highlight-summary .summary-value {
-    font-size: 24px;
-    font-weight: 600;
-    color: var(--color-secondary);
-}
-
-/* Botones con más espacio */
-.form-actions {
-    margin-top: 10px;
-    padding-top: 10px;
-    border-top: 1px solid var(--color-light-gray);
-    display: flex;
-    justify-content: flex-end;
-    gap: 15px;
-}
-
-/* Mejorar los botones */
-.btn-submit, .btn-cancel {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 10px 20px;
-    border-radius: var(--radius-sm);
-    font-size: 14px;
-    font-weight: 500;
-    cursor: pointer;
-    transition: all 0.3s;
-}
-
-.btn-cancel {
-    background-color: transparent;
-    border: 1px solid var(--color-light-gray);
-    color: var(--color-gray);
-}
-
-.btn-submit {
-    background-color: var(--color-secondary);
-    border: none;
-    color: white;
-}
-
-.btn-cancel:hover {
-    background-color: var(--color-light);
-    border-color: var(--color-gray);
-}
-
-.btn-submit:hover {
-    background-color: #F57C00;
-    transform: translateY(-2px);
-    box-shadow: 0 5px 15px rgba(255, 152, 0, 0.3);
-}
-
-.btn-action:active, .btn-submit:active, .btn-cancel:active {
-    transform: scale(0.95);
-}
-
-.btn-action:focus, .btn-submit:focus, .btn-cancel:focus {
-    outline: none;
-}
-
-/* Modal de información del empleado */
-.info-details {
-    background-color: var(--color-light);
-    border-radius: var(--radius-md);
-    padding: 20px;
-    margin-bottom: 20px;
-}
-
-.info-item {
-    display: flex;
-    justify-content: space-between;
-    padding: 10px 0;
-    border-bottom: 1px solid var(--color-light-gray);
-}
-
-.info-item:last-child {
-    border-bottom: none;
-}
-
-.info-label {
-    color: var(--color-gray);
-    font-weight: 500;
-}
-
-.info-value {
-    color: var(--color-primary);
-}
-
-.info-actions {
-    display: flex;
-    justify-content: center;
-    margin-top: 20px;
-}
-
-/* Fullcalendar personalizaciones */
-.fc .fc-daygrid-day.fc-day-saturday,
-.fc .fc-daygrid-day.fc-day-sunday {
-    background-color: #f9f9f9;
-}
-
-.fc .fc-daygrid-day.fc-day-today {
-    background-color: rgba(255, 152, 0, 0.1) !important;
-}
-
+/* Nuevos estilos para fullcalendar */
 .fc-day-today.fc-day-selected {
     background-color: rgba(76, 175, 80, 0.3) !important;
 }
@@ -1617,15 +1392,32 @@ body {
     box-shadow: inset 0 0 3px rgba(76, 175, 80, 0.5);
 }
 
-.fc-theme-standard .fc-bg-event {
-    background-color: var(--color-accent-3);
-    opacity: 0.8;
+.fc .fc-daygrid-day.fc-day-today {
+    background-color: rgba(255, 152, 0, 0.1) !important;
 }
 
-.fc-theme-standard .fc-highlight {
-    background-color: rgba(255, 152, 0, 0.2);
+.fc .fc-daygrid-day.fc-day-saturday,
+.fc .fc-daygrid-day.fc-day-sunday {
+    background-color: #f9f9f9;
 }
 
+/* Ajustar altura de filas del calendario */
+.fc-daygrid-day-frame {
+    min-height: 45px !important;
+}
+
+/* Días de la semana */
+.fc-col-header-cell {
+    background-color: #f5f5f5;
+}
+
+.fc-col-header-cell-cushion {
+    color: #555;
+    font-weight: 500;
+    text-transform: lowercase;
+}
+
+/* Botones de fullcalendar */
 .fc-button-primary {
     background-color: var(--color-secondary) !important;
     border-color: var(--color-secondary) !important;
@@ -1649,121 +1441,6 @@ body {
 .fc-today-button:hover {
     background-color: #2979FF !important;
     border-color: #2979FF !important;
-}
-
-.fc .fc-toolbar-title {
-    color: var(--color-primary);
-}
-
-/* Ajustar altura de filas del calendario */
-.fc-daygrid-day-frame {
-    min-height: 45px !important;
-}
-
-/* Días de la semana */
-.fc-col-header-cell {
-    background-color: #f5f5f5;
-}
-
-.fc-col-header-cell-cushion {
-    color: #555;
-    font-weight: 500;
-    text-transform: lowercase;
-}
-
-/* Mensaje de carga */
-.loading-container {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    padding: 30px;
-    text-align: center;
-}
-
-.spinner {
-    border: 4px solid #f3f3f3;
-    border-top: 4px solid var(--color-secondary);
-    border-radius: 50%;
-    width: 40px;
-    height: 40px;
-    animation: spin 1s linear infinite;
-    margin-bottom: 15px;
-}
-
-@keyframes spin {
-    0% { transform: rotate(0deg); }
-    100% { transform: rotate(360deg); }
-}
-
-/* Estados y mensajes vacíos */
-.no-data-message {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    padding: 40px 20px;
-    color: var(--color-gray);
-    text-align: center;
-}
-
-.no-data-message i {
-    font-size: 48px;
-    color: var(--color-secondary);
-    margin-bottom: 15px;
-    opacity: 0.7;
-}
-
-.no-data-message p {
-    font-size: 16px;
-    max-width: 300px;
-    line-height: 1.5;
-}
-
-.no-days {
-    color: var(--color-gray);
-    text-align: center;
-    padding: 15px;
-    font-style: italic;
-}
-
-/* Mejoras para la visualización de días */
-.days-visual-container {
-    max-height: 150px;
-    overflow-y: auto;
-    padding-right: 10px;
-}
-
-.days-visual-container::-webkit-scrollbar {
-    width: 6px;
-}
-
-.days-visual-container::-webkit-scrollbar-track {
-    background: #f1f1f1;
-    border-radius: 10px;
-}
-
-.days-visual-container::-webkit-scrollbar-thumb {
-    background: var(--color-secondary);
-    border-radius: 10px;
-}
-
-.days-visual-container::-webkit-scrollbar-thumb:hover {
-    background: #F57C00;
-}
-
-/* Mejoras adicionales para inputs */
-input::placeholder, textarea::placeholder {
-    color: #bbb;
-}
-
-textarea {
-    font-family: 'Poppins', sans-serif;
-    line-height: 1.5;
-}
-
-/* Transiciones generales para todos los elementos */
-* {
-    transition: background-color 0.3s, transform 0.3s, box-shadow 0.3s, color 0.3s, border-color 0.3s;
 }
 
 /* Animaciones generales */
@@ -1795,46 +1472,6 @@ textarea {
     70% { transform: scale(1.1); }
     100% { transform: scale(1); opacity: 1; }
 }
-
-/* Clase para agregar animación de entrada a elementos */
-.animate-in {
-    animation: fadeIn 0.5s ease forwards;
-}
-
-/* Efecto de desplazamiento suave */
-html {
-    scroll-behavior: smooth;
-}
-
-/* Mejoras específicas para accesibilidad */
-button, a, input, select, textarea {
-    transition: all 0.3s ease;
-}
-
-button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible {
-    outline: 2px solid var(--color-secondary);
-    outline-offset: 2px;
-}
-
-/* Clases de utilidad */
-.text-center { text-align: center; }
-.text-right { text-align: right; }
-.text-left { text-align: left; }
-.mt-1 { margin-top: 0.25rem; }
-.mt-2 { margin-top: 0.5rem; }
-.mt-3 { margin-top: 1rem; }
-.mb-1 { margin-bottom: 0.25rem; }
-.mb-2 { margin-bottom: 0.5rem; }
-.mb-3 { margin-bottom: 1rem; }
-.ml-1 { margin-left: 0.25rem; }
-.ml-2 { margin-left: 0.5rem; }
-.ml-3 { margin-left: 1rem; }
-.mr-1 { margin-right: 0.25rem; }
-.mr-2 { margin-right: 0.5rem; }
-.mr-3 { margin-right: 1rem; }
-.p-1 { padding: 0.25rem; }
-.p-2 { padding: 0.5rem; }
-.p-3 { padding: 1rem; }
 
 /* Responsive */
 @media screen and (max-width: 1000px) {
@@ -1879,22 +1516,20 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
         display: flex;
         gap: 5px;
     }
-    
-    /* Ajustes para el modal compacto en pantallas medianas */
-    .modal-layout {
+}
+
+@media screen and (max-width: 900px) {
+    .modal-body {
         flex-direction: column;
     }
     
-    .modal-column {
+    .employee-info-column,
+    .calendar-column {
         flex: 1 1 100%;
     }
     
-    .employee-profile-column {
-        order: 2;
-    }
-    
-    .calendar-column {
-        order: 1;
+    .form-actions {
+        padding: 15px;
     }
 }
 
@@ -1921,15 +1556,6 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
     .employee-profile {
         flex-direction: column;
         text-align: center;
-    }
-    
-    .form-actions {
-        flex-direction: column;
-    }
-    
-    .btn-cancel, .btn-submit {
-        width: 100%;
-        margin-bottom: 10px;
     }
     
     .calendar-container {
@@ -2034,61 +1660,313 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
     margin-left: auto;
 }
 
-.department-stats span {
+/* Estilos para días que ya están registrados como vacaciones */
+.registered-vacation-day {
+    background-color: rgba(76, 175, 80, 0.15) !important; /* Verde claro */
+    position: relative;
+    pointer-events: none; /* Deshabilitar interacción */
+}
+
+.registered-vacation-day:before {
+    content: "\f058"; /* Icono de círculo con check */
+    font-family: "Font Awesome 5 Free";
+    font-weight: 900;
+    font-size: 10px;
+    color: #4CAF50; /* Verde */
+    position: absolute;
+    top: 4px;
+    right: 4px;
+}
+
+.fc .fc-daygrid-day.registered-vacation-day .fc-daygrid-day-number {
+    color: #4CAF50; /* Verde */
+    font-weight: 500;
+    text-decoration: none; /* Quitar el tachado */
+    opacity: 0.9;
+}
+
+/* Estilo para indicar que el día no es seleccionable */
+.registered-vacation-day .fc-daygrid-day-frame {
+    cursor: not-allowed !important;
+}
+
+/* Estilos para la leyenda del calendario */
+.calendar-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin-top: 15px;
+    padding: 12px;
+    background-color: #f9f9f9;
+    border-radius: 8px;
+    font-size: 13px;
+    border: 1px solid #e0e0e0;
+}
+.legend-title {
+    width: 100%;
+    font-weight: 500;
+    margin-bottom: 5px;
+    color: #555;
+}
+.legend-item {
     display: flex;
     align-items: center;
-    padding: 8px 15px;
-    border-radius: 20px;
-    background-color: #f8f8f8;
-    box-shadow: 0 2px 5px rgba(0,0,0,0.05);
-    color: #333;
+    gap: 6px;
+}
+
+.legend-color {
+    width: 16px;
+    height: 16px;
+    border-radius: 4px;
+}
+
+.registered-color {
+    background-color: rgba(76, 175, 80, 0.15);
+    border: 1px solid #4CAF50;
+}
+.mini-summary-item.registered-item {
+    color: #4CAF50;
+}
+
+.mini-summary-item.registered-item i {
+    color: #4CAF50;
+}
+.weekend-color {
+    background-color: #f9f9f9;
+    border: 1px solid #e0e0e0;
+}
+
+.special-color {
+    background-color: rgba(255, 82, 82, 0.2);
+    border: 1px solid #FF5252;
+}
+
+.holy-week-color {
+    background-color: rgba(156, 39, 176, 0.2);
+    border: 1px solid #9C27B0;
+}
+
+/* Estilos para el indicador de días mínimos */
+.min-days-info {
+    background-color: #E3F2FD;
+    color: #1976D2;
+    padding: 8px 12px;
+    border-radius: 8px;
+    font-size: 14px;
+    margin: 10px 0;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    border-left: 3px solid #1976D2;
+}
+
+.min-days-info i {
+    color: #1976D2;
+    font-size: 16px;
+}
+
+.min-days-note {
+    font-size: 12px;
+    color: #FF9800;
+    margin-top: 6px;
+    padding-top: 6px;
+    border-top: 1px dashed #E0E0E0;
+    width: 100%;
+}
+
+/* Estilos para la advertencia de días mínimos */
+.date-value.highlight.days-warning {
+    background-color: #FF9800;
+    position: relative;
+}
+
+.date-value.highlight.days-warning:after {
+    content: attr(data-tooltip);
+    position: absolute;
+    background-color: rgba(0, 0, 0, 0.8);
+    color: white;
+    padding: 5px 10px;
+    border-radius: 4px;
+    font-size: 12px;
+    bottom: calc(100% + 10px);
+    left: 50%;
+    transform: translateX(-50%);
+    white-space: nowrap;
+    visibility: hidden;
+    opacity: 0;
+    transition: opacity 0.3s;
+}
+
+.date-value.highlight.days-warning:before {
+    content: '';
+    position: absolute;
+    bottom: calc(100% + 5px);
+    left: 50%;
+    transform: translateX(-50%);
+    border-width: 5px;
+    border-style: solid;
+    border-color: rgba(0, 0, 0, 0.8) transparent transparent transparent;
+    visibility: hidden;
+    opacity: 0;
+    transition: opacity 0.3s;
+}
+
+.date-value.highlight.days-warning:hover:after,
+.date-value.highlight.days-warning:hover:before {
+    visibility: visible;
+    opacity: 1;
+}
+
+.days-note-container {
+    margin: 10px 0;
+}
+
+.days-note {
+    background-color: #FFF3E0;
+    border-left: 3px solid #FF9800;
+    padding: 10px 12px;
+    border-radius: 6px;
+    font-size: 13px;
+    color: #E65100;
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+}
+
+.days-note i {
+    color: #FF9800;
+    font-size: 16px;
+    margin-top: 2px;
+}
+/* Estilos para la información de distribución de períodos */
+.periodos-container {
+    margin: 15px 0;
+}
+
+.periodos-info {
+    background-color: #E8F5E9;
+    border-radius: 8px;
+    padding: 12px;
+    font-size: 13px;
+}
+
+.periodos-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: #2E7D32;
+    font-weight: 500;
+    margin-bottom: 10px;
+}
+
+.periodos-title i {
+    color: #4CAF50;
+    font-size: 16px;
+}
+
+.periodos-list {
+    background-color: white;
+    border-radius: 6px;
+    padding: 8px;
+    margin-bottom: 10px;
+}
+
+.periodo-item {
+    display: flex;
+    justify-content: space-between;
+    padding: 6px 8px;
+    border-bottom: 1px dashed #E0E0E0;
+}
+
+.periodo-item:last-child {
+    border-bottom: none;
+}
+
+.periodo-dates {
+    color: #555;
+}
+
+.periodo-days {
+    color: #4CAF50;
     font-weight: 500;
 }
 
-.department-stats span i {
-    background: none;
-    color: #FF9800;
-    width: auto;
-    height: auto;
-    font-size: 16px;
-    margin-right: 8px;
-    box-shadow: none;
+.periodos-note {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    color: #689F38;
+    font-size: 12px;
 }
 
-.department-stats span:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+.periodos-note i {
+    color: #8BC34A;
+    margin-top: 2px;
 }
 
-/* Estilos adicionales para el calendario completo */
-.full-calendar-view {
-    height: 100% !important;
+/* Estilos para la distribución de períodos en la confirmación */
+.distribucion-periodos {
+    background-color: #F1F8E9;
+    border-radius: 8px;
+    padding: 10px 15px;
+    margin: 15px 0;
+    border-left: 4px solid #8BC34A;
 }
 
-/* Ocultar barras de desplazamiento en el calendario */
-.fc-scroller::-webkit-scrollbar {
-    display: none;
+.distribucion-periodos p {
+    color: #33691E;
+    margin-bottom: 8px;
+    font-weight: 500;
 }
 
-.fc-scroller {
-    -ms-overflow-style: none;
-    scrollbar-width: none;
+.distribucion-periodos ul {
+    margin: 0;
+    padding-left: 20px;
 }
 
-/* Estilos para los botones del modal */
-.modal-compact .btn-submit, 
-.modal-compact .btn-cancel {
-    padding: 10px 20px;
+.distribucion-periodos li {
+    margin-bottom: 5px;
+    color: #558B2F;
 }
 
-/* Ajustar el margen superior del modal */
-.modal-content {
-    margin: 30px auto;
+/* Estilos para el mensaje de carga con animación */
+.loading-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 40px;
+    text-align: center;
 }
 
-/* Indicador de más días */
-.day-box.more-indicator {
-    background-color: #f0f0f0;
-    color: #666;
-    font-weight: bold;
+.spinner {
+    border: 4px solid #f3f3f3;
+    border-top: 4px solid #FF9800;
+    border-radius: 50%;
+    width: 50px;
+    height: 50px;
+    animation: spin 1s linear infinite;
+    margin-bottom: 20px;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+.loading-text {
+    color: #555;
+    font-size: 18px;
+    font-weight: 500;
+}
+
+/* Para el SweetAlert con spinner */
+.swal2-popup .spinner {
+    border: 5px solid #f3f3f3;
+    border-top: 5px solid #FF9800;
+    border-radius: 50%;
+    width: 50px;
+    height: 50px;
+    animation: spin 1s linear infinite;
+    margin: 20px auto;
 }

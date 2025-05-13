@@ -230,7 +230,7 @@ async function obtenerDescuentosJudiciales(idPersonal) {
     }
 }
 
-// Función para obtener todos los datos de nómina según los filtros
+// Función modificada para obtener todos los datos de nómina incluyendo bajas
 async function obtenerDatosNomina() {
     try {
         // Mostrar loader
@@ -245,8 +245,8 @@ async function obtenerDatosNomina() {
         
         console.log('Filtros aplicados:', { planillaId, tipoQuincena, mes, anio });
         
-        // Construir la consulta SQL
-        let query = `
+        // Construir la consulta SQL para personal activo
+        let queryActivos = `
             SELECT
                 personal.IdPersonal, 
                 CONCAT(personal.PrimerNombre, ' ', IFNULL(personal.SegundoNombre, ''), ' ', IFNULL(personal.TercerNombre, ''), ' ', personal.PrimerApellido, ' ', IFNULL(personal.SegundoApellido, '')) AS NombreCompleto, 
@@ -264,56 +264,99 @@ async function obtenerDatosNomina() {
                 personal.SalarioQuincenaFinMes,
                 personal.Bonificacion,
                 personal.SalarioBase,
-                personal.NoCuenta
+                personal.NoCuenta,
+                NULL AS FechaFinColaborador,
+                NULL AS TipoBaja
             FROM
                 personal
-                INNER JOIN
-                planillas
-                ON 
-                    personal.IdPlanilla = planillas.IdPlanilla
-                INNER JOIN
-                Puestos
-                ON 
-                    personal.IdPuesto = Puestos.IdPuesto
-                INNER JOIN
-                departamentos
-                ON 
-                    personal.IdSucuDepa = departamentos.IdDepartamento
-                LEFT JOIN
-                divisiones
-                ON
-                    planillas.Division = divisiones.IdDivision
+                INNER JOIN planillas ON personal.IdPlanilla = planillas.IdPlanilla
+                INNER JOIN Puestos ON personal.IdPuesto = Puestos.IdPuesto
+                INNER JOIN departamentos ON personal.IdSucuDepa = departamentos.IdDepartamento
+                LEFT JOIN divisiones ON planillas.Division = divisiones.IdDivision
             WHERE
                 personal.Estado IN (1,5) AND
                 personal.TipoPersonal = 1`;
         
+        // Determinar fechas de inicio y fin de la quincena
+        let inicioQuincena, finQuincena;
+        
+        if (tipoQuincena === 'normal') {
+            // Primera quincena: del 1 al 15
+            inicioQuincena = `${anio}-${mes.padStart(2, '0')}-01`;
+            finQuincena = `${anio}-${mes.padStart(2, '0')}-15`;
+        } else {
+            // Segunda quincena: del 16 al último día del mes
+            inicioQuincena = `${anio}-${mes.padStart(2, '0')}-16`;
+            const ultimoDia = new Date(anio, parseInt(mes), 0).getDate();
+            finQuincena = `${anio}-${mes.padStart(2, '0')}-${ultimoDia}`;
+        }
+        
+        // Construir la consulta SQL para personal con bajas en el periodo
+        let queryBajas = `
+            SELECT
+                personal.IdPersonal, 
+                CONCAT(personal.PrimerNombre, ' ', IFNULL(personal.SegundoNombre, ''), ' ', IFNULL(personal.TercerNombre, ''), ' ', personal.PrimerApellido, ' ', IFNULL(personal.SegundoApellido, '')) AS NombreCompleto, 
+                personal.IdSucuDepa, 
+                personal.FechaPlanilla, 
+                departamentos.NombreDepartamento, 
+                planillas.IdPlanilla, 
+                planillas.Nombre_Planilla, 
+                planillas.EsCapital, 
+                planillas.NoCentroTrabajo,
+                planillas.Division,
+                divisiones.Nombre AS NombreDivision,
+                personal.SalarioDiario, 
+                personal.SalarioQuincena, 
+                personal.SalarioQuincenaFinMes,
+                personal.Bonificacion,
+                personal.SalarioBase,
+                personal.NoCuenta,
+                dr.FechaFinColaborador,
+                CASE 
+                    WHEN dr.IdEstadoPersonal = 2 THEN 'Despedido'
+                    WHEN dr.IdEstadoPersonal = 3 THEN 'Renuncia'
+                    ELSE 'Otro'
+                END AS TipoBaja
+            FROM
+                personal
+                INNER JOIN planillas ON personal.IdPlanilla = planillas.IdPlanilla
+                INNER JOIN Puestos ON personal.IdPuesto = Puestos.IdPuesto
+                INNER JOIN departamentos ON personal.IdSucuDepa = departamentos.IdDepartamento
+                LEFT JOIN divisiones ON planillas.Division = divisiones.IdDivision
+                INNER JOIN DespidosRenuncias dr ON personal.IdPersonal = dr.IdPersonal
+            WHERE
+                personal.TipoPersonal = 1 AND
+                dr.IdEstadoPersonal IN (2, 3) AND
+                dr.FechaFinColaborador >= ? AND
+                dr.FechaFinColaborador <= ?`;
+        
         // Agregar filtros
         const params = [];
+        const paramsBajas = [inicioQuincena, finQuincena];
         
         // Filtro de planilla (si no es "todos")
         if (planillaId !== 'todos') {
-            query += ' AND planillas.IdPlanilla = ?';
+            queryActivos += ' AND planillas.IdPlanilla = ?';
+            queryBajas += ' AND planillas.IdPlanilla = ?';
             params.push(planillaId);
+            paramsBajas.push(planillaId);
         }
         
         // Ordenar los resultados
-        query += ' ORDER BY planillas.Nombre_Planilla ASC, NombreCompleto ASC';
+        queryActivos += ' ORDER BY planillas.Nombre_Planilla ASC, NombreCompleto ASC';
+        queryBajas += ' ORDER BY planillas.Nombre_Planilla ASC, NombreCompleto ASC';
         
-        console.log('Consulta SQL:', query);
-        console.log('Parámetros:', params);
-        
-        // Ejecutar la consulta
+        // Ejecutar las consultas
         const connection = await connectionString();
-        const results = await connection.query(query, params);
+        const resultsActivos = await connection.query(queryActivos, params);
+        const resultsBajas = await connection.query(queryBajas, paramsBajas);
         await connection.close();
         
-        console.log(`Resultados obtenidos de la base de datos: ${results.length}`);
+        // Combinar resultados
+        const results = [...resultsActivos, ...resultsBajas];
         
-        // Para depuración: mostrar los primeros 2 resultados
-        if (results.length > 0) {
-            console.log('Muestra de resultados:', results.slice(0, 2));
-        }
-
+        console.log(`Resultados obtenidos: ${resultsActivos.length} activos, ${resultsBajas.length} bajas`);
+        
         // Procesar cada empleado para agregar los días laborados y descuentos judiciales
         const mesStr = mes.toString().padStart(2, '0');
         const resultadosCompletos = [];
@@ -322,6 +365,22 @@ async function obtenerDatosNomina() {
         const diasTotalesQuincena = 15;
         
         for (const empleado of results) {
+            // Calcular días laborados para empleados con baja
+            let diasLaborados = diasTotalesQuincena;
+            
+            if (empleado.FechaFinColaborador) {
+                // El empleado tiene baja, calcular días trabajados hasta su fecha de fin
+                const fechaFinColaborador = new Date(empleado.FechaFinColaborador);
+                const fechaInicioQuincena = new Date(inicioQuincena);
+                const fechaFinQuincena = new Date(finQuincena);
+                
+                if (fechaFinColaborador >= fechaInicioQuincena && fechaFinColaborador <= fechaFinQuincena) {
+                    // Calcular días trabajados desde el inicio de la quincena hasta la fecha de baja
+                    const diasTrabajados = Math.floor((fechaFinColaborador - fechaInicioQuincena) / (1000 * 60 * 60 * 24)) + 1;
+                    diasLaborados = Math.min(diasTrabajados, diasTotalesQuincena);
+                }
+            }
+            
             // Obtener días suspendidos para este empleado en la quincena actual
             const diasSuspendidos = await obtenerDiasSuspendidos(
                 empleado.IdPersonal, 
@@ -330,8 +389,8 @@ async function obtenerDatosNomina() {
                 tipoQuincena
             );
             
-            // Calcular días laborados (15 - días suspendidos)
-            const diasLaborados = Math.max(0, diasTotalesQuincena - diasSuspendidos);
+            // Ajustar días laborados restando suspensiones
+            diasLaborados = Math.max(0, diasLaborados - diasSuspendidos);
             
             // Obtener descuentos judiciales para este empleado
             const descuentosJudiciales = await obtenerDescuentosJudiciales(empleado.IdPersonal);
@@ -352,6 +411,11 @@ async function obtenerDatosNomina() {
                 // Si el saldo pendiente es menor, solo descontar ese monto
                 montoDescuentoJudicial = descuentosJudiciales.SaldoPendiente;
             }
+            
+            // Si el empleado trabajó menos días, ajustar el descuento judicial proporcionalmente
+            if (diasLaborados < diasTotalesQuincena && montoDescuentoJudicial > 0) {
+                montoDescuentoJudicial = (montoDescuentoJudicial / diasTotalesQuincena) * diasLaborados;
+            }
 
             // Calcular el salario final a pagar (salario proporcional - descuento judicial)
             const salarioFinalAPagar = Math.max(0, salarioProporcional - montoDescuentoJudicial);
@@ -363,6 +427,8 @@ async function obtenerDatosNomina() {
             empleado.DescuentoJudicial = montoDescuentoJudicial;
             empleado.NoDocumentoJudicial = descuentosJudiciales.NoDocumento;
             empleado.SalarioFinalAPagar = salarioFinalAPagar;
+            empleado.FechaFinColaboradorFormateada = empleado.FechaFinColaborador ? 
+                new Date(empleado.FechaFinColaborador).toLocaleDateString('es-GT') : null;
             
             resultadosCompletos.push(empleado);
         }
@@ -381,7 +447,7 @@ async function obtenerDatosNomina() {
         document.getElementById('loader').style.display = 'none';
     }
 }
-// Función para cargar los datos en la tabla con paginación
+// Función actualizada para renderizar la tabla con indicadores de bajas
 function renderizarTabla(datos) {
     const tbody = document.getElementById('nominaTableBody');
     const tipoQuincena = document.getElementById('tipoQuincenaFilter').value;
@@ -432,7 +498,13 @@ function renderizarTabla(datos) {
             }
             
             claseDiasLaborados += ' reducido';
-            tooltipSuspension = `data-tooltip="El colaborador tiene ${empleado.DiasSuspendidos} día(s) suspendido(s)"`;
+            
+            // Agregar información específica al tooltip
+            if (empleado.TipoBaja) {
+                tooltipSuspension = `data-tooltip="${empleado.TipoBaja} el ${empleado.FechaFinColaboradorFormateada}. Días trabajados: ${empleado.DiasLaborados}"`;
+            } else if (empleado.DiasSuspendidos > 0) {
+                tooltipSuspension = `data-tooltip="El colaborador tiene ${empleado.DiasSuspendidos} día(s) suspendido(s)"`;
+            }
         }
         
         // Determinar si el salario es reducido
@@ -447,11 +519,24 @@ function renderizarTabla(datos) {
             tooltipDescuento = `data-tooltip="Embargo No. ${empleado.NoDocumentoJudicial}"`;
         }
         
+        // Clase adicional para filas de bajas
+        let clasesFila = '';
+        if (empleado.TipoBaja) {
+            clasesFila = 'empleado-baja';
+        }
+        
+        // Agregar indicador de tipo de baja en el nombre
+        let nombreCompleto = empleado.NombreCompleto;
+        if (empleado.TipoBaja) {
+            nombreCompleto += ` <span class="indicador-baja">[${empleado.TipoBaja}]</span>`;
+        }
+        
         // Crear la fila
         const row = document.createElement('tr');
+        row.className = clasesFila;
         row.innerHTML = `
             <td>${empleado.IdPersonal}</td>
-            <td class="highlight">${empleado.NombreCompleto}</td>
+            <td class="highlight">${nombreCompleto}</td>
             <td>${empleado.NombreDepartamento}</td>
             <td>${empleado.Nombre_Planilla}</td>
             <td>
@@ -635,7 +720,36 @@ async function cargarDatosNomina() {
     }
 }
 
-// Función para exportar a Excel
+// Función auxiliar para parsear fecha del formato ISO sin problemas de zona horaria
+function parsearFechaISO(fechaISO) {
+    if (!fechaISO) return null;
+    // Si la fecha ya es un objeto Date, devolverla
+    if (fechaISO instanceof Date) return fechaISO;
+    
+    // Si es string en formato ISO (YYYY-MM-DD)
+    if (typeof fechaISO === 'string') {
+        const partes = fechaISO.split('-');
+        // Crear fecha usando los componentes locales para evitar problemas de zona horaria
+        return new Date(parseInt(partes[0]), parseInt(partes[1]) - 1, parseInt(partes[2]));
+    }
+    return null;
+}
+
+// Función para formatear fecha sin problemas de zona horaria
+function formatearFecha(fecha) {
+    if (!fecha) return '';
+    const d = fecha instanceof Date ? fecha : parsearFechaISO(fecha);
+    if (!d) return '';
+    
+    const dia = d.getDate().toString().padStart(2, '0');
+    const mes = (d.getMonth() + 1).toString().padStart(2, '0');
+    const anio = d.getFullYear();
+    
+    return `${dia}/${mes}/${anio}`;
+}
+
+// Función de exportar a Excel con altas y bajas
+// Función actualizada de exportar a Excel con etiquetas de suspensiones
 async function exportarExcel() {
     try {
         if (filteredData.length === 0) {
@@ -657,22 +771,89 @@ async function exportarExcel() {
             }
         });
         
-        // Obtener valores de filtros para el nombre del archivo
+        // Obtener valores de filtros
         const tipoQuincena = document.getElementById('tipoQuincenaFilter').value === 'normal' 
             ? 'Planilla_Quincela' 
             : 'Planilla_Fin_Mes';
         
-        const mes = document.getElementById('mesFilter').options[document.getElementById('mesFilter').selectedIndex].text;
-        const anio = document.getElementById('anioFilter').value;
+        const mes = parseInt(document.getElementById('mesFilter').value);
+        const mesNombre = document.getElementById('mesFilter').options[document.getElementById('mesFilter').selectedIndex].text;
+        const anio = parseInt(document.getElementById('anioFilter').value);
         
         // Crear un nuevo libro de Excel
         const wb = XLSX.utils.book_new();
         
-        // Preparar datos para Excel
+        // Determinar fechas de inicio y fin de la quincena
+        let fechaInicio, fechaFin;
+        
+        if (document.getElementById('tipoQuincenaFilter').value === 'normal') {
+            // Primera quincena: del 1 al 15
+            fechaInicio = new Date(anio, mes - 1, 1);
+            fechaFin = new Date(anio, mes - 1, 15);
+        } else {
+            // Segunda quincena: del 16 al último día del mes
+            fechaInicio = new Date(anio, mes - 1, 16);
+            const ultimoDiaMes = new Date(anio, mes, 0).getDate();
+            fechaFin = new Date(anio, mes - 1, ultimoDiaMes);
+        }
+        
+        // Filtrar colaboradores que son altas
+        const colaboradoresAltas = filteredData.filter(row => {
+            if (row.FechaPlanilla) {
+                const fechaPlanilla = parsearFechaISO(row.FechaPlanilla);
+                return fechaPlanilla >= fechaInicio && fechaPlanilla <= fechaFin;
+            }
+            return false;
+        });
+        
+        // Obtener bajas del periodo
+        const colaboradoresBajas = await obtenerBajasColaboradores(
+            mes.toString(),
+            anio.toString(),
+            document.getElementById('tipoQuincenaFilter').value
+        );
+        
+        console.log(`Altas: ${colaboradoresAltas.length}, Bajas: ${colaboradoresBajas.length}`);
+        
         const tipoQuincenaField = document.getElementById('tipoQuincenaFilter').value;
         const campoSalario = tipoQuincenaField === 'normal' ? 'SalarioQuincena' : 'SalarioQuincenaFinMes';
         
-        const datosOrdenados = [...filteredData].sort((a, b) => {
+        // Obtener información de suspensiones para cada empleado
+        const datosConSuspensiones = [];
+        
+        for (const empleado of filteredData) {
+            // Obtener detalles de las suspensiones del empleado
+            const suspensiones = await obtenerDetallesSuspensiones(
+                empleado.IdPersonal, 
+                mes, 
+                anio, 
+                tipoQuincenaField
+            );
+            
+            // Crear etiqueta de suspensiones si las hay
+            let etiquetaSuspension = '';
+            if (suspensiones.length > 0) {
+                etiquetaSuspension = 'Suspensión:\n';
+                suspensiones.forEach(susp => {
+                    etiquetaSuspension += `Suspendido del\n${formatearFecha(susp.FechaInicio)} al\n${formatearFecha(susp.FechaFin)}.\n`;
+                });
+            }
+            
+            // Crear etiqueta de baja si aplica
+            let etiquetaBaja = '';
+            if (empleado.TipoBaja) {
+                etiquetaBaja = `${empleado.TipoBaja}:\n${formatearFecha(empleado.FechaFinColaborador)}`;
+            }
+            
+            datosConSuspensiones.push({
+                ...empleado,
+                etiquetaSuspension,
+                etiquetaBaja
+            });
+        }
+        
+        // Ordenar datos
+        const datosOrdenados = [...datosConSuspensiones].sort((a, b) => {
             // Primero ordenar por División
             if (a.NombreDivision !== b.NombreDivision) {
                 return (a.NombreDivision || '').localeCompare(b.NombreDivision || '');
@@ -684,11 +865,12 @@ async function exportarExcel() {
             return centroTrabajoA - centroTrabajoB;
         });
         
+        // Preparar datos generales para la primera hoja con etiquetas
         const excelData = datosOrdenados.map(row => ({
             'ID': row.IdPersonal,
             'Nombre Completo': row.NombreCompleto,
             'Departamento': row.NombreDepartamento,
-            'Planilla': `${row.NombreDivision || ''} - ${row.Nombre_Planilla}`, // Combinar División y Planilla
+            'Planilla': `${row.NombreDivision || ''} - ${row.Nombre_Planilla}`,
             'Centro Trabajo': row.NoCentroTrabajo || '',
             'Tipo': row.EsCapital ? 'Capital' : 'Regional',
             'Salario Diario': row.SalarioDiario,
@@ -699,23 +881,116 @@ async function exportarExcel() {
             'Descuento Judicial': row.DescuentoJudicial,
             'No. Documento': row.NoDocumentoJudicial,
             'No. Cuenta': row.NoCuenta || '',
-            'Salario a Pagar': row.SalarioFinalAPagar
+            'Salario a Pagar': row.SalarioFinalAPagar,
+            'Fecha Planilla': formatearFecha(row.FechaPlanilla),
+            'Observaciones': (row.etiquetaSuspension || '') + (row.etiquetaBaja || '')
         }));
         
-        // Crear hoja de cálculo
-        const ws = XLSX.utils.json_to_sheet(excelData);
+        // Preparar datos de altas para la segunda hoja
+        const altasData = colaboradoresAltas.map(row => ({
+            'ID': row.IdPersonal,
+            'Nombre Completo': row.NombreCompleto,
+            'Departamento': row.NombreDepartamento,
+            'Planilla': `${row.NombreDivision || ''} - ${row.Nombre_Planilla}`,
+            'Fecha de Alta': formatearFecha(row.FechaPlanilla),
+            'Salario Base': row.SalarioBase || 0,
+            'Salario Quincenal': row[campoSalario],
+            'Tipo': row.EsCapital ? 'Capital' : 'Regional',
+            'No. Cuenta': row.NoCuenta || ''
+        }));
         
-        // Agregar la hoja al libro
-        XLSX.utils.book_append_sheet(wb, ws, 'Nómina');
+        // Preparar datos de bajas para la tercera hoja
+        const bajasData = colaboradoresBajas.map(row => ({
+            'ID': row.IdPersonal,
+            'Nombre Completo': row.NombreCompleto,
+            'Departamento': row.NombreDepartamento,
+            'Planilla': row.Nombre_Planilla || '',
+            'Tipo de Baja': row.TipoBaja,
+            'Fecha Fin': formatearFecha(row.FechaFinColaborador),
+            'Salario Base': row.SalarioBase || 0,
+            'Tipo': row.EsCapital ? 'Capital' : 'Regional',
+            'No. Cuenta': row.NoCuenta || ''
+        }));
+        
+        // Crear hojas de cálculo
+        const wsGeneral = XLSX.utils.json_to_sheet(excelData);
+        const wsAltas = XLSX.utils.json_to_sheet(altasData.length > 0 ? altasData : [{ 'Sin altas en el periodo': '' }]);
+        const wsBajas = XLSX.utils.json_to_sheet(bajasData.length > 0 ? bajasData : [{ 'Sin bajas en el periodo': '' }]);
+        
+        // Aplicar estilo de altura de fila para las celdas con etiquetas
+        const range = XLSX.utils.decode_range(wsGeneral['!ref']);
+        wsGeneral['!rows'] = [];
+        
+        for (let rowNum = 1; rowNum <= range.e.r; rowNum++) {
+            const cellAddress = XLSX.utils.encode_cell({ r: rowNum, c: 16 }); // Columna 'Observaciones'
+            if (wsGeneral[cellAddress] && wsGeneral[cellAddress].v && wsGeneral[cellAddress].v.length > 0) {
+                // Contar líneas en el texto
+                const lineCount = (wsGeneral[cellAddress].v.match(/\n/g) || []).length + 1;
+                wsGeneral['!rows'][rowNum] = { hpt: lineCount * 15 }; // 15 puntos por línea
+            }
+        }
+        
+        // Establecer ancho de columnas
+        const colWidths = [
+            { wch: 8 },   // ID
+            { wch: 30 },  // Nombre Completo
+            { wch: 20 },  // Departamento
+            { wch: 25 },  // Planilla
+            { wch: 12 },  // Centro Trabajo
+            { wch: 10 },  // Tipo
+            { wch: 12 },  // Salario Diario
+            { wch: 14 },  // Salario Quincenal
+            { wch: 12 },  // Días Laborados
+            { wch: 14 },  // Días Suspendidos
+            { wch: 16 },  // Salario Proporcional
+            { wch: 16 },  // Descuento Judicial
+            { wch: 15 },  // No. Documento
+            { wch: 15 },  // No. Cuenta
+            { wch: 14 },  // Salario a Pagar
+            { wch: 14 },  // Fecha Planilla
+            { wch: 30 }   // Observaciones
+        ];
+        wsGeneral['!cols'] = colWidths;
+        
+        // Agregar las hojas al libro
+        XLSX.utils.book_append_sheet(wb, wsGeneral, 'Nómina General');
+        XLSX.utils.book_append_sheet(wb, wsAltas, 'Altas del Periodo');
+        XLSX.utils.book_append_sheet(wb, wsBajas, 'Bajas del Periodo');
+        
+        // Crear hoja de resumen
+        const resumenData = [{
+            'Concepto': 'Total de Colaboradores',
+            'Cantidad': filteredData.length
+        }, {
+            'Concepto': 'Altas en el Periodo',
+            'Cantidad': colaboradoresAltas.length
+        }, {
+            'Concepto': 'Bajas en el Periodo',
+            'Cantidad': colaboradoresBajas.length
+        }, {
+            'Concepto': 'Despidos',
+            'Cantidad': colaboradoresBajas.filter(b => b.IdEstadoPersonal === 2).length
+        }, {
+            'Concepto': 'Renuncias',
+            'Cantidad': colaboradoresBajas.filter(b => b.IdEstadoPersonal === 3).length
+        }, {
+            'Concepto': 'Periodo',
+            'Cantidad': document.getElementById('tipoQuincenaFilter').value === 'normal' 
+                ? `1 al 15 de ${mesNombre} ${anio}` 
+                : `16 al ${fechaFin.getDate()} de ${mesNombre} ${anio}`
+        }];
+        
+        const wsResumen = XLSX.utils.json_to_sheet(resumenData);
+        XLSX.utils.book_append_sheet(wb, wsResumen, 'Resumen');
         
         // Generar buffer
         const excelBuffer = XLSX.write(wb, { bookType: 'xlsx', type: 'buffer' });
         
         // Crear nombre de archivo
-        const fileName = `Nomina_${tipoQuincena}_${mes}_${anio}.xlsx`;
+        const fileName = `Nomina_${tipoQuincena}_${mesNombre}_${anio}_con_altas_bajas.xlsx`;
         
         try {
-            // Guardar archivo en disco (se debe implementar otra solución para navegadores)
+            // Guardar archivo en disco
             const desktopPath = path.join(require('os').homedir(), 'Desktop');
             const filePath = path.join(desktopPath, fileName);
             
@@ -724,19 +999,26 @@ async function exportarExcel() {
             Swal.fire({
                 icon: 'success',
                 title: 'Excel Generado',
-                text: `El archivo ha sido guardado en tu escritorio como ${fileName}`
+                text: `El archivo ha sido guardado en tu escritorio como ${fileName}`,
+                html: `<p>El archivo contiene:</p>
+                       <ul style="text-align: left;">
+                         <li>Hoja de Nómina General con observaciones</li>
+                         <li>Hoja de Altas del Periodo (${colaboradoresAltas.length} altas)</li>
+                         <li>Hoja de Bajas del Periodo (${colaboradoresBajas.length} bajas)</li>
+                         <li>Hoja de Resumen con estadísticas</li>
+                       </ul>`
             });
         } catch (saveError) {
             console.error('Error al guardar el archivo:', saveError);
             
-            // Si falla, ofrecer descarga directa (esto funciona en aplicaciones web)
+            // Si falla, ofrecer descarga directa
             Swal.fire({
                 icon: 'warning',
                 title: 'No se pudo guardar automáticamente',
                 text: 'Se iniciará la descarga del archivo.'
             });
             
-            // Código para descargar (no funcionará en aplicaciones Electron, se debe ajustar)
+            // Código para descargar
             const blob = new Blob([excelBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
@@ -756,6 +1038,120 @@ async function exportarExcel() {
     }
 }
 
+// Nueva función para obtener detalles de suspensiones
+async function obtenerDetallesSuspensiones(idPersonal, mes, anio, tipoQuincena) {
+    try {
+        const connection = await connectionString();
+        
+        // Determinar fechas de inicio y fin de la quincena
+        let inicioQuincena, finQuincena;
+        
+        if (tipoQuincena === 'normal') {
+            // Primera quincena: del 1 al 15
+            inicioQuincena = `${anio}-${mes.toString().padStart(2, '0')}-01`;
+            finQuincena = `${anio}-${mes.toString().padStart(2, '0')}-15`;
+        } else {
+            // Segunda quincena: del 16 al último día del mes
+            inicioQuincena = `${anio}-${mes.toString().padStart(2, '0')}-16`;
+            
+            // Obtener el último día del mes
+            const ultimoDia = new Date(anio, parseInt(mes), 0).getDate();
+            finQuincena = `${anio}-${mes.toString().padStart(2, '0')}-${ultimoDia}`;
+        }
+        
+        // Consulta para obtener las suspensiones del empleado en el periodo
+        const query = `
+            SELECT 
+                FechaInicio,
+                FechaFin
+            FROM 
+                Suspensiones
+            WHERE 
+                IdPersonal = ? 
+                AND FechaInicio <= ? 
+                AND FechaFin >= ?
+            ORDER BY
+                FechaInicio
+        `;
+        
+        const params = [
+            idPersonal,
+            finQuincena,      // FechaInicio <= finQuincena
+            inicioQuincena    // FechaFin >= inicioQuincena
+        ];
+        
+        const results = await connection.query(query, params);
+        await connection.close();
+        
+        return results;
+    } catch (error) {
+        console.error('Error al obtener detalles de suspensiones:', error);
+        return [];
+    }
+}
+async function obtenerBajasColaboradores(mes, anio, tipoQuincena) {
+    try {
+        const connection = await connectionString();
+        
+        // Determinar fechas de inicio y fin de la quincena
+        let inicioQuincena, finQuincena;
+        
+        if (tipoQuincena === 'normal') {
+            // Primera quincena: del 1 al 15
+            inicioQuincena = `${anio}-${mes.toString().padStart(2, '0')}-01`;
+            finQuincena = `${anio}-${mes.toString().padStart(2, '0')}-15`;
+        } else {
+            // Segunda quincena: del 16 al último día del mes
+            inicioQuincena = `${anio}-${mes.toString().padStart(2, '0')}-16`;
+            
+            // Obtener el último día del mes
+            const ultimoDia = new Date(anio, parseInt(mes), 0).getDate();
+            finQuincena = `${anio}-${mes.toString().padStart(2, '0')}-${ultimoDia}`;
+        }
+        
+        // Consulta para obtener las bajas del periodo
+        const query = `
+            SELECT 
+                dr.IdPersonal,
+                dr.IdEstadoPersonal,
+                dr.FechaFinColaborador,
+                CONCAT(p.PrimerNombre, ' ', IFNULL(p.SegundoNombre, ''), ' ', IFNULL(p.TercerNombre, ''), ' ', p.PrimerApellido, ' ', IFNULL(p.SegundoApellido, '')) AS NombreCompleto,
+                p.IdPlanilla,
+                p.IdSucuDepa,
+                p.SalarioBase,
+                p.NoCuenta,
+                d.NombreDepartamento,
+                pl.Nombre_Planilla,
+                pl.EsCapital,
+                CASE 
+                    WHEN dr.IdEstadoPersonal = 2 THEN 'Despedido'
+                    WHEN dr.IdEstadoPersonal = 3 THEN 'Renuncia'
+                    ELSE 'Otro'
+                END AS TipoBaja
+            FROM 
+                DespidosRenuncias dr
+                INNER JOIN personal p ON dr.IdPersonal = p.IdPersonal
+                LEFT JOIN departamentos d ON p.IdSucuDepa = d.IdDepartamento
+                LEFT JOIN planillas pl ON p.IdPlanilla = pl.IdPlanilla
+            WHERE 
+                dr.IdEstadoPersonal IN (2, 3)
+                AND dr.FechaFinColaborador >= ?
+                AND dr.FechaFinColaborador <= ?
+            ORDER BY 
+                dr.FechaFinColaborador, NombreCompleto
+        `;
+        
+        const params = [inicioQuincena, finQuincena];
+        const results = await connection.query(query, params);
+        
+        await connection.close();
+        return results;
+        
+    } catch (error) {
+        console.error('Error al obtener bajas de colaboradores:', error);
+        return [];
+    }
+}
 // Eventos al cargar la página
 document.addEventListener('DOMContentLoaded', async function() {
     // Obtener el usuario actual del localStorage

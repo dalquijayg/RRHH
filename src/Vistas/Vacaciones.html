@@ -39,7 +39,6 @@
                 <h2 id="departmentName">Sistemas</h2>
                     <div class="department-stats">
                         <span><i class="fas fa-users"></i> Total: <span id="departmentManager">14</span></span>
-                        <span><i class="fas fa-user-check"></i> Activos: <span id="employeeCount">14</span></span>
                     </div>
             </div>
             <div class="search-bar">
@@ -95,12 +94,6 @@
     <!-- Patrones -->
     <div class="bg-decoration pattern pattern1"></div>
     <div class="bg-decoration pattern pattern2"></div>
-    
-    <!-- Pie de página -->
-    <footer class="footer">
-        <p>Sistema de Recursos Humanos</p>
-        <p>© New Technology 2025</p>
-    </footer>
 
     <!-- Modal para solicitud de vacaciones (mejorado con calendario) -->
     <div id="vacationModal" class="modal">
@@ -110,79 +103,92 @@
                 <span class="close-modal">&times;</span>
             </div>
             <div class="modal-body">
-                <div class="modal-layout">
-                    <!-- Columna izquierda: Información del empleado -->
-                    <div class="modal-column employee-profile-column">
-                        <div class="employee-profile">
-                            <div class="employee-photo">
-                                <img id="modalEmployeePhoto" src="../Imagenes/user-default.png" alt="Foto del colaborador">
-                            </div>
-                            <div class="employee-info">
-                                <h3 id="modalEmployeeName">Nombre del Colaborador</h3>
-                                <p id="modalEmployeePosition">Puesto</p>
-                                <div class="days-available-badge">
-                                    <span id="modalAvailableDays">15</span>
-                                    <span class="days-text">días disponibles</span>
-                                </div>
-                                <div class="years-service">
-                                    <i class="fas fa-briefcase"></i>
-                                    <span id="modalYearsOfService">3</span> años de servicio
-                                </div>
-                            </div>
+                <!-- Columna izquierda: Información del empleado -->
+                <div class="employee-info-column">
+                    <div class="employee-profile">
+                        <div class="employee-photo">
+                            <img id="modalEmployeePhoto" src="../Imagenes/user-default.png" alt="Foto del colaborador">
                         </div>
-                        
-                        <!-- Fechas seleccionadas -->
-                        <div class="selected-dates-summary">
-                            <div class="selected-dates">
-                                <div class="date-range">
-                                    <span class="date-label">Desde:</span>
-                                    <span id="selectedStartDate" class="date-value">No seleccionado</span>
-                                </div>
-                                <div class="date-range">
-                                    <span class="date-label">Hasta:</span>
-                                    <span id="selectedEndDate" class="date-value">No seleccionado</span>
-                                </div>
-                                <div class="date-range">
-                                    <span class="date-label">Total:</span>
-                                    <span id="selectedDays" class="date-value highlight">0 días</span>
-                                </div>
+                        <div class="employee-info">
+                            <h3 id="modalEmployeeName">Nombre del Colaborador</h3>
+                            <p id="modalEmployeePosition">Puesto</p>
+                            <div class="days-available-badge">
+                                <span id="modalAvailableDays">15</span>
+                                <span class="days-text">días disponibles</span>
                             </div>
-                        </div>
-                        
-                        <!-- Días seleccionados (mini visualización) -->
-                        <div class="days-visualization mini">
-                            <h4>Días seleccionados</h4>
-                            <div id="daysVisual" class="days-grid"></div>
-                        </div>
-                        
-                        <!-- Acción del formulario -->
-                        <div class="form-actions">
-                            <button type="button" id="cancelVacationBtn" class="btn-cancel">
-                                <i class="fas fa-times"></i> Cancelar
-                            </button>
-                            <button type="submit" id="submitVacationBtn" class="btn-submit">
-                                <i class="fas fa-paper-plane"></i> Enviar Solicitud
-                            </button>
                         </div>
                     </div>
                     
-                    <!-- Columna derecha: Calendario -->
-                    <div class="modal-column calendar-column">
-                        <div class="instruction">
-                            <i class="fas fa-info-circle"></i>
-                            <p>Seleccione las fechas de sus vacaciones <strong>arrastrando</strong> en el calendario</p>
+                    <!-- Fechas seleccionadas -->
+                    <div class="selected-dates-summary">
+                        <div class="selected-dates">
+                            <div class="date-range">
+                                <span class="date-label">Desde:</span>
+                                <span id="selectedStartDate" class="date-value">No seleccionado</span>
+                            </div>
+                            <div class="date-range">
+                                <span class="date-label">Hasta:</span>
+                                <span id="selectedEndDate" class="date-value">No seleccionado</span>
+                            </div>
+                            <div class="date-range">
+                                <span class="date-label">Total:</span>
+                                <span id="selectedDays" class="date-value highlight">0 días</span>
+                            </div>
                         </div>
-                        
-                        <!-- Calendario completo -->
-                        <div id="vacationCalendar" class="calendar-container compact-calendar"></div>
+                    </div>
+                    
+                    <!-- Días seleccionados (mini visualización) -->
+                    <div class="days-visualization mini">
+                        <h4>Días seleccionados</h4>
+                        <div id="daysVisual" class="days-grid"></div>
+                    </div>
+                    
+                    <!-- Botón de enviar -->
+                    <div class="form-actions">
+                        <button type="submit" id="submitVacationBtn" class="btn-submit">
+                            <i class="fas fa-paper-plane"></i> Enviar Solicitud
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Columna derecha: Calendario -->
+                <div class="calendar-column">
+                    <div class="instruction">
+                        <i class="fas fa-info-circle"></i>
+                        <p>Seleccione las fechas de sus vacaciones <strong>arrastrando</strong> en el calendario</p>
+                    </div>
+                    
+                    <!-- Calendario completo -->
+                    <div id="vacationCalendar" class="calendar-container"></div>
+                    
+                    <!-- Leyenda del calendario -->
+                    <div class="calendar-legend">
+                        <div class="legend-title">Leyenda del calendario:</div>
+                        <div class="legend-item">
+                            <span class="legend-color registered-color"></span>
+                            <span>Días ya tomados como vacaciones</span>
+                        </div>
+                        <div class="legend-item">
+                            <span class="legend-color weekend-color"></span>
+                            <span>Fines de semana</span>
+                        </div>
+                        <div class="legend-item">
+                            <span class="legend-color special-color"></span>
+                            <span>Días especiales/feriados</span>
+                        </div>
+                        <div class="legend-item">
+                            <span class="legend-color holy-week-color"></span>
+                            <span>Semana Santa</span>
+                        </div>
                     </div>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- Formulario oculto para enviar datos (sin incluir el campo de motivo/observaciones) -->
+    <!-- Formulario oculto para enviar datos -->
     <form id="vacationForm" style="display:none;"></form>
+    
     <!-- Modal para ver información del empleado -->
     <div id="infoModal" class="modal">
         <div class="modal-content">

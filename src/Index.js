@@ -17,6 +17,7 @@ let reporteDescJudiciales = null;
 let reportePlanillaEspecialWindow = null;
 let AsignarPermisos = null;
 let VacacionesWindow = null;
+let PagoVacacionesWindow = null;
 
 if(process.env.NODE_ENV !=='production'){
     require('electron-reload')(__dirname,{
@@ -349,15 +350,15 @@ function createAsignarPermisosWindow() {
 }
 function createVacacionesWindow() {
     // Verifica si la ventana ya está abierta
-    if (AsignarPermisos) {
+    if (VacacionesWindow) {
         // Si ya está abierta, simplemente enfócala
-        if (AsignarPermisos.isMinimized()) AsignarPermisos.restore();
-        AsignarPermisos.focus();
+        if (VacacionesWindow.isMinimized()) VacacionesWindow.restore();
+        VacacionesWindow.focus();
         return;
     }
     
     // Crea una nueva ventana si no existe
-    AsignarPermisos = new BrowserWindow({
+    VacacionesWindow = new BrowserWindow({
         width: 1200,
         height: 800,
         webPreferences: {
@@ -369,11 +370,40 @@ function createVacacionesWindow() {
         autoHideMenuBar: true
     });
 
-    AsignarPermisos.loadURL(`file://${__dirname}/Vistas/Vacaciones.html`);
+    VacacionesWindow.loadURL(`file://${__dirname}/Vistas/Vacaciones.html`);
     
     // Elimina la referencia a la ventana cuando se cierre
-    AsignarPermisos.on('closed', () => {
-        AsignarPermisos = null;
+    VacacionesWindow.on('closed', () => {
+        VacacionesWindow = null;
+    });
+}
+function createPagoVacacionesWindow() {
+    // Verifica si la ventana ya está abierta
+    if (PagoVacacionesWindow) {
+        // Si ya está abierta, simplemente enfócala
+        if (PagoVacacionesWindow.isMinimized()) PagoVacacionesWindow.restore();
+        PagoVacacionesWindow.focus();
+        return;
+    }
+    
+    // Crea una nueva ventana si no existe
+    PagoVacacionesWindow = new BrowserWindow({
+        width: 1200,
+        height: 800,
+        webPreferences: {
+            nodeIntegration: true,
+            contextIsolation: false,
+        },
+        icon: path.join(__dirname, 'LogoRecursos.ico'),
+        title: 'Permisos',
+        autoHideMenuBar: true
+    });
+
+    PagoVacacionesWindow.loadURL(`file://${__dirname}/Vistas/PagoVacaciones.html`);
+    
+    // Elimina la referencia a la ventana cuando se cierre
+    PagoVacacionesWindow.on('closed', () => {
+        PagoVacacionesWindow = null;
     });
 }
 // Añade este receptor para abrir la ventana de pago nómina
@@ -413,4 +443,7 @@ ipcMain.on('open_Ventana_Permisos', () => {
 });
 ipcMain.on('open_Ventana_Vacaciones', () => {
     createVacacionesWindow();
+});
+ipcMain.on('open_Ventana_PagoVacaciones', () => {
+    createPagoVacacionesWindow();
 });
