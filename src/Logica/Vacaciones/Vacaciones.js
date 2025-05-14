@@ -6,6 +6,7 @@ const { ipcRenderer } = require('electron');
 const Swal = require('sweetalert2');
 const ExcelJS = require('exceljs');
 
+
 // Conexión a la base de datos
 const conexion = 'DSN=recursos2';
 
@@ -44,6 +45,9 @@ const vacationModal = document.getElementById('vacationModal');
 const infoModal = document.getElementById('infoModal');
 const departmentNameEl = document.getElementById('departmentName');
 const departmentManagerEl = document.getElementById('departmentManager');
+const pdfGeneratorModal = document.getElementById('pdfGeneratorModal');
+const generatePdfBtn = document.getElementById('generatePdfBtn');
+
 
 // Establecer conexión a la base de datos
 async function connectionString() {
@@ -192,13 +196,16 @@ async function loadEmployees() {
                 personal.TercerNombre, 
                 personal.PrimerApellido, 
                 personal.SegundoApellido, 
-                personal.FechaPlanilla,
+                personal.DPI,
+                DATE_FORMAT(personal.FechaPlanilla, '%Y-%m-%d') AS FechaPlanilla,
                 personal.IdSucuDepa,
                 personal.IdPlanilla,
                 personal.DiasMinVacaciones,
                 TIMESTAMPDIFF(YEAR, personal.FechaPlanilla, CURDATE()) AS AniosCumplidos,
                 (TIMESTAMPDIFF(YEAR, personal.FechaPlanilla, CURDATE()) * 15) - 
-                    IFNULL((SELECT COUNT(*) FROM vacacionestomadas WHERE IdPersonal = personal.IdPersonal), 0) 
+                    IFNULL((SELECT COUNT(*) FROM vacacionestomadas WHERE IdPersonal = personal.IdPersonal), 0) -
+                    IFNULL((SELECT SUM(CAST(DiasSolicitado AS UNSIGNED)) FROM vacacionespagadas 
+                            WHERE IdPersonal = personal.IdPersonal AND Estado IN (1,2,3,4)), 0)
                 AS DiasVacaciones,
                 Puestos.Nombre,
                 CASE 
@@ -746,38 +753,79 @@ async function obtenerPeriodosDisponibles(empleado) {
     let periodos = [];
     let totalDiasDisponibles = 0;
     
-    // Iterar a través de todos los períodos posibles, empezando por el más antiguo
-    for (let i = 0; i <= aniosCumplidos; i++) {
-        const periodo = calcularPeriodo(fechaPlanilla, i);
-        const diasUtilizados = await verificarDiasUtilizados(empleado.IdPersonal, periodo);
-        const diasDisponiblesPeriodo = Math.max(0, 15 - diasUtilizados);
+    try {
+        const connection = await connectionString();
         
-        if (diasDisponiblesPeriodo > 0) {
-            periodos.push({
-                periodo: periodo,
-                diasDisponibles: diasDisponiblesPeriodo,
-                diasUtilizados: diasUtilizados
-            });
+        // Iterar a través de todos los períodos posibles, empezando por el más antiguo
+        for (let i = 0; i <= aniosCumplidos; i++) {
+            const periodo = calcularPeriodo(fechaPlanilla, i);
+            
+            // Obtener días utilizados (tomados)
+            const queryDiasTomados = `
+                SELECT COUNT(*) as DiasUtilizados
+                FROM vacacionestomadas
+                WHERE IdPersonal = ? AND Periodo = ?
+            `;
+            const resultDiasTomados = await connection.query(queryDiasTomados, [empleado.IdPersonal, periodo]);
+            
+            // Obtener días pagados
+            const queryDiasPagados = `
+                SELECT IFNULL(SUM(CAST(DiasSolicitado AS UNSIGNED)), 0) as DiasPagados
+                FROM vacacionespagadas
+                WHERE IdPersonal = ? AND Periodo = ? AND Estado IN (1,2,3,4)
+            `;
+            const resultDiasPagados = await connection.query(queryDiasPagados, [empleado.IdPersonal, periodo]);
+            
+            // Convertir valores
+            let diasUtilizados = 0;
+            if (resultDiasTomados && resultDiasTomados[0].DiasUtilizados) {
+                const valor = resultDiasTomados[0].DiasUtilizados;
+                diasUtilizados = typeof valor === 'bigint' ? Number(valor) : parseInt(valor) || 0;
+            }
+            
+            let diasPagados = 0;
+            if (resultDiasPagados && resultDiasPagados[0].DiasPagados) {
+                const valor = resultDiasPagados[0].DiasPagados;
+                diasPagados = typeof valor === 'bigint' ? Number(valor) : parseInt(valor) || 0;
+            }
+            
+            // Calcular días disponibles considerando tanto tomados como pagados
+            const diasDisponiblesPeriodo = Math.max(0, 15 - diasUtilizados - diasPagados);
+            
+            if (diasDisponiblesPeriodo > 0) {
+                periodos.push({
+                    periodo: periodo,
+                    diasDisponibles: diasDisponiblesPeriodo,
+                    diasUtilizados: diasUtilizados,
+                    diasPagados: diasPagados
+                });
+            }
+            
+            totalDiasDisponibles += diasDisponiblesPeriodo;
         }
         
-        totalDiasDisponibles += diasDisponiblesPeriodo;
+        await connection.close();
+        
+        // Si no hay períodos con días disponibles, crear uno nuevo para el siguiente año
+        if (periodos.length === 0) {
+            const siguientePeriodo = calcularPeriodo(fechaPlanilla, aniosCumplidos + 1);
+            periodos.push({
+                periodo: siguientePeriodo,
+                diasDisponibles: 15,
+                diasUtilizados: 0,
+                diasPagados: 0
+            });
+            totalDiasDisponibles = 15;
+        }
+        
+        return {
+            periodos: periodos,
+            totalDiasDisponibles: totalDiasDisponibles
+        };
+    } catch (error) {
+        console.error('Error al obtener períodos disponibles:', error);
+        throw error;
     }
-    
-    // Si no hay períodos con días disponibles, crear uno nuevo para el siguiente año
-    if (periodos.length === 0) {
-        const siguientePeriodo = calcularPeriodo(fechaPlanilla, aniosCumplidos + 1);
-        periodos.push({
-            periodo: siguientePeriodo,
-            diasDisponibles: 15,
-            diasUtilizados: 0
-        });
-        totalDiasDisponibles = 15;
-    }
-    
-    return {
-        periodos: periodos,
-        totalDiasDisponibles: totalDiasDisponibles
-    };
 }
 
 // Función auxiliar para formatear el período para mostrar al usuario
@@ -898,6 +946,14 @@ async function openVacationModal(employeeId) {
             // Crear el contenedor de información de períodos
             const periodosContainer = document.createElement('div');
             periodosContainer.className = 'periodos-container';
+            
+            // Mostrar información detallada de cada período
+            periodosInfo.periodos.forEach(periodo => {
+                const periodoInfo = document.createElement('div');
+                periodoInfo.className = 'periodo-info-item';
+                
+                periodosContainer.appendChild(periodoInfo);
+            });
             
             infoContainer.appendChild(periodosContainer);
         }
@@ -1376,7 +1432,25 @@ async function guardarDiasVacaciones(empleado, diasSeleccionados, periodosDispon
         }
         
         await connection.close();
-        
+        for (const periodo of periodosDisponibles.periodos) {
+            const estaCompleto = await verificarPeriodoCompleto(empleado, periodo.periodo);
+            
+            if (estaCompleto) {
+                // Generar PDF automáticamente
+                await generarPDFPeriodoCompleto(empleado, periodo.periodo);
+                
+                // Notificar al usuario
+                await Swal.fire({
+                    icon: 'info',
+                    title: 'Período Completado',
+                    html: `
+                        <p>El período ${formatPeriodoUsuario(periodo.periodo)} ha sido completado.</p>
+                        <p>Se ha generado automáticamente la ficha de control.</p>
+                    `,
+                    confirmButtonColor: '#4CAF50'
+                });
+            }
+        }
         // Actualizar los días disponibles del empleado en la interfaz
         await actualizarDiasDisponibles(empleado.IdPersonal);
         
@@ -1618,7 +1692,9 @@ async function actualizarDiasDisponibles(idPersonal) {
         const query = `
             SELECT
                 (TIMESTAMPDIFF(YEAR, personal.FechaPlanilla, CURDATE()) * 15) - 
-                    IFNULL((SELECT COUNT(*) FROM vacacionestomadas WHERE IdPersonal = personal.IdPersonal), 0) 
+                    IFNULL((SELECT COUNT(*) FROM vacacionestomadas WHERE IdPersonal = personal.IdPersonal), 0) -
+                    IFNULL((SELECT SUM(CAST(DiasSolicitado AS UNSIGNED)) FROM vacacionespagadas 
+                            WHERE IdPersonal = personal.IdPersonal AND Estado IN (1,2,3,4)), 0)
                 AS DiasVacaciones
             FROM
                 personal
@@ -1865,6 +1941,32 @@ function initEvents() {
             searchInput.focus();
         }
     });
+    generatePdfBtn.addEventListener('click', openPdfGeneratorModal);
+    
+    // Selección de empleado
+    document.getElementById('pdfEmployeeSelect').addEventListener('change', handleEmployeeSelection);
+    
+    // Selección de período
+    document.getElementById('pdfPeriodSelect').addEventListener('change', handlePeriodSelection);
+    
+    // Botón para generar PDF seleccionado
+    document.getElementById('generateSelectedPdfBtn').addEventListener('click', generateSelectedPdf);
+    
+    // Botón cancelar
+    document.getElementById('cancelPdfBtn').addEventListener('click', () => {
+        pdfGeneratorModal.classList.remove('show');
+        setTimeout(() => {
+            pdfGeneratorModal.style.display = 'none';
+        }, 300);
+    });
+    
+    // Cerrar modal con X
+    pdfGeneratorModal.querySelector('.close-modal').addEventListener('click', () => {
+        pdfGeneratorModal.classList.remove('show');
+        setTimeout(() => {
+            pdfGeneratorModal.style.display = 'none';
+        }, 300);
+    });
 }
 
 // Exportar a Excel
@@ -2026,7 +2128,519 @@ function  mostrarCargando(mensaje = "Cargando...") {
         allowOutsideClick: false
     });
 }
+// Función para verificar si un período está completo (15 días tomados/pagados)
+async function verificarPeriodoCompleto(empleado, periodo) {
+    try {
+        const connection = await connectionString();
+        
+        // Verificar días tomados
+        const queryDiasTomados = `
+            SELECT COUNT(*) as DiasUtilizados
+            FROM vacacionestomadas
+            WHERE IdPersonal = ? AND Periodo = ?
+        `;
+        const resultDiasTomados = await connection.query(queryDiasTomados, [empleado.IdPersonal, periodo]);
+        
+        // Verificar días pagados
+        const queryDiasPagados = `
+            SELECT IFNULL(SUM(CAST(DiasSolicitado AS UNSIGNED)), 0) as DiasPagados
+            FROM vacacionespagadas
+            WHERE IdPersonal = ? AND Periodo = ? AND Estado IN (1,2,3,4)
+        `;
+        const resultDiasPagados = await connection.query(queryDiasPagados, [empleado.IdPersonal, periodo]);
+        
+        const diasTomados = parseInt(resultDiasTomados[0].DiasUtilizados) || 0;
+        const diasPagados = parseInt(resultDiasPagados[0].DiasPagados) || 0;
+        
+        await connection.close();
+        
+        // Si los días tomados + pagados = 15, el período está completo
+        return (diasTomados + diasPagados) === 15;
+        
+    } catch (error) {
+        console.error('Error al verificar período completo:', error);
+        return false;
+    }
+}
+// Función para obtener los detalles del período para el PDF
+async function obtenerDetallesPeriodo(empleado, periodo) {
+    console.log('=== INICIO obtenerDetallesPeriodo ===');
+    console.log('Empleado:', empleado);
+    console.log('Período:', periodo);
+    
+    try {
+        const connection = await connectionString();
+        
+        // Obtener fechas tomadas
+        const queryFechasTomadas = `
+            SELECT FechasTomadas
+            FROM vacacionestomadas
+            WHERE IdPersonal = ? AND Periodo = ?
+            ORDER BY FechasTomadas
+        `;
+        
+        const fechasTomadas = await connection.query(queryFechasTomadas, [empleado.IdPersonal, periodo]);
+        
+        // Obtener días pagados
+        const queryDiasPagados = `
+            SELECT DiasSolicitado, FechaRegistro
+            FROM vacacionespagadas
+            WHERE IdPersonal = ? AND Periodo = ? AND Estado IN (1,2,3,4)
+        `;
+        
+        const diasPagados = await connection.query(queryDiasPagados, [empleado.IdPersonal, periodo]);
+        
+        // Obtener información de la planilla y división
+        const queryPlanilla = `
+            SELECT 
+                p.Nombre_Planilla,
+                p.Division,
+                d.Nombre as NombreDivision,
+                CASE 
+                    WHEN d.Logos IS NOT NULL THEN CONCAT('data:image/jpeg;base64,', TO_BASE64(d.Logos))
+                    ELSE NULL 
+                END AS LogoBase64
+            FROM 
+                personal per
+                INNER JOIN planillas p ON per.IdPlanilla = p.IdPlanilla
+                INNER JOIN divisiones d ON p.Division = d.IdDivision
+            WHERE 
+                per.IdPersonal = ?
+        `;
+        
+        const infoPlanilla = await connection.query(queryPlanilla, [empleado.IdPersonal]);
+        
+        await connection.close();
+        
+        const resultado = {
+            fechasTomadas: fechasTomadas,
+            diasPagados: diasPagados,
+            infoPlanilla: infoPlanilla[0],
+            periodo: periodo
+        };
+        
+        return resultado;
+        
+    } catch (error) {
+        console.error('Error detallado en obtenerDetallesPeriodo:', error);
+        console.error('Stack:', error.stack);
+        throw error;
+    }
+}
+// Función para generar el PDF del período completado
+// Función para generar el PDF del período completado
+async function generarPDFPeriodoCompleto(empleado, periodo) {
+    try {
+        // Obtener los detalles necesarios
+        const detalles = await obtenerDetallesPeriodo(empleado, periodo);
+        
+        // Importar jsPDF
+        const { jsPDF } = window.jspdf;
+        const doc = new jsPDF();
+        
+        // Configuración inicial
+        const pageWidth = doc.internal.pageSize.width;
+        let y = 20;
+        
+        // Agregar logo si existe
+        if (detalles.infoPlanilla.LogoBase64) {
+            try {
+                doc.addImage(detalles.infoPlanilla.LogoBase64, 'JPEG', 10, 10, 30, 30);
+            } catch (error) {
+                console.error('Error al agregar logo:', error);
+            }
+        }
+        
+        // Título de la división
+        doc.setFontSize(16);
+        doc.setFont(undefined, 'bold');
+        doc.text(detalles.infoPlanilla.NombreDivision, pageWidth / 2, y, { align: 'center' });
+        y += 10;
+        
+        // Nombre de la planilla
+        doc.setFontSize(14);
+        doc.text(detalles.infoPlanilla.Nombre_Planilla, pageWidth / 2, y, { align: 'center' });
+        y += 15;
+        
+        // Departamento de RRHH
+        doc.setFont(undefined, 'normal');
+        doc.setFontSize(12);
+        doc.text('DEPARTAMENTO DE RECURSOS HUMANOS', pageWidth / 2, y, { align: 'center' });
+        y += 10;
+        
+        // Título principal
+        doc.setFont(undefined, 'bold');
+        doc.setFontSize(14);
+        doc.text('FICHA DE CONTROL DE PERÍODO DE VACACIONES', pageWidth / 2, y, { align: 'center' });
+        y += 20;
+        
+        // Información del empleado
+        doc.setFont(undefined, 'normal');
+        doc.setFontSize(11);
+        
+        // Nombre del colaborador
+        const nombreCompleto = getFullName(empleado);
+        doc.setFont(undefined, 'bold');
+        doc.text('Nombre del Colaborador:', 20, y);
+        doc.setFont(undefined, 'normal');
+        doc.text(nombreCompleto, 70, y);
+        y += 8;
+        
+        // DPI
+        doc.setFont(undefined, 'bold');
+        doc.text('DPI:', 20, y);
+        doc.setFont(undefined, 'normal');
+        doc.text(empleado.DPI || 'No registrado', 70, y);
+        y += 8;
+        
+        // Período
+        const periodoFormateado = formatearPeriodoParaPDF(periodo);
+        doc.setFont(undefined, 'bold');
+        doc.text('Período:', 20, y);
+        doc.setFont(undefined, 'normal');
+        doc.text(periodoFormateado, 70, y);
+        y += 20;
+        
+        // Configuración de la tabla
+        const col1X = 20;  // NO.
+        const col2X = 60;  // FECHA DESCANSO
+        const col3X = 120; // FIRMA COLABORADOR
+        const tableWidth = 170;
+        
+        // Anchos de columnas para centrado
+        const col1Width = 40;
+        const col2Width = 60;
+        const col3Width = 70;
+        
+        // Encabezados de la tabla
+        doc.setFont(undefined, 'bold');
+        doc.setFontSize(11);
+        doc.text('NO.', col1X + (col1Width / 2), y, { align: 'center' });
+        doc.text('FECHA DESCANSO', col2X + (col2Width / 2), y, { align: 'center' });
+        doc.text('FIRMA COLABORADOR', col3X + (col3Width / 2), y, { align: 'center' });
+        y += 3;
+        
+        // Línea bajo los encabezados
+        doc.setLineWidth(0.5);
+        doc.line(col1X, y, col1X + tableWidth, y);
+        y += 7;
+        
+        doc.setFont(undefined, 'normal');
+        doc.setFontSize(10);
+        let contador = 1;
+        
+        // Calcular total de días pagados
+        let totalDiasPagados = 0;
+        detalles.diasPagados.forEach(pago => {
+            totalDiasPagados += parseInt(pago.DiasSolicitado);
+        });
+        
+        // Solo mostrar las fechas tomadas (sin filas vacías)
+        detalles.fechasTomadas.forEach(fecha => {
+            // Número de fila
+            doc.setFont(undefined, 'normal');
+            doc.setFontSize(10);
+            doc.text(contador.toString(), col1X + (col1Width / 2), y, { align: 'center' });
+            
+            // FECHA - en negrita, más grande y centrada
+            doc.setFont(undefined, 'bold');
+            doc.setFontSize(12);
+            doc.text(formatDate(fecha.FechasTomadas), col2X + (col2Width / 2), y, { align: 'center' });
+            
+            // Línea debajo de la fila
+            y += 5;
+            doc.setLineWidth(0.3);
+            doc.line(col1X, y, col1X + tableWidth, y);
+            y += 5;
+            
+            contador++;
+        });
+        
+        // Si hay días pagados, agregar una fila resumen para ellos
+        if (totalDiasPagados > 0) {
+            // Espacio antes de la información de días pagados
+            y += 5;
+            
+            // Fila para días pagados
+            doc.setFont(undefined, 'normal');
+            doc.setFontSize(10);
+            doc.text(contador.toString(), col1X + (col1Width / 2), y, { align: 'center' });
+            
+            // Texto de días pagados - también en negrita y más grande
+            doc.setFont(undefined, 'bold');
+            doc.setFontSize(12);
+            doc.text(`Días pagados: ${totalDiasPagados}`, col2X + (col2Width / 2), y, { align: 'center' });
+            
+            // Línea debajo de la fila
+            y += 5;
+            doc.setLineWidth(0.3);
+            doc.line(col1X, y, col1X + tableWidth, y);
+            y += 5;
+        }
+        
+        // Información adicional al final
+        y += 15;
+        
+        const totalDias = detalles.fechasTomadas.length + totalDiasPagados;
+        doc.setFont(undefined, 'bold');
+        doc.text(`Total de días utilizados del período: ${totalDias} / 15`, 20, y);
+        
+        // Pie de página con fecha de generación
+        doc.setFont(undefined, 'normal');
+        doc.setFontSize(10);
+        doc.text(`Generado el: ${new Date().toLocaleDateString('es-GT')}`, 20, 270);
+        doc.text(`Página 1 de 1`, pageWidth - 40, 270);
+        
+        // Guardar el PDF
+        const fileName = `Periodo_Completo_${nombreCompleto.replace(/\s+/g, '_')}_${periodo.replace(/\s+/g, '_')}.pdf`;
+        doc.save(fileName);
+        
+        return true;
+        
+    } catch (error) {
+        console.error('Error al generar PDF:', error);
+        throw error;
+    }
+}
+// Función para formatear el período para el PDF
+function formatearPeriodoParaPDF(periodo) {
+    // Convertir de "2023-11-01 al 2024-10-31" a "01-11-2023 al 31-10-2024"
+    if (!periodo) return '';
+    
+    const partes = periodo.split(' al ');
+    if (partes.length === 2) {
+        const fechaInicio = partes[0].split('-');
+        const fechaFin = partes[1].split('-');
+        
+        const inicioFormateado = `${fechaInicio[2]}-${fechaInicio[1]}-${fechaInicio[0]}`;
+        const finFormateado = `${fechaFin[2]}-${fechaFin[1]}-${fechaFin[0]}`;
+        
+        return `${inicioFormateado} al ${finFormateado}`;
+    }
+    
+    return periodo;
+}
+async function obtenerPeriodosCompletados(empleado) {
+    try {
+        const connection = await connectionString();
+        
+        // Obtener todos los períodos del empleado
+        const aniosCumplidos = parseInt(empleado.AniosCumplidos) || 0;
+        const periodosCompletados = [];
+        
+        for (let i = 0; i <= aniosCumplidos; i++) {
+            const periodo = calcularPeriodo(empleado.FechaPlanilla, i);
+            
+            // Verificar días tomados
+            const queryDiasTomados = `
+                SELECT COUNT(*) as DiasUtilizados
+                FROM vacacionestomadas
+                WHERE IdPersonal = ? AND Periodo = ?
+            `;
+            const resultDiasTomados = await connection.query(queryDiasTomados, [empleado.IdPersonal, periodo]);
+            
+            // Verificar días pagados
+            const queryDiasPagados = `
+                SELECT IFNULL(SUM(CAST(DiasSolicitado AS UNSIGNED)), 0) as DiasPagados
+                FROM vacacionespagadas
+                WHERE IdPersonal = ? AND Periodo = ? AND Estado IN (1,2,3,4)
+            `;
+            const resultDiasPagados = await connection.query(queryDiasPagados, [empleado.IdPersonal, periodo]);
+            
+            const diasTomados = parseInt(resultDiasTomados[0].DiasUtilizados) || 0;
+            const diasPagados = parseInt(resultDiasPagados[0].DiasPagados) || 0;
+            const totalDias = diasTomados + diasPagados;
+            
+            // Si el período está completo (15 días), agregarlo a la lista
+            if (totalDias === 15) {
+                periodosCompletados.push({
+                    periodo: periodo,
+                    diasTomados: diasTomados,
+                    diasPagados: diasPagados,
+                    totalDias: totalDias
+                });
+            }
+        }
+        
+        await connection.close();
+        return periodosCompletados;
+        
+    } catch (error) {
+        console.error('Error al obtener períodos completados:', error);
+        throw error;
+    }
+}
 
+// Abrir modal de generador de PDF
+function openPdfGeneratorModal() {
+    // Limpiar selecciones previas
+    document.getElementById('pdfEmployeeSelect').value = '';
+    document.getElementById('pdfPeriodSelect').value = '';
+    document.getElementById('pdfPeriodSelect').disabled = true;
+    document.getElementById('generateSelectedPdfBtn').disabled = true;
+    document.getElementById('periodInfo').style.display = 'none';
+    
+    // Llenar la lista de colaboradores
+    const employeeSelect = document.getElementById('pdfEmployeeSelect');
+    employeeSelect.innerHTML = '<option value="">-- Seleccione un colaborador --</option>';
+    
+    employeesData.forEach(employee => {
+        const option = document.createElement('option');
+        option.value = employee.IdPersonal;
+        option.textContent = getFullName(employee);
+        // No permitir seleccionar al usuario actual
+        if (employee.IdPersonal === userData.IdPersonal) {
+            option.disabled = true;
+            option.textContent += ' (Usted)';
+        }
+        employeeSelect.appendChild(option);
+    });
+    
+    // Mostrar el modal
+    pdfGeneratorModal.style.display = 'block';
+    setTimeout(() => {
+        pdfGeneratorModal.classList.add('show');
+    }, 10);
+}
+
+// Manejar cambio de empleado seleccionado
+async function handleEmployeeSelection() {
+    const employeeId = parseInt(document.getElementById('pdfEmployeeSelect').value);
+    const periodSelect = document.getElementById('pdfPeriodSelect');
+    
+    if (!employeeId) {
+        periodSelect.disabled = true;
+        periodSelect.innerHTML = '<option value="">-- Primero seleccione un colaborador --</option>';
+        document.getElementById('periodInfo').style.display = 'none';
+        document.getElementById('generateSelectedPdfBtn').disabled = true;
+        return;
+    }
+    
+    // Mostrar indicador de carga
+    const loadingSwal = mostrarCargando('Buscando períodos completados...');
+    
+    try {
+        const employee = employeesData.find(emp => emp.IdPersonal === employeeId);
+        
+        // Obtener períodos completados
+        const periodosCompletados = await obtenerPeriodosCompletados(employee);
+        
+        loadingSwal.close();
+        
+        if (periodosCompletados.length === 0) {
+            periodSelect.innerHTML = '<option value="">No hay períodos completados</option>';
+            periodSelect.disabled = true;
+            document.getElementById('generateSelectedPdfBtn').disabled = true;
+            
+            Swal.fire({
+                icon: 'info',
+                title: 'Sin períodos completados',
+                text: 'Este colaborador no tiene períodos de 15 días completados.',
+                confirmButtonColor: '#FF9800'
+            });
+            return;
+        }
+        
+        // Habilitar selección de período
+        periodSelect.disabled = false;
+        periodSelect.innerHTML = '<option value="">-- Seleccione un período --</option>';
+        
+        periodosCompletados.forEach((periodo, index) => {
+            const option = document.createElement('option');
+            option.value = JSON.stringify(periodo);
+            option.textContent = formatPeriodoUsuario(periodo.periodo);
+            periodSelect.appendChild(option);
+        });
+        
+    } catch (error) {
+        console.error('Error al cargar períodos:', error);
+        loadingSwal.close();
+        Swal.fire({
+            icon: 'error',
+            title: 'Error',
+            text: 'No se pudieron cargar los períodos completados.',
+            confirmButtonColor: '#FF9800'
+        });
+    }
+}
+
+// Manejar cambio de período seleccionado
+function handlePeriodSelection() {
+    const periodValue = document.getElementById('pdfPeriodSelect').value;
+    
+    if (!periodValue) {
+        document.getElementById('periodInfo').style.display = 'none';
+        document.getElementById('generateSelectedPdfBtn').disabled = true;
+        return;
+    }
+    
+    try {
+        const periodoInfo = JSON.parse(periodValue);
+        
+        // Mostrar información del período
+        document.getElementById('selectedPeriod').textContent = formatPeriodoUsuario(periodoInfo.periodo);
+        document.getElementById('daysTaken').textContent = periodoInfo.diasTomados;
+        document.getElementById('daysPaid').textContent = periodoInfo.diasPagados;
+        document.getElementById('totalDays').textContent = periodoInfo.totalDias;
+        
+        document.getElementById('periodInfo').style.display = 'block';
+        document.getElementById('generateSelectedPdfBtn').disabled = false;
+        
+    } catch (error) {
+        console.error('Error al procesar período:', error);
+    }
+}
+
+// Generar PDF del período seleccionado
+async function generateSelectedPdf() {
+    const employeeId = parseInt(document.getElementById('pdfEmployeeSelect').value);
+    const periodValue = document.getElementById('pdfPeriodSelect').value;
+    
+    if (!employeeId || !periodValue) {
+        Swal.fire({
+            icon: 'warning',
+            title: 'Selección incompleta',
+            text: 'Por favor seleccione un colaborador y un período.',
+            confirmButtonColor: '#FF9800'
+        });
+        return;
+    }
+    
+    try {
+        const employee = employeesData.find(emp => emp.IdPersonal === employeeId);
+        const periodoInfo = JSON.parse(periodValue);
+        
+        // Cerrar el modal
+        pdfGeneratorModal.classList.remove('show');
+        setTimeout(() => {
+            pdfGeneratorModal.style.display = 'none';
+        }, 300);
+        
+        // Mostrar indicador de carga
+        const loadingSwal = mostrarCargando('Generando PDF...');
+        
+        // Generar el PDF
+        await generarPDFPeriodoCompleto(employee, periodoInfo.periodo);
+        
+        loadingSwal.close();
+        
+        Swal.fire({
+            icon: 'success',
+            title: 'PDF Generado',
+            text: 'El PDF del período completado se ha generado correctamente.',
+            confirmButtonColor: '#4CAF50'
+        });
+        
+    } catch (error) {
+        console.error('Error al generar PDF:', error);
+        Swal.fire({
+            icon: 'error',
+            title: 'Error',
+            text: 'No se pudo generar el PDF. Por favor intente nuevamente.',
+            confirmButtonColor: '#FF9800'
+        });
+    }
+}
 // Agregar funciones al contexto global para poder llamarlas desde HTML
 window.openVacationModal = openVacationModal;
 window.openInfoModal = openInfoModal;

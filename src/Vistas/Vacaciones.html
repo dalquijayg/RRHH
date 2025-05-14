@@ -10,6 +10,7 @@
     <link href="https://cdn.jsdelivr.net/npm/fullcalendar@5.10.0/main.min.css" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/fullcalendar@5.10.0/main.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/fullcalendar@5.10.0/locales/es.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 </head>
 <body>
     <!-- Encabezado con logos y título -->
@@ -51,6 +52,9 @@
                 </button>
                 <button id="exportBtn" class="export-btn">
                     <i class="fas fa-file-export"></i> Exportar
+                </button>
+                <button id="generatePdfBtn" class="generate-pdf-btn">
+                    <i class="fas fa-file-pdf"></i> Generar PDF
                 </button>
             </div>
         </section>
@@ -234,7 +238,53 @@
             </div>
         </div>
     </div>
-
+    <!-- Modal para generar PDF -->
+    <div id="pdfGeneratorModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Generar PDF de Período Completado</h2>
+                <span class="close-modal">&times;</span>
+            </div>
+            <div class="modal-body">
+                <!-- Selección de colaborador -->
+                <div class="form-group">
+                    <label for="pdfEmployeeSelect">Seleccionar Colaborador:</label>
+                    <select id="pdfEmployeeSelect" class="form-select">
+                        <option value="">-- Seleccione un colaborador --</option>
+                    </select>
+                </div>
+                
+                <!-- Selección de período -->
+                <div class="form-group">
+                    <label for="pdfPeriodSelect">Seleccionar Período Completado:</label>
+                    <select id="pdfPeriodSelect" class="form-select" disabled>
+                        <option value="">-- Primero seleccione un colaborador --</option>
+                    </select>
+                </div>
+                
+                <!-- Información del período seleccionado -->
+                <div id="periodInfo" class="period-info-container" style="display: none;">
+                    <h4>Información del Período:</h4>
+                    <div class="period-details">
+                        <p><strong>Período:</strong> <span id="selectedPeriod"></span></p>
+                        <p><strong>Días tomados:</strong> <span id="daysTaken"></span></p>
+                        <p><strong>Días pagados:</strong> <span id="daysPaid"></span></p>
+                        <p><strong>Total:</strong> <span id="totalDays"></span></p>
+                    </div>
+                </div>
+                
+                <!-- Botones de acción -->
+                <div class="modal-actions">
+                    <button type="button" class="btn-cancel" id="cancelPdfBtn">
+                        <i class="fas fa-times"></i> Cancelar
+                    </button>
+                    <button type="button" class="btn-generate" id="generateSelectedPdfBtn" disabled>
+                        <i class="fas fa-file-pdf"></i> Generar PDF
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
     <!-- Scripts -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/sweetalert2/11.0.19/sweetalert2.min.js"></script>
     <script src="../Logica/Vacaciones/Vacaciones.js"></script>
