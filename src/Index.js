@@ -18,6 +18,9 @@ let reportePlanillaEspecialWindow = null;
 let AsignarPermisos = null;
 let VacacionesWindow = null;
 let PagoVacacionesWindow = null;
+let GestionarVacacionesWindow = null;
+let GestionarPagoVacacionesWindow = null;
+let EstadoPagosVacacionesWindow = null;
 
 if(process.env.NODE_ENV !=='production'){
     require('electron-reload')(__dirname,{
@@ -406,6 +409,93 @@ function createPagoVacacionesWindow() {
         PagoVacacionesWindow = null;
     });
 }
+function createGestionVacacionesWindow() {
+    // Verifica si la ventana ya está abierta
+    if (GestionarVacacionesWindow) {
+        // Si ya está abierta, simplemente enfócala
+        if (GestionarVacacionesWindow.isMinimized()) GestionarVacacionesWindow.restore();
+        GestionarVacacionesWindow.focus();
+        return;
+    }
+    
+    // Crea una nueva ventana si no existe
+    GestionarVacacionesWindow = new BrowserWindow({
+        width: 1200,
+        height: 800,
+        webPreferences: {
+            nodeIntegration: true,
+            contextIsolation: false,
+        },
+        icon: path.join(__dirname, 'LogoRecursos.ico'),
+        title: 'Permisos',
+        autoHideMenuBar: true
+    });
+
+    GestionarVacacionesWindow.loadURL(`file://${__dirname}/Vistas/VacacionesAdmin.html`);
+    
+    // Elimina la referencia a la ventana cuando se cierre
+    GestionarVacacionesWindow.on('closed', () => {
+        GestionarVacacionesWindow = null;
+    });
+}
+function createGestionPagoVacacionesWindow() {
+    // Verifica si la ventana ya está abierta
+    if (GestionarPagoVacacionesWindow) {
+        // Si ya está abierta, simplemente enfócala
+        if (GestionarPagoVacacionesWindow.isMinimized()) GestionarPagoVacacionesWindow.restore();
+        GestionarPagoVacacionesWindow.focus();
+        return;
+    }
+    
+    // Crea una nueva ventana si no existe
+    GestionarPagoVacacionesWindow = new BrowserWindow({
+        width: 1200,
+        height: 800,
+        webPreferences: {
+            nodeIntegration: true,
+            contextIsolation: false,
+        },
+        icon: path.join(__dirname, 'LogoRecursos.ico'),
+        title: 'Permisos',
+        autoHideMenuBar: true
+    });
+
+    GestionarPagoVacacionesWindow.loadURL(`file://${__dirname}/Vistas/PagoVacacionesAdmin.html`);
+    
+    // Elimina la referencia a la ventana cuando se cierre
+    GestionarPagoVacacionesWindow.on('closed', () => {
+        GestionarPagoVacacionesWindow = null;
+    });
+}
+function createEstadoPagosWindow() {
+    // Verifica si la ventana ya está abierta
+    if (EstadoPagosVacacionesWindow) {
+        // Si ya está abierta, simplemente enfócala
+        if (EstadoPagosVacacionesWindow.isMinimized()) EstadoPagosVacacionesWindow.restore();
+        EstadoPagosVacacionesWindow.focus();
+        return;
+    }
+    
+    // Crea una nueva ventana si no existe
+    EstadoPagosVacacionesWindow = new BrowserWindow({
+        width: 1200,
+        height: 800,
+        webPreferences: {
+            nodeIntegration: true,
+            contextIsolation: false,
+        },
+        icon: path.join(__dirname, 'LogoRecursos.ico'),
+        title: 'Permisos',
+        autoHideMenuBar: true
+    });
+
+    EstadoPagosVacacionesWindow.loadURL(`file://${__dirname}/Vistas/GestionPagosVacaciones.html`);
+    
+    // Elimina la referencia a la ventana cuando se cierre
+    EstadoPagosVacacionesWindow.on('closed', () => {
+        EstadoPagosVacacionesWindow = null;
+    });
+}
 // Añade este receptor para abrir la ventana de pago nómina
 ipcMain.on('open_pago_nomina', () => {
     createPagoNominaWindow();
@@ -446,4 +536,13 @@ ipcMain.on('open_Ventana_Vacaciones', () => {
 });
 ipcMain.on('open_Ventana_PagoVacaciones', () => {
     createPagoVacacionesWindow();
+});
+ipcMain.on('open_Ventana_GestionVacaciones', () => {
+    createGestionVacacionesWindow();
+});
+ipcMain.on('open_Ventana_GestionPagoVacaciones', () => {
+    createGestionPagoVacacionesWindow();
+});
+ipcMain.on('open_Ventana_GestionPagosVacaciones', () => {
+    createEstadoPagosWindow();
 });

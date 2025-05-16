@@ -1,0 +1,413 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    
+    <title>Gestión de Vacaciones - Recursos Humanos</title>
+    <link rel="stylesheet" href="../Disenos/Vacaciones/VacacionesAdmin.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <!-- FullCalendar -->
+    <link href="https://cdn.jsdelivr.net/npm/fullcalendar@5.10.0/main.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/fullcalendar@5.10.0/main.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/fullcalendar@5.10.0/locales/es.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+</head>
+<body>
+    <!-- Encabezado con logos y título -->
+    <header class="header">
+        <div class="header-center">
+            <h1 class="page-title">Gestión de Vacaciones</h1>
+            <!-- Franja de colores inspirada en los colores del logo -->
+            <div class="color-strip">
+                <div class="color-strip-item color-red"></div>
+                <div class="color-strip-item color-blue"></div>
+                <div class="color-strip-item color-green"></div>
+                <div class="color-strip-item color-yellow"></div>
+                <div class="color-strip-item color-orange"></div>
+            </div>
+        </div>
+        <div class="header-right">
+            <img src="../Imagenes/Logo Recursos Humanos new.png" alt="RRHH Logo" class="rrhh-logo">
+        </div>
+    </header>
+
+    <!-- Contenido principal -->
+    <main class="content">
+        <!-- Panel de control compacto -->
+        <section class="control-panel compact">
+            <div class="control-row">
+                <!-- Selector de departamento compacto -->
+                <div class="department-selector-compact">
+                    <div class="selector-icon">
+                        <i class="fas fa-building"></i>
+                    </div>
+                    <label class="selector-label">Departamento:</label>
+                    <select id="departmentSelector" class="department-select-compact">
+                        <option value="">-- Seleccione --</option>
+                    </select>
+                    <button id="searchDepartmentBtn" class="btn-search-compact" disabled>
+                        <i class="fas fa-search"></i> Buscar
+                    </button>
+                </div>
+                
+                <!-- Información del departamento (compacta) -->
+                <div class="department-info-compact" id="departmentInfoSection" style="display: none;">
+                    <div class="info-badge">
+                        <i class="fas fa-user-tie"></i>
+                        <span class="info-label">Total:</span>
+                        <span class="info-value" id="departmentTotal">0</span>
+                    </div>
+                </div>
+                
+                <!-- Controles de acción -->
+                <div class="action-controls">
+                    <button id="refreshBtn" class="action-btn refresh-btn" disabled title="Actualizar">
+                        <i class="fas fa-sync-alt"></i>
+                    </button>
+                    <button id="exportBtn" class="action-btn export-btn" disabled title="Exportar Excel">
+                        <i class="fas fa-file-export"></i>
+                    </button>
+                    <button id="generatePdfBtn" class="action-btn pdf-btn" disabled title="Generar PDF">
+                        <i class="fas fa-file-pdf"></i>
+                    </button>
+                </div>
+            </div>
+            
+            <!-- Barra de búsqueda -->
+            <div class="search-row">
+                <div class="search-bar-compact">
+                    <i class="fas fa-search"></i>
+                    <input type="text" id="searchInput" placeholder="Buscar colaborador por nombre o puesto..." disabled>
+                    <button class="clear-search-btn" id="clearSearchBtn" style="display: none;">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+            </div>
+        </section>
+
+        <!-- Tabla de colaboradores con más espacio -->
+        <section class="employees-table-section expanded">
+            <div class="table-container">
+                <table id="employeesTable" class="employees-table">
+                    <thead>
+                        <tr>
+                            <th class="photo-column">Foto</th>
+                            <th class="sortable" data-sort="name">Nombre Completo</th>
+                            <th class="sortable" data-sort="hireDate">Fecha de Ingreso</th>
+                            <th class="sortable" data-sort="years">Años de Servicio</th>
+                            <th class="sortable" data-sort="days">Días Disponibles</th>
+                            <th class="sortable" data-sort="position">Puesto</th>
+                            <th>Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <!-- Mensaje inicial -->
+                        <tr>
+                            <td colspan="7" class="no-department-message">
+                                <div class="empty-state">
+                                    <i class="fas fa-building"></i>
+                                    <h3>Seleccione un departamento</h3>
+                                    <p>Por favor seleccione un departamento para ver sus colaboradores</p>
+                                </div>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            
+            <!-- Paginación -->
+            <div class="pagination">
+                <button id="prevPage" class="pagination-btn" disabled>
+                    <i class="fas fa-chevron-left"></i> Anterior
+                </button>
+                <div id="pageIndicator" class="page-indicator">Página 1 de 1</div>
+                <button id="nextPage" class="pagination-btn" disabled>
+                    Siguiente <i class="fas fa-chevron-right"></i>
+                </button>
+            </div>
+        </section>
+    </main>
+
+    <!-- Elementos decorativos de fondo -->
+    <div class="bg-decoration bubble bubble1"></div>
+    <div class="bg-decoration bubble bubble2"></div>
+    <div class="bg-decoration bubble bubble3"></div>
+    <div class="bg-decoration pattern pattern1"></div>
+    <div class="bg-decoration pattern pattern2"></div>
+
+    <!-- Modal para solicitud de vacaciones -->
+    <div id="vacationModal" class="modal">
+        <div class="modal-content modal-compact">
+            <div class="modal-header">
+                <h2>Solicitud de Vacaciones</h2>
+                <span class="close-modal">&times;</span>
+            </div>
+            <div class="modal-body">
+                <!-- Columna izquierda: Información del empleado -->
+                <div class="employee-info-column">
+                    <div class="employee-profile">
+                        <div class="employee-photo">
+                            <img id="modalEmployeePhoto" src="../Imagenes/user-default.png" alt="Foto del colaborador">
+                        </div>
+                        <div class="employee-info">
+                            <h3 id="modalEmployeeName">Nombre del Colaborador</h3>
+                            <p id="modalEmployeePosition">Puesto</p>
+                            <div class="days-available-badge">
+                                <span id="modalAvailableDays">15</span>
+                                <span class="days-text">días disponibles</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Fechas seleccionadas -->
+                    <div class="selected-dates-summary">
+                        <div class="selected-dates">
+                            <div class="date-range">
+                                <span class="date-label">Desde:</span>
+                                <span id="selectedStartDate" class="date-value">No seleccionado</span>
+                            </div>
+                            <div class="date-range">
+                                <span class="date-label">Hasta:</span>
+                                <span id="selectedEndDate" class="date-value">No seleccionado</span>
+                            </div>
+                            <div class="date-range">
+                                <span class="date-label">Total:</span>
+                                <span id="selectedDays" class="date-value highlight">0 días</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Días seleccionados (mini visualización) -->
+                    <div class="days-visualization mini">
+                        <h4>Días seleccionados</h4>
+                        <div id="daysVisual" class="days-grid"></div>
+                    </div>
+                    
+                    <!-- Botón de enviar -->
+                    <div class="form-actions">
+                        <button type="submit" id="submitVacationBtn" class="btn-submit">
+                            <i class="fas fa-paper-plane"></i> Enviar Solicitud
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Columna derecha: Calendario -->
+                <div class="calendar-column">
+                    <div class="instruction">
+                        <i class="fas fa-info-circle"></i>
+                        <p>Seleccione las fechas de sus vacaciones <strong>arrastrando</strong> en el calendario</p>
+                    </div>
+                    
+                    <!-- Calendario completo -->
+                    <div id="vacationCalendar" class="calendar-container"></div>
+                    
+                    <!-- Leyenda del calendario -->
+                    <div class="calendar-legend">
+                        <div class="legend-title">Leyenda del calendario:</div>
+                        <div class="legend-item">
+                            <span class="legend-color registered-color"></span>
+                            <span>Días ya tomados como vacaciones</span>
+                        </div>
+                        <div class="legend-item">
+                            <span class="legend-color weekend-color"></span>
+                            <span>Fines de semana</span>
+                        </div>
+                        <div class="legend-item">
+                            <span class="legend-color special-color"></span>
+                            <span>Días especiales/feriados</span>
+                        </div>
+                        <div class="legend-item">
+                            <span class="legend-color holy-week-color"></span>
+                            <span>Semana Santa</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Formulario oculto para enviar datos -->
+    <form id="vacationForm" style="display:none;"></form>
+    
+    <!-- Modal para ver información del empleado -->
+    <div id="infoModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Información del Colaborador</h2>
+                <span class="close-modal">&times;</span>
+            </div>
+            <div class="modal-body">
+                <div class="employee-profile">
+                    <div class="employee-photo">
+                        <img id="infoEmployeePhoto" src="../Imagenes/user-default.png" alt="Foto del colaborador">
+                    </div>
+                    <div class="employee-info">
+                        <h3 id="infoEmployeeName">Nombre del Colaborador</h3>
+                        <p id="infoEmployeePosition">Puesto</p>
+                    </div>
+                </div>
+                
+                <div class="info-details">
+                    <div class="info-item">
+                        <span class="info-label">Fecha de ingreso:</span>
+                        <span id="infoHireDate" class="info-value">01/01/2020</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">Años de servicio:</span>
+                        <span id="infoYearsService" class="info-value">3 años</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">Días disponibles:</span>
+                        <span id="infoAvailableDays" class="info-value">15 días</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">ID de empleado:</span>
+                        <span id="infoEmployeeId" class="info-value">12345</span>
+                    </div>
+                </div>
+                
+                <div class="info-actions">
+                    <button id="infoRequestVacationBtn" class="btn-submit">
+                        <i class="fas fa-calendar-plus"></i> Solicitar Vacaciones
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Modal para generar PDF -->
+    <div id="pdfGeneratorModal" class="modal">
+        <div class="modal-content pdf-modal">
+            <div class="modal-header">
+                <div class="modal-title-section">
+                    <i class="fas fa-file-pdf modal-icon"></i>
+                    <h2>Generar PDF de Período Completado</h2>
+                </div>
+                <span class="close-modal">&times;</span>
+            </div>
+            <div class="modal-body">
+                <div class="pdf-generator-content">
+                    <!-- Instrucciones -->
+                    <div class="pdf-instructions">
+                        <i class="fas fa-info-circle"></i>
+                        <p>Seleccione un colaborador para ver sus períodos completados y generar el PDF correspondiente.</p>
+                    </div>
+                    
+                    <!-- Selección de colaborador con diseño mejorado -->
+                    <div class="form-group enhanced">
+                        <label for="pdfEmployeeSearch">
+                            <i class="fas fa-user"></i>
+                            Buscar Colaborador:
+                        </label>
+                        <div class="search-select-wrapper">
+                            <div class="search-input-container">
+                                <i class="fas fa-search search-icon"></i>
+                                <input 
+                                    type="text" 
+                                    id="pdfEmployeeSearch" 
+                                    class="search-select-input" 
+                                    placeholder="Escriba el nombre del colaborador..."
+                                    autocomplete="off"
+                                >
+                                <i class="fas fa-times clear-search" style="display: none;"></i>
+                            </div>
+                            <div class="search-results" id="searchResults" style="display: none;">
+                                <!-- Los resultados se agregarán dinámicamente aquí -->
+                            </div>
+                        </div>
+                        <!-- Campo oculto para guardar el ID seleccionado -->
+                        <input type="hidden" id="selectedEmployeeId" value="">
+                        <!-- Mostrar el colaborador seleccionado -->
+                        <div class="selected-employee" id="selectedEmployeeDisplay" style="display: none;">
+                            <div class="selected-employee-info">
+                                <img src="" alt="" class="selected-employee-photo">
+                                <div class="selected-employee-details">
+                                    <span class="selected-employee-name"></span>
+                                    <span class="selected-employee-position"></span>
+                                </div>
+                            </div>
+                            <button type="button" class="change-selection">
+                                <i class="fas fa-exchange-alt"></i> Cambiar
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <!-- Selección de período con diseño mejorado -->
+                    <div class="form-group enhanced">
+                        <label for="pdfPeriodSelect">
+                            <i class="fas fa-calendar-check"></i>
+                            Seleccionar Período Completado:
+                        </label>
+                        <div class="select-wrapper">
+                            <select id="pdfPeriodSelect" class="form-select" disabled>
+                                <option value="">-- Primero seleccione un colaborador --</option>
+                            </select>
+                            <i class="fas fa-chevron-down select-arrow"></i>
+                        </div>
+                    </div>
+                    
+                    <!-- Información del período seleccionado con nuevo diseño -->
+                    <div id="periodInfo" class="period-info-card" style="display: none;">
+                        <div class="period-info-header">
+                            <i class="fas fa-clipboard-list"></i>
+                            <h4>Información del Período</h4>
+                        </div>
+                        <div class="period-info-body">
+                            <div class="period-detail">
+                                <span class="detail-label">
+                                    <i class="fas fa-calendar-alt"></i> Período:
+                                </span>
+                                <span id="selectedPeriod" class="detail-value"></span>
+                            </div>
+                            <div class="period-stats">
+                                <div class="stat-item">
+                                    <div class="stat-icon">
+                                        <i class="fas fa-calendar-day"></i>
+                                    </div>
+                                    <div class="stat-info">
+                                        <span class="stat-value" id="daysTaken">0</span>
+                                        <span class="stat-label">Días tomados</span>
+                                    </div>
+                                </div>
+                                <div class="stat-item">
+                                    <div class="stat-icon paid">
+                                        <i class="fas fa-dollar-sign"></i>
+                                    </div>
+                                    <div class="stat-info">
+                                        <span class="stat-value" id="daysPaid">0</span>
+                                        <span class="stat-label">Días pagados</span>
+                                    </div>
+                                </div>
+                                <div class="stat-item">
+                                    <div class="stat-icon total">
+                                        <i class="fas fa-calculator"></i>
+                                    </div>
+                                    <div class="stat-info">
+                                        <span class="stat-value" id="totalDays">0</span>
+                                        <span class="stat-label">Total</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Vista previa de lo que se generará -->
+                    <div class="pdf-preview-notice">
+                        <i class="fas fa-eye"></i>
+                        <p>Se generará una ficha de control oficial con todos los detalles del período seleccionado.</p>
+                    </div>
+                </div>
+            </div>
+            <!-- Footer con botones mejorados -->
+            <div class="modal-footer">
+                <button type="button" class="btn-modal btn-generate" id="generateSelectedPdfBtn" disabled>
+                    <i class="fas fa-file-pdf"></i> Generar PDF
+                </button>
+            </div>
+        </div>
+    </div>
+    
+    <script src="../Logica/Vacaciones/VacacionesAdmin.js"></script>
+</body>
+</html>

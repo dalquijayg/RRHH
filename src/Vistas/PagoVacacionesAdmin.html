@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Solicitud de Pago de Vacaciones - Recursos Humanos</title>
+    <link rel="stylesheet" href="../Disenos/Vacaciones/PagoVacacionesAdmin.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+</head>
+<body>
+    <!-- Encabezado con logos y título -->
+    <header class="header">
+        <div class="header-center">
+            <h1 class="page-title">Solicitud de Pago de Vacaciones</h1>
+            <!-- Franja de colores inspirada en los colores del logo -->
+            <div class="color-strip">
+                <div class="color-strip-item color-red"></div>
+                <div class="color-strip-item color-blue"></div>
+                <div class="color-strip-item color-green"></div>
+                <div class="color-strip-item color-yellow"></div>
+                <div class="color-strip-item color-orange"></div>
+            </div>
+        </div>
+        <div class="header-right">
+            <img src="../Imagenes/Logo Recursos Humanos new.png" alt="RRHH Logo" class="rrhh-logo">
+        </div>
+    </header>
+
+    <!-- Contenido principal -->
+    <main class="content">
+        <!-- Panel de control compacto con selector de departamento -->
+        <section class="control-panel compact">
+            <div class="control-row">
+                <!-- Selector de departamento compacto -->
+                <div class="department-selector-compact">
+                    <div class="selector-icon">
+                        <i class="fas fa-building"></i>
+                    </div>
+                    <label class="selector-label">Departamento:</label>
+                    <select id="departmentSelector" class="department-select-compact">
+                        <option value="">-- Seleccione --</option>
+                    </select>
+                    <button id="searchDepartmentBtn" class="btn-search-compact" disabled>
+                        <i class="fas fa-search"></i> Buscar
+                    </button>
+                </div>
+                
+                <!-- Información del departamento (compacta) -->
+                <div class="department-info-compact" id="departmentInfoSection" style="display: none;">
+                    <div class="info-badge">
+                        <i class="fas fa-user-tie"></i>
+                        <span class="info-label">Total:</span>
+                        <span class="info-value" id="departmentTotal">0</span>
+                    </div>
+                </div>
+                
+                <!-- Controles de acción -->
+                <div class="action-controls">
+                    <button id="refreshBtn" class="action-btn refresh-btn" disabled title="Actualizar">
+                        <i class="fas fa-sync-alt"></i>
+                    </button>
+                    <button id="statusBtn" class="action-btn status-btn" disabled title="Ver Estados">
+                        <i class="fas fa-tasks"></i>
+                    </button>
+                </div>
+            </div>
+            
+            <!-- Barra de búsqueda -->
+            <div class="search-row">
+                <div class="search-bar-compact">
+                    <i class="fas fa-search"></i>
+                    <input type="text" id="searchInput" placeholder="Buscar colaborador por nombre o puesto..." disabled>
+                    <button class="clear-search-btn" id="clearSearchBtn" style="display: none;">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+            </div>
+        </section>
+
+        <!-- Tabla de colaboradores -->
+        <section class="employees-table-section expanded">
+            <div class="table-container">
+                <table id="employeesTable" class="employees-table">
+                    <thead>
+                        <tr>
+                            <th class="photo-column">Foto</th>
+                            <th class="sortable" data-sort="name">Nombre Completo</th>
+                            <th class="sortable" data-sort="hireDate">Fecha de Ingreso</th>
+                            <th class="sortable" data-sort="years">Años de Servicio</th>
+                            <th class="sortable" data-sort="days">Días Disponibles</th>
+                            <th class="sortable" data-sort="position">Puesto</th>
+                            <th>Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <!-- Mensaje inicial -->
+                        <tr>
+                            <td colspan="7" class="no-department-message">
+                                <div class="empty-state">
+                                    <i class="fas fa-building"></i>
+                                    <h3>Seleccione un departamento</h3>
+                                    <p>Por favor seleccione un departamento para ver sus colaboradores</p>
+                                </div>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            
+            <!-- Paginación -->
+            <div class="pagination">
+                <button id="prevPage" class="pagination-btn" disabled>
+                    <i class="fas fa-chevron-left"></i> Anterior
+                </button>
+                <div id="pageIndicator" class="page-indicator">Página 1 de 1</div>
+                <button id="nextPage" class="pagination-btn" disabled>
+                    Siguiente <i class="fas fa-chevron-right"></i>
+                </button>
+            </div>
+        </section>
+    </main>
+
+    <!-- Elementos decorativos de fondo -->
+    <!-- Burbujas -->
+    <div class="bg-decoration bubble bubble1"></div>
+    <div class="bg-decoration bubble bubble2"></div>
+    <div class="bg-decoration bubble bubble3"></div>
+    
+    <!-- Patrones -->
+    <div class="bg-decoration pattern pattern1"></div>
+    <div class="bg-decoration pattern pattern2"></div>
+
+    <!-- Modal para solicitud de pago de vacaciones -->
+    <div id="paymentModal" class="modal">
+        <div class="modal-content modal-payment-compact">
+            <div class="modal-header">
+                <h2>Solicitud de Pago de Vacaciones</h2>
+                <span class="close-modal">&times;</span>
+            </div>
+            
+            <div class="modal-body compact-layout">
+                <!-- Información del empleado (más compacta) -->
+                <div class="employee-info-compact">
+                    <div class="employee-photo-small">
+                        <img id="modalEmployeePhoto" src="../Imagenes/user-default.png" alt="Foto">
+                    </div>
+                    <div class="employee-details-compact">
+                        <h3 id="modalEmployeeName">Nombre del Colaborador</h3>
+                        <p id="modalEmployeePosition">Puesto</p>
+                        <div class="employee-meta-inline">
+                            <span><i class="fas fa-calendar-alt"></i> Ingreso: <span id="modalEmployeeHireDate">01/01/2020</span></span>
+                            <span class="separator">|</span>
+                            <span><i class="fas fa-clock"></i> <span id="modalEmployeeYears">3</span> años de servicio</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Contenedor principal con layout de dos columnas -->
+                <div class="main-content-grid">
+                    <!-- Columna izquierda: Períodos disponibles -->
+                    <div class="periods-column">
+                        <div class="section-header-compact">
+                            <h4><i class="fas fa-calendar-check"></i> Períodos con Días Disponibles</h4>
+                            <div class="total-days-badge-compact">
+                                <span>Total disponible: <strong id="totalAvailableDays">0</strong> días</span>
+                            </div>
+                        </div>
+                        
+                        <div id="periodsContainer" class="periods-container-compact">
+                            <!-- Los períodos se cargarán dinámicamente -->
+                        </div>
+                    </div>
+
+                    <!-- Columna derecha: Resumen -->
+                    <div class="summary-column">
+                        <div class="payment-summary-compact">
+                            <div class="summary-header-compact">
+                                <h4><i class="fas fa-file-invoice-dollar"></i> Resumen de Solicitud</h4>
+                            </div>
+                            <div class="summary-content-compact">
+                                <div class="summary-item-compact">
+                                    <span class="summary-label">Total de días:</span>
+                                    <span class="summary-value" id="totalRequestedDays">0</span>
+                                </div>
+                                <div class="summary-item-compact">
+                                    <span class="summary-label">Monto estimado:</span>
+                                    <span class="summary-value" id="estimatedAmount">Q 0.00</span>
+                                </div>
+                                <div class="summary-note-compact">
+                                    <i class="fas fa-info-circle"></i>
+                                    <p>El monto final será calculado por nómina.</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Botones de acción (más compactos) -->
+                <div class="modal-actions-compact">
+                    <button type="button" class="btn-cancel-compact" id="cancelBtn">
+                        <i class="fas fa-times"></i> Cancelar
+                    </button>
+                    <button type="submit" class="btn-submit-compact" id="submitPaymentBtn">
+                        <i class="fas fa-paper-plane"></i> Enviar Solicitud
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal para ver información del empleado -->
+    <div id="infoModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Información del Colaborador</h2>
+                <span class="close-modal">&times;</span>
+            </div>
+            <div class="modal-body">
+                <div class="employee-profile">
+                    <div class="employee-photo">
+                        <img id="infoEmployeePhoto" src="../Imagenes/user-default.png" alt="Foto del colaborador">
+                    </div>
+                    <div class="employee-info">
+                        <h3 id="infoEmployeeName">Nombre del Colaborador</h3>
+                        <p id="infoEmployeePosition">Puesto</p>
+                    </div>
+                </div>
+                
+                <div class="info-details">
+                    <div class="info-item">
+                        <span class="info-label">Fecha de ingreso:</span>
+                        <span id="infoHireDate" class="info-value">01/01/2020</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">Años de servicio:</span>
+                        <span id="infoYearsService" class="info-value">3 años</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">Días disponibles:</span>
+                        <span id="infoAvailableDays" class="info-value">15 días</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">ID de empleado:</span>
+                        <span id="infoEmployeeId" class="info-value">12345</span>
+                    </div>
+                </div>
+                
+                <div class="info-actions">
+                    <button id="infoRequestPaymentBtn" class="btn-submit">
+                        <i class="fas fa-money-check-alt"></i> Solicitar Pago
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal de estados de solicitudes -->
+    <div id="statusModal" class="modal">
+        <div class="modal-content modal-xl">
+            <div class="modal-header">
+                <h2>Estados de Solicitudes de Pago</h2>
+                <span class="close-modal">&times;</span>
+            </div>
+            <div class="modal-body">
+                <!-- Filtros de estado -->
+                <div class="status-filters">
+                    <div class="filter-group">
+                        <label>Filtrar por estado:</label>
+                        <select id="statusFilter">
+                            <option value="all">Todos los estados activos</option>
+                            <option value="1">Por Autorizar</option>
+                            <option value="2">En Trámite</option>
+                            <option value="3">Pendiente de Cobro</option>
+                        </select>
+                    </div>
+                    <div class="filter-group">
+                        <label>Colaborador:</label>
+                        <input type="text" id="statusEmployeeFilter" placeholder="Buscar por nombre...">
+                    </div>
+                    <button id="applyStatusFilters" class="btn-apply-filters">
+                        <i class="fas fa-filter"></i> Aplicar Filtros
+                    </button>
+                </div>
+
+                <div class="status-table-container">
+                    <table id="statusTable" class="status-table">
+                        <thead>
+                            <tr>
+                                <th>Fecha Solicitud</th>
+                                <th>Colaborador</th>
+                                <th>Período</th>
+                                <th>Días</th>
+                                <th>Estado</th>
+                                <th>Registrado por</th>
+                                <th>Tiempo en Estado</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <!-- Los datos se cargarán dinámicamente -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/sweetalert2/11.0.19/sweetalert2.min.js"></script>
+    <script src="../Logica/Vacaciones/PagoVacacionesAdmin.js"></script>
+</body>
+</html>

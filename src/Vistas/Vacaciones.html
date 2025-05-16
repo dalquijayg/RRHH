@@ -3,6 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    
     <title>Gestión de Vacaciones - Recursos Humanos</title>
     <link rel="stylesheet" href="../Disenos/Vacaciones/Vacaciones.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
@@ -240,53 +241,135 @@
     </div>
     <!-- Modal para generar PDF -->
     <div id="pdfGeneratorModal" class="modal">
-        <div class="modal-content">
+        <div class="modal-content pdf-modal">
             <div class="modal-header">
-                <h2>Generar PDF de Período Completado</h2>
+                <div class="modal-title-section">
+                    <i class="fas fa-file-pdf modal-icon"></i>
+                    <h2>Generar PDF de Período Completado</h2>
+                </div>
                 <span class="close-modal">&times;</span>
             </div>
             <div class="modal-body">
-                <!-- Selección de colaborador -->
-                <div class="form-group">
-                    <label for="pdfEmployeeSelect">Seleccionar Colaborador:</label>
-                    <select id="pdfEmployeeSelect" class="form-select">
-                        <option value="">-- Seleccione un colaborador --</option>
-                    </select>
-                </div>
-                
-                <!-- Selección de período -->
-                <div class="form-group">
-                    <label for="pdfPeriodSelect">Seleccionar Período Completado:</label>
-                    <select id="pdfPeriodSelect" class="form-select" disabled>
-                        <option value="">-- Primero seleccione un colaborador --</option>
-                    </select>
-                </div>
-                
-                <!-- Información del período seleccionado -->
-                <div id="periodInfo" class="period-info-container" style="display: none;">
-                    <h4>Información del Período:</h4>
-                    <div class="period-details">
-                        <p><strong>Período:</strong> <span id="selectedPeriod"></span></p>
-                        <p><strong>Días tomados:</strong> <span id="daysTaken"></span></p>
-                        <p><strong>Días pagados:</strong> <span id="daysPaid"></span></p>
-                        <p><strong>Total:</strong> <span id="totalDays"></span></p>
+                <div class="pdf-generator-content">
+                    <!-- Instrucciones -->
+                    <div class="pdf-instructions">
+                        <i class="fas fa-info-circle"></i>
+                        <p>Seleccione un colaborador para ver sus períodos completados y generar el PDF correspondiente.</p>
+                    </div>
+                    
+                    <!-- Selección de colaborador con diseño mejorado -->
+                    <div class="form-group enhanced">
+                        <label for="pdfEmployeeSearch">
+                            <i class="fas fa-user"></i>
+                            Buscar Colaborador:
+                        </label>
+                        <div class="search-select-wrapper">
+                            <div class="search-input-container">
+                                <i class="fas fa-search search-icon"></i>
+                                <input 
+                                    type="text" 
+                                    id="pdfEmployeeSearch" 
+                                    class="search-select-input" 
+                                    placeholder="Escriba el nombre del colaborador..."
+                                    autocomplete="off"
+                                >
+                                <i class="fas fa-times clear-search" style="display: none;"></i>
+                            </div>
+                            <div class="search-results" id="searchResults" style="display: none;">
+                                <!-- Los resultados se agregarán dinámicamente aquí -->
+                            </div>
+                        </div>
+                        <!-- Campo oculto para guardar el ID seleccionado -->
+                        <input type="hidden" id="selectedEmployeeId" value="">
+                        <!-- Mostrar el colaborador seleccionado -->
+                        <div class="selected-employee" id="selectedEmployeeDisplay" style="display: none;">
+                            <div class="selected-employee-info">
+                                <img src="" alt="" class="selected-employee-photo">
+                                <div class="selected-employee-details">
+                                    <span class="selected-employee-name"></span>
+                                    <span class="selected-employee-position"></span>
+                                </div>
+                            </div>
+                            <button type="button" class="change-selection">
+                                <i class="fas fa-exchange-alt"></i> Cambiar
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <!-- Selección de período con diseño mejorado -->
+                    <div class="form-group enhanced">
+                        <label for="pdfPeriodSelect">
+                            <i class="fas fa-calendar-check"></i>
+                            Seleccionar Período Completado:
+                        </label>
+                        <div class="select-wrapper">
+                            <select id="pdfPeriodSelect" class="form-select" disabled>
+                                <option value="">-- Primero seleccione un colaborador --</option>
+                            </select>
+                            <i class="fas fa-chevron-down select-arrow"></i>
+                        </div>
+                    </div>
+                    
+                    <!-- Información del período seleccionado con nuevo diseño -->
+                    <div id="periodInfo" class="period-info-card" style="display: none;">
+                        <div class="period-info-header">
+                            <i class="fas fa-clipboard-list"></i>
+                            <h4>Información del Período</h4>
+                        </div>
+                        <div class="period-info-body">
+                            <div class="period-detail">
+                                <span class="detail-label">
+                                    <i class="fas fa-calendar-alt"></i> Período:
+                                </span>
+                                <span id="selectedPeriod" class="detail-value"></span>
+                            </div>
+                            <div class="period-stats">
+                                <div class="stat-item">
+                                    <div class="stat-icon">
+                                        <i class="fas fa-calendar-day"></i>
+                                    </div>
+                                    <div class="stat-info">
+                                        <span class="stat-value" id="daysTaken">0</span>
+                                        <span class="stat-label">Días tomados</span>
+                                    </div>
+                                </div>
+                                <div class="stat-item">
+                                    <div class="stat-icon paid">
+                                        <i class="fas fa-dollar-sign"></i>
+                                    </div>
+                                    <div class="stat-info">
+                                        <span class="stat-value" id="daysPaid">0</span>
+                                        <span class="stat-label">Días pagados</span>
+                                    </div>
+                                </div>
+                                <div class="stat-item">
+                                    <div class="stat-icon total">
+                                        <i class="fas fa-calculator"></i>
+                                    </div>
+                                    <div class="stat-info">
+                                        <span class="stat-value" id="totalDays">0</span>
+                                        <span class="stat-label">Total</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Vista previa de lo que se generará -->
+                    <div class="pdf-preview-notice">
+                        <i class="fas fa-eye"></i>
+                        <p>Se generará una ficha de control oficial con todos los detalles del período seleccionado.</p>
                     </div>
                 </div>
-                
-                <!-- Botones de acción -->
-                <div class="modal-actions">
-                    <button type="button" class="btn-cancel" id="cancelPdfBtn">
-                        <i class="fas fa-times"></i> Cancelar
-                    </button>
-                    <button type="button" class="btn-generate" id="generateSelectedPdfBtn" disabled>
-                        <i class="fas fa-file-pdf"></i> Generar PDF
-                    </button>
-                </div>
+            </div>
+            <!-- Footer con botones mejorados -->
+            <div class="modal-footer">
+                <button type="button" class="btn-modal btn-generate" id="generateSelectedPdfBtn" disabled>
+                    <i class="fas fa-file-pdf"></i> Generar PDF
+                </button>
             </div>
         </div>
     </div>
-    <!-- Scripts -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/sweetalert2/11.0.19/sweetalert2.min.js"></script>
     <script src="../Logica/Vacaciones/Vacaciones.js"></script>
 </body>
 </html>

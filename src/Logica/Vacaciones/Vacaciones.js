@@ -19,6 +19,10 @@ let filteredData = [];
 let departmentId = null;
 let specialDays = [];
 let holyWeekDates = [];
+let searchTimeout;
+let currentSearchResults = [];
+let isGeneratingPDF = false;
+let isClosingModal = false;
 
 // Variables para el calendario
 let calendar;
@@ -138,7 +142,6 @@ function loadUserData() {
         }
         
         departmentId = userData.IdSucuDepa;
-        console.log('Datos de usuario cargados:', userData);
     } catch (error) {
         console.error('Error al cargar datos del usuario:', error);
         Swal.fire({
@@ -275,8 +278,6 @@ async function loadSpecialDays() {
                 description: day.Descripcion
             }));
             
-            console.log('Días especiales cargados:', specialDays);
-            
             // Si el calendario ya está inicializado, actualizarlo
             if (calendar) {
                 calendar.refetchEvents();
@@ -357,8 +358,6 @@ function loadHolyWeekDates() {
         const nextYearDates = getHolyWeekDates(currentYear + 1);
         holyWeekDates = [...holyWeekDates, ...nextYearDates];
     }
-    
-    console.log('Fechas de Semana Santa cargadas:', holyWeekDates);
 }
 // Función para verificar si una fecha es día especial
 function isSpecialDay(date) {
@@ -685,8 +684,6 @@ async function obtenerFechasRegistradas(idPersonal) {
         
         // Transformar los resultados en un array de fechas
         const fechasRegistradas = result.map(row => row.FechaFormateada);
-        
-        console.log('Fechas registradas obtenidas:', fechasRegistradas); // Para depuración
         
         return fechasRegistradas;
     } catch (error) {
@@ -1809,29 +1806,38 @@ function formatDate(dateString) {
     // Formato día/mes/año
     return `${day}/${month}/${year}`;
 }
-
 // Inicializar eventos
 function initEvents() {
     // Búsqueda
-    searchInput.addEventListener('input', filterData);
+    const searchInput = document.getElementById('searchInput');
+    if (searchInput) {
+        searchInput.addEventListener('input', filterData);
+    }
     
     // Paginación
-    prevPageBtn.addEventListener('click', () => {
-        if (currentPage > 1) {
-            currentPage--;
-            renderEmployeesTable();
-            updatePagination();
-        }
-    });
+    const prevPageBtn = document.getElementById('prevPage');
+    const nextPageBtn = document.getElementById('nextPage');
     
-    nextPageBtn.addEventListener('click', () => {
-        const totalPages = Math.ceil(filteredData.length / itemsPerPage);
-        if (currentPage < totalPages) {
-            currentPage++;
-            renderEmployeesTable();
-            updatePagination();
-        }
-    });
+    if (prevPageBtn) {
+        prevPageBtn.addEventListener('click', () => {
+            if (currentPage > 1) {
+                currentPage--;
+                renderEmployeesTable();
+                updatePagination();
+            }
+        });
+    }
+    
+    if (nextPageBtn) {
+        nextPageBtn.addEventListener('click', () => {
+            const totalPages = Math.ceil(filteredData.length / itemsPerPage);
+            if (currentPage < totalPages) {
+                currentPage++;
+                renderEmployeesTable();
+                updatePagination();
+            }
+        });
+    }
     
     // Agregar evento de ordenación a los encabezados
     document.querySelectorAll('th.sortable').forEach(th => {
@@ -1842,45 +1848,104 @@ function initEvents() {
     });
     
     // Botón de actualizar
-    refreshBtn.addEventListener('click', async () => {
-        const loadingSwal = mostrarCargando('Actualizando datos...');
-        try {
-            await loadEmployees();
-            Swal.fire({
-                icon: 'success',
-                title: 'Datos actualizados',
-                timer: 1500,
-                showConfirmButton: false
-            });
-        } catch (error) {
-            Swal.fire({
-                icon: 'error',
-                title: 'Error al actualizar',
-                text: 'No se pudieron actualizar los datos. Intente nuevamente.',
-                confirmButtonColor: '#FF9800'
-            });
-        } finally {
-            loadingSwal.close();
-        }
-    });
+    const refreshBtn = document.getElementById('refreshBtn');
+    if (refreshBtn) {
+        refreshBtn.addEventListener('click', async () => {
+            const loadingSwal = mostrarCargando('Actualizando datos...');
+            try {
+                await loadEmployees();
+                Swal.fire({
+                    icon: 'success',
+                    title: 'Datos actualizados',
+                    timer: 1500,
+                    showConfirmButton: false
+                });
+            } catch (error) {
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Error al actualizar',
+                    text: 'No se pudieron actualizar los datos. Intente nuevamente.',
+                    confirmButtonColor: '#FF9800'
+                });
+            } finally {
+                loadingSwal.close();
+            }
+        });
+    }
     
     // Botón de exportar
-    exportBtn.addEventListener('click', exportToExcel);
+    const exportBtn = document.getElementById('exportBtn');
+    if (exportBtn) {
+        exportBtn.addEventListener('click', exportToExcel);
+    }
     
     // Cerrar modales
     document.querySelectorAll('.close-modal').forEach(btn => {
         btn.addEventListener('click', () => {
-            vacationModal.classList.remove('show');
-            infoModal.classList.remove('show');
-            setTimeout(() => {
-                vacationModal.style.display = 'none';
-                infoModal.style.display = 'none';
-            }, 300);
+            isClosingModal = true;
+            const vacationModal = document.getElementById('vacationModal');
+            const infoModal = document.getElementById('infoModal');
+            const pdfGeneratorModal = document.getElementById('pdfGeneratorModal');
+            
+            if (vacationModal) {
+                vacationModal.classList.remove('show');
+                setTimeout(() => {
+                    vacationModal.style.display = 'none';
+                    isClosingModal = false;
+                }, 300);
+            }
+            if (infoModal) {
+                infoModal.classList.remove('show');
+                setTimeout(() => {
+                    infoModal.style.display = 'none';
+                    isClosingModal = false;
+                }, 300);
+            }
+            if (pdfGeneratorModal) {
+                pdfGeneratorModal.classList.remove('show');
+                setTimeout(() => {
+                    pdfGeneratorModal.style.display = 'none';
+                    isClosingModal = false;
+                }, 300);
+            }
         });
     });
-    
+
+    // También actualizar cuando se hace clic fuera del modal:
+    window.addEventListener('click', (event) => {
+        isClosingModal = true;
+        const vacationModal = document.getElementById('vacationModal');
+        const infoModal = document.getElementById('infoModal');
+        const pdfGeneratorModal = document.getElementById('pdfGeneratorModal');
+        
+        if (event.target === vacationModal) {
+            vacationModal.classList.remove('show');
+            setTimeout(() => {
+                vacationModal.style.display = 'none';
+                isClosingModal = false;
+            }, 300);
+        }
+        if (event.target === infoModal) {
+            infoModal.classList.remove('show');
+            setTimeout(() => {
+                infoModal.style.display = 'none';
+                isClosingModal = false;
+            }, 300);
+        }
+        if (event.target === pdfGeneratorModal) {
+            pdfGeneratorModal.classList.remove('show');
+            setTimeout(() => {
+                pdfGeneratorModal.style.display = 'none';
+                isClosingModal = false;
+            }, 300);
+        }
+    });
     // Cerrar modales al hacer clic fuera de ellos
     window.addEventListener('click', (event) => {
+        const vacationModal = document.getElementById('vacationModal');
+        const infoModal = document.getElementById('infoModal');
+        const pdfGeneratorModal = document.getElementById('pdfGeneratorModal');
+        
         if (event.target === vacationModal) {
             vacationModal.classList.remove('show');
             setTimeout(() => {
@@ -1893,44 +1958,87 @@ function initEvents() {
                 infoModal.style.display = 'none';
             }, 300);
         }
+        if (event.target === pdfGeneratorModal) {
+            pdfGeneratorModal.classList.remove('show');
+            setTimeout(() => {
+                pdfGeneratorModal.style.display = 'none';
+            }, 300);
+        }
     });
     
     // Formulario de solicitud de vacaciones
     const vacationForm = document.getElementById('vacationForm');
-    vacationForm.addEventListener('submit', guardarSolicitudVacaciones);
+    if (vacationForm) {
+        vacationForm.addEventListener('submit', guardarSolicitudVacaciones);
+    }
     
     // También actualizar el botón de enviar solicitud
-    document.getElementById('submitVacationBtn').addEventListener('click', function(e) {
-        e.preventDefault();
-        vacationForm.dispatchEvent(new Event('submit'));
-    });
-    
-    // Botón solicitar vacaciones desde modal de información
-    if (document.getElementById('infoRequestVacationBtn')) {
-        document.getElementById('infoRequestVacationBtn').addEventListener('click', () => {
-            const employeeId = document.getElementById('infoEmployeeId').textContent;
-            infoModal.classList.remove('show');
-            setTimeout(() => {
-                infoModal.style.display = 'none';
-                openVacationModal(parseInt(employeeId));
-            }, 300);
+    const submitVacationBtn = document.getElementById('submitVacationBtn');
+    if (submitVacationBtn) {
+        submitVacationBtn.addEventListener('click', function(e) {
+            e.preventDefault();
+            const form = document.getElementById('vacationForm');
+            if (form) {
+                form.dispatchEvent(new Event('submit'));
+            }
         });
     }
+    
+    // Botón solicitar vacaciones desde modal de información
+    const infoRequestVacationBtn = document.getElementById('infoRequestVacationBtn');
+    if (infoRequestVacationBtn) {
+        infoRequestVacationBtn.addEventListener('click', () => {
+            const employeeIdEl = document.getElementById('infoEmployeeId');
+            if (employeeIdEl) {
+                const employeeId = employeeIdEl.textContent;
+                const infoModal = document.getElementById('infoModal');
+                if (infoModal) {
+                    infoModal.classList.remove('show');
+                    setTimeout(() => {
+                        infoModal.style.display = 'none';
+                        openVacationModal(parseInt(employeeId));
+                    }, 300);
+                }
+            }
+        });
+    }
+    
+    // Botón generar PDF
+    const generatePdfBtn = document.getElementById('generatePdfBtn');
+    if (generatePdfBtn) {
+        generatePdfBtn.addEventListener('click', openPdfGeneratorModal);
+    }
+    const generateSelectedPdfBtn = document.getElementById('generateSelectedPdfBtn');
+    if (generateSelectedPdfBtn) {
+        generateSelectedPdfBtn.addEventListener('click', generateSelectedPdf);
+    }
+    // NO inicializar estos eventos aquí porque aún no existen
+    // Se inicializarán cuando el modal se abra
     
     // Teclas de atajo
     document.addEventListener('keydown', (e) => {
         // Escape para cerrar modales
         if (e.key === 'Escape') {
-            if (vacationModal.classList.contains('show')) {
+            const vacationModal = document.getElementById('vacationModal');
+            const infoModal = document.getElementById('infoModal');
+            const pdfGeneratorModal = document.getElementById('pdfGeneratorModal');
+            
+            if (vacationModal && vacationModal.classList.contains('show')) {
                 vacationModal.classList.remove('show');
                 setTimeout(() => {
                     vacationModal.style.display = 'none';
                 }, 300);
             }
-            if (infoModal.classList.contains('show')) {
+            if (infoModal && infoModal.classList.contains('show')) {
                 infoModal.classList.remove('show');
                 setTimeout(() => {
                     infoModal.style.display = 'none';
+                }, 300);
+            }
+            if (pdfGeneratorModal && pdfGeneratorModal.classList.contains('show')) {
+                pdfGeneratorModal.classList.remove('show');
+                setTimeout(() => {
+                    pdfGeneratorModal.style.display = 'none';
                 }, 300);
             }
         }
@@ -1938,34 +2046,11 @@ function initEvents() {
         // Ctrl+F para enfocar la búsqueda
         if (e.ctrlKey && e.key === 'f') {
             e.preventDefault();
-            searchInput.focus();
+            const searchInput = document.getElementById('searchInput');
+            if (searchInput) {
+                searchInput.focus();
+            }
         }
-    });
-    generatePdfBtn.addEventListener('click', openPdfGeneratorModal);
-    
-    // Selección de empleado
-    document.getElementById('pdfEmployeeSelect').addEventListener('change', handleEmployeeSelection);
-    
-    // Selección de período
-    document.getElementById('pdfPeriodSelect').addEventListener('change', handlePeriodSelection);
-    
-    // Botón para generar PDF seleccionado
-    document.getElementById('generateSelectedPdfBtn').addEventListener('click', generateSelectedPdf);
-    
-    // Botón cancelar
-    document.getElementById('cancelPdfBtn').addEventListener('click', () => {
-        pdfGeneratorModal.classList.remove('show');
-        setTimeout(() => {
-            pdfGeneratorModal.style.display = 'none';
-        }, 300);
-    });
-    
-    // Cerrar modal con X
-    pdfGeneratorModal.querySelector('.close-modal').addEventListener('click', () => {
-        pdfGeneratorModal.classList.remove('show');
-        setTimeout(() => {
-            pdfGeneratorModal.style.display = 'none';
-        }, 300);
     });
 }
 
@@ -2164,10 +2249,6 @@ async function verificarPeriodoCompleto(empleado, periodo) {
 }
 // Función para obtener los detalles del período para el PDF
 async function obtenerDetallesPeriodo(empleado, periodo) {
-    console.log('=== INICIO obtenerDetallesPeriodo ===');
-    console.log('Empleado:', empleado);
-    console.log('Período:', periodo);
-    
     try {
         const connection = await connectionString();
         
@@ -2228,9 +2309,9 @@ async function obtenerDetallesPeriodo(empleado, periodo) {
     }
 }
 // Función para generar el PDF del período completado
-// Función para generar el PDF del período completado
 async function generarPDFPeriodoCompleto(empleado, periodo) {
     try {
+        isGeneratingPDF = true;
         // Obtener los detalles necesarios
         const detalles = await obtenerDetallesPeriodo(empleado, periodo);
         
@@ -2393,7 +2474,13 @@ async function generarPDFPeriodoCompleto(empleado, periodo) {
         
         // Guardar el PDF
         const fileName = `Periodo_Completo_${nombreCompleto.replace(/\s+/g, '_')}_${periodo.replace(/\s+/g, '_')}.pdf`;
-        doc.save(fileName);
+        setTimeout(() => {
+            doc.save(fileName);
+            // Resetear la variable después de guardar
+            setTimeout(() => {
+                isGeneratingPDF = false;
+            }, 500);
+        }, 100);
         
         return true;
         
@@ -2473,39 +2560,304 @@ async function obtenerPeriodosCompletados(empleado) {
 
 // Abrir modal de generador de PDF
 function openPdfGeneratorModal() {
-    // Limpiar selecciones previas
-    document.getElementById('pdfEmployeeSelect').value = '';
-    document.getElementById('pdfPeriodSelect').value = '';
-    document.getElementById('pdfPeriodSelect').disabled = true;
-    document.getElementById('generateSelectedPdfBtn').disabled = true;
-    document.getElementById('periodInfo').style.display = 'none';
+    // Verificar que el modal existe
+    const modal = document.getElementById('pdfGeneratorModal');
+    if (!modal) {
+        console.error('No se encontró el modal de PDF');
+        return;
+    }
     
-    // Llenar la lista de colaboradores
-    const employeeSelect = document.getElementById('pdfEmployeeSelect');
-    employeeSelect.innerHTML = '<option value="">-- Seleccione un colaborador --</option>';
+    // Limpiar todo
+    const searchInput = document.getElementById('pdfEmployeeSearch');
+    const selectedEmployeeId = document.getElementById('selectedEmployeeId');
+    const searchResults = document.getElementById('searchResults');
+    const selectedEmployeeDisplay = document.getElementById('selectedEmployeeDisplay');
+    const periodSelect = document.getElementById('pdfPeriodSelect');
+    const generateBtn = document.getElementById('generateSelectedPdfBtn');
+    const periodInfo = document.getElementById('periodInfo');
     
-    employeesData.forEach(employee => {
-        const option = document.createElement('option');
-        option.value = employee.IdPersonal;
-        option.textContent = getFullName(employee);
-        // No permitir seleccionar al usuario actual
-        if (employee.IdPersonal === userData.IdPersonal) {
-            option.disabled = true;
-            option.textContent += ' (Usted)';
-        }
-        employeeSelect.appendChild(option);
-    });
+    if (searchInput) searchInput.value = '';
+    if (selectedEmployeeId) selectedEmployeeId.value = '';
+    if (searchResults) searchResults.style.display = 'none';
+    if (selectedEmployeeDisplay) selectedEmployeeDisplay.style.display = 'none';
+    if (periodSelect) {
+        periodSelect.addEventListener('change', handlePeriodSelection);
+    }
+    if (generateBtn) generateBtn.disabled = true;
+    if (periodInfo) periodInfo.style.display = 'none';
+    const generatePdfBtn = document.getElementById('generateSelectedPdfBtn');
+    if (generatePdfBtn) {
+        // Remover eventos anteriores para evitar duplicados
+        const newBtn = generatePdfBtn.cloneNode(true);
+        generatePdfBtn.parentNode.replaceChild(newBtn, generatePdfBtn);
+        
+        // Agregar el evento click
+        newBtn.addEventListener('click', generateSelectedPdf);
+    }
+    // Inicializar eventos del buscador
+    initializeSearchEvents();
     
     // Mostrar el modal
-    pdfGeneratorModal.style.display = 'block';
+    modal.style.display = 'block';
     setTimeout(() => {
-        pdfGeneratorModal.classList.add('show');
+        modal.classList.add('show');
     }, 10);
+    
 }
-
+// Inicializar eventos del buscador
+function initializeSearchEvents() {
+    const searchInput = document.getElementById('pdfEmployeeSearch');
+    const clearBtn = document.querySelector('.clear-search');
+    const changeBtn = document.querySelector('.change-selection');
+    
+    if (!searchInput) return;
+    
+    // Remover eventos anteriores para evitar duplicados
+    const newSearchInput = searchInput.cloneNode(true);
+    searchInput.parentNode.replaceChild(newSearchInput, searchInput);
+    
+    // Evento de búsqueda mientras escribe
+    newSearchInput.addEventListener('input', function(e) {
+        const query = e.target.value.trim();
+        
+        if (clearBtn) {
+            clearBtn.style.display = query ? 'block' : 'none';
+        }
+        
+        clearTimeout(searchTimeout);
+        
+        if (query.length >= 2) {
+            searchTimeout = setTimeout(() => {
+                searchEmployees(query);
+            }, 300);
+        } else {
+            const results = document.getElementById('searchResults');
+            if (results) results.style.display = 'none';
+        }
+    });
+    
+    // Limpiar búsqueda
+    if (clearBtn) {
+        const newClearBtn = clearBtn.cloneNode(true);
+        clearBtn.parentNode.replaceChild(newClearBtn, clearBtn);
+        
+        newClearBtn.addEventListener('click', function() {
+            const searchInputEl = document.getElementById('pdfEmployeeSearch');
+            if (searchInputEl) {
+                searchInputEl.value = '';
+                this.style.display = 'none';
+                const results = document.getElementById('searchResults');
+                if (results) results.style.display = 'none';
+                searchInputEl.focus();
+            }
+        });
+    }
+    
+    // Cambiar selección
+    if (changeBtn) {
+        const newChangeBtn = changeBtn.cloneNode(true);
+        changeBtn.parentNode.replaceChild(newChangeBtn, changeBtn);
+        
+        newChangeBtn.addEventListener('click', function() {
+            const selectedDisplay = document.getElementById('selectedEmployeeDisplay');
+            const selectedId = document.getElementById('selectedEmployeeId');
+            const searchInputEl = document.getElementById('pdfEmployeeSearch');
+            const periodSelect = document.getElementById('pdfPeriodSelect');
+            const periodInfo = document.getElementById('periodInfo');
+            const generateBtn = document.getElementById('generateSelectedPdfBtn');
+            
+            if (selectedDisplay) selectedDisplay.style.display = 'none';
+            if (selectedId) selectedId.value = '';
+            if (searchInputEl) {
+                searchInputEl.value = '';
+                searchInputEl.focus();
+            }
+            
+            if (periodSelect) {
+                periodSelect.value = '';
+                periodSelect.disabled = true;
+            }
+            if (periodInfo) periodInfo.style.display = 'none';
+            if (generateBtn) generateBtn.disabled = true;
+        });
+    }
+    
+    // Navegación con teclado
+    const searchInputForKeyboard = document.getElementById('pdfEmployeeSearch');
+    if (searchInputForKeyboard) {
+        searchInputForKeyboard.addEventListener('keydown', function(e) {
+            const results = document.querySelectorAll('.search-result-item');
+            const current = document.querySelector('.search-result-item.selected');
+            let index = -1;
+            
+            if (current) {
+                index = Array.from(results).indexOf(current);
+            }
+            
+            if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                if (index < results.length - 1) {
+                    if (current) current.classList.remove('selected');
+                    results[index + 1].classList.add('selected');
+                    results[index + 1].scrollIntoView({ block: 'nearest' });
+                }
+            } else if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                if (index > 0) {
+                    if (current) current.classList.remove('selected');
+                    results[index - 1].classList.add('selected');
+                    results[index - 1].scrollIntoView({ block: 'nearest' });
+                }
+            } else if (e.key === 'Enter') {
+                e.preventDefault();
+                if (current) {
+                    const currentEmployeeId = parseInt(current.dataset.id);
+                    selectEmployee(currentEmployeeId);
+                }
+            }
+        });
+    }
+}
+function searchEmployees(query) {
+    const resultsContainer = document.getElementById('searchResults');
+    
+    // Mostrar estado de carga
+    resultsContainer.innerHTML = `
+        <div class="search-loading">
+            <div class="spinner"></div>
+            <p>Buscando...</p>
+        </div>
+    `;
+    resultsContainer.style.display = 'block';
+    
+    // Filtrar empleados
+    const searchLower = query.toLowerCase();
+    currentSearchResults = employeesData.filter(employee => {
+        // No incluir al usuario actual
+        if (employee.IdPersonal === userData.IdPersonal) return false;
+        
+        const fullName = getFullName(employee).toLowerCase();
+        const position = (employee.Nombre || '').toLowerCase();
+        const dpi = (employee.DPI || '').toLowerCase();
+        
+        return fullName.includes(searchLower) || 
+               position.includes(searchLower) || 
+               dpi.includes(searchLower);
+    });
+    
+    // Ordenar resultados por relevancia
+    currentSearchResults.sort((a, b) => {
+        const aName = getFullName(a).toLowerCase();
+        const bName = getFullName(b).toLowerCase();
+        
+        // Priorizar coincidencias al inicio del nombre
+        if (aName.startsWith(searchLower) && !bName.startsWith(searchLower)) return -1;
+        if (!aName.startsWith(searchLower) && bName.startsWith(searchLower)) return 1;
+        
+        return aName.localeCompare(bName);
+    });
+    
+    // Mostrar resultados
+    displaySearchResults(currentSearchResults, query);
+}
+function displaySearchResults(results, query) {
+    const resultsContainer = document.getElementById('searchResults');
+    
+    if (results.length === 0) {
+        resultsContainer.innerHTML = `
+            <div class="no-results">
+                <i class="fas fa-search"></i>
+                <p>No se encontraron colaboradores</p>
+            </div>
+        `;
+        return;
+    }
+    
+    // Generar HTML de resultados
+    const resultsHTML = results.slice(0, 10).map(employee => {
+        const fullName = getFullName(employee);
+        const position = employee.Nombre || 'Sin puesto';
+        const photoSrc = employee.FotoBase64 || '../Imagenes/user-default.png';
+        
+        // Destacar coincidencias
+        const highlightedName = highlightMatch(fullName, query);
+        const highlightedPosition = highlightMatch(position, query);
+        
+        return `
+            <div class="search-result-item" data-id="${employee.IdPersonal}">
+                <img src="${photoSrc}" alt="${fullName}" class="result-photo">
+                <div class="result-info">
+                    <div class="result-name">${highlightedName}</div>
+                    <div class="result-position">${highlightedPosition}</div>
+                </div>
+            </div>
+        `;
+    }).join('');
+    
+    resultsContainer.innerHTML = resultsHTML;
+    
+    // Agregar eventos a los resultados
+    document.querySelectorAll('.search-result-item').forEach(item => {
+        item.addEventListener('click', function() {
+            const itemEmployeeId = parseInt(this.dataset.id);
+            selectEmployee(itemEmployeeId);
+        });
+    });
+}
+function highlightMatch(text, query) {
+    const regex = new RegExp(`(${query})`, 'gi');
+    return text.replace(regex, '<span class="highlight">$1</span>');
+}
+function selectEmployee(selectedEmployeeId) {
+    const employee = employeesData.find(emp => emp.IdPersonal === selectedEmployeeId);
+    if (!employee) return;
+    
+    // Guardar ID seleccionado
+    const hiddenInput = document.getElementById('selectedEmployeeId');
+    if (hiddenInput) {
+        hiddenInput.value = selectedEmployeeId;
+    }
+    
+    // Mostrar empleado seleccionado
+    const selectedDisplay = document.getElementById('selectedEmployeeDisplay');
+    if (selectedDisplay) {
+        const photoSrc = employee.FotoBase64 || '../Imagenes/user-default.png';
+        
+        const photoElement = selectedDisplay.querySelector('.selected-employee-photo');
+        const nameElement = selectedDisplay.querySelector('.selected-employee-name');
+        const positionElement = selectedDisplay.querySelector('.selected-employee-position');
+        
+        if (photoElement) photoElement.src = photoSrc;
+        if (nameElement) nameElement.textContent = getFullName(employee);
+        if (positionElement) positionElement.textContent = employee.Nombre || 'Sin puesto';
+        
+        selectedDisplay.style.display = 'flex';
+    }
+    
+    // Ocultar resultados de búsqueda
+    const searchResults = document.getElementById('searchResults');
+    if (searchResults) searchResults.style.display = 'none';
+    
+    const searchInput = document.getElementById('pdfEmployeeSearch');
+    if (searchInput) searchInput.value = '';
+    
+    const clearBtn = document.querySelector('.clear-search');
+    if (clearBtn) clearBtn.style.display = 'none';
+    
+    // Cargar períodos del empleado seleccionado
+    handleEmployeeSelection(selectedEmployeeId);
+}
 // Manejar cambio de empleado seleccionado
-async function handleEmployeeSelection() {
-    const employeeId = parseInt(document.getElementById('pdfEmployeeSelect').value);
+async function handleEmployeeSelection(employeeIdParam = null) {
+    // Usar un nombre diferente para el parámetro
+    let employeeId;
+    
+    if (employeeIdParam !== null) {
+        employeeId = employeeIdParam;
+    } else {
+        employeeId = parseInt(document.getElementById('selectedEmployeeId').value);
+    }
+    
     const periodSelect = document.getElementById('pdfPeriodSelect');
     
     if (!employeeId) {
@@ -2516,41 +2868,76 @@ async function handleEmployeeSelection() {
         return;
     }
     
-    // Mostrar indicador de carga
-    const loadingSwal = mostrarCargando('Buscando períodos completados...');
+    // Mostrar indicador de carga más visual
+    const loadingSwal = Swal.fire({
+        title: 'Cargando períodos...',
+        html: `
+            <div class="loading-animation">
+                <div class="spinner"></div>
+                <p>Buscando períodos completados</p>
+            </div>
+        `,
+        showConfirmButton: false,
+        allowOutsideClick: false,
+        customClass: {
+            popup: 'loading-popup'
+        }
+    });
     
     try {
         const employee = employeesData.find(emp => emp.IdPersonal === employeeId);
         
-        // Obtener períodos completados
+        if (!employee) {
+            throw new Error('Empleado no encontrado');
+        }
+        
+        // Simular una pequeña demora para mejorar la UX
+        await new Promise(resolve => setTimeout(resolve, 500));
+        
         const periodosCompletados = await obtenerPeriodosCompletados(employee);
         
         loadingSwal.close();
         
         if (periodosCompletados.length === 0) {
-            periodSelect.innerHTML = '<option value="">No hay períodos completados</option>';
+            periodSelect.innerHTML = '<option value="">❌ No hay períodos completados</option>';
             periodSelect.disabled = true;
-            document.getElementById('generateSelectedPdfBtn').disabled = true;
             
             Swal.fire({
                 icon: 'info',
                 title: 'Sin períodos completados',
-                text: 'Este colaborador no tiene períodos de 15 días completados.',
+                html: `
+                    <p>${getFullName(employee)} no tiene períodos de 15 días completados.</p>
+                    <p class="text-muted">Los períodos se completan automáticamente cuando se utilizan los 15 días disponibles.</p>
+                `,
                 confirmButtonColor: '#FF9800'
             });
             return;
         }
         
-        // Habilitar selección de período
+        // Habilitar selección con animación
         periodSelect.disabled = false;
+        if (periodSelect.parentElement) {
+            const arrow = periodSelect.parentElement.querySelector('.select-arrow');
+            if (arrow) arrow.classList.remove('disabled');
+        }
+        
         periodSelect.innerHTML = '<option value="">-- Seleccione un período --</option>';
         
+        // Agregar opciones con mejor formato
         periodosCompletados.forEach((periodo, index) => {
             const option = document.createElement('option');
             option.value = JSON.stringify(periodo);
-            option.textContent = formatPeriodoUsuario(periodo.periodo);
+            option.innerHTML = `
+                ${formatPeriodoUsuario(periodo.periodo)} 
+                (${periodo.diasTomados} tomados + ${periodo.diasPagados} pagados)
+            `;
             periodSelect.appendChild(option);
         });
+        
+        // Animar la aparición del select
+        if (periodSelect.parentElement) {
+            periodSelect.parentElement.style.animation = 'fadeIn 0.3s ease-out';
+        }
         
     } catch (error) {
         console.error('Error al cargar períodos:', error);
@@ -2567,36 +2954,81 @@ async function handleEmployeeSelection() {
 // Manejar cambio de período seleccionado
 function handlePeriodSelection() {
     const periodValue = document.getElementById('pdfPeriodSelect').value;
+    const periodInfoDiv = document.getElementById('periodInfo');
+    const generateBtn = document.getElementById('generateSelectedPdfBtn');
     
-    if (!periodValue) {
-        document.getElementById('periodInfo').style.display = 'none';
-        document.getElementById('generateSelectedPdfBtn').disabled = true;
+    if (!periodValue || periodValue === '') {
+        // Ocultar información y deshabilitar botón
+        if (periodInfoDiv) {
+            periodInfoDiv.style.animation = 'slideOut 0.3s ease-out';
+            setTimeout(() => {
+                periodInfoDiv.style.display = 'none';
+            }, 300);
+        }
+        if (generateBtn) {
+            generateBtn.disabled = true;
+        }
         return;
     }
     
     try {
         const periodoInfo = JSON.parse(periodValue);
         
-        // Mostrar información del período
-        document.getElementById('selectedPeriod').textContent = formatPeriodoUsuario(periodoInfo.periodo);
-        document.getElementById('daysTaken').textContent = periodoInfo.diasTomados;
-        document.getElementById('daysPaid').textContent = periodoInfo.diasPagados;
-        document.getElementById('totalDays').textContent = periodoInfo.totalDias;
+        // Actualizar valores con animación
+        const selectedPeriodEl = document.getElementById('selectedPeriod');
+        if (selectedPeriodEl) {
+            selectedPeriodEl.textContent = formatPeriodoUsuario(periodoInfo.periodo);
+        }
         
-        document.getElementById('periodInfo').style.display = 'block';
-        document.getElementById('generateSelectedPdfBtn').disabled = false;
+        // Animar los números
+        animateValue('daysTaken', 0, periodoInfo.diasTomados, 500);
+        animateValue('daysPaid', 0, periodoInfo.diasPagados, 500);
+        animateValue('totalDays', 0, periodoInfo.totalDias, 500);
+        
+        // Mostrar con animación
+        if (periodInfoDiv) {
+            periodInfoDiv.style.display = 'block';
+            periodInfoDiv.style.animation = 'slideIn 0.3s ease-out';
+        }
+        
+        // IMPORTANTE: Habilitar el botón de generar PDF
+        if (generateBtn) {
+            generateBtn.disabled = false;
+            generateBtn.classList.add('pulse');
+            setTimeout(() => generateBtn.classList.remove('pulse'), 1000);
+        }
         
     } catch (error) {
         console.error('Error al procesar período:', error);
+        if (generateBtn) {
+            generateBtn.disabled = true;
+        }
     }
 }
-
-// Generar PDF del período seleccionado
+function animateValue(id, start, end, duration) {
+    const obj = document.getElementById(id);
+    let startTimestamp = null;
+    const step = (timestamp) => {
+        if (!startTimestamp) startTimestamp = timestamp;
+        const progress = Math.min((timestamp - startTimestamp) / duration, 1);
+        obj.innerHTML = Math.floor(progress * (end - start) + start);
+        if (progress < 1) {
+            window.requestAnimationFrame(step);
+        }
+    };
+    window.requestAnimationFrame(step);
+}
+// Función para generar el PDF del período seleccionado
 async function generateSelectedPdf() {
-    const employeeId = parseInt(document.getElementById('pdfEmployeeSelect').value);
+    
+    // Marcar que estamos generando un PDF
+    isGeneratingPDF = true;
+    
+    const employeeId = parseInt(document.getElementById('selectedEmployeeId').value);
     const periodValue = document.getElementById('pdfPeriodSelect').value;
     
     if (!employeeId || !periodValue) {
+        isGeneratingPDF = false;
         Swal.fire({
             icon: 'warning',
             title: 'Selección incompleta',
@@ -2608,46 +3040,111 @@ async function generateSelectedPdf() {
     
     try {
         const employee = employeesData.find(emp => emp.IdPersonal === employeeId);
+        if (!employee) {
+            isGeneratingPDF = false;
+            throw new Error('Empleado no encontrado');
+        }
+        
         const periodoInfo = JSON.parse(periodValue);
         
-        // Cerrar el modal
-        pdfGeneratorModal.classList.remove('show');
-        setTimeout(() => {
-            pdfGeneratorModal.style.display = 'none';
-        }, 300);
+        // Cerrar el modal antes de generar el PDF
+        isClosingModal = true;
+        const pdfGeneratorModal = document.getElementById('pdfGeneratorModal');
+        if (pdfGeneratorModal) {
+            pdfGeneratorModal.classList.remove('show');
+            setTimeout(() => {
+                pdfGeneratorModal.style.display = 'none';
+                isClosingModal = false;
+            }, 300);
+        }
         
-        // Mostrar indicador de carga
         const loadingSwal = mostrarCargando('Generando PDF...');
         
-        // Generar el PDF
-        await generarPDFPeriodoCompleto(employee, periodoInfo.periodo);
-        
-        loadingSwal.close();
-        
-        Swal.fire({
-            icon: 'success',
-            title: 'PDF Generado',
-            text: 'El PDF del período completado se ha generado correctamente.',
-            confirmButtonColor: '#4CAF50'
-        });
+        try {
+            // Generar el PDF
+            await generarPDFPeriodoCompleto(employee, periodoInfo.periodo);
+            
+            loadingSwal.close();
+            
+            // Resetear la variable después de un pequeño delay
+            setTimeout(() => {
+                isGeneratingPDF = false;
+            }, 1000);
+            
+            Swal.fire({
+                icon: 'success',
+                title: 'PDF Generado',
+                text: 'La ficha de control se ha generado correctamente.',
+                confirmButtonColor: '#4CAF50',
+                timer: 3000,
+                timerProgressBar: true
+            });
+            
+        } catch (pdfError) {
+            console.error('Error al generar PDF:', pdfError);
+            loadingSwal.close();
+            isGeneratingPDF = false;
+            
+            Swal.fire({
+                icon: 'error',
+                title: 'Error al generar PDF',
+                text: 'No se pudo generar el PDF. Por favor intente nuevamente.',
+                confirmButtonColor: '#FF9800'
+            });
+        }
         
     } catch (error) {
-        console.error('Error al generar PDF:', error);
+        console.error('Error en generateSelectedPdf:', error);
+        isGeneratingPDF = false;
+        isClosingModal = false;
         Swal.fire({
             icon: 'error',
             title: 'Error',
-            text: 'No se pudo generar el PDF. Por favor intente nuevamente.',
+            text: 'Ocurrió un error al procesar la solicitud.',
             confirmButtonColor: '#FF9800'
         });
     }
 }
+document.getElementById('pdfEmployeeSearch').addEventListener('keydown', function(e) {
+    const results = document.querySelectorAll('.search-result-item');
+    const current = document.querySelector('.search-result-item.selected');
+    let index = -1;
+    
+    if (current) {
+        index = Array.from(results).indexOf(current);
+    }
+    
+    if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        if (index < results.length - 1) {
+            if (current) current.classList.remove('selected');
+            results[index + 1].classList.add('selected');
+            results[index + 1].scrollIntoView({ block: 'nearest' });
+        }
+    } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        if (index > 0) {
+            if (current) current.classList.remove('selected');
+            results[index - 1].classList.add('selected');
+            results[index - 1].scrollIntoView({ block: 'nearest' });
+        }
+    } else if (e.key === 'Enter') {
+        e.preventDefault();
+        if (current) {
+            const employeeId = parseInt(current.dataset.id);
+            selectEmployee(employeeId);
+        }
+    }
+});
 // Agregar funciones al contexto global para poder llamarlas desde HTML
 window.openVacationModal = openVacationModal;
 window.openInfoModal = openInfoModal;
 
 // Detectar cierre de la aplicación
 window.addEventListener('beforeunload', function(e) {
-    // Aquí se podrían realizar operaciones de limpieza si fuera necesario
+    if (isGeneratingPDF || isClosingModal) {
+        return;
+    }
 });
 
 // Iniciar la aplicación cuando el DOM esté cargado

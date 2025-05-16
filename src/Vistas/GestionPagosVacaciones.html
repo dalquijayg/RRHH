@@ -1,0 +1,494 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Proceso de Pago de Vacaciones - Recursos Humanos</title>
+    <link rel="stylesheet" href="../Disenos/Vacaciones/GestionPagosVacaciones.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+</head>
+<body>
+    <!-- Encabezado con logos y título -->
+    <header class="header">
+        <div class="header-center">
+            <h1 class="page-title">Proceso de Pago de Vacaciones</h1>
+            <div class="color-strip">
+                <div class="color-strip-item color-red"></div>
+                <div class="color-strip-item color-blue"></div>
+                <div class="color-strip-item color-green"></div>
+                <div class="color-strip-item color-yellow"></div>
+                <div class="color-strip-item color-orange"></div>
+            </div>
+        </div>
+        <div class="header-right">
+            <img src="../Imagenes/Logo Recursos Humanos new.png" alt="RRHH Logo" class="rrhh-logo">
+        </div>
+    </header>
+
+    <!-- Contenido principal -->
+    <main class="content">
+        <!-- Pestañas de proceso -->
+        <div class="tabs-container">
+            <div class="tabs">
+                <button class="tab-btn active" data-tab="pendientes">
+                    <i class="fas fa-clock"></i> Pagos por Autorizar
+                    <span class="tab-counter" id="countPendientes">0</span>
+                </button>
+                <button class="tab-btn" data-tab="tramite">
+                    <i class="fas fa-tasks"></i> Pagos en Trámite
+                    <span class="tab-counter" id="countTramite">0</span>
+                </button>
+                <button class="tab-btn" data-tab="cobrar">
+                    <i class="fas fa-hand-holding-usd"></i> Pendientes por Cobrar
+                    <span class="tab-counter" id="countCobrar">0</span>
+                </button>
+                <button class="tab-btn" data-tab="reportes">
+                    <i class="fas fa-chart-bar"></i> Reportes
+                </button>
+            </div>
+
+            <!-- Contenido de Pagos por Autorizar -->
+            <div class="tab-content active" id="pendientes-tab">
+                <div class="control-panel compact">
+                    <div class="control-row">
+                        <!-- Selector de departamento compacto -->
+                        <div class="department-selector-compact">
+                            <div class="selector-icon">
+                                <i class="fas fa-building"></i>
+                            </div>
+                            <label class="selector-label">Departamento:</label>
+                            <select id="departmentSelector" class="department-select-compact">
+                                <option value="">-- Todos los departamentos --</option>
+                            </select>
+                            <button id="searchDepartmentBtn" class="btn-search-compact">
+                                <i class="fas fa-search"></i> Buscar
+                            </button>
+                        </div>
+                        
+                        <!-- Estadísticas rápidas -->
+                        <div class="quick-stats">
+                            <div class="stat-item">
+                                <div class="stat-value" id="pendientesStat">0</div>
+                                <div class="stat-label">solicitudes</div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Barra de búsqueda -->
+                    <div class="search-row">
+                        <div class="search-bar-compact">
+                            <i class="fas fa-search"></i>
+                            <input type="text" id="searchInput" placeholder="Buscar por nombre de colaborador...">
+                            <button class="clear-search-btn" id="clearSearchBtn" style="display: none;">
+                                <i class="fas fa-times"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tabla de solicitudes pendientes -->
+                <div class="table-section">
+                    <div class="table-container">
+                        <table id="pendientesTable" class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Fecha Solicitud</th>
+                                    <th>Colaborador</th>
+                                    <th>Departamento</th>
+                                    <th>Período</th>
+                                    <th>Días</th>
+                                    <th>Monto Est.</th>
+                                    <th>Solicitado por</th>
+                                    <th>Tiempo en Estado</th>
+                                    <th>Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <!-- Los datos se cargarán dinámicamente -->
+                                <tr>
+                                    <td colspan="9" class="loading-message">
+                                        <div class="empty-state">
+                                            <i class="fas fa-spinner fa-spin"></i>
+                                            <h3>Cargando solicitudes</h3>
+                                            <p>Por favor espere mientras cargamos las solicitudes pendientes...</p>
+                                        </div>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    
+                    <!-- Paginación -->
+                    <div class="pagination">
+                        <button id="prevPagePendientes" class="pagination-btn" disabled>
+                            <i class="fas fa-chevron-left"></i> Anterior
+                        </button>
+                        <div id="pageIndicatorPendientes" class="page-indicator">Página 1 de 1</div>
+                        <button id="nextPagePendientes" class="pagination-btn" disabled>
+                            Siguiente <i class="fas fa-chevron-right"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Contenido de Pagos en Trámite -->
+            <div class="tab-content" id="tramite-tab">
+                <div class="control-panel compact">
+                    <div class="control-row">
+                        <!-- Filtros de trámite -->
+                        <div class="filter-controls">
+                            <label>Filtrar por:</label>
+                            <select id="tramiteFilterOpt" class="filter-select">
+                                <option value="all">Todos</option>
+                                <option value="planilla">Planilla</option>
+                                <option value="dept">Departamento</option>
+                            </select>
+                            <button id="refreshTramiteBtn" class="action-btn refresh-btn" title="Actualizar">
+                                <i class="fas fa-sync-alt"></i>
+                            </button>
+                        </div>
+                        
+                        <!-- Estadísticas rápidas -->
+                        <div class="quick-stats">
+                            <div class="stat-item">
+                                <div class="stat-value" id="tramiteStat">0</div>
+                                <div class="stat-label">solicitudes</div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Barra de búsqueda -->
+                    <div class="search-row">
+                        <div class="search-bar-compact">
+                            <i class="fas fa-search"></i>
+                            <input type="text" id="searchTramiteInput" placeholder="Buscar por nombre de colaborador...">
+                            <button class="clear-search-btn" id="clearTramiteSearchBtn" style="display: none;">
+                                <i class="fas fa-times"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tabla de solicitudes en trámite -->
+                <div class="table-section">
+                    <div class="table-container">
+                        <table id="tramiteTable" class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Fecha Solicitud</th>
+                                    <th>Colaborador</th>
+                                    <th>Departamento</th>
+                                    <th>Período</th>
+                                    <th>Días</th>
+                                    <th>Monto Est.</th>
+                                    <th>Autorizado por</th>
+                                    <th>Tiempo en Estado</th>
+                                    <th>Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <!-- Los datos se cargarán dinámicamente -->
+                                <tr>
+                                    <td colspan="9" class="loading-message">
+                                        <div class="empty-state">
+                                            <i class="fas fa-spinner fa-spin"></i>
+                                            <h3>Cargando solicitudes</h3>
+                                            <p>Por favor espere mientras cargamos las solicitudes en trámite...</p>
+                                        </div>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    
+                    <!-- Paginación -->
+                    <div class="pagination">
+                        <button id="prevPageTramite" class="pagination-btn" disabled>
+                            <i class="fas fa-chevron-left"></i> Anterior
+                        </button>
+                        <div id="pageIndicatorTramite" class="page-indicator">Página 1 de 1</div>
+                        <button id="nextPageTramite" class="pagination-btn" disabled>
+                            Siguiente <i class="fas fa-chevron-right"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Contenido de Pagos Pendientes por Cobrar -->
+            <div class="tab-content" id="cobrar-tab">
+                <div class="control-panel compact">
+                    <div class="control-row">
+                        <!-- Filtros de cobro -->
+                        <div class="filter-controls">
+                            <label>Filtrar por:</label>
+                            <select id="cobrarFilterOpt" class="filter-select">
+                                <option value="all">Todos</option>
+                                <option value="planilla">Planilla</option>
+                                <option value="dept">Departamento</option>
+                            </select>
+                            <button id="refreshCobrarBtn" class="action-btn refresh-btn" title="Actualizar">
+                                <i class="fas fa-sync-alt"></i>
+                            </button>
+                        </div>
+                        
+                        <!-- Estadísticas rápidas -->
+                        <div class="quick-stats">
+                            <div class="stat-item">
+                                <div class="stat-value" id="cobrarStat">0</div>
+                                <div class="stat-label">solicitudes</div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Barra de búsqueda -->
+                    <div class="search-row">
+                        <div class="search-bar-compact">
+                            <i class="fas fa-search"></i>
+                            <input type="text" id="searchCobrarInput" placeholder="Buscar por nombre de colaborador...">
+                            <button class="clear-search-btn" id="clearCobrarSearchBtn" style="display: none;">
+                                <i class="fas fa-times"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tabla de solicitudes pendientes por cobrar -->
+                <div class="table-section">
+                    <div class="table-container">
+                        <table id="cobrarTable" class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Fecha Solicitud</th>
+                                    <th>Colaborador</th>
+                                    <th>Departamento</th>
+                                    <th>Período</th>
+                                    <th>Días</th>
+                                    <th>Monto Final</th>
+                                    <th>Fecha de Pago</th>
+                                    <th>Tiempo Pendiente</th>
+                                    <th>Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <!-- Los datos se cargarán dinámicamente -->
+                                <tr>
+                                    <td colspan="9" class="loading-message">
+                                        <div class="empty-state">
+                                            <i class="fas fa-spinner fa-spin"></i>
+                                            <h3>Cargando solicitudes</h3>
+                                            <p>Por favor espere mientras cargamos las solicitudes por cobrar...</p>
+                                        </div>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    
+                    <!-- Paginación -->
+                    <div class="pagination">
+                        <button id="prevPageCobrar" class="pagination-btn" disabled>
+                            <i class="fas fa-chevron-left"></i> Anterior
+                        </button>
+                        <div id="pageIndicatorCobrar" class="page-indicator">Página 1 de 1</div>
+                        <button id="nextPageCobrar" class="pagination-btn" disabled>
+                            Siguiente <i class="fas fa-chevron-right"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Contenido de Reportes -->
+            <div class="tab-content" id="reportes-tab">
+                <div class="reports-container">
+                    <div class="report-panel">
+                        <div class="panel-header">
+                            <h3><i class="fas fa-chart-bar"></i> Generador de Reportes</h3>
+                            <p>Configure los filtros deseados y genere reportes personalizados</p>
+                        </div>
+                        
+                        <div class="filter-section">
+                            <div class="filter-row">
+                                <div class="filter-group">
+                                    <label for="reportFilterDept">Departamento:</label>
+                                    <select id="reportFilterDept" class="filter-select">
+                                        <option value="">Todos los departamentos</option>
+                                        <!-- Se cargarán dinámicamente -->
+                                    </select>
+                                </div>
+                                
+                                <div class="filter-group">
+                                    <label for="reportFilterStatus">Estado:</label>
+                                    <select id="reportFilterStatus" class="filter-select">
+                                        <option value="">Todos los estados</option>
+                                        <option value="1">Por Autorizar</option>
+                                        <option value="2">En Trámite</option>
+                                        <option value="3">Pendiente de Cobro</option>
+                                        <option value="4">Pagado</option>
+                                        <option value="5">Anulado</option>
+                                    </select>
+                                </div>
+                            </div>
+                            
+                            <div class="filter-row">
+                                <div class="filter-group date-range">
+                                    <label>Rango de fechas:</label>
+                                    <div class="date-inputs">
+                                        <div class="date-field">
+                                            <label for="reportDateFrom">Desde:</label>
+                                            <input type="date" id="reportDateFrom" class="filter-date">
+                                        </div>
+                                        <div class="date-field">
+                                            <label for="reportDateTo">Hasta:</label>
+                                            <input type="date" id="reportDateTo" class="filter-date">
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <div class="filter-group">
+                                    <label for="reportSearchName">Buscar por nombre:</label>
+                                    <div class="search-field">
+                                        <input type="text" id="reportSearchName" placeholder="Nombre del colaborador..." class="search-input">
+                                        <button id="clearReportSearch" class="clear-btn">
+                                            <i class="fas fa-times"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="filter-actions">
+                                <button id="searchReportBtn" class="action-btn search">
+                                    <i class="fas fa-search"></i> Buscar
+                                </button>
+                                <button id="resetFiltersBtn" class="action-btn reset">
+                                    <i class="fas fa-sync-alt"></i> Limpiar filtros
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <div class="report-results">
+                            <div class="results-header">
+                                <h4>Resultados</h4>
+                                <div class="export-options">
+                                    <select id="exportFormat" class="export-select">
+                                        <option value="excel">Excel</option>
+                                        <option value="pdf">PDF</option>
+                                        <option value="csv">CSV</option>
+                                    </select>
+                                    <button id="exportReportBtn" class="action-btn export">
+                                        <i class="fas fa-file-export"></i> Exportar
+                                    </button>
+                                </div>
+                            </div>
+                            
+                            <!-- Tabla de resultados -->
+                            <div class="table-container">
+                                <table id="reportTable" class="data-table">
+                                    <thead>
+                                        <tr>
+                                            <th>Fecha Solicitud</th>
+                                            <th>Colaborador</th>
+                                            <th>Departamento</th>
+                                            <th>Período</th>
+                                            <th>Días</th>
+                                            <th>Monto</th>
+                                            <th>Estado</th>
+                                            <th>No. Cheque</th>
+                                            <th>No. Recibo</th>
+                                            <th>Fecha Pago</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <!-- Los datos se cargarán dinámicamente -->
+                                        <tr>
+                                            <td colspan="10" class="loading-message">
+                                                <div class="empty-state">
+                                                    <i class="fas fa-filter"></i>
+                                                    <h3>Configure los filtros</h3>
+                                                    <p>Seleccione los filtros deseados y haga clic en "Buscar" para generar el reporte.</p>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                            
+                            <!-- Paginación -->
+                            <div class="pagination">
+                                <button id="prevPageReport" class="pagination-btn" disabled>
+                                    <i class="fas fa-chevron-left"></i> Anterior
+                                </button>
+                                <div id="pageIndicatorReport" class="page-indicator">Página 1 de 1</div>
+                                <button id="nextPageReport" class="pagination-btn" disabled>
+                                    Siguiente <i class="fas fa-chevron-right"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Elementos decorativos de fondo -->
+    <div class="bg-decoration bubble bubble1"></div>
+    <div class="bg-decoration bubble bubble2"></div>
+    <div class="bg-decoration bubble bubble3"></div>
+    <div class="bg-decoration pattern pattern1"></div>
+    <div class="bg-decoration pattern pattern2"></div>
+    
+    <!-- Modal para generar reportes -->
+    <div id="reportModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="reportModalTitle">Generar Reporte</h2>
+                <span class="close-modal">&times;</span>
+            </div>
+            <div class="modal-body">
+                <div class="report-form">
+                    <div class="form-group">
+                        <label for="reportDateFrom">Fecha Desde:</label>
+                        <input type="date" id="reportDateFrom" class="form-control">
+                    </div>
+                    <div class="form-group">
+                        <label for="reportDateTo">Fecha Hasta:</label>
+                        <input type="date" id="reportDateTo" class="form-control">
+                    </div>
+                    
+                    <div class="form-group" id="departmentFilterGroup">
+                        <label for="reportDepartment">Departamento:</label>
+                        <select id="reportDepartment" class="form-control">
+                            <option value="">Todos los departamentos</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group" id="employeeFilterGroup" style="display: none;">
+                        <label for="reportEmployee">Colaborador:</label>
+                        <div class="search-select-wrapper">
+                            <input type="text" id="reportEmployeeSearch" class="form-control" placeholder="Buscar colaborador...">
+                            <div id="employeeSearchResults" class="search-results" style="display: none;"></div>
+                            <input type="hidden" id="reportEmployeeId">
+                        </div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="reportFormat">Formato:</label>
+                        <select id="reportFormat" class="form-control">
+                            <option value="excel">Excel</option>
+                            <option value="pdf">PDF</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn-cancel" id="cancelReportBtn">
+                    <i class="fas fa-times"></i> Cancelar
+                </button>
+                <button class="btn-generate" id="generateReportBtn">
+                    <i class="fas fa-file-export"></i> Generar Reporte
+                </button>
+            </div>
+        </div>
+    </div>
+    <script src="../Logica/Vacaciones/GestionPagosVacaciones.js"></script>
+</body>
+</html>

@@ -2006,26 +2006,6 @@ body {
     font-weight: 500;
 }
 
-.form-select {
-    width: 100%;
-    padding: 10px;
-    border: 2px solid #e0e0e0;
-    border-radius: var(--radius-sm);
-    font-size: 14px;
-    transition: var(--transition);
-}
-
-.form-select:focus {
-    outline: none;
-    border-color: var(--color-secondary);
-    box-shadow: 0 0 0 3px rgba(255, 152, 0, 0.1);
-}
-
-.form-select:disabled {
-    background-color: #f5f5f5;
-    cursor: not-allowed;
-}
-
 .period-info-container {
     background-color: #f9f9f9;
     border-radius: var(--radius-md);
@@ -2045,17 +2025,674 @@ body {
 .period-details strong {
     color: var(--color-primary);
 }
+.btn-generate:hover {
+    background-color: #C2185B;
+}
+
+@media screen and (max-width: 375px) {
+    /* Estilos específicos para dispositivos pequeños */
+    .modal-content {
+        padding: 10px;
+    }
+    
+    .calendar-container {
+        padding: 5px;
+    }
+    
+    .fc-toolbar {
+        font-size: 12px;
+    }
+}
+
+
+
+
+/* Modal para generar PDF - Diseño mejorado */
+.pdf-modal {
+    max-width: 650px;
+    overflow: hidden;
+}
+
+.modal-title-section {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.modal-icon {
+    font-size: 24px;
+    color: #E91E63;
+}
+
+.pdf-generator-content {
+    padding: 10px;
+}
+
+/* Instrucciones mejoradas */
+.pdf-instructions {
+    background-color: #E3F2FD;
+    border-radius: 10px;
+    padding: 15px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 25px;
+    border-left: 4px solid #2196F3;
+}
+
+.pdf-instructions i {
+    font-size: 20px;
+    color: #2196F3;
+}
+
+.pdf-instructions p {
+    margin: 0;
+    color: #1565C0;
+    font-size: 14px;
+}
+
+/* Form groups mejorados */
+.form-group.enhanced {
+    margin-bottom: 25px;
+}
+
+.form-group.enhanced label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: #654321;
+    font-weight: 600;
+    margin-bottom: 10px;
+    font-size: 15px;
+}
+
+.form-group.enhanced label i {
+    color: #FF9800;
+    font-size: 18px;
+}
+
+/* Select wrapper para diseño personalizado */
+.select-wrapper {
+    position: relative;
+}
+
+.form-select {
+    width: 100%;
+    padding: 12px 40px 12px 15px;
+    border: 2px solid #e0e0e0;
+    border-radius: 10px;
+    font-size: 14px;
+    background-color: #fff;
+    transition: all 0.3s;
+    cursor: pointer;
+    appearance: none;
+}
+
+.form-select:focus {
+    outline: none;
+    border-color: #FF9800;
+    box-shadow: 0 0 0 4px rgba(255, 152, 0, 0.1);
+}
+
+.form-select:hover:not(:disabled) {
+    border-color: #FFB74D;
+}
+
+.form-select:disabled {
+    background-color: #f5f5f5;
+    cursor: not-allowed;
+    color: #999;
+}
+
+.select-arrow {
+    position: absolute;
+    right: 15px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: #999;
+    pointer-events: none;
+    transition: color 0.3s;
+}
+
+.select-wrapper:hover .select-arrow {
+    color: #FF9800;
+}
+
+/* Card de información del período */
+.period-info-card {
+    background: linear-gradient(135deg, #FFF8E1 0%, #FFFFFF 100%);
+    border-radius: 15px;
+    overflow: hidden;
+    margin-top: 30px;
+    box-shadow: 0 5px 20px rgba(0,0,0,0.1);
+    animation: slideIn 0.3s ease-out;
+}
+
+@keyframes slideIn {
+    from {
+        opacity: 0;
+        transform: translateY(-20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.period-info-header {
+    background: linear-gradient(135deg, #FF9800 0%, #F57C00 100%);
+    color: white;
+    padding: 15px 20px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.period-info-header i {
+    font-size: 20px;
+}
+
+.period-info-header h4 {
+    margin: 0;
+    font-weight: 600;
+    font-size: 16px;
+}
+
+.period-info-body {
+    padding: 20px;
+}
+
+.period-detail {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 20px;
+    padding: 12px;
+    background-color: rgba(255, 255, 255, 0.8);
+    border-radius: 8px;
+}
+
+.detail-label {
+    color: #654321;
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.detail-label i {
+    color: #FF9800;
+}
+
+.detail-value {
+    font-weight: 600;
+    color: #333;
+    font-size: 15px;
+}
+
+/* Estadísticas visuales */
+.period-stats {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 15px;
+    margin-top: 20px;
+}
+
+.stat-item {
+    text-align: center;
+    padding: 15px;
+    background-color: white;
+    border-radius: 12px;
+    box-shadow: 0 3px 10px rgba(0,0,0,0.08);
+    transition: transform 0.3s;
+}
+
+.stat-item:hover {
+    transform: translateY(-3px);
+}
+
+.stat-icon {
+    width: 50px;
+    height: 50px;
+    border-radius: 50%;
+    background-color: #E3F2FD;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto 10px;
+}
+
+.stat-icon i {
+    font-size: 22px;
+    color: #2196F3;
+}
+
+.stat-icon.paid {
+    background-color: #E8F5E9;
+}
+
+.stat-icon.paid i {
+    color: #4CAF50;
+}
+
+.stat-icon.total {
+    background-color: #FFF3E0;
+}
+
+.stat-icon.total i {
+    color: #FF9800;
+}
+
+.stat-info {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+
+.stat-value {
+    font-size: 24px;
+    font-weight: 700;
+    color: #333;
+}
+
+.stat-label {
+    font-size: 12px;
+    color: #666;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+/* Vista previa */
+.pdf-preview-notice {
+    background-color: #F3E5F5;
+    border-radius: 10px;
+    padding: 15px;
+    margin-top: 25px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    border-left: 4px solid #9C27B0;
+}
+
+.pdf-preview-notice i {
+    font-size: 20px;
+    color: #9C27B0;
+}
+
+.pdf-preview-notice p {
+    margin: 0;
+    color: #6A1B9A;
+    font-size: 14px;
+}
+
+/* Footer del modal */
+.modal-footer {
+    background-color: #f9f9f9;
+    padding: 20px;
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    border-top: 1px solid #e0e0e0;
+}
+
+/* Botones mejorados */
+.btn-modal {
+    padding: 12px 24px;
+    border: none;
+    border-radius: 8px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 14px;
+}
+
+.btn-cancel {
+    background-color: #f5f5f5;
+    color: #666;
+}
+
+.btn-cancel:hover {
+    background-color: #e0e0e0;
+}
 
 .btn-generate {
     background-color: #E91E63;
     color: white;
 }
 
-.btn-generate:hover {
+.btn-generate:hover:not(:disabled) {
     background-color: #C2185B;
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(233, 30, 99, 0.3);
 }
 
 .btn-generate:disabled {
     background-color: #F8BBD0;
     cursor: not-allowed;
+    transform: none;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .pdf-modal {
+        width: 95%;
+        margin: 20px auto;
+    }
+    
+    .period-stats {
+        grid-template-columns: 1fr;
+        gap: 10px;
+    }
+    
+    .stat-item {
+        display: flex;
+        align-items: center;
+        text-align: left;
+        gap: 15px;
+    }
+    
+    .stat-icon {
+        margin: 0;
+    }
+}
+
+
+/* Animaciones adicionales */
+@keyframes slideOut {
+    from {
+        opacity: 1;
+        transform: translateY(0);
+    }
+    to {
+        opacity: 0;
+        transform: translateY(-20px);
+    }
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+    }
+    to {
+        opacity: 1;
+    }
+}
+
+@keyframes pulse {
+    0% {
+        box-shadow: 0 0 0 0 rgba(233, 30, 99, 0.4);
+    }
+    70% {
+        box-shadow: 0 0 0 10px rgba(233, 30, 99, 0);
+    }
+    100% {
+        box-shadow: 0 0 0 0 rgba(233, 30, 99, 0);
+    }
+}
+
+.pulse {
+    animation: pulse 1s;
+}
+
+/* Estilos para el loading popup */
+.loading-popup {
+    padding: 30px;
+}
+
+.loading-animation {
+    text-align: center;
+}
+
+.loading-animation p {
+    color: #666;
+    margin-top: 20px;
+    font-size: 16px;
+}
+
+/* Disabled state para el arrow del select */
+.select-arrow.disabled {
+    color: #ccc;
+}
+
+/* Mejorar el hover de opciones */
+.form-select option:hover {
+    background-color: #FFF8E1;
+}
+
+/* Texto muted para información adicional */
+.text-muted {
+    color: #999;
+    font-size: 14px;
+    margin-top: 10px;
+}
+
+/* Estilos para el search select */
+.search-select-wrapper {
+    position: relative;
+    width: 100%;
+}
+
+.search-input-container {
+    position: relative;
+    width: 100%;
+}
+
+.search-select-input {
+    width: 100%;
+    padding: 12px 40px;
+    border: 2px solid #e0e0e0;
+    border-radius: 10px;
+    font-size: 14px;
+    transition: all 0.3s;
+    background-color: white;
+}
+
+.search-select-input:focus {
+    outline: none;
+    border-color: #FF9800;
+    box-shadow: 0 0 0 4px rgba(255, 152, 0, 0.1);
+}
+
+.search-icon {
+    position: absolute;
+    left: 15px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: #999;
+    font-size: 16px;
+}
+
+.clear-search {
+    position: absolute;
+    right: 15px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: #999;
+    cursor: pointer;
+    font-size: 16px;
+    transition: color 0.3s;
+}
+
+.clear-search:hover {
+    color: #FF5252;
+}
+
+/* Resultados de búsqueda */
+.search-results {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    margin-top: 5px;
+    background-color: white;
+    border: 2px solid #e0e0e0;
+    border-radius: 10px;
+    max-height: 300px;
+    overflow-y: auto;
+    z-index: 10;
+    box-shadow: 0 5px 20px rgba(0,0,0,0.1);
+}
+
+.search-result-item {
+    display: flex;
+    align-items: center;
+    padding: 12px 15px;
+    cursor: pointer;
+    transition: background-color 0.2s;
+    border-bottom: 1px solid #f0f0f0;
+}
+
+.search-result-item:last-child {
+    border-bottom: none;
+}
+
+.search-result-item:hover {
+    background-color: #FFF8E1;
+}
+
+.search-result-item.selected {
+    background-color: #FFE0B2;
+}
+
+.result-photo {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    object-fit: cover;
+    margin-right: 12px;
+    border: 2px solid #FF9800;
+}
+
+.result-info {
+    flex: 1;
+}
+
+.result-name {
+    font-weight: 600;
+    color: #333;
+    font-size: 14px;
+    margin-bottom: 3px;
+}
+
+.result-position {
+    font-size: 12px;
+    color: #666;
+}
+
+.no-results {
+    padding: 20px;
+    text-align: center;
+    color: #999;
+}
+
+.no-results i {
+    font-size: 30px;
+    color: #ddd;
+    margin-bottom: 10px;
+}
+
+/* Empleado seleccionado */
+.selected-employee {
+    background-color: #E8F5E9;
+    border-radius: 10px;
+    padding: 12px;
+    margin-top: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    animation: fadeIn 0.3s;
+}
+
+.selected-employee-info {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.selected-employee-photo {
+    width: 45px;
+    height: 45px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 3px solid #4CAF50;
+}
+
+.selected-employee-details {
+    display: flex;
+    flex-direction: column;
+}
+
+.selected-employee-name {
+    font-weight: 600;
+    color: #2E7D32;
+    font-size: 14px;
+}
+
+.selected-employee-position {
+    font-size: 12px;
+    color: #558B2F;
+}
+
+.change-selection {
+    background-color: transparent;
+    border: 2px solid #4CAF50;
+    color: #4CAF50;
+    padding: 6px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: 600;
+    transition: all 0.3s;
+}
+
+.change-selection:hover {
+    background-color: #4CAF50;
+    color: white;
+}
+
+/* Estados de carga */
+.search-loading {
+    padding: 20px;
+    text-align: center;
+}
+
+.search-loading .spinner {
+    width: 30px;
+    height: 30px;
+    margin: 0 auto;
+    border: 3px solid #f3f3f3;
+    border-top: 3px solid #FF9800;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+/* Destacar coincidencias en la búsqueda */
+.highlight {
+    background-color: #FFEB3B;
+    font-weight: 600;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .search-results {
+        max-height: 200px;
+    }
+    
+    .result-photo {
+        width: 35px;
+        height: 35px;
+    }
+    
+    .selected-employee {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 10px;
+    }
+    
+    .change-selection {
+        width: 100%;
+    }
 }
