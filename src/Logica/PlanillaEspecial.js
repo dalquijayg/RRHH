@@ -798,7 +798,6 @@ function buscarPersonal(searchTerm) {
     renderizarTablaPersonal(filtrado);
 }
 
-// Función para aplicar los filtros y cargar personal
 async function aplicarFiltros(e) {
     if (e) e.preventDefault();
     
@@ -811,6 +810,8 @@ async function aplicarFiltros(e) {
         mostrarNotificacion('Debe seleccionar departamento y fecha', 'warning');
         return;
     }
+    
+    // Validar que la fecha no sea pasada
     const fechaSeleccionada = new Date(fecha);
     fechaSeleccionada.setHours(0, 0, 0, 0); // Eliminar la parte de tiempo
     
@@ -823,7 +824,7 @@ async function aplicarFiltros(e) {
         // Mostrar mensaje en la tabla
         personalTableBody.innerHTML = `
             <tr class="empty-row">
-                <td colspan="8">
+                <td colspan="6">
                     <div class="empty-message">
                         <i class="fas fa-calendar-times"></i>
                         <p>No es posible generar planillas para fechas pasadas.<br>Por favor, seleccione la fecha actual o una fecha futura.</p>
@@ -842,6 +843,7 @@ async function aplicarFiltros(e) {
         
         return;
     }
+    
     try {
         // Mostrar estado de carga
         const selectedOption = departamentoSelect.options[departamentoSelect.selectedIndex];
@@ -853,33 +855,166 @@ async function aplicarFiltros(e) {
         } else {
             logoDivisionActual = null;
         }
-        mostrarLoadingEnTabla('Verificando planilla existente...');
         
-        // 1. Verificar si ya existe una planilla para esta fecha y departamento
-        const planillaExistente = await verificarPlanillaExistente(idDepartamento, fecha);
+        mostrarLoadingEnTabla('Verificando planillas existentes...');
         
-        if (planillaExistente.existe) {
-            // Mostrar mensaje de error y salir
+        // 1. NUEVA VALIDACIÓN: Verificar si ya existe una planilla para este departamento con Estado = 0
+        const connection = await getConnection();
+        
+        // Consulta para verificar planillas pendientes de documento (Estado = 0)
+        const queryPendientes = `
+            SELECT 
+                IdPlanillaEspecial,
+                FechaLaboral,
+                DescripcionLaboral,
+                CantColaboradores,
+                MontoTotalGasto,
+                FechaCreacion
+            FROM 
+                PlanillasEspeciales 
+            WHERE 
+                IdDepartamento = ? 
+                AND Estado = 0
+            ORDER BY
+                FechaLaboral DESC
+            LIMIT 1
+        `;
+        
+        const resultPendientes = await connection.query(queryPendientes, [idDepartamento]);
+        
+        if (resultPendientes && resultPendientes.length > 0) {
+            const planillaPendiente = resultPendientes[0];
+            
+            // Cerrar conexión
+            await connection.close();
+    
+            // Formatear fecha de la planilla pendiente usando la función corregida
+            const fechaFormateada = formatearFechaBD(planillaPendiente.FechaLaboral, false);
+            
+            // Mostrar mensaje indicando que hay una planilla pendiente de documento
             personalTableBody.innerHTML = `
                 <tr class="empty-row">
-                    <td colspan="8">
+                    <td colspan="6">
                         <div class="empty-message">
-                            <i class="fas fa-exclamation-triangle"></i>
-                            <p>Ya existe una planilla para la fecha y departamento seleccionados.<br>ID: ${planillaExistente.idPlanilla}</p>
+                            <i class="fas fa-exclamation-triangle" style="color: var(--color-warning); font-size: 3rem; margin-bottom: 15px;"></i>
+                            <h4 style="color: var(--color-warning); margin-bottom: 10px;">Planilla Pendiente de Documento</h4>
+                            <p style="margin-bottom: 15px;">
+                                Hay una planilla pendiente de documento PDF para este departamento.<br>
+                                <strong>Debe subir el documento antes de generar una nueva planilla.</strong>
+                            </p>
+                            <div style="background-color: var(--color-dark-lighter); padding: 15px; border-radius: var(--border-radius); margin: 15px 0; border-left: 4px solid var(--color-warning);">
+                                <div style="display: grid; grid-template-columns: auto 1fr; gap: 10px; font-size: 0.9rem;">
+                                    <span style="font-weight: 600;">ID Planilla:</span>
+                                    <span>${planillaPendiente.IdPlanillaEspecial}</span>
+                                    <span style="font-weight: 600;">Fecha:</span>
+                                    <span>${fechaFormateada}</span>
+                                    <span style="font-weight: 600;">Descripción:</span>
+                                    <span>${planillaPendiente.DescripcionLaboral}</span>
+                                    <span style="font-weight: 600;">Colaboradores:</span>
+                                    <span>${planillaPendiente.CantColaboradores}</span>
+                                    <span style="font-weight: 600;">Monto:</span>
+                                    <span>Q ${planillaPendiente.MontoTotalGasto.toFixed(2)}</span>
+                                </div>
+                            </div>
+                            <button class="btn btn-primary" id="btnSubirDocumento" data-id="${planillaPendiente.IdPlanillaEspecial}" style="animation: callToAction 2s infinite;">
+                                <i class="fas fa-file-upload"></i> Subir Documento PDF
+                            </button>
                         </div>
                     </td>
                 </tr>
             `;
             
-            // Mostrar alerta
-            mostrarAlertaPlanillaExistente(planillaExistente);
+            // Añadir evento al botón de subir documento
+            document.getElementById('btnSubirDocumento').addEventListener('click', (e) => {
+                const idPlanilla = e.target.dataset.id || e.target.parentElement.dataset.id;
+                mostrarModalSubirDocumento(idPlanilla);
+            });
+            
+            // Actualizar información de totales
+            totalPersonalElement.querySelector('.status-value').textContent = '0';
+            totalPagoElement.querySelector('.status-value').textContent = 'Q 0.00';
+            
+            // Deshabilitar botones de acción
+            generatePlanillaBtn.disabled = true;
+            deleteSelectedBtn.disabled = true;
+            
+            // Mostrar notificación informativa
+            mostrarNotificacion(
+                `Hay una planilla pendiente de documento para este departamento (ID: ${planillaPendiente.IdPlanillaEspecial})`, 
+                'warning',
+                'Documento Pendiente'
+            );
             
             return;
         }
         
+        // 2. Si no hay planillas pendientes, verificar si ya existe una planilla para la fecha específica
+        const queryFechaEspecifica = `
+            SELECT 
+                IdPlanillaEspecial,
+                FechaLaboral,
+                DescripcionLaboral,
+                Estado
+            FROM 
+                PlanillasEspeciales 
+            WHERE 
+                IdDepartamento = ? 
+                AND FechaLaboral = ?
+            LIMIT 1
+        `;
+        
+        const resultFechaEspecifica = await connection.query(queryFechaEspecifica, [idDepartamento, fecha]);
+        
+        // Cerrar conexión después de todas las consultas
+        await connection.close();
+        
+        if (resultFechaEspecifica && resultFechaEspecifica.length > 0) {
+            const planillaExistente = resultFechaEspecifica[0];
+            
+            // Mostrar mensaje de error y salir
+            personalTableBody.innerHTML = `
+                <tr class="empty-row">
+                    <td colspan="6">
+                        <div class="empty-message">
+                            <i class="fas fa-exclamation-triangle" style="color: var(--color-danger); font-size: 3rem; margin-bottom: 15px;"></i>
+                            <h4 style="color: var(--color-danger); margin-bottom: 10px;">Planilla Duplicada</h4>
+                            <p>Ya existe una planilla para la fecha y departamento seleccionados.</p>
+                            <div style="background-color: var(--color-dark-lighter); padding: 15px; border-radius: var(--border-radius); margin: 15px 0; border-left: 4px solid var(--color-danger);">
+                                <div style="display: grid; grid-template-columns: auto 1fr; gap: 10px; font-size: 0.9rem;">
+                                    <span style="font-weight: 600;">ID Planilla:</span>
+                                    <span>${planillaExistente.IdPlanillaEspecial}</span>
+                                    <span style="font-weight: 600;">Estado:</span>
+                                    <span>${planillaExistente.Estado === 1 ? 'Completada con documento' : 'Pendiente de documento'}</span>
+                                </div>
+                            </div>
+                        </div>
+                    </td>
+                </tr>
+            `;
+            
+            // Mostrar alerta adicional
+            mostrarAlertaPlanillaExistente({
+                existe: true,
+                idPlanilla: planillaExistente.IdPlanillaEspecial,
+                fechaLaboral: planillaExistente.FechaLaboral,
+                descripcion: planillaExistente.DescripcionLaboral
+            });
+            
+            // Actualizar información de totales
+            totalPersonalElement.querySelector('.status-value').textContent = '0';
+            totalPagoElement.querySelector('.status-value').textContent = 'Q 0.00';
+            
+            // Deshabilitar botones de acción
+            generatePlanillaBtn.disabled = true;
+            deleteSelectedBtn.disabled = true;
+            
+            return;
+        }
+        
+        // 3. Si no hay conflictos, continuar con el flujo normal
         mostrarLoadingEnTabla('Cargando personal...');
         
-        // 2. Determinar el tipo de fecha (domingo, especial, regular)
+        // Determinar el tipo de fecha (domingo, especial, regular)
         const infoTipoFecha = await determinarTipoFecha(fecha, idDepartamento);
         
         // Actualizar la UI con la información del tipo de fecha
@@ -896,7 +1031,7 @@ async function aplicarFiltros(e) {
             // Mostrar mensaje en la tabla
             personalTableBody.innerHTML = `
                 <tr class="empty-row">
-                    <td colspan="8">
+                    <td colspan="6">
                         <div class="empty-message">
                             <i class="fas fa-calendar-times"></i>
                             <p>La fecha seleccionada no es domingo ni día especial.<br>No se puede generar planilla para esta fecha.</p>
@@ -916,25 +1051,25 @@ async function aplicarFiltros(e) {
             return;
         }
         
-        // 3. Cargar la configuración de límites del departamento
+        // 4. Cargar la configuración de límites del departamento
         const limitesDepartamento = await cargarLimitesDepartamento(idDepartamento);
         
-        // 4. Cargar el personal del departamento
+        // 5. Cargar el personal del departamento
         const personal = await cargarPersonalDepartamento(idDepartamento, idTipoPersonal);
         
-        // 5. Restablecer la página actual a 1
+        // 6. Restablecer la página actual a 1
         currentPage = 1;
         
-        // 6. Renderizar la tabla con los datos obtenidos
+        // 7. Renderizar la tabla con los datos obtenidos
         renderizarTablaPersonal(personal);
         
-        // 7. Actualizar el estado de filtros aplicados
+        // 8. Actualizar el estado de filtros aplicados
         filtersApplied = true;
         
-        // 8. Inhabilitar controles de búsqueda para evitar cambios accidentales
+        // 9. Inhabilitar controles de búsqueda para evitar cambios accidentales
         inhabilitarControlesBusqueda(true);
         
-        // 9. Mostrar notificación de éxito
+        // 10. Mostrar notificación de éxito
         const nombreDepartamento = departamentoSelect.options[departamentoSelect.selectedIndex].text;
         mostrarNotificacion(`Personal cargado para: ${nombreDepartamento}`, 'success');
         
@@ -945,7 +1080,7 @@ async function aplicarFiltros(e) {
         // Mostrar mensaje de error en la tabla
         personalTableBody.innerHTML = `
             <tr class="empty-row">
-                <td colspan="8">
+                <td colspan="6">
                     <div class="empty-message">
                         <i class="fas fa-exclamation-triangle"></i>
                         <p>Ocurrió un error al cargar los datos. Intente nuevamente.</p>
@@ -953,6 +1088,14 @@ async function aplicarFiltros(e) {
                 </td>
             </tr>
         `;
+        
+        // Actualizar información de totales
+        totalPersonalElement.querySelector('.status-value').textContent = '0';
+        totalPagoElement.querySelector('.status-value').textContent = 'Q 0.00';
+        
+        // Deshabilitar botones de acción
+        generatePlanillaBtn.disabled = true;
+        deleteSelectedBtn.disabled = true;
     }
 }
 // Función para mostrar estado de carga en la tabla
@@ -971,20 +1114,13 @@ function mostrarLoadingEnTabla(mensaje = 'Cargando...') {
 
 // Función para limpiar los filtros
 function limpiarFiltros() {
-    // Verificar si el usuario es administrador (para no tener que hacer otra consulta asíncrona)
-    // Intentamos obtener de una variable global que podríamos establecer durante la carga inicial
-    const esAdministradorActual = window.esUsuarioAdministrador || false;
+    // Verificar si el usuario es administrador
+    const esAdministrador = window.esUsuarioAdministrador || false;
+    const userData = JSON.parse(localStorage.getItem('userData'));
+    const idDepartamentoUsuario = userData?.IdSucuDepa;
     
-    // Si el departamento está bloqueado y el usuario no es administrador, no lo reseteamos
-    const departamentoEstaBloqueado = departamentoSelect.disabled && !esAdministradorActual;
-    
-    if (!departamentoEstaBloqueado) {
-        departamentoSelect.selectedIndex = 0;
-    }
-    
-    // Restablecer los demás filtros
-    tipoPersonalSelect.selectedIndex = 0;
-    fechaInput.value = '';
+    // Usar la nueva función de reseteo controlado
+    resetearFiltrosControlado(esAdministrador, idDepartamentoUsuario);
     
     // Limpiar datos y tabla
     personalData = [];
@@ -992,7 +1128,7 @@ function limpiarFiltros() {
     // Mostrar mensaje en la tabla
     personalTableBody.innerHTML = `
         <tr class="empty-row">
-            <td colspan="8">
+            <td colspan="6">
                 <div class="empty-message">
                     <i class="fas fa-search"></i>
                     <p>Seleccione los filtros y presione "Buscar" para mostrar el personal</p>
@@ -1001,25 +1137,12 @@ function limpiarFiltros() {
         </tr>
     `;
     
-    // Restablecer información de estado
-    tipoFechaElement.querySelector('.status-icon i').className = 'fas fa-question';
-    tipoFechaElement.querySelector('.status-value').textContent = 'Por verificar';
-    
-    tipoPagoElement.querySelector('.status-icon i').className = 'fas fa-dollar-sign';
-    tipoPagoElement.querySelector('.status-value').textContent = 'Por determinar';
-    
-    totalPersonalElement.querySelector('.status-value').textContent = '0';
-    totalPagoElement.querySelector('.status-value').textContent = 'Q 0.00';
-    
     // Deshabilitar botones de acción
     generatePlanillaBtn.disabled = true;
     deleteSelectedBtn.disabled = true;
     
-    // Restablecer estado de filtros
-    filtersApplied = false;
-    
-    // Habilitar los controles de búsqueda, excepto el departamento si está bloqueado
-    inhabilitarControlesBusqueda(false, departamentoEstaBloqueado);
+    // Habilitar los controles de búsqueda respetando permisos
+    inhabilitarControlesBusquedaRespetandoPermisos(false, esAdministrador, idDepartamentoUsuario);
     
     // Mostrar notificación
     mostrarNotificacion('Filtros restablecidos', 'info');
@@ -1119,12 +1242,8 @@ function mostrarConfirmacionPlanilla() {
         const tipoPersonalTexto = tipoPersonalSelect.value ? 
                                 tipoPersonalSelect.options[tipoPersonalSelect.selectedIndex].text : 
                                 'Todos';
-        const fechaSeleccionada = new Date(fechaInput.value + 'T12:00:00');
-        document.getElementById('confirmFecha').textContent = fechaSeleccionada.toLocaleDateString('es-ES', {
-            day: '2-digit',
-            month: 'long',
-            year: 'numeric'
-        });
+        const fechaFormateada = formatearFechaSinZonaHoraria(fechaInput.value, false);
+        document.getElementById('confirmFecha').textContent = fechaFormateada;
         
         // Actualizar información en el modal
         document.getElementById('confirmDepartamento').textContent = nombreDepartamento;
@@ -1987,12 +2106,35 @@ function eliminarPersonalSeleccionado() {
 }
 
 function inhabilitarControlesBusqueda(inhabilitar = true, respetarDepartamento = false) {
-    // Inhabilitar/habilitar los controles de filtro, respetando el departamento si es necesario
-    if (!respetarDepartamento) {
-        departamentoSelect.disabled = inhabilitar;
-        departamentoSelect.classList.toggle('control-disabled', inhabilitar);
+    // Si respetarDepartamento es true, usar la nueva función
+    if (respetarDepartamento) {
+        const esAdministrador = window.esUsuarioAdministrador || false;
+        const userData = JSON.parse(localStorage.getItem('userData'));
+        const idDepartamentoUsuario = userData?.IdSucuDepa;
+        
+        inhabilitarControlesBusquedaRespetandoPermisos(inhabilitar, esAdministrador, idDepartamentoUsuario);
+        return;
     }
     
+    // Verificar si el usuario es administrador para el departamento
+    const esAdministrador = window.esUsuarioAdministrador || false;
+    const userData = JSON.parse(localStorage.getItem('userData'));
+    const idDepartamentoUsuario = userData?.IdSucuDepa;
+    
+    // Si el departamento está bloqueado y el usuario no es administrador, no lo reseteamos
+    const departamentoEstaBloqueado = !esAdministrador && idDepartamentoUsuario;
+    
+    if (!departamentoEstaBloqueado) {
+        departamentoSelect.disabled = inhabilitar;
+        departamentoSelect.classList.toggle('control-disabled', inhabilitar);
+    } else {
+        // Mantener el departamento deshabilitado para usuarios no administradores
+        departamentoSelect.disabled = true;
+        departamentoSelect.classList.add('control-disabled');
+        departamentoSelect.value = idDepartamentoUsuario;
+    }
+    
+    // Restablecer los demás filtros
     tipoPersonalSelect.disabled = inhabilitar;
     fechaInput.disabled = inhabilitar;
     
@@ -2108,26 +2250,60 @@ async function verificarPlanillaExistente(idDepartamento, fecha) {
             SELECT 
                 IdPlanillaEspecial,
                 FechaLaboral,
-                DescripcionLaboral
+                DescripcionLaboral,
+                Estado
             FROM 
                 PlanillasEspeciales 
             WHERE 
                 IdDepartamento = ? 
-                AND FechaLaboral = ?
+                AND Estado = 0
+            ORDER BY
+                FechaLaboral DESC
             LIMIT 1
         `;
         
-        const result = await connection.query(query, [idDepartamento, fecha]);
+        const result = await connection.query(query, [idDepartamento]);
         await connection.close();
         
         if (result && result.length > 0) {
             return {
                 existe: true,
+                pendienteDocumento: true,
                 idPlanilla: result[0].IdPlanillaEspecial,
                 fechaLaboral: result[0].FechaLaboral,
                 descripcion: result[0].DescripcionLaboral
             };
         } else {
+            // Si no hay planillas con Estado 0, verificar si existe para la fecha específica
+            const connection2 = await getConnection();
+            const queryFecha = `
+                SELECT 
+                    IdPlanillaEspecial,
+                    FechaLaboral,
+                    DescripcionLaboral,
+                    Estado
+                FROM 
+                    PlanillasEspeciales 
+                WHERE 
+                    IdDepartamento = ? 
+                    AND FechaLaboral = ?
+                LIMIT 1
+            `;
+            
+            const resultFecha = await connection2.query(queryFecha, [idDepartamento, fecha]);
+            await connection2.close();
+            
+            if (resultFecha && resultFecha.length > 0) {
+                return {
+                    existe: true,
+                    pendienteDocumento: false,
+                    idPlanilla: resultFecha[0].IdPlanillaEspecial,
+                    fechaLaboral: resultFecha[0].FechaLaboral,
+                    descripcion: resultFecha[0].DescripcionLaboral,
+                    estado: resultFecha[0].Estado
+                };
+            }
+            
             return {
                 existe: false
             };
@@ -2166,8 +2342,13 @@ function mostrarAlertaPlanillaExistente(infoPlanilla) {
 
 // Función para limpiar y resetear la ventana después de guardar
 function resetearVentana() {
-    // Resetear filtros
-    limpiarFiltros();
+    // Verificar si el usuario es administrador antes de resetear
+    const esAdministrador = window.esUsuarioAdministrador || false;
+    const userData = JSON.parse(localStorage.getItem('userData'));
+    const idDepartamentoUsuario = userData?.IdSucuDepa;
+    
+    // Resetear filtros de manera controlada
+    resetearFiltrosControlado(esAdministrador, idDepartamentoUsuario);
     
     // Resetear datos 
     personalData = [];
@@ -2176,7 +2357,7 @@ function resetearVentana() {
     // Limpiar tabla
     personalTableBody.innerHTML = `
         <tr class="empty-row">
-            <td colspan="8">
+            <td colspan="6">
                 <div class="empty-message">
                     <i class="fas fa-search"></i>
                     <p>Seleccione los filtros y presione "Buscar" para mostrar el personal</p>
@@ -2193,13 +2374,68 @@ function resetearVentana() {
     generatePlanillaBtn.disabled = true;
     deleteSelectedBtn.disabled = true;
     
-    // Habilitar controles de búsqueda
-    inhabilitarControlesBusqueda(false);
+    // Habilitar controles de búsqueda respetando permisos
+    inhabilitarControlesBusquedaRespetandoPermisos(false, esAdministrador, idDepartamentoUsuario);
     
     // Mostrar notificación
     mostrarNotificacion('Planilla generada con éxito. Ventana restablecida.', 'success');
 }
+function resetearFiltrosControlado(esAdministrador, idDepartamentoUsuario) {
+    // Solo resetear el departamento si el usuario es administrador
+    if (esAdministrador) {
+        departamentoSelect.selectedIndex = 0;
+        departamentoSelect.disabled = false;
+        departamentoSelect.classList.remove('control-disabled');
+    } else if (idDepartamentoUsuario) {
+        // Si no es administrador, mantener el departamento seleccionado y deshabilitado
+        departamentoSelect.value = idDepartamentoUsuario;
+        departamentoSelect.disabled = true;
+        departamentoSelect.classList.add('control-disabled');
+    }
+    
+    // Restablecer los demás filtros normalmente
+    tipoPersonalSelect.selectedIndex = 0;
+    fechaInput.value = '';
+    
+    // Restablecer información de estado
+    tipoFechaElement.querySelector('.status-icon i').className = 'fas fa-question';
+    tipoFechaElement.querySelector('.status-value').textContent = 'Por verificar';
+    
+    tipoPagoElement.querySelector('.status-icon i').className = 'fas fa-dollar-sign';
+    tipoPagoElement.querySelector('.status-value').textContent = 'Por determinar';
+    
+    totalPersonalElement.querySelector('.status-value').textContent = '0';
+    totalPagoElement.querySelector('.status-value').textContent = 'Q 0.00';
+    
+    // Restablecer estado de filtros
+    filtersApplied = false;
+}
 
+// Nueva función para habilitar/deshabilitar controles respetando permisos
+function inhabilitarControlesBusquedaRespetandoPermisos(inhabilitar = true, esAdministrador = false, idDepartamentoUsuario = null) {
+    // Solo manejar el departamento si el usuario es administrador
+    if (esAdministrador) {
+        departamentoSelect.disabled = inhabilitar;
+        departamentoSelect.classList.toggle('control-disabled', inhabilitar);
+    } else if (idDepartamentoUsuario) {
+        // Si no es administrador, mantener el departamento siempre deshabilitado
+        departamentoSelect.disabled = true;
+        departamentoSelect.classList.add('control-disabled');
+        departamentoSelect.value = idDepartamentoUsuario;
+    }
+    
+    // Manejar los demás controles normalmente
+    tipoPersonalSelect.disabled = inhabilitar;
+    fechaInput.disabled = inhabilitar;
+    
+    // Cambiar apariencia visual para indicar estado inhabilitado
+    tipoPersonalSelect.classList.toggle('control-disabled', inhabilitar);
+    fechaInput.classList.toggle('control-disabled', inhabilitar);
+    
+    // Cambiar el estado del botón de búsqueda y limpiar
+    applyFiltersBtn.disabled = inhabilitar;
+    clearFiltersBtn.disabled = false; // El botón limpiar siempre debe estar habilitado
+}
 async function obtenerLogoDivision(idDivision) {
     try {
         const connection = await getConnection();
@@ -2652,7 +2888,7 @@ function renderizarTablaPersonalExterno(personal) {
 }
 
 // Función para agregar los colaboradores externos seleccionados a la planilla principal
-function agregarColaboradoresExternos() {
+async function agregarColaboradoresExternos() {
     // Obtener los colaboradores seleccionados
     const seleccionados = externalPersonalData.filter(p => p.selected);
     
@@ -2661,50 +2897,93 @@ function agregarColaboradoresExternos() {
         return;
     }
     
-    // Verificar una vez más que no se excedan los límites
-    const excesos = verificarLimitesConjuntos();
-    
-    if (excesos.excedeLimites) {
-        // Mostrar alerta de exceso de límites
-        Swal.fire({
-            icon: 'warning',
-            title: 'Límite de Personal Excedido',
-            html: `
-                <div class="alerta-limites">
-                    <p>Se han excedido los límites de personal establecidos para este departamento:</p>
-                    <ul class="lista-excesos">
-                        ${excesos.mensajes.map(mensaje => `<li>${mensaje}</li>`).join('')}
+    try {
+        // Verificar una vez más que no se excedan los límites
+        const excesos = verificarLimitesConjuntos();
+        
+        if (excesos.excedeLimites) {
+            // Mostrar alerta de exceso de límites
+            Swal.fire({
+                icon: 'warning',
+                title: 'Límite de Personal Excedido',
+                html: `
+                    <div class="alerta-limites">
+                        <p>Se han excedido los límites de personal establecidos para este departamento:</p>
+                        <ul class="lista-excesos">
+                            ${excesos.mensajes.map(mensaje => `<li>${mensaje}</li>`).join('')}
+                        </ul>
+                        <p>Ajuste su selección antes de continuar.</p>
+                    </div>
+                `,
+                confirmButtonText: 'Entendido',
+                confirmButtonColor: 'var(--color-primary)'
+            });
+            return;
+        }
+        
+        // Verificación final de disponibilidad (por si hubo cambios mientras el modal estaba abierto)
+        const fechaPlanilla = fechaInput.value;
+        const colaboradoresConflicto = [];
+        
+        for (const colaborador of seleccionados) {
+            const verificacion = await verificarColaboradorEnPlanilla(colaborador.IdPersonal, fechaPlanilla);
+            if (verificacion.yaExiste) {
+                colaboradoresConflicto.push({
+                    nombre: colaborador.NombreCompleto,
+                    planillaId: verificacion.idPlanilla,
+                    departamento: verificacion.nombreDepartamento
+                });
+            }
+        }
+        
+        if (colaboradoresConflicto.length > 0) {
+            const conflictosHTML = colaboradoresConflicto.map(c => 
+                `<li><strong>${c.nombre}</strong> - Planilla ${c.planillaId} (${c.departamento})</li>`
+            ).join('');
+            
+            Swal.fire({
+                icon: 'error',
+                title: 'Colaboradores No Disponibles',
+                html: `
+                    <p>Los siguientes colaboradores ya no están disponibles:</p>
+                    <ul style="text-align: left; margin: 15px 0; padding-left: 20px;">
+                        ${conflictosHTML}
                     </ul>
-                    <p>Ajuste su selección antes de continuar.</p>
-                </div>
-            `,
-            confirmButtonText: 'Entendido',
-            confirmButtonColor: 'var(--color-primary)'
-        });
-        return;
+                    <p>Por favor, actualice su selección.</p>
+                `,
+                confirmButtonText: 'Entendido',
+                confirmButtonColor: 'var(--color-primary)'
+            });
+            return;
+        }
+        
+        // Si todo está bien, continuar con el proceso normal
+        // Marcar a los colaboradores como externos
+        const colaboradoresExternos = seleccionados.map(persona => ({
+            ...persona,
+            esExterno: true,
+            departamentoOrigen: externalDepartamentoSelect.options[externalDepartamentoSelect.selectedIndex].text
+        }));
+        
+        // Agregar los colaboradores externos al array de datos principal
+        personalData = [...personalData, ...colaboradoresExternos];
+        
+        // Renderizar la tabla principal con los nuevos datos
+        renderizarTablaPersonal(personalData);
+        
+        // Actualizar información de totales en la interfaz principal
+        actualizarTotales();
+        
+        // Cerrar el modal
+        ocultarModal(externalModal);
+        
+        // Mostrar notificación de éxito
+        mostrarNotificacion(`Se agregaron ${seleccionados.length} colaborador(es) externos a la planilla`, 'success');
+        
+    } catch (error) {
+        console.error('Error al agregar colaboradores externos:', error);
+        mostrarNotificacion('Error al agregar colaboradores externos', 'error');
     }
-    
-    // Marcar a los colaboradores como externos
-    const colaboradoresExternos = seleccionados.map(persona => ({
-        ...persona,
-        esExterno: true,
-        departamentoOrigen: externalDepartamentoSelect.options[externalDepartamentoSelect.selectedIndex].text
-    }));
-    
-    // Agregar los colaboradores externos al array de datos principal
-    personalData = [...personalData, ...colaboradoresExternos];
-    
-    // Renderizar la tabla principal con los nuevos datos
-    renderizarTablaPersonal(personalData);
-    
-    // Actualizar información de totales en la interfaz principal
-    actualizarTotales();
-    
-    // Cerrar el modal
-    ocultarModal(externalModal);
-    
-    // Mostrar notificación de éxito
-    mostrarNotificacion(`Se agregaron ${seleccionados.length} colaborador(es) externos a la planilla`, 'success');
 }
 
 // Función para verificar límites de personal combinados (principal + externos)
@@ -2756,7 +3035,7 @@ function verificarLimitesConjuntos() {
     return excesos;
 }
 // Función para manejar la selección de personal externo mediante checkboxes
-function manejarSeleccionPersonalExterno(e) {
+async function manejarSeleccionPersonalExterno(e) {
     const checkbox = e.target;
     const idPersonal = parseInt(checkbox.dataset.id);
     const isChecked = checkbox.checked;
@@ -2766,6 +3045,103 @@ function manejarSeleccionPersonalExterno(e) {
     
     if (!persona) return;
     
+    // Si se está seleccionando, validar disponibilidad primero
+    if (isChecked) {
+        // Mostrar un indicador de carga temporal
+        checkbox.disabled = true;
+        
+        try {
+            // Obtener la fecha actual de la planilla
+            const fechaPlanilla = fechaInput.value;
+            
+            if (!fechaPlanilla) {
+                mostrarNotificacion('Error: No se pudo obtener la fecha de la planilla', 'error');
+                checkbox.checked = false;
+                checkbox.disabled = false;
+                return;
+            }
+            
+            // Verificar si el colaborador ya está en una planilla para esta fecha
+            const verificacion = await verificarColaboradorEnPlanilla(idPersonal, fechaPlanilla);
+            
+            if (verificacion.yaExiste) {
+                // Cancelar la selección
+                checkbox.checked = false;
+                checkbox.disabled = false;
+                
+                // Formatear la fecha para mostrar
+                const fechaFormateada = formatearFechaBD(verificacion.fechaLaboral, false);
+                
+                // Mostrar mensaje de error detallado
+                Swal.fire({
+                    icon: 'warning',
+                    title: 'Colaborador No Disponible',
+                    html: `
+                        <div class="colaborador-duplicado-alert">
+                            <p style="margin-bottom: 15px;">
+                                <strong>${verificacion.nombreColaborador}</strong> ya está incluido en una planilla para esta fecha.
+                            </p>
+                            <div style="background-color: var(--color-dark-lighter); padding: 15px; border-radius: var(--border-radius); margin: 15px 0; border-left: 4px solid var(--color-warning);">
+                                <div style="display: grid; grid-template-columns: auto 1fr; gap: 10px; font-size: 0.9rem;">
+                                    <span style="font-weight: 600;">Planilla ID:</span>
+                                    <span>${verificacion.idPlanilla}</span>
+                                    <span style="font-weight: 600;">Departamento:</span>
+                                    <span>${verificacion.nombreDepartamento}</span>
+                                    <span style="font-weight: 600;">Fecha:</span>
+                                    <span>${fechaFormateada}</span>
+                                    <span style="font-weight: 600;">Descripción:</span>
+                                    <span>${verificacion.descripcion}</span>
+                                </div>
+                            </div>
+                            <p style="color: var(--color-danger); font-weight: 500;">
+                                No se puede agregar el mismo colaborador a múltiples planillas para la misma fecha.
+                            </p>
+                        </div>
+                    `,
+                    confirmButtonText: 'Entendido',
+                    confirmButtonColor: 'var(--color-primary)',
+                    customClass: {
+                        popup: 'colaborador-duplicado-modal'
+                    }
+                });
+                
+                // Mostrar también una notificación toast
+                mostrarNotificacion(
+                    `${persona.NombreCompleto} ya está en la planilla ${verificacion.idPlanilla} para esta fecha`,
+                    'warning',
+                    'Colaborador No Disponible'
+                );
+                
+                return;
+            }
+            
+            // Si no hay conflictos, continuar con la validación de límites
+            const tipoPersonal = obtenerTipoPersonalNormalizado(persona);
+            
+            // Verificar si al agregar este colaborador se excedería el límite
+            if (!verificarLimitesParaColaboradorExterno(tipoPersonal)) {
+                // Si excede el límite, cancelar la selección
+                checkbox.checked = false;
+                checkbox.disabled = false;
+                
+                // Mostrar notificación de error
+                mostrarNotificacion(`No se puede seleccionar más personal de tipo ${tipoPersonal}. Se ha alcanzado el límite.`, 'error');
+                
+                return;
+            }
+            
+        } catch (error) {
+            console.error('Error al verificar disponibilidad del colaborador:', error);
+            checkbox.checked = false;
+            checkbox.disabled = false;
+            mostrarNotificacion('Error al verificar disponibilidad del colaborador', 'error');
+            return;
+        } finally {
+            // Rehabilitar el checkbox
+            checkbox.disabled = false;
+        }
+    }
+    
     // Actualizar el estado en el array de datos
     externalPersonalData = externalPersonalData.map(persona => {
         if (persona.IdPersonal === idPersonal) {
@@ -2773,31 +3149,6 @@ function manejarSeleccionPersonalExterno(e) {
         }
         return persona;
     });
-    
-    // Si se está seleccionando, verificar si excede los límites
-    if (isChecked) {
-        // Determinar el tipo de personal (fijo, parcial, vacacionista)
-        const tipoPersonal = obtenerTipoPersonalNormalizado(persona);
-        
-        // Verificar si al agregar este colaborador se excedería el límite
-        if (!verificarLimitesParaColaboradorExterno(tipoPersonal)) {
-            // Si excede el límite, cancelar la selección
-            checkbox.checked = false;
-            
-            // Actualizar nuevamente el estado
-            externalPersonalData = externalPersonalData.map(p => {
-                if (p.IdPersonal === idPersonal) {
-                    return {...p, selected: false};
-                }
-                return p;
-            });
-            
-            // Mostrar notificación de error
-            mostrarNotificacion(`No se puede seleccionar más personal de tipo ${tipoPersonal}. Se ha alcanzado el límite.`, 'error');
-            
-            return;
-        }
-    }
     
     // Actualizar contadores visuales
     actualizarContadoresVisuales();
@@ -2837,56 +3188,129 @@ function seleccionarTodosExternos(e) {
     }
 }
 
-// Función para seleccionar todos los colaboradores respetando los límites
-function seleccionarTodosRespetandoLimites() {
-    // Crear copia para no modificar el original durante el proceso
-    const dataCopia = [...externalPersonalData];
+// Función para seleccionar todos los colaboradores respetando los límites y disponibilidad
+async function seleccionarTodosRespetandoLimites() {
+    // Obtener la fecha actual de la planilla
+    const fechaPlanilla = fechaInput.value;
     
-    // Obtener conteos actuales y límites
-    const conteoActual = {...currentPersonalCounts};
+    if (!fechaPlanilla) {
+        mostrarNotificacion('Error: No se pudo obtener la fecha de la planilla', 'error');
+        return;
+    }
     
-    // Para cada tipo de personal, seleccionar hasta el límite
-    ['fijo', 'parcial', 'vacacionista'].forEach(tipo => {
-        // Filtrar colaboradores de este tipo que no estén seleccionados
-        const colaboradoresTipo = dataCopia
-            .filter(p => obtenerTipoPersonalNormalizado(p) === tipo && !p.selected)
-            .sort((a, b) => a.NombreCompleto.localeCompare(b.NombreCompleto));
+    // Mostrar indicador de carga
+    const selectAllLabel = document.querySelector('label[for="selectAllExternal"]');
+    const originalText = selectAllLabel ? selectAllLabel.textContent : '';
+    if (selectAllLabel) {
+        selectAllLabel.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Verificando...';
+    }
+    
+    try {
+        // Crear copia para no modificar el original durante el proceso
+        const dataCopia = [...externalPersonalData];
         
-        // Determinar cuántos podemos seleccionar
-        const limite = obtenerLimitePorTipo(tipo);
-        const disponibles = Math.max(0, limite - conteoActual[tipo]);
+        // Obtener conteos actuales y límites
+        const conteoActual = {...currentPersonalCounts};
         
-        // Seleccionar hasta el límite disponible
-        for (let i = 0; i < colaboradoresTipo.length && i < disponibles; i++) {
-            const idPersonal = colaboradoresTipo[i].IdPersonal;
+        let colaboradoresConflicto = [];
+        let colaboradoresAgregados = 0;
+        
+        // Para cada tipo de personal, seleccionar hasta el límite
+        for (const tipo of ['fijo', 'parcial', 'vacacionista']) {
+            // Filtrar colaboradores de este tipo que no estén seleccionados
+            const colaboradoresTipo = dataCopia
+                .filter(p => obtenerTipoPersonalNormalizado(p) === tipo && !p.selected)
+                .sort((a, b) => a.NombreCompleto.localeCompare(b.NombreCompleto));
             
-            // Actualizar en la copia
-            const index = externalPersonalData.findIndex(p => p.IdPersonal === idPersonal);
-            if (index !== -1) {
-                externalPersonalData[index].selected = true;
-                conteoActual[tipo]++;
+            // Determinar cuántos podemos seleccionar
+            const limite = obtenerLimitePorTipo(tipo);
+            const disponibles = Math.max(0, limite - conteoActual[tipo]);
+            
+            // Verificar disponibilidad de cada colaborador hasta el límite
+            for (let i = 0; i < colaboradoresTipo.length && i < disponibles; i++) {
+                const colaborador = colaboradoresTipo[i];
+                
+                // Verificar si ya está en una planilla para esta fecha
+                const verificacion = await verificarColaboradorEnPlanilla(colaborador.IdPersonal, fechaPlanilla);
+                
+                if (verificacion.yaExiste) {
+                    // Agregar a la lista de conflictos
+                    colaboradoresConflicto.push({
+                        nombre: colaborador.NombreCompleto,
+                        planillaId: verificacion.idPlanilla,
+                        departamento: verificacion.nombreDepartamento
+                    });
+                } else {
+                    // Si está disponible, seleccionarlo
+                    const index = externalPersonalData.findIndex(p => p.IdPersonal === colaborador.IdPersonal);
+                    if (index !== -1) {
+                        externalPersonalData[index].selected = true;
+                        conteoActual[tipo]++;
+                        colaboradoresAgregados++;
+                    }
+                }
             }
         }
-    });
-    
-    // Actualizar la interfaz
-    renderizarTablaPersonalExterno(externalPersonalData);
-    actualizarContadoresVisuales();
-    actualizarContadorSeleccionados();
-    
-    // Verificar estado del checkbox "seleccionar todos"
-    const todoSeleccionado = externalPersonalData.every(p => p.selected);
-    const algunoSeleccionado = externalPersonalData.some(p => p.selected);
-    
-    selectAllExternalCheckbox.checked = todoSeleccionado;
-    selectAllExternalCheckbox.indeterminate = algunoSeleccionado && !todoSeleccionado;
-    
-    // Habilitar/deshabilitar botón de confirmar
-    confirmExternalBtn.disabled = !algunoSeleccionado;
-    
-    // Si no se pudieron seleccionar todos, mostrar notificación
-    if (algunoSeleccionado && !todoSeleccionado) {
-        mostrarNotificacion('No se pudieron seleccionar todos los colaboradores debido a los límites establecidos.', 'warning');
+        
+        // Actualizar la interfaz
+        renderizarTablaPersonalExterno(externalPersonalData);
+        actualizarContadoresVisuales();
+        actualizarContadorSeleccionados();
+        
+        // Verificar estado del checkbox "seleccionar todos"
+        const todoSeleccionado = externalPersonalData.every(p => p.selected);
+        const algunoSeleccionado = externalPersonalData.some(p => p.selected);
+        
+        selectAllExternalCheckbox.checked = todoSeleccionado;
+        selectAllExternalCheckbox.indeterminate = algunoSeleccionado && !todoSeleccionado;
+        
+        // Habilitar/deshabilitar botón de confirmar
+        confirmExternalBtn.disabled = !algunoSeleccionado;
+        
+        // Mostrar resultados de la operación
+        if (colaboradoresConflicto.length > 0) {
+            // Mostrar lista de colaboradores que no se pudieron agregar
+            const conflictosHTML = colaboradoresConflicto.map(c => 
+                `<li><strong>${c.nombre}</strong> - Planilla ${c.planillaId} (${c.departamento})</li>`
+            ).join('');
+            
+            Swal.fire({
+                icon: 'warning',
+                title: 'Algunos Colaboradores No Disponibles',
+                html: `
+                    <div class="seleccion-masiva-result">
+                        <p style="margin-bottom: 15px;">
+                            <strong>Colaboradores agregados:</strong> ${colaboradoresAgregados}
+                        </p>
+                        <p style="margin-bottom: 10px;">
+                            Los siguientes colaboradores no se pudieron agregar porque ya están en planillas para esta fecha:
+                        </p>
+                        <ul style="text-align: left; margin: 15px 0; padding-left: 20px;">
+                            ${conflictosHTML}
+                        </ul>
+                    </div>
+                `,
+                confirmButtonText: 'Entendido',
+                confirmButtonColor: 'var(--color-primary)'
+            });
+        } else if (colaboradoresAgregados > 0) {
+            // Todos se agregaron exitosamente
+            mostrarNotificacion(`Se agregaron ${colaboradoresAgregados} colaborador(es) exitosamente`, 'success');
+        }
+        
+        // Si no se pudieron seleccionar todos por límites, mostrar notificación adicional
+        if (algunoSeleccionado && !todoSeleccionado && colaboradoresConflicto.length === 0) {
+            mostrarNotificacion('No se pudieron seleccionar todos los colaboradores debido a los límites establecidos.', 'warning');
+        }
+        
+    } catch (error) {
+        console.error('Error al verificar colaboradores:', error);
+        mostrarNotificacion('Error al verificar disponibilidad de colaboradores', 'error');
+    } finally {
+        // Restaurar el texto original del label
+        if (selectAllLabel) {
+            selectAllLabel.textContent = originalText;
+        }
     }
 }
 
@@ -3152,7 +3576,644 @@ async function verificarPermiso(codigoTransaccion) {
         return false;
     }
 }
+function mostrarModalSubirDocumento(idPlanilla) {
+    // Crear el modal si no existe
+    if (!document.getElementById('documentoModal')) {
+        const modalHTML = `
+            <div class="modal" id="documentoModal">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h3><i class="fas fa-file-upload"></i> Subir Documento PDF</h3>
+                        <button class="close-modal" id="closeDocumentoModal"><i class="fas fa-times"></i></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="upload-form">
+                            <p>Para continuar generando planillas, debe subir el documento PDF de la planilla pendiente.</p>
+                            
+                            <div class="planilla-info" id="planillaInfo">
+                                <div class="info-header">Información de la planilla pendiente</div>
+                                <div class="info-content" id="planillaInfoContent">
+                                    <!-- La información se cargará dinámicamente -->
+                                </div>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label for="documentoPdf" class="form-label">
+                                    <i class="fas fa-file-pdf"></i> Seleccionar documento PDF
+                                </label>
+                                <div class="file-input-wrapper">
+                                    <input type="file" id="documentoPdf" class="form-control" accept=".pdf">
+                                    <div class="file-input-custom">
+                                        <span id="fileName">Ningún archivo seleccionado</span>
+                                        <button type="button" class="btn btn-outline">
+                                            <i class="fas fa-folder-open"></i> Explorar
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <div class="file-info" id="fileInfo"></div>
+                        <div class="action-buttons">
+                            <button class="btn btn-success" id="confirmUploadBtn" disabled>
+                                <i class="fas fa-upload"></i> Subir Documento
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        // Añadir el modal al DOM
+        document.body.insertAdjacentHTML('beforeend', modalHTML);
+        
+        // Añadir los estilos necesarios
+        const styleElement = document.createElement('style');
+        styleElement.textContent = `
+            .upload-form {
+                display: flex;
+                flex-direction: column;
+                gap: 20px;
+            }
+            
+            .file-input-wrapper {
+                position: relative;
+            }
+            
+            .file-input-wrapper input[type="file"] {
+                opacity: 0;
+                position: absolute;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                cursor: pointer;
+                z-index: 10;
+            }
+            
+            .file-input-custom {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                padding: 8px 12px;
+                border: 1px solid var(--color-dark-border);
+                border-radius: var(--border-radius-sm);
+                background-color: #ffffff;
+            }
+            
+            .file-input-custom span {
+                overflow: hidden;
+                text-overflow: ellipsis;
+                white-space: nowrap;
+                font-size: 0.9rem;
+                color: var(--color-light-muted);
+            }
+            
+            .upload-preview {
+                width: 100%;
+                height: 200px;
+                border: 1px dashed var(--color-dark-border);
+                border-radius: var(--border-radius);
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                background-color: var(--color-dark-lighter);
+                overflow: hidden;
+            }
+            
+            .preview-message {
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                gap: 10px;
+                color: var(--color-light-muted);
+            }
+            
+            .preview-message i {
+                font-size: 3rem;
+                color: var(--color-primary);
+                opacity: 0.5;
+            }
+            
+            .file-info {
+                font-size: 0.85rem;
+                color: var(--color-info);
+            }
+            
+            .planilla-info {
+                background-color: var(--color-dark-lighter);
+                border-radius: var(--border-radius);
+                overflow: hidden;
+                border: 1px solid var(--color-dark-border);
+            }
+            
+            .info-header {
+                padding: 10px 15px;
+                background-color: rgba(255, 127, 39, 0.1);
+                font-weight: 600;
+                color: var(--color-primary);
+                border-bottom: 1px solid var(--color-dark-border);
+            }
+            
+            .info-content {
+                padding: 15px;
+            }
+            
+            .info-item {
+                display: flex;
+                justify-content: space-between;
+                margin-bottom: 8px;
+                font-size: 0.9rem;
+            }
+            
+            .info-label {
+                font-weight: 500;
+                color: var(--color-light-muted);
+            }
+            
+            .info-value {
+                font-weight: 600;
+                color: var(--color-light);
+            }
+        `;
+        document.head.appendChild(styleElement);
+        
+        // Añadir event listeners
+        document.getElementById('closeDocumentoModal').addEventListener('click', () => {
+            ocultarModal(document.getElementById('documentoModal'));
+        });
+        
+        document.getElementById('documentoPdf').addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            
+            if (file) {
+                // Actualizar nombre del archivo
+                document.getElementById('fileName').textContent = file.name;
+                
+                // Verificar tipo de archivo
+                if (file.type !== 'application/pdf') {
+                    document.getElementById('fileInfo').innerHTML = `
+                        <span style="color: var(--color-danger);">
+                            <i class="fas fa-exclamation-circle"></i> 
+                            El archivo debe ser un PDF válido
+                        </span>
+                    `;
+                    document.getElementById('confirmUploadBtn').disabled = true;
+                    return;
+                }
+                
+                // Verificar tamaño del archivo (máximo 10MB)
+                const maxSize = 10 * 1024 * 1024; // 10MB en bytes
+                if (file.size > maxSize) {
+                    document.getElementById('fileInfo').innerHTML = `
+                        <span style="color: var(--color-danger);">
+                            <i class="fas fa-exclamation-circle"></i> 
+                            El archivo excede el tamaño máximo permitido (10MB)
+                        </span>
+                    `;
+                    document.getElementById('confirmUploadBtn').disabled = true;
+                    return;
+                }
+                
+                // Mostrar información del archivo
+                const fileSize = formatFileSize(file.size);
+                document.getElementById('fileInfo').innerHTML = `
+                    <span style="color: var(--color-success);">
+                        <i class="fas fa-check-circle"></i> 
+                        Archivo válido: ${file.name} (${fileSize})
+                    </span>
+                `;
+                
+                // Habilitar botón de subir
+                document.getElementById('confirmUploadBtn').disabled = false;
 
+            } else {
+                // Reset si no hay archivo
+                document.getElementById('fileName').textContent = 'Ningún archivo seleccionado';
+                document.getElementById('fileInfo').textContent = '';
+                document.getElementById('confirmUploadBtn').disabled = true;
+            }
+        });
+        
+        // Event listener para el botón de subir documento
+        document.getElementById('confirmUploadBtn').addEventListener('click', () => {
+            subirDocumentoPlanilla(idPlanilla);
+        });
+    }
+    
+    // Cargar información de la planilla
+    cargarInfoPlanilla(idPlanilla);
+    
+    // Mostrar el modal
+    mostrarModal(document.getElementById('documentoModal'));
+}
+
+// Función para formatear el tamaño del archivo
+function formatFileSize(bytes) {
+    if (bytes < 1024) return bytes + ' bytes';
+    else if (bytes < 1048576) return (bytes / 1024).toFixed(2) + ' KB';
+    else return (bytes / 1048576).toFixed(2) + ' MB';
+}
+
+// Función para cargar la información de la planilla
+async function cargarInfoPlanilla(idPlanilla) {
+    try {
+        const connection = await getConnection();
+        
+        const query = `
+            SELECT 
+                pe.IdPlanillaEspecial,
+                pe.IdDepartamento,
+                pe.NombreDepartamento,
+                pe.FechaLaboral,
+                pe.DescripcionLaboral,
+                pe.CantColaboradores,
+                pe.MontoTotalGasto,
+                pe.FechaCreacion
+            FROM 
+                PlanillasEspeciales pe
+            WHERE 
+                pe.IdPlanillaEspecial = ?
+        `;
+        
+        const result = await connection.query(query, [idPlanilla]);
+        await connection.close();
+        
+        if (result && result.length > 0) {
+            const planilla = result[0];
+            
+            // Formatear fechas sin problemas de zona horaria
+            const fechaFormateada = formatearFechaBD(planilla.FechaLaboral, false);
+            const fechaGeneracionFormateada = formatearFechaBD(planilla.FechaCreacion, true);
+            
+            // Actualizar la información en el modal
+            const infoContent = document.getElementById('planillaInfoContent');
+            infoContent.innerHTML = `
+                <div class="info-item">
+                    <span class="info-label">ID Planilla:</span>
+                    <span class="info-value">${planilla.IdPlanillaEspecial}</span>
+                </div>
+                <div class="info-item">
+                    <span class="info-label">Departamento:</span>
+                    <span class="info-value">${planilla.NombreDepartamento}</span>
+                </div>
+                <div class="info-item">
+                    <span class="info-label">Fecha Laboral:</span>
+                    <span class="info-value">${fechaFormateada}</span>
+                </div>
+                <div class="info-item">
+                    <span class="info-label">Descripción:</span>
+                    <span class="info-value">${planilla.DescripcionLaboral}</span>
+                </div>
+                <div class="info-item">
+                    <span class="info-label">Colaboradores:</span>
+                    <span class="info-value">${planilla.CantColaboradores}</span>
+                </div>
+                <div class="info-item">
+                    <span class="info-label">Monto Total:</span>
+                    <span class="info-value">Q ${planilla.MontoTotalGasto.toFixed(2)}</span>
+                </div>
+                <div class="info-item">
+                    <span class="info-label">Generada:</span>
+                    <span class="info-value">${fechaGeneracionFormateada}</span>
+                </div>
+            `;
+        } else {
+            // Si no se encuentra la planilla
+            const infoContent = document.getElementById('planillaInfoContent');
+            infoContent.innerHTML = `
+                <div class="empty-message" style="padding: 20px; text-align: center;">
+                    <i class="fas fa-exclamation-triangle" style="color: var(--color-warning); font-size: 2rem; margin-bottom: 10px;"></i>
+                    <p>No se encontró información para la planilla ID: ${idPlanilla}</p>
+                </div>
+            `;
+        }
+    } catch (error) {
+        console.error('Error al cargar información de la planilla:', error);
+        
+        // Mostrar error en el contenido
+        const infoContent = document.getElementById('planillaInfoContent');
+        infoContent.innerHTML = `
+            <div class="empty-message" style="padding: 20px; text-align: center;">
+                <i class="fas fa-exclamation-circle" style="color: var(--color-danger); font-size: 2rem; margin-bottom: 10px;"></i>
+                <p>Error al cargar información: ${error.message}</p>
+            </div>
+        `;
+    }
+}
+
+// Función para subir el documento PDF
+async function subirDocumentoPlanilla(idPlanilla) {
+    try {
+        // Obtener el archivo
+        const fileInput = document.getElementById('documentoPdf');
+        const file = fileInput.files[0];
+        
+        if (!file) {
+            mostrarNotificacion('Debe seleccionar un archivo PDF', 'warning');
+            return;
+        }
+        
+        // Verificar tipo de archivo
+        if (file.type !== 'application/pdf') {
+            mostrarNotificacion('El archivo debe ser un PDF válido', 'error');
+            return;
+        }
+        
+        // Mostrar modal de proceso
+        mostrarModal(processModal);
+        document.getElementById('processModalTitle').innerHTML = '<i class="fas fa-file-upload"></i> Subiendo Documento';
+        document.getElementById('processMessage').textContent = 'Preparando archivo...';
+        document.getElementById('progressFill').style.width = '0%';
+        document.getElementById('progressText').textContent = '0%';
+        
+        // Iniciar progreso
+        updateProgress(10, 'Leyendo archivo...');
+        
+        // Leer el archivo como ArrayBuffer
+        const reader = new FileReader();
+        
+        reader.onload = async function(e) {
+            try {
+                updateProgress(30, 'Procesando archivo...');
+                
+                // Convertir ArrayBuffer a Buffer para Node.js
+                const buffer = Buffer.from(e.target.result);
+                
+                updateProgress(50, 'Guardando en base de datos...');
+                
+                // Obtener datos del usuario
+                const userData = JSON.parse(localStorage.getItem('userData'));
+                const idUsuario = userData?.IdPersonal || 0;
+                const nombreUsuario = userData?.NombreCompleto || 'Usuario Sistema';
+                
+                // Crear conexión a la base de datos
+                const connection = await getConnection();
+                
+                // Verificar si ya existe un documento para esta planilla
+                const checkQuery = `
+                    SELECT COUNT(*) AS existe
+                    FROM DocumentosPlanillasEspeciales
+                    WHERE IdPlanillaEspecial = ?
+                `;
+                
+                const checkResult = await connection.query(checkQuery, [idPlanilla]);
+                
+                let queryType, queryParams;
+                
+                if (checkResult && checkResult[0].existe > 0) {
+                    // Actualizar documento existente
+                    updateProgress(60, 'Actualizando documento existente...');
+                    
+                    queryType = `
+                        UPDATE DocumentosPlanillasEspeciales
+                        SET 
+                            NombreArchivo = ?,
+                            DocumentoPDF = ?,
+                            FechaSubida = NOW(),
+                            IdUsuarioSubida = ?,
+                            NombreUsuarioSubida = ?
+                        WHERE IdPlanillaEspecial = ?
+                    `;
+                    
+                    queryParams = [
+                        file.name,
+                        buffer,
+                        idUsuario,
+                        nombreUsuario,
+                        idPlanilla
+                    ];
+                } else {
+                    // Insertar nuevo documento
+                    updateProgress(60, 'Insertando nuevo documento...');
+                    
+                    queryType = `
+                        INSERT INTO DocumentosPlanillasEspeciales (
+                            IdPlanillaEspecial,
+                            NombreArchivo,
+                            DocumentoPDF,
+                            FechaSubida,
+                            IdUsuarioSubida,
+                            NombreUsuarioSubida
+                        ) VALUES (?, ?, ?, NOW(), ?, ?)
+                    `;
+                    
+                    queryParams = [
+                        idPlanilla,
+                        file.name,
+                        buffer,
+                        idUsuario,
+                        nombreUsuario
+                    ];
+                }
+                
+                // Ejecutar la consulta
+                await connection.query(queryType, queryParams);
+                
+                updateProgress(80, 'Actualizando estado de la planilla...');
+                
+                // Actualizar el estado de la planilla a 1
+                const updatePlanillaQuery = `
+                    UPDATE PlanillasEspeciales
+                    SET Estado = 1
+                    WHERE IdPlanillaEspecial = ?
+                `;
+                
+                await connection.query(updatePlanillaQuery, [idPlanilla]);
+                
+                // Cerrar conexión
+                await connection.close();
+                
+                updateProgress(100, '¡Documento subido con éxito!');
+                
+                // Esperar un momento antes de cerrar el modal
+                setTimeout(() => {
+                    // Ocultar los modales
+                    ocultarModal(processModal);
+                    ocultarModal(document.getElementById('documentoModal'));
+                    
+                    // Mostrar notificación de éxito
+                   mostrarNotificacion(
+                       `Documento PDF subido correctamente. La planilla ID: ${idPlanilla} ahora está disponible para nuevas generaciones.`, 
+                       'success',
+                       'Documento Subido'
+                   );
+                   
+                   // Limpiar el formulario de filtros y permitir nueva búsqueda
+                   limpiarFiltros();
+                   
+                   // Resetear el input de archivo
+                   document.getElementById('documentoPdf').value = '';
+                   document.getElementById('fileName').textContent = 'Ningún archivo seleccionado';
+                   document.getElementById('fileInfo').textContent = '';
+                   document.getElementById('confirmUploadBtn').disabled = true;
+                   
+               }, 1500);
+               
+           } catch (dbError) {
+               console.error('Error al guardar en la base de datos:', dbError);
+               
+               updateProgress(100, 'Error al guardar documento');
+               
+               setTimeout(() => {
+                   ocultarModal(processModal);
+                   mostrarNotificacion(
+                       `Error al guardar el documento: ${dbError.message}`, 
+                       'error',
+                       'Error de Base de Datos'
+                   );
+               }, 1000);
+           }
+       };
+       
+       reader.onerror = function() {
+           updateProgress(100, 'Error al leer el archivo');
+           
+           setTimeout(() => {
+               ocultarModal(processModal);
+               mostrarNotificacion('Error al leer el archivo seleccionado', 'error');
+           }, 1000);
+       };
+       
+       // Leer el archivo
+       reader.readAsArrayBuffer(file);
+       
+   } catch (error) {
+       console.error('Error al subir documento:', error);
+       
+       // Cerrar modal de proceso si está abierto
+       ocultarModal(processModal);
+       
+       mostrarNotificacion(
+           `Error al subir documento: ${error.message}`, 
+           'error',
+           'Error de Subida'
+       );
+   }
+}
+// Función para formatear fecha sin problemas de zona horaria
+function formatearFechaSinZonaHoraria(fechaString, incluirHora = false) {
+    if (!fechaString) return 'Fecha no disponible';
+    
+    try {
+        let fecha;
+        
+        // Si la fecha viene en formato YYYY-MM-DD (solo fecha)
+        if (fechaString.includes('-') && !fechaString.includes(' ') && !fechaString.includes('T')) {
+            // Crear fecha agregando tiempo mediodía para evitar problemas de zona horaria
+            fecha = new Date(`${fechaString}T12:00:00`);
+        } else {
+            // Para fechas con hora, usar directamente
+            fecha = new Date(fechaString);
+        }
+        
+        // Verificar si la fecha es válida
+        if (isNaN(fecha.getTime())) {
+            console.error('Fecha inválida:', fechaString);
+            return 'Fecha inválida';
+        }
+        
+        if (incluirHora) {
+            // Formatear con fecha y hora
+            return fecha.toLocaleDateString('es-ES', {
+                day: '2-digit',
+                month: 'long',
+                year: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+        } else {
+            // Solo formatear fecha
+            return fecha.toLocaleDateString('es-ES', {
+                day: '2-digit',
+                month: 'long',
+                year: 'numeric'
+            });
+        }
+    } catch (error) {
+        console.error('Error al formatear fecha:', error, fechaString);
+        return 'Error en fecha';
+    }
+}
+
+// Función específica para fechas de base de datos MySQL
+function formatearFechaBD(fechaBD, incluirHora = false) {
+    if (!fechaBD) return 'Fecha no disponible';
+    
+    try {
+        // Convertir el objeto Date de MySQL a string si es necesario
+        let fechaString = fechaBD;
+        
+        if (fechaBD instanceof Date) {
+            // Si ya es un objeto Date, convertir a ISO string y tomar solo la fecha
+            fechaString = fechaBD.toISOString().split('T')[0];
+        } else if (typeof fechaBD === 'string') {
+            // Si es string, verificar formato
+            if (fechaBD.includes('T')) {
+                // Si tiene formato ISO, tomar solo la parte de fecha para fechas sin hora
+                if (!incluirHora) {
+                    fechaString = fechaBD.split('T')[0];
+                }
+            }
+        }
+        
+        return formatearFechaSinZonaHoraria(fechaString, incluirHora);
+    } catch (error) {
+        console.error('Error al formatear fecha de BD:', error, fechaBD);
+        return 'Error en fecha';
+    }
+}
+// Función para verificar si un colaborador ya está en una planilla para una fecha específica
+async function verificarColaboradorEnPlanilla(idPersonal, fecha) {
+    try {
+        const connection = await getConnection();
+        
+        const query = `
+            SELECT 
+                pe.IdPlanillaEspecial,
+                pe.NombreDepartamento,
+                pe.FechaLaboral,
+                pe.DescripcionLaboral,
+                dpe.NombreColaborador
+            FROM 
+                DetallePlanillaEspecial dpe
+                INNER JOIN PlanillasEspeciales pe ON dpe.IdPlanillaEspecial = pe.IdPlanillaEspecial
+            WHERE 
+                dpe.IdPersonal = ? 
+                AND pe.FechaLaboral = ?
+                AND pe.Estado >= 0  -- Incluir planillas pendientes (0) y completadas (1)
+            LIMIT 1
+        `;
+        
+        const result = await connection.query(query, [idPersonal, fecha]);
+        await connection.close();
+        
+        if (result && result.length > 0) {
+            const planilla = result[0];
+            return {
+                yaExiste: true,
+                idPlanilla: planilla.IdPlanillaEspecial,
+                nombreDepartamento: planilla.NombreDepartamento,
+                fechaLaboral: planilla.FechaLaboral,
+                descripcion: planilla.DescripcionLaboral,
+                nombreColaborador: planilla.NombreColaborador
+            };
+        } else {
+            return {
+                yaExiste: false
+            };
+        }
+    } catch (error) {
+        console.error('Error al verificar colaborador en planilla:', error);
+        mostrarNotificacion('Error al verificar disponibilidad del colaborador', 'error');
+        return {
+            yaExiste: false,
+            error: true,
+            mensaje: error.message
+        };
+    }
+}
 // Agregar estilos adicionales para elementos externos
 document.addEventListener('DOMContentLoaded', async() => {
     try {
@@ -3292,7 +4353,11 @@ document.addEventListener('DOMContentLoaded', async() => {
             }
         });
     });
-    
+    document.addEventListener('click', (e) => {
+        if (e.target.id === 'documentoModal') {
+            ocultarModal(document.getElementById('documentoModal'));
+        }
+    });
     // Event listeners específicos para cada modal
     cancelGenerateBtn.addEventListener('click', () => ocultarModal(confirmModal));
     confirmGenerateBtn.addEventListener('click', () => {

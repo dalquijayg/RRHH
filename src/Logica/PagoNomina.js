@@ -13,6 +13,19 @@ const rowsPerPage = 10;
 let totalRows = 0;
 let filteredData = [];
 
+// Variables para la sección de modificación
+let planillasModificables = [];
+let selectedPlanillaId = null;
+let detallesPlanillaSeleccionada = [];
+let cambiosRealizados = {};
+
+// Variables para la sección de autorización
+let planillasAutorizables = [];
+let planillasSeleccionadas = new Set();
+let datosAutorizacion = null;
+let mapaAutorizaciones = new Map(); // NoCuenta -> NoAutorizacion
+let detallesColaboradoresMap = new Map(); // IdPagoPlanilla -> [detalles de colaboradores]
+
 // Función para establecer conexión a la base de datos
 async function connectionString() {
     try {
@@ -36,6 +49,7 @@ async function connectionString() {
         throw error;
     }
 }
+
 // Función para verificar qué planillas ya están guardadas
 async function obtenerPlanillasGuardadas() {
     try {
@@ -67,6 +81,7 @@ async function obtenerPlanillasGuardadas() {
         return [];
     }
 }
+
 // Función para cargar las planillas disponibles
 async function cargarPlanillas() {
     try {
@@ -447,6 +462,7 @@ async function obtenerDatosNomina() {
         document.getElementById('loader').style.display = 'none';
     }
 }
+
 // Función actualizada para renderizar la tabla con indicadores de bajas
 function renderizarTabla(datos) {
     const tbody = document.getElementById('nominaTableBody');
@@ -614,23 +630,25 @@ function actualizarPaginacion(totalItems) {
     const prevButton = document.querySelector('.pagination-btn[data-page="prev"]');
     const nextButton = document.querySelector('.pagination-btn[data-page="next"]');
     
-    prevButton.disabled = currentPage === 1;
-    nextButton.disabled = currentPage === totalPages || totalPages === 0;
-    
-    // Agregar eventos a botones anterior/siguiente
-    prevButton.onclick = () => {
-        if (currentPage > 1) {
-            currentPage--;
-            renderizarTabla(filteredData);
-        }
-    };
-    
-    nextButton.onclick = () => {
-        if (currentPage < totalPages) {
-            currentPage++;
-            renderizarTabla(filteredData);
-        }
-    };
+    if (prevButton && nextButton) {
+        prevButton.disabled = currentPage === 1;
+        nextButton.disabled = currentPage === totalPages || totalPages === 0;
+        
+        // Agregar eventos a botones anterior/siguiente
+        prevButton.onclick = () => {
+            if (currentPage > 1) {
+                currentPage--;
+                renderizarTabla(filteredData);
+            }
+        };
+        
+        nextButton.onclick = () => {
+            if (currentPage < totalPages) {
+                currentPage++;
+                renderizarTabla(filteredData);
+            }
+        };
+    }
 }
 
 // Función principal para cargar datos de nómina
@@ -654,6 +672,7 @@ async function cargarDatosNomina() {
         
         console.log(`Datos obtenidos inicialmente: ${datosCompletos ? datosCompletos.length : 0} registros`);
         
+        // Filtrar los datos para eliminar empleados de planillas ya guardadas
         // Filtrar los datos para eliminar empleados de planillas ya guardadas
         if (datosCompletos && datosCompletos.length > 0) {
             datosCompletos.sort((a, b) => {
@@ -748,8 +767,7 @@ function formatearFecha(fecha) {
     return `${dia}/${mes}/${anio}`;
 }
 
-// Función de exportar a Excel con altas y bajas
-// Función actualizada de exportar a Excel con etiquetas de suspensiones
+// Función para exportar a Excel con etiquetas de suspensiones
 async function exportarExcel() {
     try {
         if (filteredData.length === 0) {
@@ -1038,7 +1056,7 @@ async function exportarExcel() {
     }
 }
 
-// Nueva función para obtener detalles de suspensiones
+// Funciones para obtener información adicional
 async function obtenerDetallesSuspensiones(idPersonal, mes, anio, tipoQuincena) {
     try {
         const connection = await connectionString();
@@ -1089,6 +1107,7 @@ async function obtenerDetallesSuspensiones(idPersonal, mes, anio, tipoQuincena) 
         return [];
     }
 }
+
 async function obtenerBajasColaboradores(mes, anio, tipoQuincena) {
     try {
         const connection = await connectionString();
@@ -1152,727 +1171,2304 @@ async function obtenerBajasColaboradores(mes, anio, tipoQuincena) {
         return [];
     }
 }
-// Eventos al cargar la página
-document.addEventListener('DOMContentLoaded', async function() {
-    // Obtener el usuario actual del localStorage
-    const userData = JSON.parse(localStorage.getItem('userData')) || {};
+
+// FUNCIONES PARA EL MANEJO DE PESTAÑAS Y ACORDEÓN
+
+// Función para inicializar pestañas
+function inicializarPestanas() {
+    const tabButtons = document.querySelectorAll('.tab-btn');
+    const tabPanes = document.querySelectorAll('.tab-pane');
     
-    // Configurar datos del usuario en la interfaz
-    if (userData) {
-        document.getElementById('userName').textContent = userData.NombreCompleto || 'Usuario';
-        document.getElementById('userRole').textContent = determinarRol(userData.Id_Puesto) || 'Colaborador';
-        
-        // Configurar imagen de usuario si existe
-        if (userData.FotoBase64) {
-            document.getElementById('userImage').src = userData.FotoBase64;
-        }
-    }
-    
-    // Llenar años en el filtro (desde 2020 hasta año actual + 1)
-    const anioFilter = document.getElementById('anioFilter');
-    const currentYear = new Date().getFullYear();
-    for (let year = 2020; year <= currentYear + 1; year++) {
-        const option = document.createElement('option');
-        option.value = year;
-        option.textContent = year;
-        if (year === currentYear) {
-            option.selected = true;
-        }
-        anioFilter.appendChild(option);
-    }
-    
-    // Establecer mes actual seleccionado por defecto
-    const currentMonth = new Date().getMonth() + 1; // getMonth() es 0-indexed
-    document.getElementById('mesFilter').value = currentMonth;
-    
-    // Cargar planillas desde la base de datos
-    await cargarPlanillas();
-    
-    // Configurar evento para aplicar filtros
-    document.getElementById('applyFilters').addEventListener('click', cargarDatosNomina);
-    
-    // Configurar evento para exportar a Excel
-    document.getElementById('exportBtn').addEventListener('click', exportarExcel);
-    document.getElementById('pdfBtn').addEventListener('click', generarPDF);
-    // Configurar switch de tema
-    document.getElementById('themeSwitch').addEventListener('change', function(e) {
-        if (e.target.checked) {
-            document.body.classList.add('dark-theme');
-            localStorage.setItem('theme', 'dark');
-        } else {
-            document.body.classList.remove('dark-theme');
-            localStorage.setItem('theme', 'light');
-        }
-    });
-    document.getElementById('saveBtn').addEventListener('click', async function() {
-        try {
-            // Verificar que haya datos para guardar
-            if (!filteredData || filteredData.length === 0) {
-                await Swal.fire({
-                    icon: 'warning',
-                    title: 'Sin datos',
-                    text: 'No hay datos para guardar. Aplique los filtros para visualizar la información.'
-                });
-                return;
+    tabButtons.forEach(button => {
+        button.addEventListener('click', () => {
+            // Desactivar todas las pestañas
+            tabButtons.forEach(btn => btn.classList.remove('active'));
+            tabPanes.forEach(pane => pane.classList.remove('active'));
+            
+            // Activar la pestaña seleccionada
+            const tabId = button.getAttribute('data-tab');
+            button.classList.add('active');
+            document.getElementById(tabId).classList.add('active');
+            
+            // Acciones específicas según la pestaña
+            if (tabId === 'modificar-nomina') {
+                reiniciarEstadoModificacion();
+                // Copiar los filtros de la otra pestaña para facilitar la búsqueda
+                copiarFiltros('tipoQuincenaFilter', 'modTipoQuincenaFilter');
+                copiarFiltros('mesFilter', 'modMesFilter');
+                copiarFiltros('anioFilter', 'modAnioFilter');
+            } else if (tabId === 'autorizar-nomina') {
+                reiniciarEstadoAutorizacion();
+                // Copiar los filtros de la pestaña principal
+                copiarFiltros('tipoQuincenaFilter', 'authTipoQuincenaFilter');
+                copiarFiltros('mesFilter', 'authMesFilter');
+                copiarFiltros('anioFilter', 'authAnioFilter');
             }
-            
-            // Obtener información de las planillas a guardar para mostrar en el mensaje
-            const planillas = {};
-            filteredData.forEach(empleado => {
-                if (!planillas[empleado.IdPlanilla]) {
-                    planillas[empleado.IdPlanilla] = {
-                        nombre: empleado.Nombre_Planilla,
-                        empleados: 0
-                    };
-                }
-                planillas[empleado.IdPlanilla].empleados++;
-            });
-            
-            // Construir mensaje de confirmación
-            let mensaje = 'Está a punto de guardar la información:<br>';
-            mensaje += '¿Está seguro de continuar?';
-            
-            // Mostrar confirmación al usuario
-            const confirmacion = await Swal.fire({
-                icon: 'question',
-                title: 'Confirmar guardado',
-                html: mensaje,
-                showCancelButton: true,
-                confirmButtonText: 'Sí, guardar',
-                cancelButtonText: 'Cancelar',
-                confirmButtonColor: '#4CAF50',
-                cancelButtonColor: '#FF5252'
-            });
-            
-            // Si el usuario confirma, proceder con el guardado
-            if (confirmacion.isConfirmed) {
-                // Verificar si ya existe una planilla guardada con los mismos datos
-                const existePlanilla = await verificarPlanillaExistente();
-                
-                if (existePlanilla) {
-                    // Preguntar al usuario si desea sobrescribir la planilla existente
-                    const confirmacionSobrescribir = await Swal.fire({
-                        icon: 'warning',
-                        title: 'Planilla existente',
-                        text: 'Ya existe una planilla guardada con los mismos parámetros. ¿Desea sobrescribirla?',
-                        showCancelButton: true,
-                        confirmButtonText: 'Sí, sobrescribir',
-                        cancelButtonText: 'No, cancelar'
-                    });
-                    
-                    if (!confirmacionSobrescribir.isConfirmed) {
-                        return;
-                    }
-                    
-                    // Si el usuario confirma, eliminar la planilla existente antes de guardar
-                    await eliminarPlanillaExistente();
-                }
-                
-                // Guardar la planilla
-                await guardarPlanilla();
-                
-                // Después de guardar exitosamente, limpiar la pantalla
-                limpiarPantalla();
-            }
-            
-        } catch (error) {
-            console.error('Error al procesar guardado de planilla:', error);
-            
-            await Swal.fire({
-                icon: 'error',
-                title: 'Error',
-                text: 'Ocurrió un error al procesar la solicitud.'
-            });
-        }
-    });
-    // Cargar preferencia de tema guardada
-    if (localStorage.getItem('theme') === 'dark') {
-        document.body.classList.add('dark-theme');
-        document.getElementById('themeSwitch').checked = true;
-    }
-});
-function limpiarPantalla() {
-    // Limpiar datos
-    filteredData = [];
-    
-    // Restablecer paginación
-    currentPage = 1;
-    
-    // Limpiar la tabla
-    renderizarTabla(filteredData);
-    
-    // Restablecer filtros a valores predeterminados
-    document.getElementById('planillaFilter').value = 'todos';
-    
-    // Actualizar la lista de planillas disponibles para reflejar el nuevo estado
-    cargarPlanillas();
-    
-    // Mostrar mensaje de éxito con más detalles
-    Swal.fire({
-        icon: 'success',
-        title: 'Planilla guardada',
-        text: 'La información ha sido guardada exitosamente y la pantalla ha sido limpiada.',
-        confirmButtonText: 'Continuar'
+        });
     });
 }
-// Función para eliminar una planilla existente
-async function eliminarPlanillaExistente() {
+
+// Función para copiar valores entre filtros
+function copiarFiltros(sourceId, targetId) {
+    if (document.getElementById(sourceId) && document.getElementById(targetId)) {
+        document.getElementById(targetId).value = document.getElementById(sourceId).value;
+    }
+}
+
+// Función para reiniciar el estado de la pestaña de modificación
+function reiniciarEstadoModificacion() {
+    // Limpiar la tabla de planillas disponibles
+    const tbody = document.getElementById('planillasTableBody');
+    if (tbody) {
+        tbody.innerHTML = '';
+    }
+    
+    // Mostrar mensaje de que no hay datos
+    const noDataElement = document.getElementById('modNoData');
+    if (noDataElement) {
+        noDataElement.style.display = 'block';
+    }
+    
+    // Cerrar todas las filas de acordeón que estén abiertas
+    document.querySelectorAll('tr.accordion-row.active').forEach(row => {
+        row.classList.remove('active');
+        const detailRow = document.querySelector(`tr.detail-row[data-parent="${row.dataset.id}"]`);
+        if (detailRow) {
+            detailRow.classList.remove('active');
+        }
+    });
+    
+    // Resetear variables de estado
+    selectedPlanillaId = null;
+    detallesPlanillaSeleccionada = [];
+    cambiosRealizados = {};
+}
+
+// Función para reiniciar el estado de la pestaña de autorización
+function reiniciarEstadoAutorizacion() {
+    // Limpiar la tabla de planillas autorizables
+    const tbody = document.getElementById('authPlanillasTableBody');
+    if (tbody) {
+        tbody.innerHTML = '';
+    }
+    
+    // Mostrar mensaje de que no hay datos
+    const noDataElement = document.getElementById('authNoData');
+    if (noDataElement) {
+        noDataElement.style.display = 'block';
+    }
+    
+    // Ocultar el resumen de carga de archivo
+    const uploadSummary = document.getElementById('uploadSummary');
+    if (uploadSummary) {
+        uploadSummary.style.display = 'none';
+    }
+    
+    // Ocultar la información del archivo
+    const fileInfo = document.getElementById('fileInfo');
+    if (fileInfo) {
+        fileInfo.style.display = 'none';
+    }
+    
+    // Mostrar el área de carga
+    const dropArea = document.getElementById('dropArea');
+    if (dropArea) {
+        dropArea.style.display = 'block';
+    }
+    
+    // Ocultar el progreso de carga
+    const uploadProgress = document.getElementById('uploadProgress');
+    if (uploadProgress) {
+        uploadProgress.style.display = 'none';
+    }
+    
+    // Deshabilitar botón de procesar autorizaciones
+    const processAuthBtn = document.getElementById('processAuthBtn');
+    if (processAuthBtn) {
+        processAuthBtn.disabled = true;
+    }
+    
+    // Deshabilitar botón de autorizar planillas
+    const authorizePlanillasBtn = document.getElementById('authorizePlanillasBtn');
+    if (authorizePlanillasBtn) {
+        authorizePlanillasBtn.disabled = true;
+    }
+    
+    // Resetear contadores
+    actualizarContadoresAutorizacion(0, 0, 0);
+    
+    // Resetear variables de estado
+    planillasAutorizables = [];
+    planillasSeleccionadas = new Set();
+    datosAutorizacion = null;
+    mapaAutorizaciones = new Map();
+    detallesColaboradoresMap = new Map();
+}
+
+// Función para buscar planillas guardadas con Estado=0 (modificables)
+async function buscarPlanillasModificables() {
     try {
+        // Mostrar loader
+        const loaderElement = document.getElementById('modLoader');
+        if (loaderElement) {
+            loaderElement.style.display = 'block';
+        }
+        
+        const noDataElement = document.getElementById('modNoData');
+        if (noDataElement) {
+            noDataElement.style.display = 'none';
+        }
+        
         // Obtener valores de los filtros
-        const planillaId = document.getElementById('planillaFilter').value;
-        const tipoQuincena = document.getElementById('tipoQuincenaFilter').value;
+        const tipoQuincena = document.getElementById('modTipoQuincenaFilter').value;
         const idTipoPago = tipoQuincena === 'normal' ? 1 : 2;
-        const mes = document.getElementById('mesFilter').value;
-        const anio = document.getElementById('anioFilter').value;
+        const mes = document.getElementById('modMesFilter').value;
+        const anio = document.getElementById('modAnioFilter').value;
         
         const connection = await connectionString();
         
-        // Primero obtener los IDs de las planillas a eliminar
-        const querySelect = `
-            SELECT IdPagoPlanilla 
-            FROM PagoPlanilla 
-            WHERE IdPlanilla = ? 
-            AND IdTipoPago = ? 
-            AND Mes = ? 
-            AND Anyo = ?
+        // Consulta para obtener las planillas guardadas con Estado=0
+        const query = `
+            SELECT 
+                p.IdPagoPlanilla,
+                p.IdPlanilla,
+                p.NombrePlanilla,
+                p.CantColaboradores,
+                p.MontoPagado,
+                p.TipoPago,
+                p.Mes,
+                p.Anyo,
+                p.Estado,
+                p.FechaRegistro,
+                pl.NoCentroTrabajo,
+                pl.Division,
+                d.Nombre AS NombreDivision
+            FROM 
+                PagoPlanilla p
+                INNER JOIN planillas pl ON p.IdPlanilla = pl.IdPlanilla
+                LEFT JOIN divisiones d ON pl.Division = d.IdDivision
+            WHERE 
+                p.IdTipoPago = ? 
+                AND p.Mes = ? 
+                AND p.Anyo = ?
+                AND p.Estado = 0
+            ORDER BY 
+                d.Nombre ASC,
+                CAST(pl.NoCentroTrabajo AS UNSIGNED) ASC,
+                p.NombrePlanilla ASC
         `;
         
-        const planillas = await connection.query(querySelect, [planillaId, idTipoPago, mes, anio]);
-        
-        // Para cada planilla, eliminar primero los detalles y luego la cabecera
-        for (const planilla of planillas) {
-            // Eliminar detalles
-            await connection.query(
-                'DELETE FROM PagoPlanillaDetalle WHERE IdPagoPlanilla = ?', 
-                [planilla.IdPagoPlanilla]
-            );
-            
-            // Eliminar cabecera
-            await connection.query(
-                'DELETE FROM PagoPlanilla WHERE IdPagoPlanilla = ?', 
-                [planilla.IdPagoPlanilla]
-            );
-        }
-        
+        const planillas = await connection.query(query, [idTipoPago, mes, anio]);
         await connection.close();
         
+        // Guardar resultados en variable global
+        planillasModificables = planillas;
+        
+        // Renderizar la tabla de planillas
+        renderizarTablaPlanillas(planillas);
+        
     } catch (error) {
-        console.error('Error al eliminar planilla existente:', error);
-        throw error;
+        console.error('Error al buscar planillas modificables:', error);
+        await Swal.fire({
+            icon: 'error',
+            title: 'Error',
+            text: 'Ocurrió un error al buscar las planillas modificables.'
+        });
+        
+        // Mostrar mensaje de que no hay datos disponibles
+        const noDataElement = document.getElementById('modNoData');
+        if (noDataElement) {
+            noDataElement.style.display = 'block';
+        }
+        
+        const tbody = document.getElementById('planillasTableBody');
+        if (tbody) {
+            tbody.innerHTML = '';
+        }
+        
+    } finally {
+        // Ocultar loader
+        const loaderElement = document.getElementById('modLoader');
+        if (loaderElement) {
+            loaderElement.style.display = 'none';
+        }
     }
 }
-// Función para guardar la planilla
-async function guardarPlanilla() {
+
+// Función para renderizar la tabla de planillas modificables con acordeón
+function renderizarTablaPlanillas(planillas) {
+    const tbody = document.getElementById('planillasTableBody');
+    if (!tbody) return;
+    
+    tbody.innerHTML = '';
+    
+    // Verificar si hay planillas
+    if (!planillas || planillas.length === 0) {
+        const noDataElement = document.getElementById('modNoData');
+        if (noDataElement) {
+            noDataElement.style.display = 'block';
+        }
+        return;
+    }
+    
+    const noDataElement = document.getElementById('modNoData');
+    if (noDataElement) {
+        noDataElement.style.display = 'none';
+    }
+    
+    // Crear filas para cada planilla con su acordeón
+    planillas.forEach(planilla => {
+        // Crear la fila principal (acordeón)
+        const row = document.createElement('tr');
+        row.className = 'accordion-row';
+        row.dataset.id = planilla.IdPagoPlanilla;
+        
+        // Formatear la fecha de registro
+        const fechaRegistro = new Date(planilla.FechaRegistro);
+        const fechaFormateada = `${fechaRegistro.getDate().toString().padStart(2, '0')}/${(fechaRegistro.getMonth() + 1).toString().padStart(2, '0')}/${fechaRegistro.getFullYear()} ${fechaRegistro.getHours().toString().padStart(2, '0')}:${fechaRegistro.getMinutes().toString().padStart(2, '0')}`;
+        
+        // Determinar el nombre del mes
+        const nombresMeses = [
+            'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+            'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'
+        ];
+        const nombreMes = nombresMeses[parseInt(planilla.Mes) - 1];
+        
+        // Crear el contenido de la fila
+        row.innerHTML = `
+            <td>${planilla.IdPagoPlanilla}</td>
+            <td class="highlight">
+                <span class="toggle-icon"><i class="fas fa-chevron-right"></i></span>
+                ${planilla.NombreDivision ? `${planilla.NombreDivision} - ` : ''}${planilla.NombrePlanilla}
+                ${planilla.NoCentroTrabajo ? `<br><small>(Centro: ${planilla.NoCentroTrabajo})</small>` : ''}
+            </td>
+            <td>${planilla.TipoPago}</td>
+            <td>${nombreMes} ${planilla.Anyo}</td>
+            <td>${fechaFormateada}</td>
+            <td class="text-center">${planilla.CantColaboradores}</td>
+            <td class="currency">${formatearMoneda(planilla.MontoPagado)}</td>
+            <td>
+                <div class="action-buttons-cell">
+                    <button class="action-btn edit-btn" title="Expandir/Contraer" data-id="${planilla.IdPagoPlanilla}">
+                        <i class="fas fa-edit"></i>
+                    </button>
+                </div>
+            </td>
+        `;
+        
+        // Agregar la fila al tbody
+        tbody.appendChild(row);
+        
+        // Crear la fila de detalle (inicialmente oculta)
+        const detailRow = document.createElement('tr');
+        detailRow.className = 'detail-row';
+        detailRow.dataset.parent = planilla.IdPagoPlanilla;
+        
+        // Crear una celda que abarque todas las columnas
+        const detailCell = document.createElement('td');
+        detailCell.colSpan = 8; // El número de columnas en la tabla
+        detailCell.className = 'accordion-detail-container';
+        
+        // Inicialmente solo muestra un loader
+        detailCell.innerHTML = `
+            <div class="detail-loader">
+                <div class="loader-spinner"></div>
+                <div class="loader-text">Cargando detalles...</div>
+            </div>
+        `;
+        
+        detailRow.appendChild(detailCell);
+        tbody.appendChild(detailRow);
+        
+        // Agregar evento click a la fila principal
+        row.addEventListener('click', async function() {
+            // Si ya está activa, cerrarla
+            if (this.classList.contains('active')) {
+                this.classList.remove('active');
+                detailRow.classList.remove('active');
+            } else {
+                // Cerrar cualquier otra fila activa
+                document.querySelectorAll('tr.accordion-row.active').forEach(activeRow => {
+                    activeRow.classList.remove('active');
+                    const activeDetailRow = document.querySelector(`tr.detail-row[data-parent="${activeRow.dataset.id}"]`);
+                    if (activeDetailRow) {
+                        activeDetailRow.classList.remove('active');
+                    }
+                });
+                
+                // Abrir esta fila
+                this.classList.add('active');
+                detailRow.classList.add('active');
+                
+                // Cargar los detalles si aún no se han cargado
+                await cargarDetallesAccordeon(planilla.IdPagoPlanilla, detailCell);
+            }
+        });
+        
+        // También agregar evento al botón de editar
+        const editBtn = row.querySelector('.edit-btn');
+        if (editBtn) {
+            editBtn.addEventListener('click', async function(e) {
+                e.stopPropagation(); // Evitar que se propague al evento de la fila
+                
+                // Invertir estado de la fila
+                const isActive = row.classList.contains('active');
+                
+                // Cerrar todas las filas activas
+                document.querySelectorAll('tr.accordion-row.active').forEach(activeRow => {
+                    activeRow.classList.remove('active');
+                    const activeDetailRow = document.querySelector(`tr.detail-row[data-parent="${activeRow.dataset.id}"]`);
+                    if (activeDetailRow) {
+                        activeDetailRow.classList.remove('active');
+                    }
+                });
+                
+                // Si no estaba activa, activarla y cargar detalles
+                if (!isActive) {
+                    row.classList.add('active');
+                    detailRow.classList.add('active');
+                    await cargarDetallesAccordeon(planilla.IdPagoPlanilla, detailCell);
+                }
+            });
+        }
+    });
+}
+
+// Función para cargar los detalles en la celda de acordeón
+async function cargarDetallesAccordeon(idPagoPlanilla, detailCell) {
     try {
-        // Mostrar modal de carga
+        // Si ya hemos cargado los detalles, no volver a cargarlos
+        if (detailCell.querySelector('.detail-content')) {
+            return;
+        }
+        
+        // Mostrar loader mientras cargamos
+        detailCell.innerHTML = `
+            <div class="detail-loader">
+                <div class="loader-spinner"></div>
+                <div class="loader-text">Cargando detalles...</div>
+            </div>
+        `;
+        
+        // Buscar la información de la planilla seleccionada
+        const planillaSeleccionada = planillasModificables.find(p => p.IdPagoPlanilla == idPagoPlanilla);
+        if (!planillaSeleccionada) {
+            throw new Error('Planilla no encontrada');
+        }
+        
+        // Guardar el ID de la planilla seleccionada
+        selectedPlanillaId = idPagoPlanilla;
+        
+        // Resetear los cambios realizados
+        cambiosRealizados = {};
+        
+        const connection = await connectionString();
+        
+        // Consulta para obtener los detalles de la planilla
+        const query = `
+            SELECT 
+                ppd.IdDetallePagoPlanilla,
+                ppd.IdPagoPlanilla,
+                ppd.IdPersonal,
+                ppd.NombrePersonal,
+                ppd.SalarioQuincenal,
+                ppd.SalarioDiario,
+                ppd.DiasLaborados,
+                ppd.Bonificacion,
+                ppd.PagoIGSS,
+                ppd.MontoPagado,
+                ppd.NoCuenta
+            FROM 
+                PagoPlanillaDetalle ppd
+            WHERE 
+                ppd.IdPagoPlanilla = ?
+            ORDER BY 
+                ppd.NombrePersonal
+        `;
+        
+        const detalles = await connection.query(query, [idPagoPlanilla]);
+        await connection.close();
+        
+        // Guardar detalles en variable global
+        detallesPlanillaSeleccionada = detalles;
+        
+        // Verificar si es planilla de fin de mes 
+        const esFinDeMes = planillaSeleccionada.TipoPago.toLowerCase().includes('fin de mes');
+        
+        // Crear el contenido HTML para los detalles
+        let detalleHtml = `
+        <div class="detail-content">
+            <div class="detail-header">
+                <h3>${planillaSeleccionada.NombrePlanilla} - ${planillaSeleccionada.TipoPago}</h3>
+                <div class="badge badge-active">Estado: Activo (Editable)</div>
+            </div>
+            
+            <div class="detail-info">
+                <div class="detail-info-item">
+                    <div class="detail-info-label">Colaboradores</div>
+                    <div class="detail-info-value">${planillaSeleccionada.CantColaboradores}</div>
+                </div>
+                <div class="detail-info-item">
+                    <div class="detail-info-label">Monto Total</div>
+                    <div class="detail-info-value">${formatearMoneda(planillaSeleccionada.MontoPagado)}</div>
+                </div>
+                <div class="detail-info-item">
+                    <div class="detail-info-label">Periodo</div>
+                    <div class="detail-info-value">${planillaSeleccionada.Mes}/${planillaSeleccionada.Anyo}</div>
+                </div>
+            </div>
+            
+            <div class="detail-table-container">
+                <table class="detail-table" id="editDetalleTable-${idPagoPlanilla}">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Nombre Completo</th>
+                            <th>Salario Diario</th>
+                            <th>Salario Quincenal</th>
+                            <th>Días Laborados</th>
+                            <th>Salario Proporcional</th>
+                            ${esFinDeMes ? '<th>Bonificación</th>' : ''}
+                            ${esFinDeMes ? '<th>IGSS</th>' : ''}
+                            <th>Descuento Judicial</th>
+                            <th>Salario a Pagar</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+        `;
+        
+        // Agregar filas para cada colaborador
+        detalles.forEach(detalle => {
+            // Calcular el salario proporcional
+            const salarioProporcional = (detalle.SalarioQuincenal / 15) * detalle.DiasLaborados;
+            
+            // Calcular el descuento judicial (monto pagado menos salario proporcional)
+            // Asumiendo que cualquier diferencia entre el monto pagado y el salario proporcional es por descuentos judiciales
+            let descuentoJudicial = 0;
+            
+            if (esFinDeMes) {
+                // Si es fin de mes, el descuento judicial es:
+                // Salario proporcional + Bonificación - IGSS - Monto pagado
+                descuentoJudicial = Math.max(0, (salarioProporcional + (detalle.Bonificacion || 0) - (detalle.PagoIGSS || 0) - detalle.MontoPagado));
+            } else {
+                // Si es quincena normal, el descuento judicial es:
+                // Salario proporcional - Monto pagado
+                descuentoJudicial = Math.max(0, salarioProporcional - detalle.MontoPagado);
+            }
+            
+            // Crear el HTML para la fila
+            detalleHtml += `
+                <tr data-id="${detalle.IdDetallePagoPlanilla}">
+                    <td>${detalle.IdPersonal}</td>
+                    <td class="highlight">${detalle.NombrePersonal}</td>
+                    <td class="currency">${formatearMoneda(detalle.SalarioDiario)}</td>
+                    <td class="currency">${formatearMoneda(detalle.SalarioQuincenal)}</td>
+                    <td class="editable dias-laborados" data-original="${detalle.DiasLaborados}" data-field="DiasLaborados">${detalle.DiasLaborados}</td>
+                    <td class="currency salario-proporcional">${formatearMoneda(salarioProporcional)}</td>
+            `;
+            
+            // Agregar columnas específicas para fin de mes
+            if (esFinDeMes) {
+                detalleHtml += `
+                    <td class="editable bonificacion currency" data-original="${detalle.Bonificacion || 0}" data-field="Bonificacion">${formatearMoneda(detalle.Bonificacion || 0)}</td>
+                    <td class="editable igss currency" data-original="${detalle.PagoIGSS || 0}" data-field="PagoIGSS">${formatearMoneda(detalle.PagoIGSS || 0)}</td>
+                `;
+            }
+            
+            // Finalizar la fila con las columnas comunes
+            detalleHtml += `
+                    <td class="editable descuento-judicial currency" data-original="${descuentoJudicial}" data-field="DescuentoJudicial">${formatearMoneda(descuentoJudicial)}</td>
+                    <td class="editable monto-pagado currency" data-original="${detalle.MontoPagado}" data-field="MontoPagado">${formatearMoneda(detalle.MontoPagado)}</td>
+                </tr>
+            `;
+        });
+        
+        // Cerrar la tabla y agregar los botones de acción
+        detalleHtml += `
+                    </tbody>
+                </table>
+            </div>
+            
+            <div class="detail-row-actions">
+                <button id="verHistorialBtn-${idPagoPlanilla}" class="info-btn">
+                    <i class="fas fa-history"></i> Ver Historial de Cambios
+                </button>
+                <button id="cancelChangesBtn-${idPagoPlanilla}" class="cancel-btn">
+                    <i class="fas fa-times"></i> Cancelar
+                </button>
+                <button id="saveDetailChangesBtn-${idPagoPlanilla}" class="save-btn">
+                    <i class="fas fa-save"></i> Guardar Cambios
+                </button>
+            </div>
+        </div>`;
+        
+        // Actualizar el contenido de la celda
+        detailCell.innerHTML = detalleHtml;
+        
+        // Agregar eventos de edición a los campos editables
+        const camposEditables = detailCell.querySelectorAll('.editable');
+        camposEditables.forEach(campo => {
+            campo.addEventListener('click', function() {
+                habilitarEdicion(this, esFinDeMes);
+            });
+        });
+        
+        const verHistorialBtn = document.getElementById(`verHistorialBtn-${idPagoPlanilla}`);
+        if (verHistorialBtn) {
+            verHistorialBtn.addEventListener('click', function(e) {
+                e.stopPropagation(); // Evitar que el clic cierre el acordeón
+                mostrarHistorialCambios(idPagoPlanilla);
+            });
+        }
+        
+        // Agregar eventos a los botones
+        const cancelChangesBtn = document.getElementById(`cancelChangesBtn-${idPagoPlanilla}`);
+        if (cancelChangesBtn) {
+            cancelChangesBtn.addEventListener('click', function(e) {
+                e.stopPropagation(); // Evitar que el clic cierre el acordeón
+                
+                if (Object.keys(cambiosRealizados).length > 0) {
+                    // Hay cambios sin guardar, pedir confirmación
+                    Swal.fire({
+                        icon: 'question',
+                        title: '¿Descartar cambios?',
+                        text: 'Hay cambios sin guardar. ¿Está seguro de querer descartarlos?',
+                        showCancelButton: true,
+                        confirmButtonText: 'Sí, descartar',
+                        cancelButtonText: 'No, volver a la edición'
+                    }).then((result) => {
+                        if (result.isConfirmed) {
+                            // Cerrar el acordeón y resetear cambios
+                            const accordionRow = document.querySelector(`tr.accordion-row[data-id="${idPagoPlanilla}"]`);
+                            if (accordionRow) {
+                                accordionRow.classList.remove('active');
+                            }
+                            detailCell.parentElement.classList.remove('active');
+                            cambiosRealizados = {};
+                        }
+                    });
+                } else {
+                    // No hay cambios, solo cerrar
+                    const accordionRow = document.querySelector(`tr.accordion-row[data-id="${idPagoPlanilla}"]`);
+                    if (accordionRow) {
+                        accordionRow.classList.remove('active');
+                    }
+                    detailCell.parentElement.classList.remove('active');
+                }
+            });
+        }
+        
+        const saveDetailChangesBtn = document.getElementById(`saveDetailChangesBtn-${idPagoPlanilla}`);
+        if (saveDetailChangesBtn) {
+            saveDetailChangesBtn.addEventListener('click', function(e) {
+                e.stopPropagation(); // Evitar que el clic cierre el acordeón
+                guardarCambiosPlanilla();
+            });
+        }
+        
+    } catch (error) {
+        console.error('Error al cargar detalles del acordeón:', error);
+        detailCell.innerHTML = `
+            <div class="detail-error">
+                <i class="fas fa-exclamation-circle"></i>
+                <p>Error al cargar los detalles. Por favor, intente nuevamente.</p>
+            </div>
+        `;
+    }
+}
+
+// Función para habilitar la edición de un campo
+function habilitarEdicion(celda, esFinDeMes) {
+    // Si ya está en modo edición, salir
+    if (celda.querySelector('input')) return;
+    
+    // Guardar el valor original
+    const valorOriginal = celda.dataset.original;
+    const esCampoMonetario = celda.classList.contains('currency');
+    
+    // Crear input para edición
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.className = 'editable-input';
+    
+    // Asignar el valor formateado según el tipo de campo
+    if (esCampoMonetario) {
+        input.value = parseFloat(valorOriginal).toFixed(2);
+    } else {
+        input.value = valorOriginal;
+    }
+    
+    // Limpiar y agregar el input
+    celda.innerHTML = '';
+    celda.appendChild(input);
+    
+    // Seleccionar todo el texto
+    input.select();
+    
+    // Evento al perder el foco
+    input.addEventListener('blur', function() {
+        finalizarEdicion(celda, this.value, esFinDeMes);
+    });
+    
+    // Evento al presionar Enter
+    input.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') {
+            this.blur();
+        }
+    });
+}
+
+// Función para finalizar la edición de un campo
+function finalizarEdicion(celda, nuevoValor, esFinDeMes) {
+    // Obtener datos de la celda
+    const idDetalle = celda.closest('tr').dataset.id;
+    const campo = celda.dataset.field;
+    const valorOriginal = parseFloat(celda.dataset.original);
+    
+    // Validar que sea un número válido
+    let valorNumerico = parseFloat(nuevoValor.replace(/[^\d.-]/g, ''));
+    if (isNaN(valorNumerico)) {
+        valorNumerico = valorOriginal;
+    }
+    
+    // Validaciones específicas por campo
+    if (campo === 'DiasLaborados') {
+        // Los días laborados deben estar entre 0 y 15
+        valorNumerico = Math.max(0, Math.min(15, Math.round(valorNumerico)));
+    } else if (campo === 'DescuentoJudicial' || campo === 'Bonificacion' || campo === 'PagoIGSS') {
+        // Estos campos no pueden ser negativos
+        valorNumerico = Math.max(0, valorNumerico);
+    }
+    
+    // Actualizar la celda con el nuevo valor
+    celda.dataset.original = valorNumerico;
+    
+    // Formatear según el tipo de campo
+    if (celda.classList.contains('currency')) {
+        celda.textContent = formatearMoneda(valorNumerico);
+    } else {
+        celda.textContent = valorNumerico;
+    }
+    
+    // Si el valor cambió, marcar la celda como modificada
+    if (valorOriginal !== valorNumerico) {
+        celda.classList.add('cell-modified');
+        
+        // Registrar el cambio
+        if (!cambiosRealizados[idDetalle]) {
+            cambiosRealizados[idDetalle] = {};
+        }
+        cambiosRealizados[idDetalle][campo] = valorNumerico;
+        
+        // Actualizar cálculos en la fila
+        actualizarCalculosFila(celda.closest('tr'), esFinDeMes);
+    }
+}
+
+// Función para actualizar los cálculos en una fila después de una edición
+function actualizarCalculosFila(fila, esFinDeMes) {
+    const idDetalle = fila.dataset.id;
+    const detalle = detallesPlanillaSeleccionada.find(d => d.IdDetallePagoPlanilla == idDetalle);
+    
+    // Obtener los valores actuales
+    const diasLaborados = parseFloat(fila.querySelector('.dias-laborados').dataset.original);
+    const salarioQuincenal = detalle.SalarioQuincenal;
+    
+    // Calcular el salario proporcional
+    const salarioProporcional = (salarioQuincenal / 15) * diasLaborados;
+    
+    // Actualizar el campo de salario proporcional
+    const celdaSalarioProporcional = fila.querySelector('.salario-proporcional');
+    if (celdaSalarioProporcional) {
+        celdaSalarioProporcional.textContent = formatearMoneda(salarioProporcional);
+    }
+    
+    // Valores para el cálculo final
+    let bonificacion = 0;
+    let igss = 0;
+    let descuentoJudicial = 0;
+    
+    // Obtener valor de descuento judicial
+    const celdaDescuentoJudicial = fila.querySelector('.descuento-judicial');
+    if (celdaDescuentoJudicial) {
+        descuentoJudicial = parseFloat(celdaDescuentoJudicial.dataset.original || 0);
+    }
+    
+    // Si es fin de mes, considerar bonificación e IGSS
+    if (esFinDeMes) {
+        const celdaBonificacion = fila.querySelector('.bonificacion');
+        if (celdaBonificacion) {
+            bonificacion = parseFloat(celdaBonificacion.dataset.original || 0);
+        }
+        
+        const celdaIGSS = fila.querySelector('.igss');
+        if (celdaIGSS) {
+            igss = parseFloat(celdaIGSS.dataset.original || 0);
+        }
+    }
+    
+    // Calcular el monto a pagar
+    let montoPagar = salarioProporcional + bonificacion - igss - descuentoJudicial;
+    montoPagar = Math.max(0, montoPagar); // No puede ser negativo
+    
+    // Si hay un monto a pagar diferente al calculado, usar ese valor (edición manual)
+    const celdaMontoPagado = fila.querySelector('.monto-pagado');
+    
+    // Solo actualizar si no ha sido editado manualmente
+    if (celdaMontoPagado && (!cambiosRealizados[idDetalle] || !cambiosRealizados[idDetalle]['MontoPagado'])) {
+        celdaMontoPagado.textContent = formatearMoneda(montoPagar);
+        celdaMontoPagado.dataset.original = montoPagar;
+        
+        // Registrar el cambio
+        if (!cambiosRealizados[idDetalle]) {
+            cambiosRealizados[idDetalle] = {};
+        }
+        cambiosRealizados[idDetalle]['MontoPagado'] = montoPagar;
+        
+        // Marcar como modificado
+        celdaMontoPagado.classList.add('cell-modified');
+    }
+}
+
+// Función para registrar cambios en el historial
+async function registrarHistorialCambios(idPagoPlanilla, idPersonal, nombrePersonal, campo, valorAnterior, valorNuevo, idUsuario, nombreUsuario) {
+    try {
+        const connection = await connectionString();
+        
+        // Consulta SQL para insertar el registro en el historial de cambios
+        const query = `
+            INSERT INTO PagoPlanillaHistorialCambios (
+                IdPagoPlanilla,
+                IdPersonal,
+                NombrePersonal,
+                Campo,
+                ValorAnterior,
+                ValorNuevo,
+                IdUsuario,
+                NombreUsuario
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        `;
+        
+        const params = [
+            idPagoPlanilla,
+            idPersonal,
+            nombrePersonal,
+            campo,
+            valorAnterior ? valorAnterior.toString() : '',
+            valorNuevo ? valorNuevo.toString() : '',
+            idUsuario,
+            nombreUsuario
+        ];
+        
+        // Ejecutar la consulta
+        await connection.query(query, params);
+        await connection.close();
+        
+        console.log(`Cambio registrado: ${campo} de ${valorAnterior} a ${valorNuevo} para ${nombrePersonal}`);
+        
+    } catch (error) {
+        console.error('Error al registrar historial de cambios:', error);
+        // No interrumpir el flujo principal si falla el registro del historial
+    }
+}
+
+async function guardarCambiosPlanilla() {
+    try {
+        // Verificar si hay cambios para guardar
+        const totalCambios = Object.keys(cambiosRealizados).length;
+        if (totalCambios === 0) {
+            await Swal.fire({
+                icon: 'info',
+                title: 'Sin cambios',
+                text: 'No se han realizado cambios en la planilla.'
+            });
+            return;
+        }
+        
+        // Pedir confirmación al usuario
+        const confirmacion = await Swal.fire({
+            icon: 'question',
+            title: 'Confirmar cambios',
+            html: `Está a punto de guardar cambios en ${totalCambios} registro(s).<br>¿Desea continuar?`,
+            showCancelButton: true,
+            confirmButtonText: 'Sí, guardar cambios',
+            cancelButtonText: 'Cancelar'
+        });
+        
+        if (!confirmacion.isConfirmed) {
+            return;
+        }
+        
+        // Mostrar loader
         Swal.fire({
-            title: 'Guardando planilla',
-            html: 'Por favor espere mientras se guarda la información...',
+            title: 'Guardando cambios',
+            text: 'Por favor espere...',
             allowOutsideClick: false,
             didOpen: () => {
                 Swal.showLoading();
             }
         });
-
-        // Verificar si hay datos para guardar
-        if (!filteredData || filteredData.length === 0) {
-            Swal.close();
-            await Swal.fire({
-                icon: 'warning',
-                title: 'Sin datos',
-                text: 'No hay datos para guardar. Aplique los filtros para visualizar la información.'
-            });
-            return;
-        }
-
-        // Obtener los valores de los filtros seleccionados
-        const planillaId = document.getElementById('planillaFilter').value;
-        const tipoQuincena = document.getElementById('tipoQuincenaFilter').value;
-        const mes = document.getElementById('mesFilter').value;
-        const anio = document.getElementById('anioFilter').value;
+        
+        const connection = await connectionString();
         
         // Obtener el usuario actual del localStorage
         const userData = JSON.parse(localStorage.getItem('userData')) || {};
+        const idUsuario = userData.IdPersonal || 0;
+        const nombreUsuario = userData.NombreCompleto || 'Usuario Desconocido';
         
-        // Verificar si el usuario está autenticado
-        if (!userData.IdPersonal) {
-            Swal.close();
+        // Procesar cada cambio
+        for (const idDetalle in cambiosRealizados) {
+            const cambios = cambiosRealizados[idDetalle];
+            
+            // Obtener datos del empleado para el registro de historial
+            const detalleEmpleado = detallesPlanillaSeleccionada.find(d => d.IdDetallePagoPlanilla == idDetalle);
+            if (!detalleEmpleado) continue;
+            
+            const idPersonal = detalleEmpleado.IdPersonal;
+            const nombrePersonal = detalleEmpleado.NombrePersonal;
+            
+            // Construir la consulta de actualización
+            let setClause = [];
+            const params = [];
+            
+            // Mapear los nombres de campos del objeto a los nombres en la base de datos
+            const mapaCampos = {
+                'DiasLaborados': 'DiasLaborados',
+                'Bonificacion': 'Bonificacion',
+                'PagoIGSS': 'PagoIGSS',
+                'DescuentoJudicial': 'DescuentoJudicial',
+                'MontoPagado': 'MontoPagado'
+            };
+            
+            // Nombres para mostrar en el historial (más amigables)
+            const nombresAmigables = {
+                'DiasLaborados': 'Días Laborados',
+                'Bonificacion': 'Bonificación',
+                'PagoIGSS': 'Pago IGSS',
+                'DescuentoJudicial': 'Descuento Judicial',
+                'MontoPagado': 'Monto a Pagar'
+            };
+            
+            // Agregar cada campo modificado a la consulta
+            for (const campo in cambios) {
+                // Ignorar campos que no existen en la BD
+                if (campo === 'DescuentoJudicial') {
+                    // Registrar en historial aunque no se actualice en la BD
+                    await registrarHistorialCambios(
+                        selectedPlanillaId,
+                        idPersonal,
+                        nombrePersonal,
+                        nombresAmigables[campo] || campo,
+                        detalleEmpleado[campo] || 0,
+                        cambios[campo],
+                        idUsuario,
+                        nombreUsuario
+                    );
+                    continue;
+                }
+                
+                if (mapaCampos[campo]) {
+                    // Guardar valor anterior para el historial
+                    const valorAnterior = detalleEmpleado[campo];
+                    const valorNuevo = cambios[campo];
+                    
+                    // Registrar en el historial
+                    await registrarHistorialCambios(
+                        selectedPlanillaId,
+                        idPersonal,
+                        nombrePersonal,
+                        nombresAmigables[campo] || campo,
+                        valorAnterior,
+                        valorNuevo,
+                        idUsuario,
+                        nombreUsuario
+                    );
+                    
+                    // Agregar a la consulta de actualización
+                    setClause.push(`${mapaCampos[campo]} = ?`);
+                    params.push(cambios[campo]);
+                }
+            }
+            
+            // Si no hay campos para actualizar, continuar con el siguiente
+            if (setClause.length === 0) continue;
+            
+            // Completar la consulta
+            params.push(idDetalle); // Agregar el ID como último parámetro
+            
+            const query = `
+                UPDATE PagoPlanillaDetalle 
+                SET ${setClause.join(', ')}
+                WHERE IdDetallePagoPlanilla = ?
+            `;
+            
+            // Ejecutar la consulta
+            await connection.query(query, params);
+        }
+        
+        // Actualizar el monto total de la planilla
+        // Primero, obtener la suma de todos los montos pagados
+        const querySuma = `
+            SELECT SUM(MontoPagado) AS TotalPagado
+            FROM PagoPlanillaDetalle
+            WHERE IdPagoPlanilla = ?
+        `;
+        
+        const resultadoSuma = await connection.query(querySuma, [selectedPlanillaId]);
+        const nuevoMontoTotal = parseFloat(resultadoSuma[0].TotalPagado || 0);
+        
+        // Actualizar el monto total en la cabecera sin generar registro de historial adicional
+        // ya que cada cambio individual ya fue registrado
+        const queryUpdateCabecera = `
+            UPDATE PagoPlanilla
+            SET MontoPagado = ?
+            WHERE IdPagoPlanilla = ?
+        `;
+        
+        await connection.query(queryUpdateCabecera, [nuevoMontoTotal, selectedPlanillaId]);
+        
+        await connection.close();
+        
+        // Mostrar mensaje de éxito
+        await Swal.fire({
+            icon: 'success',
+            title: 'Cambios guardados',
+            text: `Los cambios se han guardado correctamente. Monto total actualizado: ${formatearMoneda(nuevoMontoTotal)}`,
+            timer: 3000,
+            timerProgressBar: true
+        });
+        
+        // Actualizar la información de la planilla y cerrar el acordeón
+        await buscarPlanillasModificables();
+        
+        // Resetear los cambios realizados
+        cambiosRealizados = {};
+        
+    } catch (error) {
+        console.error('Error al guardar cambios:', error);
+        await Swal.fire({
+            icon: 'error',
+            title: 'Error',
+            text: 'Ocurrió un error al guardar los cambios. Por favor intente nuevamente.'
+        });
+    }
+}
+
+// Función para mostrar el historial de cambios de una planilla
+async function mostrarHistorialCambios(idPagoPlanilla) {
+    try {
+        Swal.fire({
+            title: 'Cargando historial',
+            text: 'Obteniendo los registros de cambios...',
+            allowOutsideClick: false,
+            didOpen: () => {
+                Swal.showLoading();
+            }
+        });
+        
+        const connection = await connectionString();
+        
+        // Consulta para obtener el historial de cambios de la planilla
+        const query = `
+            SELECT 
+                IdPersonal,
+                NombrePersonal,
+                Campo,
+                ValorAnterior,
+                ValorNuevo,
+                NombreUsuario,
+                DATE_FORMAT(FechaHoraCambio, '%d/%m/%Y %H:%i:%s') AS FechaFormateada
+            FROM 
+                PagoPlanillaHistorialCambios
+            WHERE 
+                IdPagoPlanilla = ?
+            ORDER BY 
+                FechaHoraCambio DESC
+        `;
+        
+        const historial = await connection.query(query, [idPagoPlanilla]);
+        await connection.close();
+        
+        Swal.close();
+        
+        if (historial.length === 0) {
             await Swal.fire({
-                icon: 'error',
-                title: 'Error de autenticación',
-                text: 'No se pudo obtener la información del usuario. Por favor inicie sesión nuevamente.'
+                icon: 'info',
+                title: 'Sin historial',
+                text: 'No se encontraron registros de cambios para esta planilla.'
             });
             return;
         }
-
-        // Agrupar los datos por planilla para guardar cada planilla por separado
-        const planillasPorId = {};
         
-        for (const empleado of filteredData) {
-            const idPlanilla = empleado.IdPlanilla;
+        // Preparar datos para mostrar en la tabla
+        let contenidoHTML = `
+            <div style="max-height: 400px; overflow-y: auto;">
+                <table class="swal2-table" style="width: 100%; border-collapse: collapse;">
+                    <thead>
+                        <tr>
+                            <th style="text-align: left; padding: 8px; border-bottom: 1px solid #ddd;">Empleado</th>
+                            <th style="text-align: left; padding: 8px; border-bottom: 1px solid #ddd;">Campo</th>
+                            <th style="text-align: left; padding: 8px; border-bottom: 1px solid #ddd;">Valor Anterior</th>
+                            <th style="text-align: left; padding: 8px; border-bottom: 1px solid #ddd;">Valor Nuevo</th>
+                            <th style="text-align: left; padding: 8px; border-bottom: 1px solid #ddd;">Usuario</th>
+                            <th style="text-align: left; padding: 8px; border-bottom: 1px solid #ddd;">Fecha/Hora</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+        `;
+        
+        historial.forEach((cambio, index) => {
+            const colorFila = index % 2 === 0 ? '#f9f9f9' : 'white';
             
-            if (!planillasPorId[idPlanilla]) {
-                planillasPorId[idPlanilla] = {
-                    empleados: [],
-                    nombrePlanilla: empleado.Nombre_Planilla,
-                    totalPagado: 0
-                };
+            // Para campos monetarios, formatear los valores
+            let valorAnterior = cambio.ValorAnterior;
+            let valorNuevo = cambio.ValorNuevo;
+            
+            // Si el campo contiene palabras como "Monto", "Salario", "Pago", formatear como moneda
+            if (cambio.Campo.includes('Monto') || 
+                cambio.Campo.includes('Salario') || 
+                cambio.Campo.includes('Pago') || 
+                cambio.Campo.includes('Bonificación') || 
+                cambio.Campo.includes('Descuento')) {
+                
+                valorAnterior = formatearMoneda(parseFloat(valorAnterior) || 0);
+                valorNuevo = formatearMoneda(parseFloat(valorNuevo) || 0);
             }
             
-            planillasPorId[idPlanilla].empleados.push(empleado);
-            planillasPorId[idPlanilla].totalPagado += empleado.SalarioFinalAPagar;
-        }
+            contenidoHTML += `
+                <tr style="background-color: ${colorFila};">
+                    <td style="padding: 8px; border-bottom: 1px solid #ddd;">${cambio.NombrePersonal}</td>
+                    <td style="padding: 8px; border-bottom: 1px solid #ddd;">${cambio.Campo}</td>
+                    <td style="padding: 8px; border-bottom: 1px solid #ddd;">${valorAnterior}</td>
+                    <td style="padding: 8px; border-bottom: 1px solid #ddd;">${valorNuevo}</td>
+                    <td style="padding: 8px; border-bottom: 1px solid #ddd;">${cambio.NombreUsuario}</td>
+                    <td style="padding: 8px; border-bottom: 1px solid #ddd;">${cambio.FechaFormateada}</td>
+                </tr>
+            `;
+        });
         
-        // Guardar cada planilla por separado
-        for (const idPlanilla in planillasPorId) {
-            const planillaActual = planillasPorId[idPlanilla];
-            
-            // 1. Insertar cabecera en PagoPlanilla
-            const cabeceraPlanilla = {
-                IdUsuario: userData.IdPersonal,
-                NombreUsuario: userData.NombreCompleto,
-                IdPlanilla: idPlanilla,
-                NombrePlanilla: planillaActual.nombrePlanilla,
-                CantColaboradores: planillaActual.empleados.length,
-                MontoPagado: planillaActual.totalPagado,
-                TipoPago: tipoQuincena === 'normal' ? 'Planilla Quincena' : 'Planilla Fin de Mes',
-                IdTipoPago: tipoQuincena === 'normal' ? 1 : 2,
-                Mes: mes,
-                Anyo: anio
-            };
-            
-            // Insertar la cabecera en la base de datos y obtener el ID generado
-            const idPagoPlanilla = await insertarCabeceraPlanilla(cabeceraPlanilla);
-            
-            // 2. Insertar detalles en PagoPlanillaDetalle
-            for (const empleado of planillaActual.empleados) {
-                const campoSalario = tipoQuincena === 'normal' ? 'SalarioQuincena' : 'SalarioQuincenaFinMes';
-                
-                // Calcular el pago de IGSS (4.83% del salario base) solo para quincena fin de mes
-                let pagoIGSS = 0;
-                if (tipoQuincena === 'finMes' && empleado.SalarioBase) {
-                    pagoIGSS = empleado.SalarioBase * 0.0483;
-                }
-                
-                const detallePlanilla = {
-                    IdPagoPlanilla: idPagoPlanilla,
-                    IdPersonal: empleado.IdPersonal,
-                    NombrePersonal: formatearNombreApellidoPrimero(empleado.NombreCompleto),
-                    SalarioQuincenal: empleado[campoSalario],
-                    SalarioDiario: empleado.SalarioDiario,
-                    MontoPagado: empleado.SalarioFinalAPagar,
-                    Bonificacion: empleado.Bonificacion || 0,
-                    PagoIGSS: pagoIGSS,
-                    DiasLaborados: empleado.DiasLaborados,
-                    NoCuenta: empleado.NoCuenta || ''
-                };
-                
-                await insertarDetallePlanilla(detallePlanilla);
-                
-                // Verificar si el empleado tiene descuento judicial
-                if (empleado.DescuentoJudicial > 0) {
-                    await registrarDescuentoJudicial(empleado.IdPersonal, empleado.DescuentoJudicial, idPagoPlanilla);
-                }
-            }
-        }
+        contenidoHTML += `
+                    </tbody>
+                </table>
+            </div>
+        `;
         
-        // Cerrar el mensaje de carga (no mostramos el mensaje de éxito aquí)
-        Swal.close();
+        // Mostrar el historial en un modal
+        await Swal.fire({
+            title: 'Historial de Cambios',
+            html: contenidoHTML,
+            width: 900,
+            confirmButtonText: 'Cerrar'
+        });
         
     } catch (error) {
-        console.error('Error al guardar la planilla:', error);
-        
+        console.error('Error al obtener historial de cambios:', error);
         Swal.close();
         
         await Swal.fire({
             icon: 'error',
-            title: 'Error al guardar',
-            text: 'Ocurrió un error al guardar la planilla. Por favor intente nuevamente.'
+            title: 'Error',
+            text: 'Ocurrió un error al obtener el historial de cambios.'
         });
     }
 }
-function obtenerUltimoDiaMes(mes, anio) {
-    // El día 0 del mes siguiente es el último día del mes actual
-    return new Date(anio, mes, 0).getDate();
-}
-// Función para insertar la cabecera de la planilla
-async function insertarCabeceraPlanilla(cabecera) {
-    try {
-        const connection = await connectionString();
-        
-        // Consulta SQL para insertar la cabecera
-        const query = `
-            INSERT INTO PagoPlanilla (
-                IdUsuario, 
-                NombreUsuario, 
-                IdPlanilla, 
-                NombrePlanilla, 
-                CantColaboradores, 
-                MontoPagado, 
-                TipoPago, 
-                IdTipoPago, 
-                Mes, 
-                Anyo
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        `;
-        
-        const params = [
-            cabecera.IdUsuario,
-            cabecera.NombreUsuario,
-            cabecera.IdPlanilla,
-            cabecera.NombrePlanilla,
-            cabecera.CantColaboradores,
-            cabecera.MontoPagado,
-            cabecera.TipoPago,
-            cabecera.IdTipoPago,
-            cabecera.Mes,
-            cabecera.Anyo
-        ];
-        
-        // Ejecutar la consulta
-        const result = await connection.query(query, params);
-        
-        // Obtener el ID generado
-        const idQuery = "SELECT LAST_INSERT_ID() as Id";
-        const idResult = await connection.query(idQuery);
-        
-        await connection.close();
-        
-        // Devolver el ID generado
-        return idResult[0].Id;
-        
-    } catch (error) {
-        console.error('Error al insertar cabecera de planilla:', error);
-        throw error;
-    }
-}
 
-// Función para insertar el detalle de la planilla
-async function insertarDetallePlanilla(detalle) {
+// NUEVAS FUNCIONES PARA LA PESTAÑA DE AUTORIZACIÓN
+
+// Función para buscar planillas pendientes de autorización (Estado=0)
+async function buscarPlanillasAutorizables() {
     try {
-        const connection = await connectionString();
-        
-        // Determinar si se incluye el campo bonificación y pago IGSS según el tipo de quincena
-        const tipoQuincena = document.getElementById('tipoQuincenaFilter').value;
-        const incluirBonificacionIGSS = tipoQuincena === 'finMes';
-        
-        // Consulta SQL para insertar el detalle
-        let query;
-        let params;
-        
-        if (incluirBonificacionIGSS) {
-            query = `
-                INSERT INTO PagoPlanillaDetalle (
-                    IdPagoPlanilla,
-                    IdPersonal,
-                    NombrePersonal,
-                    SalarioQuincenal,
-                    SalarioDiario,
-                    MontoPagado,
-                    Bonificacion,
-                    PagoIGSS,
-                    DiasLaborados,
-                    NoCuenta
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            `;
-            
-            params = [
-                detalle.IdPagoPlanilla,
-                detalle.IdPersonal,
-                detalle.NombrePersonal,
-                detalle.SalarioQuincenal,
-                detalle.SalarioDiario,
-                detalle.MontoPagado,
-                detalle.Bonificacion,
-                detalle.PagoIGSS,
-                detalle.DiasLaborados,
-                detalle.NoCuenta
-            ];
-        } else {
-            query = `
-                INSERT INTO PagoPlanillaDetalle (
-                    IdPagoPlanilla,
-                    IdPersonal,
-                    NombrePersonal,
-                    SalarioQuincenal,
-                    SalarioDiario,
-                    MontoPagado,
-                    DiasLaborados,
-                    NoCuenta
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-            `;
-            
-            params = [
-                detalle.IdPagoPlanilla,
-                detalle.IdPersonal,
-                detalle.NombrePersonal,
-                detalle.SalarioQuincenal,
-                detalle.SalarioDiario,
-                detalle.MontoPagado,
-                detalle.DiasLaborados,
-                detalle.NoCuenta
-            ];
+        // Mostrar loader
+        const loaderElement = document.getElementById('authLoader');
+        if (loaderElement) {
+            loaderElement.style.display = 'block';
         }
         
-        // Ejecutar la consulta
-        await connection.query(query, params);
+        const noDataElement = document.getElementById('authNoData');
+        if (noDataElement) {
+            noDataElement.style.display = 'none';
+        }
         
-        await connection.close();
-        
-    } catch (error) {
-        console.error('Error al insertar detalle de planilla:', error);
-        throw error;
-    }
-}
-
-// Verificar si ya existe una planilla guardada con los mismos datos
-async function verificarPlanillaExistente() {
-    try {
         // Obtener valores de los filtros
-        const planillaId = document.getElementById('planillaFilter').value;
-        const tipoQuincena = document.getElementById('tipoQuincenaFilter').value;
+        const tipoQuincena = document.getElementById('authTipoQuincenaFilter').value;
         const idTipoPago = tipoQuincena === 'normal' ? 1 : 2;
-        const mes = document.getElementById('mesFilter').value;
-        const anio = document.getElementById('anioFilter').value;
-        
-        // Si se seleccionó "todas las planillas", no podemos verificar una específica
-        if (planillaId === 'todos') {
-            return false;
-        }
+        const mes = document.getElementById('authMesFilter').value;
+        const anio = document.getElementById('authAnioFilter').value;
         
         const connection = await connectionString();
         
-        // Consulta para verificar si ya existe una planilla con los mismos datos
+        // Consulta para obtener las planillas en Estado=0
         const query = `
-            SELECT COUNT(*) as Total 
-            FROM PagoPlanilla 
-            WHERE IdPlanilla = ? 
-            AND IdTipoPago = ? 
-            AND Mes = ? 
-            AND Anyo = ?
+            SELECT 
+                p.IdPagoPlanilla,
+                p.IdPlanilla,
+                p.NombrePlanilla,
+                p.CantColaboradores,
+                p.MontoPagado,
+                p.TipoPago,
+                p.Mes,
+                p.Anyo,
+                p.Estado,
+                p.FechaRegistro,
+                pl.NoCentroTrabajo,
+                pl.Division,
+                d.Nombre AS NombreDivision,
+                (
+                    SELECT COUNT(*) 
+                    FROM PagoPlanillaDetalle ppd 
+                    WHERE ppd.IdPagoPlanilla = p.IdPagoPlanilla
+                    AND ppd.NoAutorizacion IS NOT NULL
+                    AND ppd.NoAutorizacion != ''
+                ) AS ColaboradoresAutorizados
+            FROM 
+                PagoPlanilla p
+                INNER JOIN planillas pl ON p.IdPlanilla = pl.IdPlanilla
+                LEFT JOIN divisiones d ON pl.Division = d.IdDivision
+            WHERE 
+                p.IdTipoPago = ? 
+                AND p.Mes = ? 
+                AND p.Anyo = ?
+                AND p.Estado = 0
+            ORDER BY 
+                d.Nombre ASC,
+                CAST(pl.NoCentroTrabajo AS UNSIGNED) ASC,
+                p.NombrePlanilla ASC
         `;
         
-        const result = await connection.query(query, [planillaId, idTipoPago, mes, anio]);
-        
+        const planillas = await connection.query(query, [idTipoPago, mes, anio]);
         await connection.close();
         
-        // Si hay resultados mayores a 0, significa que ya existe
-        return result[0].Total > 0;
+        // IMPORTANTE: Convertir todos los BigInt a String para evitar problemas de tipo
+        for (let i = 0; i < planillas.length; i++) {
+            if (typeof planillas[i].IdPagoPlanilla === 'bigint') {
+                planillas[i].IdPagoPlanilla = planillas[i].IdPagoPlanilla.toString();
+            }
+            if (typeof planillas[i].IdPlanilla === 'bigint') {
+                planillas[i].IdPlanilla = planillas[i].IdPlanilla.toString();
+            }
+        }
+        
+        // Resetear selecciones anteriores y guardar resultados
+        planillasAutorizables = planillas;
+        planillasSeleccionadas = new Set();
+        
+        // Renderizar tabla
+        renderizarTablaPlanillasAutorizables(planillas);
+        
+        // Actualizar contadores
+        actualizarContadoresAutorizacion();
         
     } catch (error) {
-        console.error('Error al verificar planilla existente:', error);
-        return false;
+        console.error('Error al buscar planillas para autorizar:', error);
+        await Swal.fire({
+            icon: 'error',
+            title: 'Error',
+            text: 'Ocurrió un error al buscar las planillas pendientes de autorización.'
+        });
+        
+        const noDataElement = document.getElementById('authNoData');
+        if (noDataElement) {
+            noDataElement.style.display = 'block';
+        }
+        
+        const tbody = document.getElementById('authPlanillasTableBody');
+        if (tbody) {
+            tbody.innerHTML = '';
+        }
+        
+    } finally {
+        const loaderElement = document.getElementById('authLoader');
+        if (loaderElement) {
+            loaderElement.style.display = 'none';
+        }
     }
 }
-async function registrarDescuentoJudicial(idPersonal, montoDescuento, idPagoPlanilla) {
-    try {
-        const connection = await connectionString();
+
+
+// Función corregida para renderizar la tabla de planillas autorizables
+function renderizarTablaPlanillasAutorizables(planillas) {
+    const tbody = document.getElementById('authPlanillasTableBody');
+    if (!tbody) return;
+    
+    tbody.innerHTML = '';
+    
+    // Verificar si hay planillas
+    if (!planillas || planillas.length === 0) {
+        const noDataElement = document.getElementById('authNoData');
+        if (noDataElement) {
+            noDataElement.style.display = 'block';
+        }
+        return;
+    }
+    
+    const noDataElement = document.getElementById('authNoData');
+    if (noDataElement) {
+        noDataElement.style.display = 'none';
+    }
+    
+    // Crear filas para cada planilla
+    for (let i = 0; i < planillas.length; i++) {
+        const planilla = planillas[i];
         
-        // 1. Obtener el descuento judicial activo del empleado (Estado = 0)
-        const queryDescuento = `
-            SELECT 
-                IdDescuentoJudicial,
-                SaldoPendiente
-            FROM 
-                DescuentosJudiciales
-            WHERE 
-                IdPersonal = ? AND Estado = 0
+        // Asegurarse de que el ID sea string
+        const idPlanilla = String(planilla.IdPagoPlanilla);
+        
+        // Determinar nombre del mes
+        const nombresMeses = [
+            'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+            'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'
+        ];
+        const nombreMes = nombresMeses[parseInt(planilla.Mes) - 1];
+        
+        // Calcular estado de autorización
+        const totalColaboradores = parseInt(planilla.CantColaboradores) || 0;
+        const autorizados = parseInt(planilla.ColaboradoresAutorizados) || 0;
+        const pendientes = totalColaboradores - autorizados;
+        
+        let claseEstado = '';
+        
+        if (autorizados === 0) {
+            claseEstado = 'auth-indicator-none';
+        } else if (autorizados < totalColaboradores) {
+            claseEstado = 'auth-indicator-partial';
+        } else {
+            claseEstado = 'auth-indicator-complete';
+        }
+        
+        // Formatear fecha de registro
+        const fechaRegistro = formatearFechaHora(planilla.FechaRegistro);
+        
+        // Crear la fila
+        const row = document.createElement('tr');
+        row.setAttribute('data-id', idPlanilla);
+        
+        // Verificar si está seleccionada
+        const isChecked = planillasSeleccionadas.has(idPlanilla) ? 'checked' : '';
+        
+        row.innerHTML = `
+            <td>
+                <div class="checkbox-container">
+                    <input type="checkbox" id="planilla-${idPlanilla}" 
+                        class="custom-checkbox planilla-checkbox" 
+                        data-id="${idPlanilla}" 
+                        ${isChecked}>
+                    <label for="planilla-${idPlanilla}"></label>
+                </div>
+            </td>
+            <td>${idPlanilla}</td>
+            <td class="highlight">
+                ${planilla.NombreDivision ? `${planilla.NombreDivision} - ` : ''}${planilla.NombrePlanilla}
+                ${planilla.NoCentroTrabajo ? `<br><small>(Centro: ${planilla.NoCentroTrabajo})</small>` : ''}
+            </td>
+            <td>${planilla.TipoPago}</td>
+            <td>${nombreMes} ${planilla.Anyo}</td>
+            <td>${fechaRegistro}</td>
+            <td class="text-center">${totalColaboradores}</td>
+            <td class="text-center">
+                <span class="auth-indicator ${claseEstado}">${autorizados}</span>
+            </td>
+            <td class="text-center">
+                <span class="auth-indicator ${pendientes > 0 ? 'auth-indicator-partial' : 'auth-indicator-complete'}">${pendientes}</span>
+            </td>
+            <td>
+                <div class="action-buttons-cell">
+                    <button class="action-btn view-details-btn" title="Ver Detalles" data-id="${idPlanilla}">
+                        <i class="fas fa-list-alt"></i>
+                    </button>
+                </div>
+            </td>
         `;
         
-        const descuentosJudiciales = await connection.query(queryDescuento, [idPersonal]);
+        tbody.appendChild(row);
+    }
+    
+    // Agregar eventos después de crear todas las filas
+    const checkboxes = tbody.querySelectorAll('.planilla-checkbox');
+    checkboxes.forEach(checkbox => {
+        checkbox.addEventListener('change', function() {
+            const idPlanilla = this.getAttribute('data-id');
+            
+            if (this.checked) {
+                planillasSeleccionadas.add(idPlanilla);
+            } else {
+                planillasSeleccionadas.delete(idPlanilla);
+            }
+            
+            // Actualizar contador de planillas seleccionadas
+            document.getElementById('planillasSeleccionadas').textContent = planillasSeleccionadas.size;
+            
+            // Actualizar contadores
+            actualizarContadoresAutorizacion();
+            
+            // Actualizar estado del botón de autorizar
+            actualizarEstadoBotonAutorizar();
+        });
+    });
+    
+    const detailButtons = tbody.querySelectorAll('.view-details-btn');
+    detailButtons.forEach(button => {
+        button.addEventListener('click', function() {
+            const idPlanilla = this.getAttribute('data-id');
+            mostrarDetallesPlanilla(idPlanilla);
+        });
+    });
+    
+    // Agregar evento al checkbox de seleccionar todos
+    const selectAllCheckbox = document.getElementById('selectAllPlanillas');
+    if (selectAllCheckbox) {
+        selectAllCheckbox.checked = false; // Resetear al cargar nuevos datos
         
-        // Si no tiene descuentos judiciales activos, terminar
-        if (descuentosJudiciales.length === 0) {
-            await connection.close();
+        selectAllCheckbox.addEventListener('change', function() {
+            const checkboxes = document.querySelectorAll('.planilla-checkbox');
+            
+            checkboxes.forEach(cb => {
+                cb.checked = this.checked;
+                
+                const idPlanilla = cb.getAttribute('data-id');
+                if (this.checked) {
+                    planillasSeleccionadas.add(idPlanilla);
+                } else {
+                    planillasSeleccionadas.delete(idPlanilla);
+                }
+            });
+            
+            // Actualizar contador de planillas seleccionadas
+            document.getElementById('planillasSeleccionadas').textContent = planillasSeleccionadas.size;
+            
+            // Actualizar contadores
+            actualizarContadoresAutorizacion();
+            
+            // Actualizar estado del botón de autorizar
+            actualizarEstadoBotonAutorizar();
+        });
+    }
+}
+
+// Función para actualizar contadores de autorización
+function actualizarContadoresAutorizacion() {
+    let totalColaboradores = 0;
+    let totalAutorizados = 0;
+    
+    // Convertir todos los IDs a strings para comparación
+    const idsSeleccionados = Array.from(planillasSeleccionadas).map(id => String(id));
+    
+    // Recorrer planillas seleccionadas
+    for (let i = 0; i < planillasAutorizables.length; i++) {
+        const planilla = planillasAutorizables[i];
+        const idPlanilla = String(planilla.IdPagoPlanilla);
+        
+        if (idsSeleccionados.includes(idPlanilla)) {
+            totalColaboradores += parseInt(planilla.CantColaboradores) || 0;
+            totalAutorizados += parseInt(planilla.ColaboradoresAutorizados) || 0;
+        }
+    }
+    
+    const totalPendientes = totalColaboradores - totalAutorizados;
+    
+    // Actualizar valores en la interfaz
+    document.getElementById('totalColaboradores').textContent = totalColaboradores;
+    document.getElementById('totalAutorizados').textContent = totalAutorizados;
+    document.getElementById('totalPendientes').textContent = totalPendientes;
+    
+    // Actualizar la cantidad de planillas seleccionadas
+    document.getElementById('planillasSeleccionadas').textContent = planillasSeleccionadas.size;
+}
+
+// Función para actualizar estado del botón de autorizar
+function actualizarEstadoBotonAutorizar() {
+    const btnAutorizar = document.getElementById('authorizePlanillasBtn');
+    if (!btnAutorizar) return;
+    
+    // Habilitar el botón solo si hay planillas seleccionadas
+    btnAutorizar.disabled = planillasSeleccionadas.size === 0;
+}
+
+// Función para formatear fecha y hora
+function formatearFechaHora(fecha) {
+    if (!fecha) return '';
+    
+    const d = new Date(fecha);
+    
+    const dia = d.getDate().toString().padStart(2, '0');
+    const mes = (d.getMonth() + 1).toString().padStart(2, '0');
+    const anio = d.getFullYear();
+    const hora = d.getHours().toString().padStart(2, '0');
+    const minutos = d.getMinutes().toString().padStart(2, '0');
+    
+    return `${dia}/${mes}/${anio} ${hora}:${minutos}`;
+}
+
+// Función para mostrar detalles de una planilla
+async function mostrarDetallesPlanilla(idPlanilla) {
+    try {
+        // Asegurarse de que el ID sea string
+        idPlanilla = String(idPlanilla);
+        
+        // Mostrar loader
+        Swal.fire({
+            title: 'Cargando detalles',
+            text: 'Obteniendo información de los colaboradores...',
+            allowOutsideClick: false,
+            didOpen: () => {
+                Swal.showLoading();
+            }
+        });
+        
+        // Si ya tenemos los detalles cargados, usarlos
+        if (detallesColaboradoresMap.has(idPlanilla)) {
+            const detalles = detallesColaboradoresMap.get(idPlanilla);
+            mostrarModalDetalles(idPlanilla, detalles);
+            Swal.close();
             return;
         }
         
-        const descuentoJudicial = descuentosJudiciales[0];
-        const idDescuentoJudicial = descuentoJudicial.IdDescuentoJudicial;
-        const saldoAnterior = parseFloat(descuentoJudicial.SaldoPendiente);
+        // Si no, cargarlos desde la base de datos
+        const connection = await connectionString();
         
-        // Verificar si el saldo pendiente es menor que el descuento a aplicar
-        let descuentoAplicado = montoDescuento;
-        if (saldoAnterior < montoDescuento) {
-            descuentoAplicado = saldoAnterior;
-        }
-        
-        // Calcular el nuevo saldo
-        const saldoActual = Math.max(0, saldoAnterior - descuentoAplicado);
-        
-        // 2. Insertar el registro de descuento judicial en la tabla DescjuntosJudicialesDetalle
-        const queryInsert = `
-            INSERT INTO DescuentosJudicialesDetalle (
-                IdDescuentoJudicial,
-                Descuento,
-                SaldoAnterior,
-                SaldoActual,
-                IdPagoPlanilla
-            ) VALUES (?, ?, ?, ?, ?)
+        // Consulta para obtener los detalles de la planilla
+        const query = `
+            SELECT 
+                ppd.IdDetallePagoPlanilla,
+                ppd.IdPagoPlanilla,
+                ppd.IdPersonal,
+                ppd.NombrePersonal,
+                ppd.MontoPagado,
+                ppd.NoCuenta,
+                ppd.NoAutorizacion
+            FROM 
+                PagoPlanillaDetalle ppd
+            WHERE 
+                ppd.IdPagoPlanilla = ?
+            ORDER BY 
+                ppd.NombrePersonal
         `;
         
-        const paramsInsert = [
-            idDescuentoJudicial,
-            descuentoAplicado,
-            saldoAnterior,
-            saldoActual,
-            idPagoPlanilla
-        ];
-        
-        await connection.query(queryInsert, paramsInsert);
-        
-        // 3. Actualizar el saldo pendiente en la tabla DescuentosJudiciales
-        const queryUpdate = `
-            UPDATE DescuentosJudiciales
-            SET SaldoPendiente = ?
-            WHERE IdDescuentoJudicial = ?
-        `;
-        
-        const paramsUpdate = [saldoActual, idDescuentoJudicial];
-        
-        await connection.query(queryUpdate, paramsUpdate);
-        
-        // 4. Si el saldo llega a 0, actualizar el estado del descuento judicial a completado (Estado = 1)
-        if (saldoActual === 0) {
-            const queryCompletado = `
-                UPDATE DescuentosJudiciales
-                SET Estado = 1
-                WHERE IdDescuentoJudicial = ?
-            `;
-            
-            await connection.query(queryCompletado, [idDescuentoJudicial]);
-        }
-        
+        const detalles = await connection.query(query, [idPlanilla]);
         await connection.close();
         
+        // Convertir IDs a strings
+        for (let i = 0; i < detalles.length; i++) {
+            if (typeof detalles[i].IdDetallePagoPlanilla === 'bigint') {
+                detalles[i].IdDetallePagoPlanilla = detalles[i].IdDetallePagoPlanilla.toString();
+            }
+            if (typeof detalles[i].IdPagoPlanilla === 'bigint') {
+                detalles[i].IdPagoPlanilla = detalles[i].IdPagoPlanilla.toString();
+            }
+            if (typeof detalles[i].IdPersonal === 'bigint') {
+                detalles[i].IdPersonal = detalles[i].IdPersonal.toString();
+            }
+        }
+        
+        // Guardar en el mapa para uso futuro
+        detallesColaboradoresMap.set(idPlanilla, detalles);
+        
+        // Cerrar loader
+        Swal.close();
+        
+        // Mostrar el modal con los detalles
+        mostrarModalDetalles(idPlanilla, detalles);
+        
     } catch (error) {
-        console.error('Error al registrar descuento judicial:', error);
-        throw error;
+        console.error('Error al obtener detalles de planilla:', error);
+        Swal.close();
+        
+        await Swal.fire({
+            icon: 'error',
+            title: 'Error',
+            text: 'Ocurrió un error al obtener los detalles de la planilla.'
+        });
     }
 }
-// Función para obtener los datos de planillas guardadas para el reporte
-async function obtenerDatosPlanillasParaReporte() {
+
+// Función para mostrar el modal con detalles de una planilla
+function mostrarModalDetalles(idPlanilla, detalles) {
+    // Asegurarse de que el ID sea string
+    idPlanilla = String(idPlanilla);
+    
+    // Obtener información de la planilla
+    const planillaIndex = planillasAutorizables.findIndex(p => String(p.IdPagoPlanilla) === idPlanilla);
+    if (planillaIndex === -1) return;
+    
+    const planilla = planillasAutorizables[planillaIndex];
+    
+    // Actualizar título del modal
+    const modalTitle = document.getElementById('detailsModalTitle');
+    if (modalTitle) {
+        modalTitle.textContent = `Detalles de Planilla: ${planilla.NombrePlanilla}`;
+    }
+    
+    // Llenar tabla de detalles
+    const tbody = document.getElementById('detailsTableBody');
+    if (tbody) {
+        tbody.innerHTML = '';
+        
+        // Crear filas para cada colaborador
+        for (let i = 0; i < detalles.length; i++) {
+            const detalle = detalles[i];
+            
+            // Determinar estado de autorización
+            const tieneAutorizacion = detalle.NoAutorizacion && detalle.NoAutorizacion.trim() !== '';
+            const estadoClase = tieneAutorizacion ? 'status-badge-authorized' : 'status-badge-pending';
+            const estadoTexto = tieneAutorizacion ? 'Autorizado' : 'Pendiente';
+            
+            // Verificar si el número de cuenta existe
+            let noCuentaCell = '';
+            if (detalle.NoCuenta && detalle.NoCuenta.trim() !== '') {
+                noCuentaCell = detalle.NoCuenta;
+            } else {
+                noCuentaCell = '<span class="warning-text">Sin cuenta</span>';
+            }
+            
+            const row = document.createElement('tr');
+            
+            // Asegurarse de que los IDs sean strings
+            const idDetalle = String(detalle.IdDetallePagoPlanilla);
+            
+            row.innerHTML = `
+                <td>${detalle.IdPersonal}</td>
+                <td class="highlight">${detalle.NombrePersonal}</td>
+                <td>${noCuentaCell}</td>
+                <td class="currency">${formatearMoneda(detalle.MontoPagado)}</td>
+                <td class="authorization-field" data-id="${idDetalle}" data-id-planilla="${idPlanilla}">
+                    ${detalle.NoAutorizacion || ''}
+                    <i class="fas fa-pen edit-icon" title="Editar"></i>
+                </td>
+                <td><span class="status-badge-auth ${estadoClase}">${estadoTexto}</span></td>
+            `;
+            
+            tbody.appendChild(row);
+        }
+        
+        // Agregar eventos después de crear todas las filas
+        const authFields = tbody.querySelectorAll('.authorization-field');
+        authFields.forEach(field => {
+            const editIcon = field.querySelector('.edit-icon');
+            
+            editIcon.addEventListener('click', function(e) {
+                e.stopPropagation();
+                habilitarEdicionAutorizacion(field);
+            });
+            
+            // También permitir editar al hacer clic en el campo
+            field.addEventListener('click', function() {
+                habilitarEdicionAutorizacion(this);
+            });
+        });
+    }
+    
+    // Actualizar contadores del modal
+    const totalColaboradores = detalles.length;
+    const conAutorizacion = detalles.filter(d => d.NoAutorizacion && d.NoAutorizacion.trim() !== '').length;
+    const sinAutorizacion = totalColaboradores - conAutorizacion;
+    
+    document.getElementById('detailsTotalColaboradores').textContent = totalColaboradores;
+    document.getElementById('detailsConAutorizacion').textContent = conAutorizacion;
+    document.getElementById('detailsSinAutorizacion').textContent = sinAutorizacion;
+    
+    // Activar campo de búsqueda
+    const searchInput = document.getElementById('searchColaborador');
+    if (searchInput) {
+        searchInput.value = '';
+        searchInput.addEventListener('input', function() {
+            buscarColaborador(this.value);
+        });
+    }
+    
+    // Asignar evento para cerrar el modal
+    const closeBtn = document.querySelector('.close-modal-details');
+    if (closeBtn) {
+        closeBtn.addEventListener('click', cerrarModalDetalles);
+    }
+    
+    const closeDetailsBtn = document.getElementById('closeDetailsBtn');
+    if (closeDetailsBtn) {
+        closeDetailsBtn.addEventListener('click', cerrarModalDetalles);
+    }
+    
+    // Mostrar el modal
+    const modal = document.getElementById('detailsModal');
+    if (modal) {
+        modal.style.display = 'block';
+    }
+}
+
+// Función para cerrar el modal de detalles
+function cerrarModalDetalles() {
+    const modal = document.getElementById('detailsModal');
+    if (modal) {
+        modal.style.display = 'none';
+    }
+}
+
+// Función para buscar colaborador en el modal de detalles
+function buscarColaborador(texto) {
+    const filas = document.querySelectorAll('#detailsTableBody tr');
+    
+    if (!filas.length) return;
+    
+    const terminoBusqueda = texto.toLowerCase().trim();
+    
+    // Si está vacío, mostrar todas las filas
+    if (terminoBusqueda === '') {
+        filas.forEach(fila => {
+            fila.style.display = '';
+        });
+        return;
+    }
+    
+    // Filtrar filas según coincidencia
+    filas.forEach(fila => {
+        const nombre = fila.querySelector('td:nth-child(2)').textContent.toLowerCase();
+        const idPersonal = fila.querySelector('td:nth-child(1)').textContent.toLowerCase();
+        const noCuenta = fila.querySelector('td:nth-child(3)').textContent.toLowerCase();
+        
+        if (nombre.includes(terminoBusqueda) || 
+            idPersonal.includes(terminoBusqueda) || 
+            noCuenta.includes(terminoBusqueda)) {
+            fila.style.display = '';
+        } else {
+            fila.style.display = 'none';
+        }
+    });
+}
+
+// Función para habilitar edición del número de autorización
+function habilitarEdicionAutorizacion(campo) {
+    // Si ya está en modo edición, salir
+    if (campo.querySelector('input')) return;
+    
+    // Obtener el valor actual
+    const valorActual = campo.textContent.trim();
+    
+    // Guardar referencias para usar después
+    const idDetalle = campo.getAttribute('data-id');
+    const idPlanilla = campo.getAttribute('data-id-planilla');
+    
+    // Crear input para edición
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.className = 'authorization-input';
+    input.value = valorActual;
+    input.maxLength = 50; // Limitar la longitud del número de autorización
+    
+    // Si hay valor en el mapa de autorizaciones para el NoCuenta correspondiente, usarlo
+    const detalles = detallesColaboradoresMap.get(idPlanilla);
+    if (detalles && mapaAutorizaciones.size > 0) {
+        const detalle = detalles.find(d => d.IdDetallePagoPlanilla == idDetalle);
+        if (detalle && detalle.NoCuenta) {
+            const noCuenta = detalle.NoCuenta.trim();
+            if (noCuenta !== '' && mapaAutorizaciones.has(noCuenta)) {
+                input.value = mapaAutorizaciones.get(noCuenta);
+            }
+        }
+    }
+    
+    // Limpiar contenido actual y agregar el input
+    const iconEdit = campo.querySelector('.edit-icon');
+    campo.innerHTML = '';
+    campo.appendChild(input);
+    campo.appendChild(iconEdit);
+    
+    // Enfocar el input
+    input.focus();
+    
+    // Evento al perder el foco
+    input.addEventListener('blur', function() {
+        const nuevoValor = this.value.trim();
+        guardarNoAutorizacion(idDetalle, idPlanilla, nuevoValor);
+    });
+    
+    // Evento al presionar Enter
+    input.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') {
+            this.blur();
+        }
+    });
+}
+
+// Función para guardar el número de autorización
+async function guardarNoAutorizacion(idDetalle, idPlanilla, nuevoValor) {
     try {
-        // Obtener valores de los filtros
-        const tipoQuincena = document.getElementById('tipoQuincenaFilter').value;
-        const idTipoPago = tipoQuincena === 'normal' ? 1 : 2;
-        const mes = document.getElementById('mesFilter').value;
-        const anio = document.getElementById('anioFilter').value;
+        const connection = await connectionString();
+        
+        // Actualizar en la base de datos
+        const query = `
+            UPDATE PagoPlanillaDetalle
+            SET NoAutorizacion = ?
+            WHERE IdDetallePagoPlanilla = ?
+        `;
+        
+        await connection.query(query, [nuevoValor, idDetalle]);
+        
+        // Actualizar el contador de autorizaciones en la planilla
+        const queryCount = `
+            SELECT COUNT(*) as Total
+            FROM PagoPlanillaDetalle
+            WHERE IdPagoPlanilla = ?
+            AND NoAutorizacion IS NOT NULL
+            AND NoAutorizacion != ''
+        `;
+        
+        const result = await connection.query(queryCount, [idPlanilla]);
+        await connection.close();
+        
+        const totalAutorizados = result[0].Total;
+        
+        // Actualizar en el mapa de detalles
+        if (detallesColaboradoresMap.has(idPlanilla)) {
+            const detalles = detallesColaboradoresMap.get(idPlanilla);
+            const detalle = detalles.find(d => d.IdDetallePagoPlanilla == idDetalle);
+            if (detalle) {
+                detalle.NoAutorizacion = nuevoValor;
+            }
+        }
+        
+        // Actualizar en la tabla de planillas autorizables
+        const planilla = planillasAutorizables.find(p => p.IdPagoPlanilla == idPlanilla);
+        if (planilla) {
+            planilla.ColaboradoresAutorizados = totalAutorizados;
+        }
+        
+        // Volver a renderizar la tabla
+        renderizarTablaPlanillasAutorizables(planillasAutorizables);
+        
+        // Actualizar contadores
+        actualizarContadoresAutorizacion();
+        
+        // Volver a mostrar los detalles actualizados en el modal
+        if (document.getElementById('detailsModal').style.display === 'block') {
+            const detalles = detallesColaboradoresMap.get(idPlanilla);
+            mostrarModalDetalles(idPlanilla, detalles);
+        }
+        
+    } catch (error) {
+        console.error('Error al guardar número de autorización:', error);
+        await Swal.fire({
+            icon: 'error',
+            title: 'Error',
+            text: 'Ocurrió un error al guardar el número de autorización.'
+        });
+        
+        // Cerrar el modal
+        cerrarModalDetalles();
+    }
+}
+
+// Función para procesar el archivo Excel con autorizaciones
+async function procesarArchivoAutorizaciones() {
+    const fileInput = document.getElementById('excelFileInput');
+    if (!fileInput || !fileInput.files || fileInput.files.length === 0) {
+        await Swal.fire({
+            icon: 'warning',
+            title: 'Sin archivo',
+            text: 'Por favor, seleccione un archivo Excel con los números de autorización.'
+        });
+        return;
+    }
+    
+    try {
+        // Mostrar progreso
+        const uploadProgress = document.getElementById('uploadProgress');
+        if (uploadProgress) {
+            uploadProgress.style.display = 'block';
+        }
+        
+        const progressBarFill = document.getElementById('progressBarFill');
+        if (progressBarFill) {
+            progressBarFill.style.width = '0%';
+        }
+        
+        const progressText = document.getElementById('progressText');
+        if (progressText) {
+            progressText.textContent = 'Leyendo archivo...';
+        }
+        
+        // Leer el archivo
+        const file = fileInput.files[0];
+        const reader = new FileReader();
+        
+        reader.onload = async function(e) {
+            try {
+                progressText.textContent = 'Procesando datos...';
+                progressBarFill.style.width = '50%';
+                
+                // Parsear el archivo Excel
+                const data = new Uint8Array(e.target.result);
+                const workbook = XLSX.read(data, { type: 'array' });
+                
+                // Verificar que haya al menos una hoja
+                if (workbook.SheetNames.length === 0) {
+                    throw new Error('El archivo Excel no contiene hojas.');
+                }
+                
+                // Usar la primera hoja
+                const sheetName = workbook.SheetNames[0];
+                const worksheet = workbook.Sheets[sheetName];
+                
+                // Convertir a JSON
+                const excelData = XLSX.utils.sheet_to_json(worksheet, { raw: true });
+                
+                if (excelData.length === 0) {
+                    throw new Error('No se encontraron datos en el archivo Excel.');
+                }
+                
+                // Verificar que tenga las columnas necesarias
+                const primeraFila = excelData[0];
+                let campoNoCuenta = '';
+                let campoNoAutorizacion = '';
+                
+                // Buscar los nombres de columnas (ignorando mayúsculas/minúsculas y espacios)
+                for (const campo in primeraFila) {
+                    const nombreCampo = campo.toLowerCase().replace(/\s+/g, '');
+                    if (nombreCampo.includes('cuenta') || nombreCampo === 'nocuenta' || nombreCampo === 'cuenta') {
+                        campoNoCuenta = campo;
+                    } else if (nombreCampo.includes('autorizacion') || nombreCampo === 'noautorizacion' || nombreCampo === 'autorizacion') {
+                        campoNoAutorizacion = campo;
+                    }
+                }
+                
+                if (!campoNoCuenta || !campoNoAutorizacion) {
+                    throw new Error('El archivo debe contener columnas para NoCuenta y NoAutorizacion.');
+                }
+                
+                progressBarFill.style.width = '75%';
+                
+                // Crear un mapa de NoCuenta -> NoAutorizacion
+                mapaAutorizaciones = new Map();
+                
+                excelData.forEach(row => {
+                    const noCuenta = String(row[campoNoCuenta]).trim();
+                    const noAutorizacion = String(row[campoNoAutorizacion]).trim();
+                    
+                    // Solo agregar si ambos valores son válidos
+                    if (noCuenta && noAutorizacion) {
+                        mapaAutorizaciones.set(noCuenta, noAutorizacion);
+                    }
+                });
+                
+                progressBarFill.style.width = '100%';
+                progressText.textContent = 'Procesamiento completado';
+                
+                // Almacenar información para mostrar resumen
+                datosAutorizacion = {
+                    totalRegistros: excelData.length,
+                    totalValidos: mapaAutorizaciones.size
+                };
+                
+                // Mostrar resumen
+                mostrarResumenCargaAutorizaciones(datosAutorizacion);
+                
+                // Habilitar botón de procesar
+                const processAuthBtn = document.getElementById('processAuthBtn');
+                if (processAuthBtn) {
+                    processAuthBtn.disabled = false;
+                }
+                
+            } catch (error) {
+                console.error('Error al procesar archivo Excel:', error);
+                await Swal.fire({
+                    icon: 'error',
+                    title: 'Error de procesamiento',
+                    text: `Error al procesar el archivo: ${error.message}`
+                });
+                
+                // Ocultar progreso
+                uploadProgress.style.display = 'none';
+            }
+        };
+        
+        reader.onerror = function() {
+            Swal.fire({
+                icon: 'error',
+                title: 'Error de lectura',
+                text: 'No se pudo leer el archivo.'
+            });
+            
+            // Ocultar progreso
+            uploadProgress.style.display = 'none';
+        };
+        
+        // Iniciar la lectura del archivo
+        reader.readAsArrayBuffer(file);
+        
+    } catch (error) {
+        console.error('Error al procesar archivo:', error);
+        await Swal.fire({
+            icon: 'error',
+            title: 'Error',
+            text: 'Ocurrió un error al procesar el archivo.'
+        });
+    }
+}
+
+// Función para mostrar resumen de carga de autorizaciones
+function mostrarResumenCargaAutorizaciones(datos) {
+    const uploadSummary = document.getElementById('uploadSummary');
+    if (!uploadSummary) return;
+    
+    // Actualizar los contadores
+    document.getElementById('totalRegistros').textContent = datos.totalRegistros;
+    document.getElementById('totalCoincidencias').textContent = datos.totalValidos;
+    document.getElementById('totalSinCoincidencia').textContent = datos.totalRegistros - datos.totalValidos;
+    
+    // Mostrar el resumen
+    uploadSummary.style.display = 'block';
+}
+
+// Función para aplicar las autorizaciones del archivo Excel a las planillas seleccionadas
+async function aplicarAutorizacionesASeleccionadas() {
+    try {
+        // Verificar que haya planillas seleccionadas
+        if (planillasSeleccionadas.size === 0) {
+            await Swal.fire({
+                icon: 'warning',
+                title: 'Sin selección',
+                text: 'Debe seleccionar al menos una planilla para aplicar las autorizaciones.'
+            });
+            return;
+        }
+        
+        // Verificar que se haya cargado un archivo
+        if (!mapaAutorizaciones || mapaAutorizaciones.size === 0) {
+            await Swal.fire({
+                icon: 'warning',
+                title: 'Sin datos de autorización',
+                text: 'Debe cargar un archivo con números de autorización primero.'
+            });
+            return;
+        }
+        
+        // Mostrar loader
+        Swal.fire({
+            title: 'Procesando autorizaciones',
+            html: 'Aplicando números de autorización a los colaboradores...',
+            allowOutsideClick: false,
+            didOpen: () => {
+                Swal.showLoading();
+            }
+        });
         
         const connection = await connectionString();
         
-        // 1. Obtener todas las planillas guardadas para el período
-        // Modificamos la consulta para obtener directamente la información de Division
-        const queryPlanillas = `
-            SELECT 
-                PP.IdPagoPlanilla,
-                PP.IdPlanilla,
-                PP.NombrePlanilla,
-                PP.CantColaboradores,
-                PP.MontoPagado,
-                PP.TipoPago,
-                PP.Mes,
-                PP.Anyo,
-                P.Division,
-                D.Nombre AS NombreDivision,
-                P.NoCentroTrabajo
-            FROM 
-                PagoPlanilla PP
-                INNER JOIN planillas P ON PP.IdPlanilla = P.IdPlanilla
-                LEFT JOIN divisiones D ON P.Division = D.IdDivision
-            WHERE 
-                PP.IdTipoPago = ? 
-                AND PP.Mes = ? 
-                AND PP.Anyo = ?
-            ORDER BY 
-                D.Nombre ASC,
-                CAST(P.NoCentroTrabajo AS UNSIGNED) ASC
-        `;
+        // Contador para estadísticas
+        let totalActualizados = 0;
+        let totalColaboradores = 0;
         
-        const planillas = await connection.query(queryPlanillas, [idTipoPago, mes, anio]);
-        
-        // Si no hay planillas guardadas, retornar array vacío
-        if (planillas.length === 0) {
-            await connection.close();
-            return [];
-        }
-        
-        // 2. Para cada planilla, obtener logo de la división correspondiente
-        const datosCompletos = [];
-        
-        for (const planilla of planillas) {
-            // Verificar que tenemos un valor de Division antes de buscar el logo
-            let logo = null;
+        // Recorrer cada planilla seleccionada
+        for (const idPlanilla of planillasSeleccionadas) {
+            // Asegurarse de que el ID sea string
+            const planillaId = String(idPlanilla);
             
-            if (planilla.Division) {
-                // Obtener el logo de la división usando la División específica de esta planilla
-                const queryLogo = `
-                    SELECT CASE 
-                                WHEN divisiones.Logos IS NOT NULL THEN CONCAT('data:image/jpeg;base64,', TO_BASE64(divisiones.Logos))
-                                ELSE NULL 
-                            END AS Logos
-                    FROM divisiones
-                    WHERE IdDivision = ?
+            // Obtener los detalles de la planilla si no los tenemos
+            if (!detallesColaboradoresMap.has(planillaId)) {
+                const query = `
+                    SELECT 
+                        ppd.IdDetallePagoPlanilla,
+                        ppd.IdPagoPlanilla,
+                        ppd.IdPersonal,
+                        ppd.NombrePersonal,
+                        ppd.MontoPagado,
+                        ppd.NoCuenta,
+                        ppd.NoAutorizacion
+                    FROM 
+                        PagoPlanillaDetalle ppd
+                    WHERE 
+                        ppd.IdPagoPlanilla = ?
                 `;
                 
-                const resultadoLogo = await connection.query(queryLogo, [planilla.Division]);
-                if (resultadoLogo.length > 0) {
-                    logo = resultadoLogo[0].Logos;
+                const detalles = await connection.query(query, [planillaId]);
+                
+                // Convertir IDs a strings
+                for (let i = 0; i < detalles.length; i++) {
+                    if (typeof detalles[i].IdDetallePagoPlanilla === 'bigint') {
+                        detalles[i].IdDetallePagoPlanilla = detalles[i].IdDetallePagoPlanilla.toString();
+                    }
+                    if (typeof detalles[i].IdPagoPlanilla === 'bigint') {
+                        detalles[i].IdPagoPlanilla = detalles[i].IdPagoPlanilla.toString();
+                    }
+                    if (typeof detalles[i].IdPersonal === 'bigint') {
+                        detalles[i].IdPersonal = detalles[i].IdPersonal.toString();
+                    }
+                }
+                
+                detallesColaboradoresMap.set(planillaId, detalles);
+            }
+            
+            const detalles = detallesColaboradoresMap.get(planillaId);
+            totalColaboradores += detalles.length;
+            
+            // Procesar cada colaborador
+            for (const detalle of detalles) {
+                // Verificar si tiene número de cuenta y aún no tiene número de autorización
+                if (detalle.NoCuenta && detalle.NoCuenta.trim() !== '' && 
+                    (!detalle.NoAutorizacion || detalle.NoAutorizacion.trim() === '')) {
+                    
+                    const noCuenta = detalle.NoCuenta.trim();
+                    
+                    // Verificar si hay autorización para esta cuenta
+                    if (mapaAutorizaciones.has(noCuenta)) {
+                        const noAutorizacion = mapaAutorizaciones.get(noCuenta);
+                        
+                        // Actualizar en la base de datos
+                        const queryUpdate = `
+                            UPDATE PagoPlanillaDetalle
+                            SET NoAutorizacion = ?
+                            WHERE IdDetallePagoPlanilla = ?
+                        `;
+                        
+                        await connection.query(queryUpdate, [noAutorizacion, detalle.IdDetallePagoPlanilla]);
+                        
+                        // Actualizar también en el objeto de memoria
+                        detalle.NoAutorizacion = noAutorizacion;
+                        
+                        totalActualizados++;
+                    }
                 }
             }
             
-            // 3. Obtener los detalles de cada empleado en la planilla, incluyendo el NoCuenta
-            const queryDetalles = `
-                SELECT 
-                    PPD.IdPersonal,
-                    PPD.NombrePersonal,
-                    PPD.SalarioDiario,
-                    PPD.SalarioQuincenal,
-                    PPD.MontoPagado,
-                    PPD.DiasLaborados,
-                    PPD.Bonificacion,
-                    PPD.PagoIGSS,
-                    p.Sexo,
-                    COALESCE(PPD.NoCuenta, p.NoCuenta) AS NoCuenta
-                FROM 
-                    PagoPlanillaDetalle PPD
-                    LEFT JOIN personal p ON PPD.IdPersonal = p.IdPersonal
-                WHERE 
-                    PPD.IdPagoPlanilla = ?
-                ORDER BY 
-                    PPD.NombrePersonal
+            // Actualizar el contador de autorizaciones para esta planilla
+            const queryCount = `
+                SELECT COUNT(*) as Total
+                FROM PagoPlanillaDetalle
+                WHERE IdPagoPlanilla = ?
+                AND NoAutorizacion IS NOT NULL
+                AND NoAutorizacion != ''
             `;
             
-            const detalles = await connection.query(queryDetalles, [planilla.IdPagoPlanilla]);
+            const result = await connection.query(queryCount, [planillaId]);
+            const totalAutorizados = result[0].Total;
             
-            // Agregar planilla con sus detalles, logo y nombre de división al resultado
-            datosCompletos.push({
-                ...planilla,
-                logo: logo,
-                detalles: detalles
-            });
+            // Actualizar en la lista de planillas
+            const planillaIndex = planillasAutorizables.findIndex(p => String(p.IdPagoPlanilla) === planillaId);
+            if (planillaIndex !== -1) {
+                planillasAutorizables[planillaIndex].ColaboradoresAutorizados = totalAutorizados;
+            }
         }
         
         await connection.close();
-        return datosCompletos;
+        
+        // Actualizar la tabla con los nuevos datos
+        renderizarTablaPlanillasAutorizables(planillasAutorizables);
+        
+        // Actualizar contadores generales de la interfaz
+        actualizarContadoresAutorizacion();
+        
+        // Actualizar el estado del botón de autorizar
+        actualizarEstadoBotonAutorizar();
+        
+        // Mostrar mensaje de éxito
+        await Swal.fire({
+            icon: 'success',
+            title: 'Proceso completado',
+            html: `
+                <p>Se actualizaron <strong>${totalActualizados}</strong> colaboradores de un total de <strong>${totalColaboradores}</strong>.</p>
+                <p>Las planillas han sido actualizadas con los números de autorización.</p>
+                <p>Estado actual:</p>
+                <ul style="text-align: left;">
+                    <li>Colaboradores: <strong>${document.getElementById('totalColaboradores').textContent}</strong></li>
+                    <li>Autorizados: <strong>${document.getElementById('totalAutorizados').textContent}</strong></li>
+                    <li>Pendientes: <strong>${document.getElementById('totalPendientes').textContent}</strong></li>
+                </ul>
+            `
+        });
+        
+        // Si el modal de detalles está abierto, actualizarlo también
+        const detailsModal = document.getElementById('detailsModal');
+        if (detailsModal && detailsModal.style.display === 'block') {
+            // Determinar qué planilla está mostrándose
+            const titulo = document.getElementById('detailsModalTitle');
+            if (titulo) {
+                // Buscar en planillasAutorizables la que corresponde al título
+                const planilla = planillasAutorizables.find(p => titulo.textContent.includes(p.NombrePlanilla));
+                if (planilla) {
+                    // Volver a cargar los detalles para esta planilla
+                    mostrarDetallesPlanilla(String(planilla.IdPagoPlanilla));
+                }
+            }
+        }
         
     } catch (error) {
-        console.error('Error al obtener datos para reporte:', error);
-        return [];
+        console.error('Error al aplicar autorizaciones:', error);
+        await Swal.fire({
+            icon: 'error',
+            title: 'Error',
+            text: 'Ocurrió un error al aplicar las autorizaciones.'
+        });
     }
 }
-function formatearNombreApellidoPrimero(nombreCompleto) {
-    // Esto es solo un ejemplo, habría que adaptarlo según cómo estén estructurados tus datos
-    const partes = nombreCompleto.split(' ');
-    if (partes.length <= 2) return nombreCompleto; // No hay suficientes partes para reorganizar
+function actualizarEstadoBotonAutorizar() {
+    const btnAutorizar = document.getElementById('authorizePlanillasBtn');
+    if (!btnAutorizar) return;
     
-    // Asumiendo formato: [PrimerNombre] [SegundoNombre] [PrimerApellido] [SegundoApellido]
-    // Convertir a: [PrimerApellido] [SegundoApellido], [PrimerNombre] [SegundoNombre]
-    const nombres = partes.slice(0, partes.length-2).join(' ');
-    const apellidos = partes.slice(partes.length-2).join(' ');
+    const totalPendientes = parseInt(document.getElementById('totalPendientes').textContent) || 0;
+    const totalSeleccionadas = planillasSeleccionadas.size;
     
-    return `${apellidos}, ${nombres}`;
+    // Habilitar el botón solo si hay planillas seleccionadas
+    btnAutorizar.disabled = totalSeleccionadas === 0;
+    
+    // Cambiar el estilo según si hay pendientes o no
+    if (totalPendientes > 0 && totalSeleccionadas > 0) {
+        btnAutorizar.classList.add('has-pending');
+        btnAutorizar.title = "Hay colaboradores sin autorización. Se recomienda completar las autorizaciones primero.";
+    } else {
+        btnAutorizar.classList.remove('has-pending');
+        btnAutorizar.title = "Autorizar las planillas seleccionadas";
+    }
 }
+// Función para autorizar planillas (cambiar Estado de 0 a 1)
+async function autorizarPlanillas() {
+    try {
+        // Verificar que haya planillas seleccionadas
+        if (planillasSeleccionadas.size === 0) {
+            await Swal.fire({
+                icon: 'warning',
+                title: 'Sin selección',
+                text: 'Debe seleccionar al menos una planilla para autorizar.'
+            });
+            return;
+        }
+        
+        // Obtener contadores
+        const totalColaboradores = parseInt(document.getElementById('totalColaboradores').textContent);
+        const totalAutorizados = parseInt(document.getElementById('totalAutorizados').textContent);
+        const totalPendientes = parseInt(document.getElementById('totalPendientes').textContent);
+        
+        // Mostrar modal de confirmación
+        const modalPlanillasSeleccionadas = document.getElementById('modalPlanillasSeleccionadas');
+        const modalTotalColaboradores = document.getElementById('modalTotalColaboradores');
+        const modalColaboradoresAutorizados = document.getElementById('modalColaboradoresAutorizados');
+        const modalColaboradoresPendientes = document.getElementById('modalColaboradoresPendientes');
+        const authWarning = document.getElementById('authWarning');
+        
+        if (modalPlanillasSeleccionadas) modalPlanillasSeleccionadas.textContent = planillasSeleccionadas.size;
+        if (modalTotalColaboradores) modalTotalColaboradores.textContent = totalColaboradores;
+        if (modalColaboradoresAutorizados) modalColaboradoresAutorizados.textContent = totalAutorizados;
+        if (modalColaboradoresPendientes) modalColaboradoresPendientes.textContent = totalPendientes;
+        
+        // Mostrar advertencia si hay colaboradores sin autorización
+        if (authWarning) {
+            if (totalPendientes > 0) {
+                authWarning.style.display = 'block';
+            } else {
+                authWarning.style.display = 'none';
+            }
+        }
+        
+        // Mostrar modal de confirmación
+        const modal = document.getElementById('authorizeModal');
+        if (modal) {
+            modal.style.display = 'block';
+        }
+        
+        // Asignar eventos
+        const closeModalBtn = document.querySelector('.close-modal-auth');
+        if (closeModalBtn) {
+            closeModalBtn.onclick = function() {
+                modal.style.display = 'none';
+            };
+        }
+        
+        const cancelAuthorizeBtn = document.getElementById('cancelAuthorizeBtn');
+        if (cancelAuthorizeBtn) {
+            cancelAuthorizeBtn.onclick = function() {
+                modal.style.display = 'none';
+            };
+        }
+        
+        const confirmAuthorizeBtn = document.getElementById('confirmAuthorizeBtn');
+        if (confirmAuthorizeBtn) {
+            confirmAuthorizeBtn.onclick = async function() {
+                modal.style.display = 'none';
+                await actualizarEstadoPlanillas();
+            };
+        }
+        
+    } catch (error) {
+        console.error('Error al preparar autorización:', error);
+        await Swal.fire({
+            icon: 'error',
+            title: 'Error',
+            text: 'Ocurrió un error al preparar la autorización de planillas.'
+        });
+    }
+}
+
+// Función para actualizar el estado de las planillas seleccionadas
+async function actualizarEstadoPlanillas() {
+    try {
+        // Mostrar loader
+        Swal.fire({
+            title: 'Autorizando planillas',
+            html: 'Actualizando estado de las planillas seleccionadas...',
+            allowOutsideClick: false,
+            didOpen: () => {
+                Swal.showLoading();
+            }
+        });
+        
+        const connection = await connectionString();
+        
+        // Obtener el usuario actual del localStorage
+        const userData = JSON.parse(localStorage.getItem('userData')) || {};
+        const idUsuario = userData.IdPersonal || 0;
+        const nombreUsuario = userData.NombreCompleto || 'Usuario Desconocido';
+        
+        // Array para almacenar planillas actualizadas
+        const planillasActualizadas = [];
+        
+        // Actualizar cada planilla seleccionada
+        for (const idPlanilla of planillasSeleccionadas) {
+            // Actualizar el estado de la planilla a 1 (Autorizado)
+            const query = `
+                UPDATE PagoPlanilla
+                SET Estado = 1, 
+                    FechaAutorizacion = NOW(),
+                    IdUsuarioAutorizacion = ?,
+                    NombreUsuarioAutorizacion = ?
+                WHERE IdPagoPlanilla = ?
+            `;
+            
+            await connection.query(query, [idUsuario, nombreUsuario, idPlanilla]);
+            
+            // Guardar referencia a la planilla actualizada
+            const planilla = planillasAutorizables.find(p => p.IdPagoPlanilla === idPlanilla);
+            if (planilla) {
+                planillasActualizadas.push({
+                    id: planilla.IdPagoPlanilla,
+                    nombre: planilla.NombrePlanilla,
+                    colaboradores: planilla.CantColaboradores,
+                    autorizados: planilla.ColaboradoresAutorizados || 0
+                });
+            }
+        }
+        
+        await connection.close();
+        
+        // Mostrar mensaje de éxito
+        const plural = planillasActualizadas.length > 1 ? 's' : '';
+        
+        await Swal.fire({
+            icon: 'success',
+            title: 'Planillas autorizadas',
+            html: `
+                <p>Se ha${plural} autorizado ${planillasActualizadas.length} planilla${plural} exitosamente.</p>
+                <p>Las planillas han sido marcadas como autorizadas (Estado = 1).</p>
+            `
+        });
+        
+        // Volver a cargar planillas autorizables
+        await buscarPlanillasAutorizables();
+        
+    } catch (error) {
+        console.error('Error al autorizar planillas:', error);
+        await Swal.fire({
+            icon: 'error',
+            title: 'Error',
+            text: 'Ocurrió un error al autorizar las planillas.'
+        });
+    }
+}
+
 // Función para generar el PDF
 async function generarPDF() {
     try {
@@ -1915,7 +3511,7 @@ async function generarPDF() {
                         </select>
                     </div>
                 </div>
-            `,
+                `,
             focusConfirm: false,
             showCancelButton: true,
             confirmButtonText: 'Generar',
@@ -1951,7 +3547,7 @@ async function generarPDF() {
         // Obtener datos para el reporte
         const datosPlanillas = await obtenerDatosPlanillasParaReporte();
         
-        if (datosPlanillas.length === 0) {
+        if (!datosPlanillas || datosPlanillas.length === 0) {
             Swal.close();
             await Swal.fire({
                 icon: 'warning',
@@ -2085,11 +3681,11 @@ async function generarPDF() {
             let colWidths = [];
 
             if (esQuincenaFinMes) {
-                headers = ['ID', 'Nombre', 'No. Cuenta', 'Salario Diario', 'Días Lab.', 'Bonificación', 'IGSS', 'Monto Pagado'];
-                colWidths = [15, contentWidth - 205, 40, 25, 25, 35, 25, 40]; // Total = contentWidth
+                headers = ['ID', 'Nombre', 'No. Cuenta', 'No. Autorización', 'Salario Diario', 'Días Lab.', 'Bonificación', 'IGSS', 'Monto Pagado'];
+                colWidths = [15, contentWidth - 245, 40, 40, 25, 25, 35, 25, 40]; // Total = contentWidth
             } else {
-                headers = ['ID', 'Nombre', 'No. Cuenta', 'Salario Diario', 'Días Lab.', 'Monto Pagado'];
-                colWidths = [15, contentWidth - 165, 40, 25, 25, 40]; // Total = contentWidth
+                headers = ['ID', 'Nombre', 'No. Cuenta', 'No. Autorización', 'Salario Diario', 'Días Lab.', 'Monto Pagado'];
+                colWidths = [15, contentWidth - 205, 40, 40, 25, 25, 40]; // Total = contentWidth
             }
             
             // Dibujar encabezado de la tabla
@@ -2151,24 +3747,27 @@ async function generarPDF() {
                     // Número de Cuenta (alineado al centro)
                     doc.text(empleado.NoCuenta || 'No disponible', xPositions[2] + colWidths[2] / 2, yPos + 5.5, { align: 'center' });
                     
+                    // Número de Autorización (alineado al centro)
+                    doc.text(empleado.NoAutorizacion || 'Sin autorización', xPositions[3] + colWidths[3] / 2, yPos + 5.5, { align: 'center' });
+                    
                     // Salario Diario (alineado al centro)
-                    doc.text(`Q${formatearNumero(empleado.SalarioDiario)}`, xPositions[3] + colWidths[3] / 2, yPos + 5.5, { align: 'center' });
+                    doc.text(`Q${formatearNumero(empleado.SalarioDiario)}`, xPositions[4] + colWidths[4] / 2, yPos + 5.5, { align: 'center' });
                     
                     // Días Laborados (alineado al centro)
-                    doc.text(empleado.DiasLaborados.toString(), xPositions[4] + colWidths[4] / 2, yPos + 5.5, { align: 'center' });
+                    doc.text(empleado.DiasLaborados.toString(), xPositions[5] + colWidths[5] / 2, yPos + 5.5, { align: 'center' });
                     
                     if (esQuincenaFinMes) {
                         // Bonificación (alineado al centro)
-                        doc.text(`Q${formatearNumero(empleado.Bonificacion || 0)}`, xPositions[5] + colWidths[5] / 2, yPos + 5.5, { align: 'center' });
+                        doc.text(`Q${formatearNumero(empleado.Bonificacion || 0)}`, xPositions[6] + colWidths[6] / 2, yPos + 5.5, { align: 'center' });
                         
                         // IGSS (alineado al centro)
-                        doc.text(`Q${formatearNumero(empleado.PagoIGSS || 0)}`, xPositions[6] + colWidths[6] / 2, yPos + 5.5, { align: 'center' });
+                        doc.text(`Q${formatearNumero(empleado.PagoIGSS || 0)}`, xPositions[7] + colWidths[7] / 2, yPos + 5.5, { align: 'center' });
                         
                         // Monto Pagado (alineado al centro)
-                        doc.text(`Q${formatearNumero(empleado.MontoPagado)}`, xPositions[7] + colWidths[7] / 2, yPos + 5.5, { align: 'center' });
+                        doc.text(`Q${formatearNumero(empleado.MontoPagado)}`, xPositions[8] + colWidths[8] / 2, yPos + 5.5, { align: 'center' });
                     } else {
                         // Monto Pagado (alineado al centro)
-                        doc.text(`Q${formatearNumero(empleado.MontoPagado)}`, xPositions[5] + colWidths[5] / 2, yPos + 5.5, { align: 'center' });
+                        doc.text(`Q${formatearNumero(empleado.MontoPagado)}`, xPositions[6] + colWidths[6] / 2, yPos + 5.5, { align: 'center' });
                     }
                     
                     // Avanzar a la siguiente fila
@@ -2244,6 +3843,12 @@ async function generarPDF() {
             doc.setFont(undefined, 'normal');
             doc.text(fechaGeneracion, pageWidth - marginRight, pageHeight - marginBottom, { align: 'right' });
             doc.text(`Página ${i + 1} de ${datosPlanillas.length}`, marginLeft, pageHeight - marginBottom, { align: 'left' });
+            
+            // Agregar estado de la planilla
+            let estadoTexto = planilla.Estado === 0 ? 'Estado: Pendiente de autorización' : 'Estado: Autorizado';
+            doc.setFontSize(9);
+            doc.setFont(undefined, 'bold');
+            doc.text(estadoTexto, marginLeft, pageHeight - marginBottom - 5, { align: 'left' });
         }
         
         // Finalizar generación y descargar PDF
@@ -2288,6 +3893,141 @@ function generarOpcionesAnio() {
     return options;
 }
 
+// Función para obtener los datos de planillas guardadas para el reporte
+async function obtenerDatosPlanillasParaReporte() {
+    try {
+        // Obtener valores de los filtros
+        const tipoQuincena = document.getElementById('tipoQuincenaFilter').value;
+        const idTipoPago = tipoQuincena === 'normal' ? 1 : 2;
+        const mes = document.getElementById('mesFilter').value;
+        const anio = document.getElementById('anioFilter').value;
+        
+        const connection = await connectionString();
+        
+        // 1. Obtener todas las planillas guardadas para el período
+        // Modificamos la consulta para obtener directamente la información de Division
+        const queryPlanillas = `
+            SELECT 
+                PP.IdPagoPlanilla,
+                PP.IdPlanilla,
+                PP.NombrePlanilla,
+                PP.CantColaboradores,
+                PP.MontoPagado,
+                PP.TipoPago,
+                PP.Mes,
+                PP.Anyo,
+                PP.Estado,
+                P.Division,
+                D.Nombre AS NombreDivision,
+                P.NoCentroTrabajo
+            FROM 
+                PagoPlanilla PP
+                INNER JOIN planillas P ON PP.IdPlanilla = P.IdPlanilla
+                LEFT JOIN divisiones D ON P.Division = D.IdDivision
+            WHERE 
+                PP.IdTipoPago = ? 
+                AND PP.Mes = ? 
+                AND PP.Anyo = ?
+            ORDER BY 
+                D.Nombre ASC,
+                CAST(P.NoCentroTrabajo AS UNSIGNED) ASC
+        `;
+        
+        const planillas = await connection.query(queryPlanillas, [idTipoPago, mes, anio]);
+        
+        // Si no hay planillas guardadas, retornar array vacío
+        if (planillas.length === 0) {
+            await connection.close();
+            return [];
+        }
+        
+        // 2. Para cada planilla, obtener logo de la división correspondiente
+        const datosCompletos = [];
+        
+        for (const planilla of planillas) {
+            // Verificar que tenemos un valor de Division antes de buscar el logo
+            let logo = null;
+            
+            if (planilla.Division) {
+                // Obtener el logo de la división usando la División específica de esta planilla
+                const queryLogo = `
+                    SELECT CASE 
+                                WHEN divisiones.Logos IS NOT NULL THEN CONCAT('data:image/jpeg;base64,', TO_BASE64(divisiones.Logos))
+                                ELSE NULL 
+                            END AS Logos
+                    FROM divisiones
+                    WHERE IdDivision = ?
+                `;
+                
+                const resultadoLogo = await connection.query(queryLogo, [planilla.Division]);
+                if (resultadoLogo.length > 0) {
+                    logo = resultadoLogo[0].Logos;
+                }
+            }
+            
+            // 3. Obtener los detalles de cada empleado en la planilla, incluyendo el NoCuenta y NoAutorizacion
+            const queryDetalles = `
+                SELECT 
+                    PPD.IdPersonal,
+                    PPD.NombrePersonal,
+                    PPD.SalarioDiario,
+                    PPD.SalarioQuincenal,
+                    PPD.MontoPagado,
+                    PPD.DiasLaborados,
+                    PPD.Bonificacion,
+                    PPD.PagoIGSS,
+                    PPD.NoAutorizacion,
+                    p.Sexo,
+                    COALESCE(PPD.NoCuenta, p.NoCuenta) AS NoCuenta
+                FROM 
+                    PagoPlanillaDetalle PPD
+                    LEFT JOIN personal p ON PPD.IdPersonal = p.IdPersonal
+                WHERE 
+                    PPD.IdPagoPlanilla = ?
+                ORDER BY 
+                    PPD.NombrePersonal
+            `;
+            
+            const detalles = await connection.query(queryDetalles, [planilla.IdPagoPlanilla]);
+            
+            // Agregar planilla con sus detalles, logo y nombre de división al resultado
+            datosCompletos.push({
+                ...planilla,
+                logo: logo,
+                detalles: detalles,
+                Estado: planilla.Estado || 0
+            });
+        }
+        
+        await connection.close();
+        return datosCompletos;
+        
+    } catch (error) {
+        console.error('Error al obtener datos para reporte:', error);
+        return [];
+    }
+}
+
+// Función para formatear nombre con apellido primero
+function formatearNombreApellidoPrimero(nombreCompleto) {
+    // Esto es solo un ejemplo, habría que adaptarlo según cómo estén estructurados los datos
+    const partes = nombreCompleto.split(' ');
+    if (partes.length <= 2) return nombreCompleto; // No hay suficientes partes para reorganizar
+    
+    // Asumiendo formato: [PrimerNombre] [SegundoNombre] [PrimerApellido] [SegundoApellido]
+    // Convertir a: [PrimerApellido] [SegundoApellido], [PrimerNombre] [SegundoNombre]
+    const nombres = partes.slice(0, partes.length-2).join(' ');
+    const apellidos = partes.slice(partes.length-2).join(' ');
+    
+    return `${apellidos}, ${nombres}`;
+}
+
+// Función para obtener UltimoDiaMes
+function obtenerUltimoDiaMes(mes, anio) {
+    // El día 0 del mes siguiente es el último día del mes actual
+    return new Date(anio, mes, 0).getDate();
+}
+
 // Función para formatear números con separador de miles y dos decimales
 function formatearNumero(valor) {
     if (valor === null || valor === undefined) return '0.00';
@@ -2297,6 +4037,7 @@ function formatearNumero(valor) {
         maximumFractionDigits: 2
     });
 }
+
 // Función para determinar el rol basado en el ID del puesto
 function determinarRol(idPuesto) {
     if (idPuesto == 5) {
@@ -2307,3 +4048,767 @@ function determinarRol(idPuesto) {
         return 'Colaborador';
     }
 }
+
+// Función para guardar la planilla
+async function guardarPlanilla() {
+    try {
+        // Mostrar modal de carga
+        Swal.fire({
+            title: 'Guardando planilla',
+            html: 'Por favor espere mientras se guarda la información...',
+            allowOutsideClick: false,
+            didOpen: () => {
+                Swal.showLoading();
+            }
+        });
+
+        // Verificar si hay datos para guardar
+        if (!filteredData || filteredData.length === 0) {
+            Swal.close();
+            await Swal.fire({
+                icon: 'warning',
+                title: 'Sin datos',
+                text: 'No hay datos para guardar. Aplique los filtros para visualizar la información.'
+            });
+            return;
+        }
+
+        // Obtener los valores de los filtros seleccionados
+        const planillaId = document.getElementById('planillaFilter').value;
+        const tipoQuincena = document.getElementById('tipoQuincenaFilter').value;
+        const mes = document.getElementById('mesFilter').value;
+        const anio = document.getElementById('anioFilter').value;
+        
+        // Obtener el usuario actual del localStorage
+        const userData = JSON.parse(localStorage.getItem('userData')) || {};
+        
+        // Verificar si el usuario está autenticado
+        if (!userData.IdPersonal) {
+            Swal.close();
+            await Swal.fire({
+                icon: 'error',
+                title: 'Error de autenticación',
+                text: 'No se pudo obtener la información del usuario. Por favor inicie sesión nuevamente.'
+            });
+            return;
+        }
+
+        // Agrupar los datos por planilla para guardar cada planilla por separado
+        const planillasPorId = {};
+        
+        for (const empleado of filteredData) {
+            const idPlanilla = empleado.IdPlanilla;
+            
+            if (!planillasPorId[idPlanilla]) {
+                planillasPorId[idPlanilla] = {
+                    empleados: [],
+                    nombrePlanilla: empleado.Nombre_Planilla,
+                    totalPagado: 0
+                };
+            }
+            
+            planillasPorId[idPlanilla].empleados.push(empleado);
+            planillasPorId[idPlanilla].totalPagado += empleado.SalarioFinalAPagar;
+        }
+        
+        // Guardar cada planilla por separado
+        for (const idPlanilla in planillasPorId) {
+            const planillaActual = planillasPorId[idPlanilla];
+            
+            // 1. Insertar cabecera en PagoPlanilla con Estado=0 (editable)
+            const cabeceraPlanilla = {
+                IdUsuario: userData.IdPersonal,
+                NombreUsuario: userData.NombreCompleto,
+                IdPlanilla: idPlanilla,
+                NombrePlanilla: planillaActual.nombrePlanilla,
+                CantColaboradores: planillaActual.empleados.length,
+                MontoPagado: planillaActual.totalPagado,
+                TipoPago: tipoQuincena === 'normal' ? 'Planilla Quincena' : 'Planilla Fin de Mes',
+                IdTipoPago: tipoQuincena === 'normal' ? 1 : 2,
+                Mes: mes,
+                Anyo: anio,
+                Estado: 0  // Inicialmente se guarda con Estado 0 (editable)
+            };
+            
+            // Insertar la cabecera en la base de datos y obtener el ID generado
+            const idPagoPlanilla = await insertarCabeceraPlanilla(cabeceraPlanilla);
+            
+            // 2. Insertar detalles en PagoPlanillaDetalle
+            for (const empleado of planillaActual.empleados) {
+                const campoSalario = tipoQuincena === 'normal' ? 'SalarioQuincena' : 'SalarioQuincenaFinMes';
+                
+                // Calcular el pago de IGSS (4.83% del salario base) solo para quincena fin de mes
+                let pagoIGSS = 0;
+                if (tipoQuincena === 'finMes' && empleado.SalarioBase) {
+                    pagoIGSS = empleado.SalarioBase * 0.0483;
+                }
+                
+                const detallePlanilla = {
+                    IdPagoPlanilla: idPagoPlanilla,
+                    IdPersonal: empleado.IdPersonal,
+                    NombrePersonal: formatearNombreApellidoPrimero(empleado.NombreCompleto),
+                    SalarioQuincenal: empleado[campoSalario],
+                    SalarioDiario: empleado.SalarioDiario,
+                    MontoPagado: empleado.SalarioFinalAPagar,
+                    Bonificacion: empleado.Bonificacion || 0,
+                    PagoIGSS: pagoIGSS,
+                    DiasLaborados: empleado.DiasLaborados,
+                    NoCuenta: empleado.NoCuenta || ''
+                };
+                
+                await insertarDetallePlanilla(detallePlanilla);
+                
+                // Verificar si el empleado tiene descuento judicial
+                if (empleado.DescuentoJudicial > 0) {
+                    await registrarDescuentoJudicial(empleado.IdPersonal, empleado.DescuentoJudicial, idPagoPlanilla);
+                }
+            }
+        }
+        
+        // Cerrar el mensaje de carga
+        Swal.close();
+        
+        // Mostrar mensaje de éxito más detallado
+        await Swal.fire({
+            icon: 'success',
+            title: 'Planilla guardada',
+            html: `
+                <p>La planilla ha sido guardada exitosamente con <strong>Estado = 0</strong> (Editable).</p>
+                <p>Puede modificarla desde la pestaña "Modificar Nómina".</p>
+            `,
+            confirmButtonText: 'Entendido'
+        });
+        
+        // Limpiar la pantalla después de guardar
+        limpiarPantalla();
+        
+    } catch (error) {
+        console.error('Error al guardar la planilla:', error);
+        
+        Swal.close();
+        
+        await Swal.fire({
+            icon: 'error',
+            title: 'Error al guardar',
+            text: 'Ocurrió un error al guardar la planilla. Por favor intente nuevamente.'
+        });
+    }
+}
+
+// Función para verificar planilla existente
+async function verificarPlanillaExistente() {
+    try {
+        // Obtener valores de los filtros
+        const planillaId = document.getElementById('planillaFilter').value;
+        const tipoQuincena = document.getElementById('tipoQuincenaFilter').value;
+        const idTipoPago = tipoQuincena === 'normal' ? 1 : 2;
+        const mes = document.getElementById('mesFilter').value;
+        const anio = document.getElementById('anioFilter').value;
+        
+        // Si se seleccionó "todas las planillas", no podemos verificar una específica
+        if (planillaId === 'todos') {
+            return false;
+        }
+        
+        const connection = await connectionString();
+        
+        // Consulta para verificar si ya existe una planilla con los mismos datos
+        const query = `
+            SELECT COUNT(*) as Total 
+            FROM PagoPlanilla 
+            WHERE IdPlanilla = ? 
+            AND IdTipoPago = ? 
+            AND Mes = ? 
+            AND Anyo = ?
+        `;
+        
+        const result = await connection.query(query, [planillaId, idTipoPago, mes, anio]);
+        
+        await connection.close();
+        
+        // Si hay resultados mayores a 0, significa que ya existe
+        return result[0].Total > 0;
+        
+    } catch (error) {
+        console.error('Error al verificar planilla existente:', error);
+        return false;
+    }
+}
+
+// Función para eliminar planilla existente
+async function eliminarPlanillaExistente() {
+    try {
+        // Obtener valores de los filtros
+        const planillaId = document.getElementById('planillaFilter').value;
+        const tipoQuincena = document.getElementById('tipoQuincenaFilter').value;
+        const idTipoPago = tipoQuincena === 'normal' ? 1 : 2;
+        const mes = document.getElementById('mesFilter').value;
+        const anio = document.getElementById('anioFilter').value;
+        
+        const connection = await connectionString();
+        
+        // Primero obtener los IDs de las planillas a eliminar
+        const querySelect = `
+            SELECT IdPagoPlanilla 
+            FROM PagoPlanilla 
+            WHERE IdPlanilla = ? 
+            AND IdTipoPago = ? 
+            AND Mes = ? 
+            AND Anyo = ?
+        `;
+        
+        const planillas = await connection.query(querySelect, [planillaId, idTipoPago, mes, anio]);
+        
+        // Para cada planilla, eliminar primero los detalles y luego la cabecera
+        for (const planilla of planillas) {
+            // Eliminar detalles
+            await connection.query(
+                'DELETE FROM PagoPlanillaDetalle WHERE IdPagoPlanilla = ?', 
+                [planilla.IdPagoPlanilla]
+            );
+            
+            // Eliminar cabecera
+            await connection.query(
+                'DELETE FROM PagoPlanilla WHERE IdPagoPlanilla = ?', 
+                [planilla.IdPagoPlanilla]
+            );
+        }
+        
+        await connection.close();
+        
+    } catch (error) {
+        console.error('Error al eliminar planilla existente:', error);
+        throw error;
+    }
+}
+
+// Función para limpiar la pantalla
+function limpiarPantalla() {
+    // Limpiar datos
+    filteredData = [];
+    
+    // Restablecer paginación
+    currentPage = 1;
+    
+    // Limpiar la tabla
+    renderizarTabla(filteredData);
+    
+    // Restablecer filtros a valores predeterminados
+    document.getElementById('planillaFilter').value = 'todos';
+    
+    // Actualizar la lista de planillas disponibles para reflejar el nuevo estado
+    cargarPlanillas();
+}
+
+// Función para insertar la cabecera de la planilla
+async function insertarCabeceraPlanilla(cabecera) {
+    try {
+        const connection = await connectionString();
+        
+        // Consulta SQL para insertar la cabecera con el campo Estado
+        const query = `
+            INSERT INTO PagoPlanilla (
+                IdUsuario, 
+                NombreUsuario, 
+                IdPlanilla, 
+                NombrePlanilla, 
+                CantColaboradores, 
+                MontoPagado, 
+                TipoPago, 
+                IdTipoPago, 
+                Mes, 
+                Anyo,
+                Estado
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `;
+        
+        const params = [
+            cabecera.IdUsuario,
+            cabecera.NombreUsuario,
+            cabecera.IdPlanilla,
+            cabecera.NombrePlanilla,
+            cabecera.CantColaboradores,
+            cabecera.MontoPagado,
+            cabecera.TipoPago,
+            cabecera.IdTipoPago,
+            cabecera.Mes,
+            cabecera.Anyo,
+            cabecera.Estado || 0  // Establecer por defecto a 0 si no se proporciona
+        ];
+        
+        // Ejecutar la consulta
+        const result = await connection.query(query, params);
+        
+        // Obtener el ID generado
+        const idQuery = "SELECT LAST_INSERT_ID() as Id";
+        const idResult = await connection.query(idQuery);
+        
+        await connection.close();
+        
+        // Devolver el ID generado
+        return idResult[0].Id;
+        
+    } catch (error) {
+        console.error('Error al insertar cabecera de planilla:', error);
+        throw error;
+    }
+}
+
+// Función para insertar el detalle de la planilla
+async function insertarDetallePlanilla(detalle) {
+    try {
+        const connection = await connectionString();
+        
+        // Determinar si se incluye el campo bonificación y pago IGSS según el tipo de quincena
+        const incluirBonificacionIGSS = detalle.Bonificacion > 0 || detalle.PagoIGSS > 0;
+        
+        // Consulta SQL para insertar el detalle
+        let query;
+        let params;
+        
+        if (incluirBonificacionIGSS) {
+            query = `
+                INSERT INTO PagoPlanillaDetalle (
+                    IdPagoPlanilla,
+                    IdPersonal,
+                    NombrePersonal,
+                    SalarioQuincenal,
+                    SalarioDiario,
+                    MontoPagado,
+                    Bonificacion,
+                    PagoIGSS,
+                    DiasLaborados,
+                    NoCuenta
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            `;
+            
+            params = [
+                detalle.IdPagoPlanilla,
+                detalle.IdPersonal,
+                detalle.NombrePersonal,
+                detalle.SalarioQuincenal,
+                detalle.SalarioDiario,
+                detalle.MontoPagado,
+                detalle.Bonificacion,
+                detalle.PagoIGSS,
+                detalle.DiasLaborados,
+                detalle.NoCuenta
+            ];
+        } else {
+            query = `
+                INSERT INTO PagoPlanillaDetalle (
+                    IdPagoPlanilla,
+                    IdPersonal,
+                    NombrePersonal,
+                    SalarioQuincenal,
+                    SalarioDiario,
+                    MontoPagado,
+                    DiasLaborados,
+                    NoCuenta
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            `;
+            
+            params = [
+                detalle.IdPagoPlanilla,
+                detalle.IdPersonal,
+                detalle.NombrePersonal,
+                detalle.SalarioQuincenal,
+                detalle.SalarioDiario,
+                detalle.MontoPagado,
+                detalle.DiasLaborados,
+                detalle.NoCuenta
+            ];
+        }
+        
+        // Ejecutar la consulta
+        await connection.query(query, params);
+        
+        await connection.close();
+        
+    } catch (error) {
+        console.error('Error al insertar detalle de planilla:', error);
+        throw error;
+    }
+}
+
+// Función para registrar descuentos judiciales
+async function registrarDescuentoJudicial(idPersonal, montoDescuento, idPagoPlanilla) {
+    try {
+        const connection = await connectionString();
+        
+        // 1. Obtener el descuento judicial activo del empleado (Estado = 0)
+        const queryDescuento = `
+            SELECT 
+                IdDescuentoJudicial,
+                SaldoPendiente
+            FROM 
+                DescuentosJudiciales
+            WHERE 
+                IdPersonal = ? AND Estado = 0
+        `;
+        
+        const descuentosJudiciales = await connection.query(queryDescuento, [idPersonal]);
+        
+        // Si no tiene descuentos judiciales activos, terminar
+        if (descuentosJudiciales.length === 0) {
+            await connection.close();
+            return;
+        }
+        
+        const descuentoJudicial = descuentosJudiciales[0];
+        const idDescuentoJudicial = descuentoJudicial.IdDescuentoJudicial;
+        const saldoAnterior = parseFloat(descuentoJudicial.SaldoPendiente);
+        
+        // Verificar si el saldo pendiente es menor que el descuento a aplicar
+        let descuentoAplicado = montoDescuento;
+        if (saldoAnterior < montoDescuento) {
+            descuentoAplicado = saldoAnterior;
+        }
+        
+        // Calcular el nuevo saldo
+        const saldoActual = Math.max(0, saldoAnterior - descuentoAplicado);
+        
+        // 2. Insertar el registro de descuento judicial en la tabla DescjuntosJudicialesDetalle
+        const queryInsert = `
+            INSERT INTO DescuentosJudicialesDetalle (
+                IdDescuentoJudicial,
+                Descuento,
+                SaldoAnterior,
+                SaldoActual,
+                IdPagoPlanilla
+            ) VALUES (?, ?, ?, ?, ?)
+        `;
+        
+        const paramsInsert = [
+            idDescuentoJudicial,
+            descuentoAplicado,
+            saldoAnterior,
+            saldoActual,
+            idPagoPlanilla
+        ];
+        
+        await connection.query(queryInsert, paramsInsert);
+        
+        // 3. Actualizar el saldo pendiente en la tabla DescuentosJudiciales
+        const queryUpdate = `
+            UPDATE DescuentosJudiciales
+            SET SaldoPendiente = ?
+            WHERE IdDescuentoJudicial = ?
+        `;
+        
+        const paramsUpdate = [saldoActual, idDescuentoJudicial];
+        
+        await connection.query(queryUpdate, paramsUpdate);
+        
+        // 4. Si el saldo llega a 0, actualizar el estado del descuento judicial a completado (Estado = 1)
+        if (saldoActual === 0) {
+            const queryCompletado = `
+                UPDATE DescuentosJudiciales
+                SET Estado = 1
+                WHERE IdDescuentoJudicial = ?
+            `;
+            
+            await connection.query(queryCompletado, [idDescuentoJudicial]);
+        }
+        
+        await connection.close();
+        
+    } catch (error) {
+        console.error('Error al registrar descuento judicial:', error);
+        throw error;
+    }
+}
+
+// Función de utilidad para agregar eventos solo si el elemento existe
+function addEventIfElementExists(id, eventType, handler) {
+    const element = document.getElementById(id);
+    if (element) {
+        element.addEventListener(eventType, handler);
+    }
+}
+
+// Inicialización de la interfaz de carga de archivos
+function inicializarCargaArchivos() {
+    const dropArea = document.getElementById('dropArea');
+    const fileInput = document.getElementById('excelFileInput');
+    const fileInfo = document.getElementById('fileInfo');
+    const fileName = document.getElementById('fileName');
+    const fileSize = document.getElementById('fileSize');
+    const removeFileBtn = document.getElementById('removeFileBtn');
+    const processAuthBtn = document.getElementById('processAuthBtn');
+    
+    if (!dropArea || !fileInput) return;
+    
+    // Eventos para arrastrar y soltar
+    ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+        dropArea.addEventListener(eventName, (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+        }, false);
+    });
+    
+    ['dragenter', 'dragover'].forEach(eventName => {
+        dropArea.addEventListener(eventName, () => {
+            dropArea.classList.add('dragover');
+        }, false);
+    });
+    
+    ['dragleave', 'drop'].forEach(eventName => {
+        dropArea.addEventListener(eventName, () => {
+            dropArea.classList.remove('dragover');
+        }, false);
+    });
+    
+    // Evento al soltar archivo
+    dropArea.addEventListener('drop', (e) => {
+        const dt = e.dataTransfer;
+        const files = dt.files;
+        
+        if (files.length > 0) {
+            fileInput.files = files;
+            mostrarInfoArchivo(files[0]);
+        }
+    }, false);
+    
+    // Evento al seleccionar archivo
+    fileInput.addEventListener('change', () => {
+        if (fileInput.files.length > 0) {
+            mostrarInfoArchivo(fileInput.files[0]);
+        }
+    });
+    
+    // Evento para eliminar archivo
+    if (removeFileBtn) {
+        removeFileBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            
+            fileInput.value = '';
+            fileInfo.style.display = 'none';
+            dropArea.style.display = 'block';
+            document.getElementById('uploadSummary').style.display = 'none';
+            
+            // Deshabilitar botón de procesar
+            if (processAuthBtn) {
+                processAuthBtn.disabled = true;
+            }
+            
+            // Limpiar datos de autorizaciones
+            mapaAutorizaciones = new Map();
+            datosAutorizacion = null;
+        });
+    }
+    
+    // Evento al hacer clic en el botón de procesar
+    if (processAuthBtn) {
+        processAuthBtn.addEventListener('click', aplicarAutorizacionesASeleccionadas);
+    }
+    
+    // Función para mostrar información del archivo
+    function mostrarInfoArchivo(file) {
+        // Verificar que sea un archivo Excel
+        if (!file.name.match(/\.(xlsx|xls)$/i)) {
+            Swal.fire({
+                icon: 'error',
+                title: 'Tipo de archivo incorrecto',
+                text: 'Solo se permiten archivos Excel (.xlsx, .xls)'
+            });
+            return;
+        }
+        
+        // Mostrar información del archivo
+        fileName.textContent = file.name;
+        fileSize.textContent = formatearTamanoArchivo(file.size);
+        
+        // Mostrar el bloque de información y ocultar el área de carga
+        fileInfo.style.display = 'flex';
+        dropArea.style.display = 'none';
+        
+        // Procesar el archivo
+        procesarArchivoAutorizaciones();
+    }
+    
+    // Función para formatear el tamaño del archivo
+    function formatearTamanoArchivo(bytes) {
+        if (bytes === 0) return '0 Bytes';
+        
+        const k = 1024;
+        const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+    }
+}
+
+// Eventos al cargar la página
+document.addEventListener('DOMContentLoaded', async function() {
+    try {
+        // Obtener el usuario actual del localStorage
+        const userData = JSON.parse(localStorage.getItem('userData')) || {};
+        
+        // Configurar datos del usuario en la interfaz
+        if (userData) {
+            const userNameElement = document.getElementById('userName');
+            if (userNameElement) {
+                userNameElement.textContent = userData.NombreCompleto || 'Usuario';
+            }
+            
+            const userRoleElement = document.getElementById('userRole');
+            if (userRoleElement) {
+                userRoleElement.textContent = determinarRol(userData.Id_Puesto) || 'Colaborador';
+            }
+            
+            // Configurar imagen de usuario si existe
+            const userImageElement = document.getElementById('userImage');
+            if (userImageElement && userData.FotoBase64) {
+                userImageElement.src = userData.FotoBase64;
+            }
+        }
+        
+        // Inicializar las pestañas
+        inicializarPestanas();
+        
+        // Llenar años en los filtros (desde 2020 hasta año actual + 1)
+        const anioFilter = document.getElementById('anioFilter');
+        const modAnioFilter = document.getElementById('modAnioFilter');
+        const authAnioFilter = document.getElementById('authAnioFilter');
+        const currentYear = new Date().getFullYear();
+        
+        if (anioFilter) {
+            for (let year = 2020; year <= currentYear + 1; year++) {
+                const option1 = document.createElement('option');
+                option1.value = year;
+                option1.textContent = year;
+                if (year === currentYear) {
+                    option1.selected = true;
+                }
+                anioFilter.appendChild(option1);
+            }
+        }
+        
+        if (modAnioFilter) {
+            for (let year = 2020; year <= currentYear + 1; year++) {
+                const option2 = document.createElement('option');
+                option2.value = year;
+                option2.textContent = year;
+                if (year === currentYear) {
+                    option2.selected = true;
+                }
+                modAnioFilter.appendChild(option2);
+            }
+        }
+        
+        if (authAnioFilter) {
+            for (let year = 2020; year <= currentYear + 1; year++) {
+                const option3 = document.createElement('option');
+                option3.value = year;
+                option3.textContent = year;
+                if (year === currentYear) {
+                    option3.selected = true;
+                }
+                authAnioFilter.appendChild(option3);
+            }
+        }
+        
+        // Establecer mes actual seleccionado por defecto
+        const currentMonth = new Date().getMonth() + 1; // getMonth() es 0-indexed
+        
+        const mesFilter = document.getElementById('mesFilter');
+        if (mesFilter) {
+            mesFilter.value = currentMonth;
+        }
+        
+        const modMesFilter = document.getElementById('modMesFilter');
+        if (modMesFilter) {
+            modMesFilter.value = currentMonth;
+        }
+        
+        const authMesFilter = document.getElementById('authMesFilter');
+        if (authMesFilter) {
+            authMesFilter.value = currentMonth;
+        }
+        
+        // Cargar planillas desde la base de datos
+        await cargarPlanillas();
+        
+        // Inicializar interfaz de carga de archivos
+        inicializarCargaArchivos();
+        
+        // Agregar eventos de forma segura
+        addEventIfElementExists('applyFilters', 'click', cargarDatosNomina);
+        addEventIfElementExists('buscarPlanillasBtn', 'click', buscarPlanillasModificables);
+        addEventIfElementExists('buscarPlanillasAuthBtn', 'click', buscarPlanillasAutorizables);
+        addEventIfElementExists('exportBtn', 'click', exportarExcel);
+        addEventIfElementExists('pdfBtn', 'click', generarPDF);
+        addEventIfElementExists('saveBtn', 'click', guardarPlanilla);
+        addEventIfElementExists('authorizePlanillasBtn', 'click', autorizarPlanillas);
+        
+        // Manejar eventos para modales
+        const modalFunctions = {
+            'approveModal': {
+                close: '.close-modal',
+                cancel: 'cancelApproveBtn'
+            },
+            'authorizeModal': {
+                close: '.close-modal-auth',
+                cancel: 'cancelAuthorizeBtn'
+            },
+            'detailsModal': {
+                close: '.close-modal-details',
+                cancel: 'closeDetailsBtn'
+            }
+        };
+        
+        Object.entries(modalFunctions).forEach(([modalId, buttons]) => {
+            const modal = document.getElementById(modalId);
+            if (!modal) return;
+            
+            // Eventos para cerrar modal
+            const closeBtn = modal.querySelector(buttons.close);
+            if (closeBtn) {
+                closeBtn.addEventListener('click', () => {
+                    modal.style.display = 'none';
+                });
+            }
+            
+            // Eventos para botón cancelar
+            const cancelBtn = document.getElementById(buttons.cancel);
+            if (cancelBtn) {
+                cancelBtn.addEventListener('click', () => {
+                    modal.style.display = 'none';
+                });
+            }
+            
+            // Cerrar al hacer clic fuera del modal
+            window.addEventListener('click', (e) => {
+                if (e.target === modal) {
+                    modal.style.display = 'none';
+                }
+            });
+        });
+        
+        // Configurar switch de tema
+        const themeSwitchElement = document.getElementById('themeSwitch');
+        if (themeSwitchElement) {
+            themeSwitchElement.addEventListener('change', function(e) {
+                if (e.target.checked) {
+                    document.body.classList.add('dark-theme');
+                    localStorage.setItem('theme', 'dark');
+                } else {
+                    document.body.classList.remove('dark-theme');
+                    localStorage.setItem('theme', 'light');
+                }
+            });
+        }
+        
+        // Cargar preferencia de tema guardada
+        if (localStorage.getItem('theme') === 'dark') {
+            document.body.classList.add('dark-theme');
+            if (themeSwitchElement) {
+                themeSwitchElement.checked = true;
+            }
+        }
+    } catch (error) {
+        console.error('Error al inicializar la página:', error);
+    }
+});

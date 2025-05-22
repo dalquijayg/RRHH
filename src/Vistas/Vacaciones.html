@@ -12,6 +12,8 @@
     <script src="https://cdn.jsdelivr.net/npm/fullcalendar@5.10.0/main.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/fullcalendar@5.10.0/locales/es.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://unpkg.com/@popperjs/core@2"></script>
+<script src="https://unpkg.com/tippy.js@6"></script>
 </head>
 <body>
     <!-- Encabezado con logos y título -->
@@ -196,45 +198,84 @@
     
     <!-- Modal para ver información del empleado -->
     <div id="infoModal" class="modal">
-        <div class="modal-content">
+        <div class="modal-content modal-lg">
             <div class="modal-header">
                 <h2>Información del Colaborador</h2>
                 <span class="close-modal">&times;</span>
             </div>
             <div class="modal-body">
-                <div class="employee-profile">
-                    <div class="employee-photo">
-                        <img id="infoEmployeePhoto" src="../Imagenes/user-default.png" alt="Foto del colaborador">
+                <!-- Sección de información básica -->
+                <div class="info-section">
+                    <div class="employee-profile">
+                        <div class="employee-photo">
+                            <img id="infoEmployeePhoto" src="../Imagenes/user-default.png" alt="Foto del colaborador">
+                        </div>
+                        <div class="employee-info">
+                            <h3 id="infoEmployeeName">Nombre del Colaborador</h3>
+                            <p id="infoEmployeePosition">Puesto</p>
+                        </div>
                     </div>
-                    <div class="employee-info">
-                        <h3 id="infoEmployeeName">Nombre del Colaborador</h3>
-                        <p id="infoEmployeePosition">Puesto</p>
-                    </div>
-                </div>
-                
-                <div class="info-details">
-                    <div class="info-item">
-                        <span class="info-label">Fecha de ingreso:</span>
-                        <span id="infoHireDate" class="info-value">01/01/2020</span>
-                    </div>
-                    <div class="info-item">
-                        <span class="info-label">Años de servicio:</span>
-                        <span id="infoYearsService" class="info-value">3 años</span>
-                    </div>
-                    <div class="info-item">
-                        <span class="info-label">Días disponibles:</span>
-                        <span id="infoAvailableDays" class="info-value">15 días</span>
-                    </div>
+                    <div class="info-details">
                     <div class="info-item">
                         <span class="info-label">ID de empleado:</span>
                         <span id="infoEmployeeId" class="info-value">12345</span>
                     </div>
                 </div>
+                </div>
                 
-                <div class="info-actions">
-                    <button id="infoRequestVacationBtn" class="btn-submit">
-                        <i class="fas fa-calendar-plus"></i> Solicitar Vacaciones
-                    </button>
+                <!-- Nueva sección: Historial de vacaciones -->
+                <div class="history-section">
+                    <div class="history-header">
+                        <h3>
+                            <i class="fas fa-history"></i> 
+                            Historial de Vacaciones
+                            <span class="badge" id="vacationHistoryCount">0</span>
+                        </h3>
+                        
+                        <!-- Controles de búsqueda y filtrado -->
+                        <div class="history-controls">
+                            <div class="date-filter">
+                                <div class="date-input-group">
+                                    <label for="dateFilterStart">Desde:</label>
+                                    <input type="date" id="dateFilterStart">
+                                </div>
+                                <div class="date-input-group">
+                                    <label for="dateFilterEnd">Hasta:</label>
+                                    <input type="date" id="dateFilterEnd">
+                                </div>
+                                <button id="filterDatesBtn" class="btn-filter">
+                                    <i class="fas fa-filter"></i> Filtrar
+                                </button>
+                            </div>
+                            
+                            <button id="searchEmployeeBtn" class="btn-search-employee">
+                                <i class="fas fa-search"></i> Buscar otro colaborador
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <!-- Tabla de historial -->
+                    <div class="history-table-container">
+                        <table id="vacationHistoryTable" class="history-table">
+                            <thead>
+                                <tr>
+                                    <th>Fecha</th>
+                                    <th>Período</th>
+                                    <th>Registrado por</th>
+                                    <th>Fecha de registro</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <!-- Los datos se cargarán dinámicamente -->
+                                <tr>
+                                    <td colspan="4" class="no-data">
+                                        <i class="fas fa-spinner fa-spin"></i>
+                                        <p>Cargando historial...</p>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
             </div>
         </div>

@@ -527,10 +527,11 @@ function renderEmployeesTable() {
         
         row.classList.add('animate-in');
         row.style.animationDelay = `${(currentPageData.indexOf(employee) * 0.05)}s`;
-        
+
         let actionsCell = '';
-        
+                
         if (isCurrentUser) {
+            // Para el usuario actual, mostrar un mensaje indicando que no puede solicitar vacaciones para sí mismo
             actionsCell = `
                 <div class="user-actions-disabled">
                     <span class="user-actions-message tooltip">
@@ -540,6 +541,7 @@ function renderEmployeesTable() {
                 </div>
             `;
         } else {
+            // Para otros usuarios, mostrar los botones de acción normales
             actionsCell = `
                 <div class="action-buttons">
                     <button class="btn-action btn-request" title="Solicitar vacaciones" onclick="openVacationModal(${employee.IdPersonal})">
@@ -874,12 +876,18 @@ function formatPeriodoUsuario(periodo) {
     const partes = periodo.split(' al ');
     if (partes.length === 2) {
         try {
-            const fechaInicio = new Date(partes[0]);
-            const fechaFin = new Date(partes[1]);
+            // Parsear las fechas manualmente para evitar problemas de zona horaria
+            const fechaInicio = partes[0]; // formato: YYYY-MM-DD
+            const fechaFin = partes[1];    // formato: YYYY-MM-DD
             
-            if (!isNaN(fechaInicio) && !isNaN(fechaFin)) {
-                return `${formatDate(fechaInicio)} al ${formatDate(fechaFin)}`;
-            }
+            // Extraer componentes de fechaInicio
+            const [anioInicio, mesInicio, diaInicio] = fechaInicio.split('-').map(num => String(num).padStart(2, '0'));
+            
+            // Extraer componentes de fechaFin
+            const [anioFin, mesFin, diaFin] = fechaFin.split('-').map(num => String(num).padStart(2, '0'));
+            
+            // Formatear como DD-MM-YYYY al DD-MM-YYYY
+            return `${diaInicio}-${mesInicio}-${anioInicio} al ${diaFin}-${mesFin}-${anioFin}`;
         } catch (error) {
             console.error('Error al formatear período:', error);
         }
@@ -1672,7 +1680,6 @@ function openInfoModal(employeeId) {
     
     document.getElementById('infoEmployeeName').textContent = fullName;
     document.getElementById('infoEmployeePosition').textContent = employee.Nombre || 'Sin puesto asignado';
-    document.getElementById('infoHireDate').textContent = formatDate(employee.FechaPlanilla);
     document.getElementById('infoYearsService').textContent = `${employee.AniosCumplidos} años`;
     document.getElementById('infoAvailableDays').textContent = `${employee.DiasVacaciones} días`;
     document.getElementById('infoEmployeeId').textContent = employee.IdPersonal;
@@ -1715,7 +1722,7 @@ function formatDate(dateString) {
     return `${day}/${month}/${year}`;
 }
 
-// Inicializar eventos (actualizada)
+// Inicializar eventos
 function initEvents() {
     // Evento para el selector de departamento
     if (departmentSelector) {
@@ -1918,23 +1925,30 @@ function initEvents() {
         });
     }
     
-    // Botón solicitar vacaciones desde modal de información
-    const infoRequestVacationBtn = document.getElementById('infoRequestVacationBtn');
-    if (infoRequestVacationBtn) {
-        infoRequestVacationBtn.addEventListener('click', () => {
-            const employeeIdEl = document.getElementById('infoEmployeeId');
-            if (employeeIdEl) {
-                const employeeId = employeeIdEl.textContent;
-                const infoModal = document.getElementById('infoModal');
-                if (infoModal) {
-                    infoModal.classList.remove('show');
-                    setTimeout(() => {
-                        infoModal.style.display = 'none';
-                        openVacationModal(parseInt(employeeId));
-                    }, 300);
-                }
-            }
+    // NUEVO: Agregar evento al botón de filtrar fechas en el modal de información
+    const filterDatesBtn = document.getElementById('filterDatesBtn');
+    if (filterDatesBtn) {
+        // Eliminar eventos previos para evitar duplicados
+        const newBtn = filterDatesBtn.cloneNode(true);
+        filterDatesBtn.parentNode.replaceChild(newBtn, filterDatesBtn);
+        
+        newBtn.addEventListener('click', function() {
+            const employeeId = parseInt(document.getElementById('infoEmployeeId').textContent);
+            const fechaInicio = document.getElementById('dateFilterStart').value;
+            const fechaFin = document.getElementById('dateFilterEnd').value;
+            
+            filtrarHistorialPorFechas(employeeId, fechaInicio, fechaFin);
         });
+    }
+    
+    // NUEVO: Agregar evento al botón de buscar empleado en el modal de información
+    const searchEmployeeBtn = document.getElementById('searchEmployeeBtn');
+    if (searchEmployeeBtn) {
+        // Eliminar eventos previos para evitar duplicados
+        const newBtn = searchEmployeeBtn.cloneNode(true);
+        searchEmployeeBtn.parentNode.replaceChild(newBtn, searchEmployeeBtn);
+        
+        newBtn.addEventListener('click', mostrarBuscadorEmpleados);
     }
     
     // Botón generar PDF
@@ -2994,7 +3008,587 @@ async function generateSelectedPdf() {
         });
     }
 }
+// Función para obtener el historial de vacaciones (asegúrate de que esté implementada correctamente)
+async function obtenerHistorialVacaciones(employeeId, fechaInicio = null, fechaFin = null) {
+    try {
+        const connection = await connectionString();
+        
+        let query = `
+            SELECT 
+                DATE_FORMAT(FechasTomadas, '%Y-%m-%d') as Fecha,
+                Periodo,
+                NombreUsuario as RegistradoPor,
+                DATE_FORMAT(FechahoraRegistro, '%Y-%m-%d %H:%i') as FechaRegistro
+            FROM 
+                vacacionestomadas
+            WHERE 
+                IdPersonal = ?
+        `;
+        
+        const params = [employeeId];
+        
+        // Añadir filtros de fecha si se proporcionan
+        if (fechaInicio && fechaFin) {
+            // Asegurarnos que fechaFin incluya todo el día
+            const fechaFinCompleta = `${fechaFin} 23:59:59`;
+            
+            // Filtrar por FechaRegistro (no por FechasTomadas)
+            query += ` AND DATE(FechaRegistro) BETWEEN ? AND DATE(?)`;
+            params.push(fechaInicio, fechaFinCompleta);
+        }
+        
+        // Ordenar por fecha de registro más reciente primero
+        query += ` ORDER BY FechaRegistro DESC`;
+        
+        const result = await connection.query(query, params);
+        await connection.close();
+        
+        return result;
+    } catch (error) {
+        console.error('Error al obtener historial de vacaciones:', error);
+        throw error;
+    }
+}
 
+// Función para filtrar historial por fechas
+async function filtrarHistorialPorFechas(employeeId, fechaInicio, fechaFin) {
+    if (!fechaInicio || !fechaFin) {
+        Swal.fire({
+            icon: 'warning',
+            title: 'Fechas incompletas',
+            text: 'Por favor seleccione ambas fechas para filtrar.',
+            confirmButtonColor: '#FF9800'
+        });
+        return;
+    }
+    
+    // Validar que la fecha de inicio no sea posterior a la fecha de fin
+    if (new Date(fechaInicio) > new Date(fechaFin)) {
+        Swal.fire({
+            icon: 'warning',
+            title: 'Rango de fechas inválido',
+            text: 'La fecha de inicio debe ser anterior o igual a la fecha de fin.',
+            confirmButtonColor: '#FF9800'
+        });
+        return;
+    }
+    
+    try {
+        // Mostrar indicador de carga
+        const loadingSwal = mostrarCargando('Filtrando datos...');
+        
+        if (!verificarFormatoFecha(fechaInicio) || !verificarFormatoFecha(fechaFin)) {
+            Swal.fire({
+                icon: 'error',
+                title: 'Formato de fecha incorrecto',
+                text: 'Las fechas deben tener formato YYYY-MM-DD',
+                confirmButtonColor: '#FF9800'
+            });
+            return;
+        }
+        
+        // Modificamos la función para pasar explícitamente que queremos filtrar por FechaRegistro
+        const historialFiltrado = await obtenerHistorialVacaciones(employeeId, fechaInicio, fechaFin);
+        
+        // Si no hay resultados, mostrar mensaje
+        if (historialFiltrado.length === 0) {
+            Swal.fire({
+                icon: 'info',
+                title: 'Sin resultados',
+                text: 'No se encontraron registros en el rango de fechas seleccionado.',
+                confirmButtonColor: '#FF9800'
+            });
+        }
+        
+        // Actualizar la tabla
+        actualizarTablaHistorial(historialFiltrado);
+        
+        loadingSwal.close();
+        
+    } catch (error) {
+        console.error('Error al filtrar historial:', error);
+        loadingSwal.close();
+        
+        Swal.fire({
+            icon: 'error',
+            title: 'Error',
+            text: 'Hubo un problema al aplicar el filtro. Intente nuevamente.',
+            confirmButtonColor: '#FF9800'
+        });
+    }
+}
+
+// Verificar formato de fecha
+function verificarFormatoFecha(fechaStr) {
+    // Verificar si tiene formato YYYY-MM-DD
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(fechaStr)) {
+        console.error('Formato de fecha incorrecto:', fechaStr);
+        return false;
+    }
+    return true;
+}
+
+// Función para mostrar buscador de empleados
+function mostrarBuscadorEmpleados() {
+    // Crear el contenido del modal de búsqueda
+    const modalContent = `
+        <div class="search-employee-modal">
+            <div class="search-header">
+                <h3>Buscar Colaborador</h3>
+                <button class="close-search-modal" id="closeSearchModal">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            
+            <div class="search-input-container">
+                <i class="fas fa-search search-icon"></i>
+                <input type="text" id="modalEmployeeSearch" placeholder="Buscar por nombre, puesto o DPI..." autofocus>
+                <i class="fas fa-times clear-modal-search" id="clearModalSearch" style="display: none;"></i>
+            </div>
+            
+            <div class="modal-search-results" id="modalSearchResults"></div>
+        </div>
+    `;
+    
+    // Crear el elemento del modal
+    const searchModalElement = document.createElement('div');
+    searchModalElement.className = 'search-modal-overlay';
+    searchModalElement.id = 'searchEmployeeModal';
+    searchModalElement.innerHTML = modalContent;
+    
+    // Añadir al body
+    document.body.appendChild(searchModalElement);
+    
+    // Mostrar con animación
+    setTimeout(() => {
+        searchModalElement.classList.add('show');
+        document.getElementById('modalEmployeeSearch').focus();
+    }, 10);
+    
+    // Configurar eventos
+    const searchInput = document.getElementById('modalEmployeeSearch');
+    const clearBtn = document.getElementById('clearModalSearch');
+    const closeBtn = document.getElementById('closeSearchModal');
+    
+    // Evento de búsqueda
+    let searchTimeout;
+    searchInput.addEventListener('input', function(e) {
+        const query = e.target.value.trim();
+        clearBtn.style.display = query ? 'block' : 'none';
+        
+        clearTimeout(searchTimeout);
+        
+        if (query.length >= 2) {
+            searchTimeout = setTimeout(() => {
+                buscarEmpleadosModal(query);
+            }, 300);
+        } else {
+            document.getElementById('modalSearchResults').innerHTML = '';
+        }
+    });
+    
+    // Evento limpiar búsqueda
+    clearBtn.addEventListener('click', function() {
+        searchInput.value = '';
+        this.style.display = 'none';
+        document.getElementById('modalSearchResults').innerHTML = '';
+        searchInput.focus();
+    });
+    
+    // Evento cerrar modal
+    closeBtn.addEventListener('click', cerrarBuscadorEmpleados);
+    
+    // Cerrar al hacer clic fuera
+    searchModalElement.addEventListener('click', function(e) {
+        if (e.target === this) {
+            cerrarBuscadorEmpleados();
+        }
+    });
+    
+    // Navegación con teclado
+    searchInput.addEventListener('keydown', function(e) {
+        const results = document.querySelectorAll('.modal-search-item');
+        const current = document.querySelector('.modal-search-item.selected');
+        let index = -1;
+        
+        if (current) {
+            index = Array.from(results).indexOf(current);
+        }
+        
+        if (e.key === 'ArrowDown') {
+            e.preventDefault();
+            if (index < results.length - 1) {
+                if (current) current.classList.remove('selected');
+                results[index + 1].classList.add('selected');
+                results[index + 1].scrollIntoView({ block: 'nearest' });
+            }
+        } else if (e.key === 'ArrowUp') {
+            e.preventDefault();
+            if (index > 0) {
+                if (current) current.classList.remove('selected');
+                results[index - 1].classList.add('selected');
+                results[index - 1].scrollIntoView({ block: 'nearest' });
+            }
+        } else if (e.key === 'Enter') {
+            e.preventDefault();
+            if (current) {
+                const employeeId = parseInt(current.dataset.id);
+                cerrarBuscadorEmpleados();
+                openInfoModal(employeeId);
+            }
+        } else if (e.key === 'Escape') {
+            e.preventDefault();
+            cerrarBuscadorEmpleados();
+        }
+    });
+}
+
+// Buscar empleados en el modal
+function buscarEmpleadosModal(query) {
+    const resultsContainer = document.getElementById('modalSearchResults');
+    
+    // Mostrar estado de carga
+    resultsContainer.innerHTML = `
+        <div class="modal-search-loading">
+            <div class="spinner small"></div>
+            <p>Buscando...</p>
+        </div>
+    `;
+    
+    // Filtrar empleados
+    const searchLower = query.toLowerCase();
+    const resultados = employeesData.filter(employee => {
+        // Excluir al usuario actual
+        if (employee.IdPersonal === userData.IdPersonal) return false;
+        
+        const fullName = getFullName(employee).toLowerCase();
+        const position = (employee.Nombre || '').toLowerCase();
+        const dpi = (employee.DPI || '').toLowerCase();
+        
+        return fullName.includes(searchLower) || 
+               position.includes(searchLower) || 
+               dpi.includes(searchLower);
+    });
+    
+    // Ordenar resultados por relevancia
+    resultados.sort((a, b) => {
+        const aName = getFullName(a).toLowerCase();
+        const bName = getFullName(b).toLowerCase();
+        
+        // Priorizar coincidencias al inicio del nombre
+        if (aName.startsWith(searchLower) && !bName.startsWith(searchLower)) return -1;
+        if (!aName.startsWith(searchLower) && bName.startsWith(searchLower)) return 1;
+        
+        return aName.localeCompare(bName);
+    });
+    
+    // Mostrar resultados
+    if (resultados.length === 0) {
+        resultsContainer.innerHTML = `
+            <div class="no-modal-results">
+                <i class="fas fa-search"></i>
+                <p>No se encontraron colaboradores que coincidan con su búsqueda</p>
+            </div>
+        `;
+        return;
+    }
+    
+    // Generar HTML de resultados (limitar a 8 resultados para mejor rendimiento)
+    const resultsHTML = resultados.slice(0, 8).map(employee => {
+        const fullName = getFullName(employee);
+        const position = employee.Nombre || 'Sin puesto';
+        const photoSrc = employee.FotoBase64 || '../Imagenes/user-default.png';
+        
+        // Destacar coincidencias
+        const highlightedName = highlightMatch(fullName, query);
+        const highlightedPosition = highlightMatch(position, query);
+        
+        return `
+            <div class="modal-search-item" data-id="${employee.IdPersonal}">
+                <img src="${photoSrc}" alt="${fullName}" class="search-result-photo">
+                <div class="search-result-info">
+                    <div class="search-result-name">${highlightedName}</div>
+                    <div class="search-result-position">${highlightedPosition}</div>
+                    <div class="search-result-days">
+                        <i class="fas fa-calendar-day"></i> ${employee.DiasVacaciones} días disponibles
+                    </div>
+                </div>
+            </div>
+        `;
+    }).join('');
+    
+    resultsContainer.innerHTML = resultsHTML;
+    
+    // Agregar eventos a los resultados
+    document.querySelectorAll('.modal-search-item').forEach(item => {
+        item.addEventListener('click', function() {
+            const employeeId = parseInt(this.dataset.id);
+            cerrarBuscadorEmpleados();
+            openInfoModal(employeeId);
+        });
+    });
+}
+
+// Cerrar buscador de empleados
+function cerrarBuscadorEmpleados() {
+    const searchModal = document.getElementById('searchEmployeeModal');
+    if (searchModal) {
+        searchModal.classList.remove('show');
+        setTimeout(() => {
+            searchModal.remove();
+        }, 300);
+    }
+}
+
+// Función para actualizar la tabla de historial
+function actualizarTablaHistorial(historial) {
+    const historialTable = document.getElementById('vacationHistoryTable');
+    
+    if (!historialTable) return;
+    
+    // Limpiar tabla
+    const tbody = historialTable.querySelector('tbody');
+    tbody.innerHTML = '';
+    
+    if (historial.length === 0) {
+        // Mostrar mensaje si no hay datos
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="4" class="no-data">
+                    <i class="fas fa-calendar-xmark"></i>
+                    <p>No hay registros de vacaciones para este colaborador</p>
+                </td>
+            </tr>
+        `;
+        return;
+    }
+    
+    // Agrupar por año para mejor visualización
+    const historialPorAnio = {};
+    
+    historial.forEach(item => {
+        const fecha = new Date(item.Fecha);
+        const anio = fecha.getFullYear();
+        
+        if (!historialPorAnio[anio]) {
+            historialPorAnio[anio] = [];
+        }
+        
+        historialPorAnio[anio].push(item);
+    });
+    
+    // Ordenar años de más reciente a más antiguo
+    const aniosOrdenados = Object.keys(historialPorAnio).sort((a, b) => b - a);
+    
+    // Crear filas para cada registro, agrupadas por año
+    aniosOrdenados.forEach(anio => {
+        // Crear fila de encabezado de año
+        const yearRow = document.createElement('tr');
+        yearRow.className = 'year-header';
+        yearRow.innerHTML = `
+            <td colspan="4">
+                <div class="year-badge">
+                    <i class="fas fa-calendar-year"></i>
+                    <span>${anio}</span>
+                </div>
+            </td>
+        `;
+        tbody.appendChild(yearRow);
+        
+        // Añadir cada registro de este año
+        historialPorAnio[anio].forEach(item => {
+            const row = document.createElement('tr');
+            row.className = 'history-item';
+            
+            // Usar el nuevo formato de fecha con día de la semana
+            row.innerHTML = `
+                <td>${formatDateWithDay(item.Fecha)}</td>
+                <td>${formatPeriodoUsuario(item.Periodo)}</td>
+                <td>${item.RegistradoPor}</td>
+                <td>${item.FechaRegistro}</td>
+            `;
+            
+            tbody.appendChild(row);
+        });
+    });
+    
+    // Actualizar el contador
+    const countElement = document.getElementById('vacationHistoryCount');
+    if (countElement) {
+        countElement.textContent = historial.length;
+    }
+}
+
+// Función para formatear fecha con día de la semana
+function formatDateWithDay(dateString) {
+    if (!dateString) return 'N/A';
+    
+    // Para evitar problemas de zona horaria, parseamos la fecha manualmente
+    const [year, month, day] = dateString.split('-').map(num => parseInt(num, 10));
+    // Crear fecha usando UTC para evitar ajustes automáticos de zona horaria
+    // Importante: month - 1 porque en JS los meses van de 0-11
+    const date = new Date(Date.UTC(year, month - 1, day));
+    
+    if (isNaN(date)) return 'N/A';
+    
+    // Arreglo con los nombres de los días de la semana en español
+    const daysOfWeek = [
+        'domingo', 'lunes', 'martes', 'miércoles', 
+        'jueves', 'viernes', 'sábado'
+    ];
+    
+    // Obtener el día de la semana (0-6, donde 0 es domingo)
+    const dayOfWeek = daysOfWeek[date.getUTCDay()];
+    
+    // Formatear la fecha como "lunes 12-05-2025"
+    // IMPORTANTE: usar getUTCDate() en lugar de getDate() para evitar ajustes de zona horaria
+    const formattedDay = String(date.getUTCDate()).padStart(2, '0');
+    const formattedMonth = String(date.getUTCMonth() + 1).padStart(2, '0');
+    const formattedYear = date.getUTCFullYear();
+    
+    return `${dayOfWeek} ${formattedDay}-${formattedMonth}-${formattedYear}`;
+}
+
+// Función para resaltar coincidencias en búsqueda
+function highlightMatch(text, query) {
+    const regex = new RegExp(`(${query})`, 'gi');
+    return text.replace(regex, '<span class="highlight">$1</span>');
+}
+
+// Modificar la función openInfoModal para incluir toda la funcionalidad necesaria
+async function openInfoModal(employeeId) {
+    // Verificar si es el usuario actual
+    if (employeeId === userData.IdPersonal) {
+        Swal.fire({
+            icon: 'info',
+            title: 'Información',
+            text: 'Esta es su información personal. No puede solicitar vacaciones para usted mismo.',
+            confirmButtonColor: '#FF9800'
+        });
+        return;
+    }
+    
+    // Mostrar indicador de carga
+    const loadingSwal = mostrarCargando('Cargando información...');
+    
+    // Buscar empleado por ID
+    const employee = employeesData.find(emp => emp.IdPersonal === employeeId);
+    
+    if (!employee) {
+        loadingSwal.close();
+        Swal.fire({
+            icon: 'error',
+            title: 'Error',
+            text: 'No se encontró información del colaborador.',
+            confirmButtonColor: '#FF9800'
+        });
+        return;
+    }
+    
+    try {
+        // Obtener el historial de vacaciones del empleado
+        const historialVacaciones = await obtenerHistorialVacaciones(employeeId);
+        
+        // Cerrar el loading
+        loadingSwal.close();
+        
+        // Obtener el nombre completo
+        const fullName = getFullName(employee);
+        
+        // Actualizar datos en el modal
+        document.getElementById('infoEmployeeName').textContent = fullName;
+        document.getElementById('infoEmployeePosition').textContent = employee.Nombre || 'Sin puesto asignado';
+        document.getElementById('infoAvailableDays').textContent = `${employee.DiasVacaciones} días`;
+        document.getElementById('infoEmployeeId').textContent = employee.IdPersonal;
+        
+        // Foto del empleado
+        const photoSrc = employee.FotoBase64 || '../Imagenes/user-default.png';
+        document.getElementById('infoEmployeePhoto').src = photoSrc;
+        
+        // Actualizar la tabla de historial con los datos obtenidos
+        actualizarTablaHistorial(historialVacaciones);
+        
+        // Inicializar selectores de fecha con valores predeterminados
+        const fechaInicio = document.getElementById('dateFilterStart');
+        const fechaFin = document.getElementById('dateFilterEnd');
+        
+        if (fechaInicio && fechaFin) {
+            // Establecer fechas por defecto (6 meses atrás hasta hoy)
+            const hoy = new Date();
+            const seisMesesAtras = new Date();
+            seisMesesAtras.setMonth(hoy.getMonth() - 6);
+            
+            fechaInicio.value = formatFechaBaseDatosUTC(seisMesesAtras);
+            fechaFin.value = formatFechaBaseDatosUTC(hoy);
+        }
+        
+        // Agregar evento al botón de búsqueda de empleados
+        const searchEmployeeBtn = document.getElementById('searchEmployeeBtn');
+        if (searchEmployeeBtn) {
+            // Eliminar eventos previos para evitar duplicados
+            const newBtn = searchEmployeeBtn.cloneNode(true);
+            searchEmployeeBtn.parentNode.replaceChild(newBtn, searchEmployeeBtn);
+            
+            newBtn.addEventListener('click', mostrarBuscadorEmpleados);
+        }
+        
+        // Agregar evento al botón de filtrar fechas
+        const filterDatesBtn = document.getElementById('filterDatesBtn');
+        if (filterDatesBtn) {
+            // Eliminar eventos previos para evitar duplicados
+            const newBtn = filterDatesBtn.cloneNode(true);
+            filterDatesBtn.parentNode.replaceChild(newBtn, filterDatesBtn);
+            
+            newBtn.addEventListener('click', function() {
+                const employeeId = parseInt(document.getElementById('infoEmployeeId').textContent);
+                const fechaInicio = document.getElementById('dateFilterStart').value;
+                const fechaFin = document.getElementById('dateFilterEnd').value;
+                
+                filtrarHistorialPorFechas(employeeId, fechaInicio, fechaFin);
+            });
+        }
+        
+        // Mostrar el modal
+        infoModal.style.display = 'block';
+        setTimeout(() => {
+            infoModal.classList.add('show');
+        }, 10);
+        
+    } catch (error) {
+        console.error('Error al cargar información del empleado:', error);
+        loadingSwal.close();
+        
+        Swal.fire({
+            icon: 'error',
+            title: 'Error',
+            text: 'Hubo un problema al cargar la información. Intente nuevamente.',
+            confirmButtonColor: '#FF9800'
+        });
+    }
+}
+
+// Función para formatear fecha para base de datos con UTC
+function formatFechaBaseDatosUTC(fecha) {
+    if (!fecha) return '';
+    
+    // Si es string, intentar convertir a Date
+    if (typeof fecha === 'string') {
+        fecha = new Date(fecha);
+    }
+    
+    // Verificar que sea una fecha válida
+    if (!(fecha instanceof Date) || isNaN(fecha)) {
+        console.error('Fecha inválida:', fecha);
+        return '';
+    }
+    
+    // Usar la fecha UTC para evitar problemas de zona horaria
+    const year = fecha.getUTCFullYear();
+    const month = String(fecha.getUTCMonth() + 1).padStart(2, '0');
+    const day = String(fecha.getUTCDate()).padStart(2, '0');
+    
+    return `${year}-${month}-${day}`;
+}
 // Funciones auxiliares finales
 window.openVacationModal = openVacationModal;
 window.openInfoModal = openInfoModal;

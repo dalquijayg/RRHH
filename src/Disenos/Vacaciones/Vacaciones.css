@@ -8,7 +8,7 @@
 }
 
 :root {
-    /* Paleta de colores basada en tu login */
+    /* Paleta de colores */
     --color-primary: #654321;
     --color-secondary: #FF9800;
     --color-accent-1: #FF5252;
@@ -119,15 +119,9 @@ body {
 }
 
 @keyframes colorPulse {
-    0% {
-        transform: scaleY(1);
-    }
-    50% {
-        transform: scaleY(1.5);
-    }
-    100% {
-        transform: scaleY(1);
-    }
+    0% { transform: scaleY(1); }
+    50% { transform: scaleY(1.5); }
+    100% { transform: scaleY(1); }
 }
 
 /* Contenido principal */
@@ -140,64 +134,7 @@ body {
     width: 100%;
 }
 
-/* Sección de información del departamento mejorada */
-.department-info {
-    margin-bottom: 20px;
-}
-
-.department-card {
-    background-color: white;
-    border-radius: var(--radius-md);
-    box-shadow: var(--shadow-md);
-    padding: 20px;
-    display: flex;
-    align-items: center;
-    transition: var(--transition);
-    position: relative;
-    overflow: hidden;
-    border-left: 5px solid #FF9800;
-}
-
-.department-card:hover {
-    transform: translateY(-5px);
-    box-shadow: var(--shadow-lg);
-}
-
-.department-icon {
-    width: 60px;
-    height: 60px;
-    border-radius: 50%;
-    background-color: #FF9800;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    margin-right: 20px;
-    color: white;
-    font-size: 24px;
-    flex-shrink: 0;
-}
-
-.department-details h2 {
-    color: #654321;
-    margin-bottom: 10px;
-    font-weight: 600;
-    font-size: 22px;
-}
-
-.department-stats p {
-    margin: 0;
-    font-size: 14px;
-    color: #666;
-    display: inline-flex;
-    align-items: center;
-    gap: 5px;
-}
-
-.department-stats p i {
-    color: #FF9800;
-}
-
-/* Mejorar la sección de búsqueda y controles */
+/* Panel de control y departamento */
 .control-panel {
     background-color: white;
     border-radius: var(--radius-md);
@@ -211,6 +148,45 @@ body {
     gap: 15px;
 }
 
+.department-info-compact {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    padding: 15px;
+    background: linear-gradient(to right, #FFFFFF, #FFF8E1);
+    border-radius: 8px;
+    box-shadow: 0 3px 10px rgba(0,0,0,0.1);
+    border-left: 4px solid #FF9800;
+    animation: fadeIn 0.5s;
+}
+
+.department-info-compact i {
+    font-size: 24px;
+    color: white;
+    background-color: #FF9800;
+    width: 50px;
+    height: 50px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 4px 8px rgba(255, 152, 0, 0.3);
+}
+
+.department-info-compact h2 {
+    margin: 0;
+    color: #654321;
+    font-weight: 600;
+    font-size: 22px;
+}
+
+.department-stats {
+    display: flex;
+    gap: 15px;
+    margin-left: auto;
+}
+
+/* Barra de búsqueda */
 .search-bar {
     position: relative;
     flex: 1;
@@ -244,13 +220,14 @@ body {
     box-shadow: 0 0 0 2px rgba(255, 152, 0, 0.2);
 }
 
+/* Botones del panel de control */
 .filter-controls {
     display: flex;
     gap: 10px;
     align-items: center;
 }
 
-.refresh-btn, .export-btn {
+.refresh-btn, .export-btn, .generate-pdf-btn {
     padding: 8px 15px;
     border: none;
     border-radius: 4px;
@@ -260,32 +237,35 @@ body {
     display: flex;
     align-items: center;
     gap: 8px;
+    color: white;
 }
 
 .refresh-btn {
     background-color: #448AFF;
-    color: white;
 }
 
 .export-btn {
     background-color: #4CAF50;
-    color: white;
 }
 
-.refresh-btn:hover, .export-btn:hover {
+.generate-pdf-btn {
+    background-color: #E91E63;
+}
+
+.refresh-btn:hover, .export-btn:hover, .generate-pdf-btn:hover {
     filter: brightness(1.1);
     transform: translateY(-2px);
     box-shadow: 0 4px 10px rgba(0,0,0,0.15);
 }
 
-.refresh-btn:active, .export-btn:active {
+.refresh-btn:active, .export-btn:active, .generate-pdf-btn:active {
     transform: translateY(0);
 }
 
-/* Contenedor de tabla con encabezado fijo */
+/* Tabla de empleados */
 .table-container {
     overflow: auto;
-    max-height: 600px; /* Aumentamos la altura máxima */
+    max-height: 600px;
     position: relative;
     border-radius: var(--radius-md);
     border: 1px solid #e0e0e0;
@@ -293,7 +273,6 @@ body {
     margin-bottom: 15px;
 }
 
-/* Tabla con encabezado fijo */
 .employees-table {
     width: 100%;
     border-collapse: collapse;
@@ -301,7 +280,6 @@ body {
     position: relative;
 }
 
-/* Encabezado fijo */
 .employees-table thead {
     position: sticky;
     top: 0;
@@ -319,7 +297,6 @@ body {
     font-size: 14px;
 }
 
-/* Columnas ordenables */
 .employees-table th.sortable {
     cursor: pointer;
     user-select: none;
@@ -330,7 +307,7 @@ body {
 }
 
 .employees-table th.sortable::after {
-    content: '\f0dc'; /* Icono de ordenación */
+    content: '\f0dc';
     font-family: 'Font Awesome 5 Free';
     font-weight: 900;
     margin-left: 8px;
@@ -339,33 +316,30 @@ body {
 }
 
 .employees-table th.sort-asc::after {
-    content: '\f0de'; /* Flecha hacia arriba */
+    content: '\f0de';
     color: #FF9800;
 }
 
 .employees-table th.sort-desc::after {
-    content: '\f0dd'; /* Flecha hacia abajo */
+    content: '\f0dd';
     color: #FF9800;
 }
 
-/* Celdas de la tabla */
 .employees-table td {
     padding: 12px 15px;
     border-bottom: 1px solid #f0f0f0;
     vertical-align: middle;
 }
 
-/* Filas alternas */
 .employees-table tbody tr:nth-child(even) {
     background-color: #f9f9f9;
 }
 
-/* Efecto hover en las filas */
 .employees-table tbody tr:hover {
     background-color: rgba(255, 152, 0, 0.05);
-    transform: none; /* Quitar el efecto de desplazamiento */
 }
-/* Estilos similares a la imagen compartida */
+
+/* Contador de días */
 .days-count {
     background: #FF9800;
     color: white;
@@ -378,6 +352,7 @@ body {
     text-align: center;
     transition: all 0.3s;
 }
+
 .days-count:hover {
     transform: translateY(-3px);
     box-shadow: 0 5px 12px rgba(0,0,0,0.2);
@@ -394,11 +369,8 @@ body {
 .days-count.low {
     background: linear-gradient(to right, #FF5722, #FF9800);
 }
-/* Columna de foto más compacta */
-.photo-column {
-    width: 60px;
-}
 
+/* Foto del empleado */
 .employee-photo-cell {
     width: 40px;
     height: 40px;
@@ -413,7 +385,7 @@ body {
     object-fit: cover;
 }
 
-/* Botones de acción más compactos y con estilos similares a la imagen */
+/* Botones de acción */
 .action-buttons {
     display: flex;
     gap: 5px;
@@ -446,7 +418,7 @@ body {
     box-shadow: 0 4px 10px rgba(0,0,0,0.15);
 }
 
-/* Estilo para el usuario actual */
+/* Usuario actual */
 .current-user-row {
     background-color: #FFF8E1 !important;
 }
@@ -482,13 +454,13 @@ body {
     cursor: default;
     font-size: 12px;
     color: #757575;
+    position: relative;
 }
 
 .user-actions-message i {
     color: #555;
 }
 
-/* Mejorar el tooltip para el mensaje de acciones deshabilitadas */
 .user-actions-message .tooltip-text {
     width: 200px;
     background-color: rgba(0, 0, 0, 0.8);
@@ -505,12 +477,13 @@ body {
     opacity: 0;
     transition: opacity 0.3s;
 }
+
 .user-actions-message:hover .tooltip-text {
     visibility: visible;
     opacity: 1;
 }
 
-/* Mejorar estilos de paginación */
+/* Paginación */
 .pagination {
     display: flex;
     justify-content: center;
@@ -553,14 +526,13 @@ body {
     border: 1px solid #FFE0B2;
 }
 
-/* Elementos decorativos de fondo */
+/* Elementos decorativos */
 .bg-decoration {
     position: fixed;
     z-index: -1;
     opacity: 0.1;
 }
 
-/* Burbujas flotantes */
 .bubble {
     position: fixed;
     border-radius: 50%;
@@ -595,21 +567,12 @@ body {
 }
 
 @keyframes float {
-    0% {
-        transform: translateY(0) rotate(0deg);
-    }
-    33% {
-        transform: translateY(-30px) rotate(120deg);
-    }
-    66% {
-        transform: translateY(20px) rotate(240deg);
-    }
-    100% {
-        transform: translateY(0) rotate(360deg);
-    }
+    0% { transform: translateY(0) rotate(0deg); }
+    33% { transform: translateY(-30px) rotate(120deg); }
+    66% { transform: translateY(20px) rotate(240deg); }
+    100% { transform: translateY(0) rotate(360deg); }
 }
 
-/* Patrones geométricos sutiles */
 .pattern {
     position: fixed;
     opacity: 0.05;
@@ -640,12 +603,8 @@ body {
 }
 
 @keyframes rotateSlow {
-    from {
-        transform: rotate(0deg);
-    }
-    to {
-        transform: rotate(360deg);
-    }
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
 }
 
 /* Modales */
@@ -680,10 +639,8 @@ body {
     animation: modalSlideIn 0.3s ease;
 }
 
-/* Tamaños modales */
 .modal-lg {
-    max-width: 850px;
-    width: 90%;
+    max-width: 900px;
 }
 
 .modal-xl {
@@ -691,12 +648,16 @@ body {
     width: 95%;
 }
 
-/* Modal compacto (actualizado) */
 .modal-compact {
     max-width: 1100px;
     width: 98%;
     max-height: 90vh;
-    overflow: auto; /* Cambiado de 'hidden' a 'auto' para permitir scroll */
+    overflow: auto;
+}
+
+.pdf-modal {
+    max-width: 650px;
+    overflow: hidden;
 }
 
 @keyframes modalSlideIn {
@@ -760,21 +721,30 @@ body {
     padding: 15px;
 }
 
-/* Layout de dos columnas para el modal compacto (actualizado) */
+.modal-title-section {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.modal-icon {
+    font-size: 24px;
+    color: #E91E63;
+}
+
+/* Layout de modal */
 .modal-layout {
     display: flex;
     gap: 20px;
     height: 100%;
 }
 
-/* Columna izquierda para información del empleado */
 .employee-info-column {
     flex: 0 0 28%;
     display: flex;
     flex-direction: column;
 }
 
-/* Columna derecha para el calendario */
 .calendar-column {
     flex: 0 0 70%;
     display: flex;
@@ -792,13 +762,7 @@ body {
     justify-content: space-between;
 }
 
-.calendar-column {
-    flex: 0 0 70%;
-    display: flex;
-    flex-direction: column;
-}
-
-/* Perfil del empleado en modal */
+/* Perfil del empleado */
 .employee-profile {
     display: flex;
     flex-direction: column;
@@ -839,7 +803,8 @@ body {
     margin-bottom: 10px;
     font-size: 0.9rem;
 }
-/* Estilos para contador de días disponibles */
+
+/* Badge de días disponibles */
 .days-available-badge {
     background: linear-gradient(135deg, #FF9800, #FFC107);
     border-radius: 15px;
@@ -869,50 +834,7 @@ body {
     line-height: 1.2;
 }
 
-.years-service {
-    color: var(--color-gray);
-    font-size: 14px;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-}
-
-.years-service i {
-    color: var(--color-accent-2);
-}
-
-/* Selector de vacaciones con calendario */
-.vacation-selector {
-    background-color: var(--color-light);
-    border-radius: var(--radius-md);
-    padding: 20px;
-    margin: 20px 0;
-    box-shadow: var(--shadow-sm);
-}
-
-.calendar-info {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 10px;
-    flex-wrap: wrap;
-    gap: 10px;
-}
-
-.instruction {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    color: var(--color-gray);
-    margin-bottom: 8px;
-}
-
-.instruction i {
-    color: var(--color-accent-2);
-    font-size: 18px;
-}
-
-/* Mejorar información de fechas seleccionadas */
+/* Selector de fechas */
 .selected-dates-summary {
     margin: 15px 0;
 }
@@ -961,7 +883,53 @@ body {
     font-weight: 600;
 }
 
-/* Calendario */
+.date-value.highlight.days-warning {
+    background-color: #FF9800;
+    position: relative;
+}
+
+.date-value.highlight.days-warning:after,
+.date-value.highlight.days-success:after {
+    content: attr(data-tooltip);
+    position: absolute;
+    background-color: rgba(0, 0, 0, 0.8);
+    color: white;
+    padding: 5px 10px;
+    border-radius: 4px;
+    font-size: 12px;
+    bottom: calc(100% + 10px);
+    left: 50%;
+    transform: translateX(-50%);
+    white-space: nowrap;
+    visibility: hidden;
+    opacity: 0;
+    transition: opacity 0.3s;
+}
+
+.date-value.highlight.days-warning:before,
+.date-value.highlight.days-success:before {
+    content: '';
+    position: absolute;
+    bottom: calc(100% + 5px);
+    left: 50%;
+    transform: translateX(-50%);
+    border-width: 5px;
+    border-style: solid;
+    border-color: rgba(0, 0, 0, 0.8) transparent transparent transparent;
+    visibility: hidden;
+    opacity: 0;
+    transition: opacity 0.3s;
+}
+
+.date-value.highlight.days-warning:hover:after,
+.date-value.highlight.days-warning:hover:before,
+.date-value.highlight.days-success:hover:after,
+.date-value.highlight.days-success:hover:before {
+    visibility: visible;
+    opacity: 1;
+}
+
+/* Contenedor del calendario */
 .calendar-container {
     background-color: white;
     border-radius: var(--radius-sm);
@@ -973,7 +941,6 @@ body {
     flex-direction: column;
 }
 
-/* Calendario compacto (actualizado) */
 .compact-calendar {
     padding: 5px;
     max-height: none !important;
@@ -981,59 +948,60 @@ body {
     flex-grow: 1;
 }
 
-/* Asegurar que FullCalendar se ajuste al contenedor */
-.fc {
-    flex: 1;
-    height: 100% !important;
-    max-width: 100% !important;
-    font-family: 'Poppins', sans-serif !important;
-}
-
-.fc-view {
-    overflow: visible !important;
-}
-
-.fc-toolbar {
-    flex-wrap: wrap !important;
-    justify-content: space-between !important;
-}
-
-.fc-toolbar-chunk {
-    margin: 5px 0 !important;
-}
-
-.fc-view-harness {
-    background-color: white;
-    border-radius: var(--radius-sm);
-    height: auto !important;
-    min-height: 400px;
-}
-
-.fc-scrollgrid {
-    border-radius: var(--radius-sm) !important;
-    overflow: hidden;
-}
-
-.fc-theme-standard td, .fc-theme-standard th {
-    border: 1px solid #ddd !important;
-}
-
-.fc .fc-scroller-liquid-absolute {
-    position: relative !important;
-    overflow: visible !important;
-}
-
-.fc-header-toolbar {
-    margin-bottom: 0.3em !important;
+.calendar-legend {
+    display: flex;
     flex-wrap: wrap;
-    gap: 10px;
+    gap: 12px;
+    margin-top: 15px;
+    padding: 12px;
+    background-color: #f9f9f9;
+    border-radius: 8px;
+    font-size: 13px;
+    border: 1px solid #e0e0e0;
 }
 
-.fc-toolbar-title {
-    font-size: 1.3rem !important;
+.legend-title {
+    width: 100%;
+    font-weight: 500;
+    margin-bottom: 5px;
+    color: #555;
 }
 
-/* Visualización de días mejorada */
+.legend-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    color: var(--color-gray);
+}
+
+.legend-color {
+    width: 16px;
+    height: 16px;
+    border-radius: 4px;
+}
+
+.registered-color {
+    background-color: rgba(76, 175, 80, 0.15);
+    border: 1px solid #4CAF50;
+}
+
+.weekend-color {
+    background-color: #f9f9f9;
+    border: 1px solid #e0e0e0;
+}
+
+.special-color {
+    background-color: rgba(255, 82, 82, 0.2);
+    border: 1px solid #FF5252;
+}
+
+.holy-week-color {
+    background-color: rgba(156, 39, 176, 0.2);
+    border: 1px solid #9C27B0;
+}
+
+/* Visualización de días */
 .days-visualization {
     background-color: white;
     border-radius: var(--radius-sm);
@@ -1045,7 +1013,6 @@ body {
     z-index: 1;
 }
 
-/* Miniaturización de la visualización de días (actualizado) */
 .days-visualization.mini {
     padding: 8px;
     max-height: 100px;
@@ -1056,10 +1023,6 @@ body {
 .days-visualization.mini h4 {
     font-size: 14px;
     margin-bottom: 10px;
-}
-
-.days-visualization.mini .days-grid {
-    gap: 3px;
 }
 
 .days-visualization h4 {
@@ -1078,19 +1041,14 @@ body {
     font-weight: 900;
     color: var(--color-secondary);
 }
-/* Estilo mejorado para la cuadrícula de días */
-.days-grid {
+
+.mini-days-container {
     display: flex;
     flex-wrap: wrap;
-    gap: 8px;
-    padding: 15px;
-    border-radius: var(--radius-sm);
-    background-color: #f9f9f9;
-    position: relative;
-    z-index: 2;
+    gap: 3px;
+    margin-bottom: 6px;
 }
 
-/* Mejorar estilo de las cajas de días */
 .day-box {
     width: 45px;
     height: 45px;
@@ -1105,22 +1063,21 @@ body {
     transition: all 0.3s;
 }
 
-/* Cajas de días en modo mini */
 .days-visualization.mini .day-box {
     width: 30px;
     height: 30px;
     font-size: 12px;
 }
 
-.day-box.weekend {
-    background-color: #f0f0f0;
-    color: #aaa;
-}
-
 .day-box.vacation {
     background-color: var(--color-accent-3);
     color: white;
     animation: popIn 0.3s;
+}
+
+.day-box.weekend {
+    background-color: #f0f0f0;
+    color: #aaa;
 }
 
 .day-box.special {
@@ -1133,130 +1090,50 @@ body {
     color: #9C27B0;
 }
 
+.day-box.more-indicator {
+    background-color: #f0f0f0;
+    color: #666;
+    font-weight: bold;
+}
+
 .day-box:hover {
     transform: translateY(-3px);
     box-shadow: 0 5px 10px rgba(0,0,0,0.2);
 }
 
-.day-box .day-name {
-    position: absolute;
-    top: -18px;
-    font-size: 9px;
-    color: var(--color-gray);
-    text-transform: uppercase;
+/* Mini resumen de días */
+.mini-summary {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+    font-size: 11px;
+    color: #666;
 }
 
-/* Posicionamiento de íconos para días especiales */
-.day-icon {
-    position: absolute;
-    top: 3px;
-    right: 3px;
-    font-size: 10px;
-}
-
-.special-icon {
-    color: #FF5252;
-}
-
-.holy-week-icon {
-    color: #9C27B0;
-}
-
-/* Estilos para días especiales en el calendario */
-.special-day {
-    background-color: rgba(255, 82, 82, 0.2) !important;
-    position: relative;
-}
-
-.special-day:before {
-    content: "\f071"; /* Icono de exclamación */
-    font-family: "Font Awesome 5 Free";
-    font-weight: 900;
-    font-size: 10px;
-    color: #FF5252;
-    position: absolute;
-    top: 4px;
-    right: 4px;
-}
-
-.fc .fc-daygrid-day.special-day .fc-daygrid-day-number {
-    color: #FF5252;
-    font-weight: 500;
-}
-
-/* Estilos para días de Semana Santa en el calendario */
-.holy-week-day {
-    background-color: rgba(156, 39, 176, 0.2) !important;
-    position: relative;
-}
-.holy-week-day:before {
-    content: "\f549"; /* Icono de iglesia */
-    font-family: "Font Awesome 5 Free";
-    font-weight: 900;
-    font-size: 10px;
-    color: #9C27B0;
-    position: absolute;
-    top: 4px;
-    right: 4px;
-}
-
-.fc .fc-daygrid-day.holy-week-day .fc-daygrid-day-number {
-    color: #9C27B0;
-    font-weight: 500;
-}
-
-/* Tooltips */
-.tooltip {
-    position: relative;
-    display: inline-block;
-}
-
-.tooltip .tooltip-text {
-    visibility: hidden;
-    width: 120px;
-    background-color: rgba(0, 0, 0, 0.8);
-    color: #fff;
-    text-align: center;
+.mini-summary-item {
+    background: #f5f5f5;
+    padding: 2px 6px;
     border-radius: 4px;
-    padding: 5px;
-    position: absolute;
-    z-index: 1;
-    bottom: 125%;
-    left: 50%;
-    transform: translateX(-50%);
-    opacity: 0;
-    transition: opacity 0.3s;
-    font-size: 12px;
-    pointer-events: none;
+    display: flex;
+    align-items: center;
+    gap: 3px;
+    white-space: nowrap;
 }
 
-.tooltip .tooltip-text::after {
-    content: "";
-    position: absolute;
-    top: 100%;
-    left: 50%;
-    margin-left: -5px;
-    border-width: 5px;
-    border-style: solid;
-    border-color: rgba(0, 0, 0, 0.8) transparent transparent transparent;
+.mini-summary-item i {
+    color: #FF9800;
+    font-size: 10px;
 }
 
-.tooltip:hover .tooltip-text {
-    visibility: visible;
-    opacity: 1;
+.mini-summary-item.registered-item {
+    color: #4CAF50;
 }
 
-/* Estilos para días de meses adyacentes */
-.fc .fc-day-other {
-    background-color: #f8f8f8;
-    opacity: 0.9 !important;
+.mini-summary-item.registered-item i {
+    color: #4CAF50;
 }
 
-.fc .fc-day-other .fc-daygrid-day-number {
-    color: #aaa;
-}
-
-/* Botón de enviar solicitud */
+/* Botón de enviar */
 .form-actions {
     margin-top: auto;
     padding: 15px 0;
@@ -1292,132 +1169,22 @@ body {
     transform: scale(0.98);
 }
 
-/* Estilos para la leyenda de días */
-.days-legend {
-    margin-top: 20px;
-    padding: 15px;
-    background-color: white;
-    border-radius: var(--radius-sm);
-    box-shadow: var(--shadow-sm);
+/* Estilos para FullCalendar */
+.fc {
+    font-family: 'Poppins', sans-serif !important;
+    height: 100% !important;
 }
 
-.days-legend h4 {
-    margin: 0 0 10px 0;
-    font-size: 14px;
-    color: var(--color-primary);
-    font-weight: 500;
-}
-
-.legend-items {
-    display: flex;
+.fc-header-toolbar {
+    margin-bottom: 0.3em !important;
     flex-wrap: wrap;
-    gap: 15px;
+    gap: 10px;
 }
 
-.legend-item {
-    display: flex;
-    align-items: center;
-    gap: 5px;
-    font-size: 12px;
-    color: var(--color-gray);
+.fc-toolbar-title {
+    font-size: 1.3rem !important;
 }
 
-.legend-color {
-    width: 15px;
-    height: 15px;
-    border-radius: 3px;
-}
-
-.vacation-color {
-    background-color: var(--color-accent-3);
-}
-
-.weekend-color {
-    background-color: #f0f0f0;
-}
-
-.special-color {
-    background-color: rgba(255, 82, 82, 0.2);
-}
-
-.holy-week-color {
-    background-color: rgba(156, 39, 176, 0.2);
-}
-
-/* Estilos para los días seleccionados en vista mini */
-.mini-days-container {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 3px;
-    margin-bottom: 6px;
-}
-
-.day-box.more-indicator {
-    background-color: #f0f0f0;
-    color: #666;
-    font-weight: bold;
-}
-
-.mini-summary {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 5px;
-    font-size: 11px;
-    color: #666;
-}
-
-.mini-summary-item {
-    background: #f5f5f5;
-    padding: 2px 6px;
-    border-radius: 4px;
-    display: flex;
-    align-items: center;
-    gap: 3px;
-    white-space: nowrap;
-}
-
-.mini-summary-item i {
-    color: #FF9800;
-    font-size: 10px;
-}
-
-/* Nuevos estilos para fullcalendar */
-.fc-day-today.fc-day-selected {
-    background-color: rgba(76, 175, 80, 0.3) !important;
-}
-
-.fc-daygrid-day.fc-day-selected {
-    background-color: rgba(76, 175, 80, 0.2) !important;
-    position: relative;
-    box-shadow: inset 0 0 3px rgba(76, 175, 80, 0.5);
-}
-
-.fc .fc-daygrid-day.fc-day-today {
-    background-color: rgba(255, 152, 0, 0.1) !important;
-}
-
-.fc .fc-daygrid-day.fc-day-saturday,
-.fc .fc-daygrid-day.fc-day-sunday {
-    background-color: #f9f9f9;
-}
-
-/* Ajustar altura de filas del calendario */
-.fc-daygrid-day-frame {
-    min-height: 45px !important;
-}
-
-/* Días de la semana */
-.fc-col-header-cell {
-    background-color: #f5f5f5;
-}
-
-.fc-col-header-cell-cushion {
-    color: #555;
-    font-weight: 500;
-    text-transform: lowercase;
-}
-
-/* Botones de fullcalendar */
 .fc-button-primary {
     background-color: var(--color-secondary) !important;
     border-color: var(--color-secondary) !important;
@@ -1443,6 +1210,483 @@ body {
     border-color: #2979FF !important;
 }
 
+/* Días especiales en el calendario */
+.fc-daygrid-day.special-day {
+    background-color: rgba(255, 82, 82, 0.2) !important;
+    position: relative;
+}
+
+.special-day:before {
+    content: "\f071";
+    font-family: "Font Awesome 5 Free";
+    font-weight: 900;
+    font-size: 10px;
+    color: #FF5252;
+    position: absolute;
+    top: 4px;
+    right: 4px;
+}
+
+.fc-daygrid-day.holy-week-day {
+    background-color: rgba(156, 39, 176, 0.2) !important;
+    position: relative;
+}
+
+.holy-week-day:before {
+    content: "\f549";
+    font-family: "Font Awesome 5 Free";
+    font-weight: 900;
+    font-size: 10px;
+    color: #9C27B0;
+    position: absolute;
+    top: 4px;
+    right: 4px;
+}
+
+.registered-vacation-day {
+    background-color: rgba(76, 175, 80, 0.15) !important;
+    position: relative;
+    pointer-events: none;
+}
+
+.registered-vacation-day:before {
+    content: "\f058";
+    font-family: "Font Awesome 5 Free";
+    font-weight: 900;
+    font-size: 10px;
+    color: #4CAF50;
+    position: absolute;
+    top: 4px;
+    right: 4px;
+}
+
+.fc .fc-daygrid-day.fc-day-today {
+    background-color: rgba(255, 152, 0, 0.1) !important;
+}
+
+.fc .fc-daygrid-day.fc-day-saturday,
+.fc .fc-daygrid-day.fc-day-sunday {
+    background-color: #f9f9f9;
+}
+
+.fc-day-today.fc-day-selected,
+.fc-daygrid-day.fc-day-selected {
+    background-color: rgba(76, 175, 80, 0.2) !important;
+    box-shadow: inset 0 0 3px rgba(76, 175, 80, 0.5);
+}
+
+/* Eventos de vacaciones */
+.vacation-events-container {
+    padding: 1px 2px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    max-height: 100%;
+    overflow: hidden;
+}
+
+.vacation-person {
+    display: flex;
+    align-items: center;
+    background-color: #f3bb21;
+    border-radius: 4px;
+    padding: 2px 4px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-size: 10px;
+    color: white;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+}
+
+.vacation-avatar {
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    margin-right: 3px;
+    border: 1px solid white;
+    object-fit: cover;
+}
+
+.vacation-name {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-size: 10px;
+    font-weight: 500;
+}
+
+.vacation-more {
+    text-align: center;
+    background-color: rgba(0, 0, 0, 0.1);
+    color: #555;
+    font-size: 10px;
+    padding: 1px 4px;
+    border-radius: 3px;
+    margin-top: 2px;
+    cursor: pointer;
+}
+
+.vacation-person:nth-child(2) {
+    background-color: #4CAF50;
+}
+
+.vacation-person:nth-child(3) {
+    background-color: #FF9800;
+}
+
+.fc-day-today .vacation-person {
+    background-color: #009688;
+}
+
+/* Modal de información */
+.info-section {
+    margin-bottom: 25px;
+    border-bottom: 1px solid #e0e0e0;
+    padding-bottom: 15px;
+}
+
+.history-section {
+    margin-top: 20px;
+}
+
+.history-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 15px;
+    flex-wrap: wrap;
+    gap: 15px;
+}
+
+.history-header h3 {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--color-primary);
+    margin: 0;
+}
+
+.history-header h3 i {
+    color: var(--color-secondary);
+}
+
+.badge {
+    background-color: var(--color-accent-2);
+    color: white;
+    border-radius: 20px;
+    padding: 2px 8px;
+    font-size: 12px;
+    margin-left: 8px;
+}
+
+/* Controles de historial */
+.history-controls {
+    display: flex;
+    gap: 15px;
+    flex-wrap: wrap;
+}
+
+.date-filter {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    background-color: #f5f5f5;
+    padding: 8px 12px;
+    border-radius: 8px;
+}
+
+.date-input-group {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.date-input-group label {
+    font-size: 12px;
+    color: #666;
+}
+
+.date-input-group input[type="date"] {
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    padding: 4px 8px;
+    font-size: 13px;
+}
+
+.btn-filter, .btn-search-employee {
+    border: none;
+    border-radius: 4px;
+    padding: 5px 10px;
+    cursor: pointer;
+    font-size: 13px;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    transition: all 0.2s;
+    color: white;
+}
+
+.btn-filter {
+    background-color: var(--color-accent-2);
+}
+
+.btn-filter:hover {
+    background-color: #2962FF;
+}
+
+.btn-search-employee {
+    background-color: var(--color-accent-5);
+}
+
+.btn-search-employee:hover {
+    background-color: #F57C00;
+}
+
+/* Tabla de historial */
+.history-table-container {
+    max-height: 300px;
+    overflow-y: auto;
+    border: 1px solid #e0e0e0;
+    border-radius: 8px;
+}
+
+.history-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.history-table thead {
+    position: sticky;
+    top: 0;
+    background-color: #f5f5f5;
+    z-index: 1;
+}
+
+.history-table th {
+    padding: 10px;
+    text-align: left;
+    font-weight: 500;
+    border-bottom: 2px solid var(--color-secondary);
+    color: var(--color-primary);
+    font-size: 13px;
+}
+
+.history-table td {
+    padding: 8px 10px;
+    border-bottom: 1px solid #f0f0f0;
+    font-size: 13px;
+}
+
+.history-table tr:last-child td {
+    border-bottom: none;
+}
+
+.history-table tr:hover {
+    background-color: rgba(255, 152, 0, 0.05);
+}
+
+/* Año agrupador */
+.year-header {
+    background-color: #f9f9f9;
+}
+
+.year-badge {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 5px 10px;
+    font-weight: 500;
+    color: var(--color-primary);
+}
+
+.year-badge i {
+    color: var(--color-accent-1);
+}
+
+/* Sin datos */
+.no-data {
+    text-align: center;
+    padding: 30px;
+    color: #999;
+}
+
+.no-data i {
+    font-size: 24px;
+    margin-bottom: 10px;
+    color: #ddd;
+}
+
+/* Modal de búsqueda de empleados */
+.search-modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: rgba(0, 0, 0, 0.5);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+    opacity: 0;
+    visibility: hidden;
+    transition: all 0.3s;
+}
+
+.search-modal-overlay.show {
+    opacity: 1;
+    visibility: visible;
+}
+
+.search-employee-modal {
+    background-color: white;
+    width: 90%;
+    max-width: 500px;
+    border-radius: 8px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+    overflow: hidden;
+    transform: translateY(-20px);
+    transition: transform 0.3s;
+}
+
+.search-modal-overlay.show .search-employee-modal {
+    transform: translateY(0);
+}
+
+.search-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 15px 20px;
+    background-color: var(--color-accent-5);
+    color: white;
+}
+
+.search-header h3 {
+    margin: 0;
+    font-size: 16px;
+}
+
+.close-search-modal {
+    background: none;
+    border: none;
+    color: white;
+    font-size: 18px;
+    cursor: pointer;
+}
+
+/* Elementos de búsqueda */
+#modalEmployeeSearch {
+    width: 100%;
+    padding: 10px 40px;
+    border: 1px solid #ddd;
+    border-radius: 20px;
+    outline: none;
+}
+
+.clear-modal-search {
+    position: absolute;
+    right: 25px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: #999;
+    cursor: pointer;
+}
+
+.modal-search-results {
+    padding: 0 15px 15px;
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+.modal-search-item {
+    display: flex;
+    padding: 10px;
+    border-radius: 8px;
+    margin-bottom: 8px;
+    cursor: pointer;
+    transition: all 0.2s;
+    align-items: center;
+    gap: 15px;
+}
+
+.modal-search-item:hover, 
+.modal-search-item.selected {
+    background-color: #f5f5f5;
+}
+
+.search-result-photo {
+    width: 45px;
+    height: 45px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 2px solid var(--color-accent-5);
+}
+
+.search-result-info {
+    flex: 1;
+}
+
+.search-result-name {
+    font-weight: 500;
+    margin-bottom: 3px;
+    color: var(--color-primary);
+}
+
+.search-result-position {
+    font-size: 12px;
+    color: #666;
+    margin-bottom: 5px;
+}
+
+.search-result-days {
+    font-size: 11px;
+    color: #4CAF50;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.search-result-days i {
+    font-size: 10px;
+}
+
+/* Estados de carga y mensajes */
+.modal-search-loading, .no-modal-results {
+    text-align: center;
+    padding: 30px;
+    color: #999;
+}
+
+.spinner {
+    border: 4px solid #f3f3f3;
+    border-top: 4px solid #FF9800;
+    border-radius: 50%;
+    width: 50px;
+    height: 50px;
+    animation: spin 1s linear infinite;
+    margin: 0 auto 10px;
+}
+
+.spinner.small {
+    width: 25px;
+    height: 25px;
+    border-width: 3px;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+/* Destacados en búsqueda */
+.highlight {
+    background-color: #FFECB3;
+    border-radius: 3px;
+    padding: 0 2px;
+}
+
 /* Animaciones generales */
 @keyframes fadeIn {
     from {
@@ -1456,15 +1700,9 @@ body {
 }
 
 @keyframes pulse {
-    0% {
-        transform: scale(1);
-    }
-    50% {
-        transform: scale(1.03);
-    }
-    100% {
-        transform: scale(1);
-    }
+    0% { transform: scale(1); }
+    50% { transform: scale(1.03); }
+    100% { transform: scale(1); }
 }
 
 @keyframes popIn {
@@ -1473,602 +1711,21 @@ body {
     100% { transform: scale(1); opacity: 1; }
 }
 
-/* Responsive */
-@media screen and (max-width: 1000px) {
-    .header {
-        flex-direction: column;
-        padding: 10px;
-    }
-    
-    .header-left, .header-right, .header-center {
-        margin-bottom: 10px;
-    }
-    
-    .control-panel {
-        flex-direction: column;
-    }
-    
-    .search-bar {
-        width: 100%;
-    }
-    
-    .filter-controls {
-        width: 100%;
-        justify-content: space-between;
-    }
-    
-    .selected-dates {
-        justify-content: center;
-    }
-    
-    .department-stats {
-        flex-direction: column;
-        gap: 5px;
-    }
-    
-    .fc-header-toolbar {
-        flex-direction: column;
-        align-items: flex-start;
-    }
-    
-    .fc-toolbar-chunk {
-        margin-bottom: 10px;
-        display: flex;
-        gap: 5px;
-    }
+@keyframes slideIn {
+    from { opacity: 0; transform: translateY(-20px); }
+    to { opacity: 1; transform: translateY(0); }
 }
 
-@media screen and (max-width: 900px) {
-    .modal-body {
-        flex-direction: column;
-    }
-    
-    .employee-info-column,
-    .calendar-column {
-        flex: 1 1 100%;
-    }
-    
-    .form-actions {
-        padding: 15px;
-    }
+@keyframes slideOut {
+    from { opacity: 1; transform: translateY(0); }
+    to { opacity: 0; transform: translateY(-20px); }
 }
 
-@media screen and (max-width: 768px) {
-    .content {
-        padding: 15px;
-    }
-    
-    .department-card {
-        flex-direction: column;
-        text-align: center;
-    }
-    
-    .department-icon {
-        margin-right: 0;
-        margin-bottom: 15px;
-    }
-    
-    .employees-table th,
-    .employees-table td {
-        padding: 8px 10px;
-    }
-    
-    .employee-profile {
-        flex-direction: column;
-        text-align: center;
-    }
-    
-    .calendar-container {
-        height: 350px;
-    }
-    
-    .calendar-info {
-        flex-direction: column;
-        align-items: flex-start;
-    }
-    
-    .day-box {
-        width: 35px;
-        height: 35px;
-        font-size: 12px;
-    }
-    
-    .modal-content {
-        margin: 20px auto;
-        width: 95%;
-    }
-}
-
-@media screen and (max-width: 480px) {
-    .department-stats {
-        flex-direction: column;
-        gap: 5px;
-    }
-    
-    .date-range {
-        width: 100%;
-    }
-    
-    .day-box {
-        width: 30px;
-        height: 30px;
-        font-size: 11px;
-    }
-    
-    .instruction p {
-        font-size: 13px;
-    }
-    
-    .modal-header h2 {
-        font-size: 18px;
-    }
-    
-    .employee-photo {
-        width: 60px;
-        height: 60px;
-    }
-    
-    .days-available-badge {
-        padding: 8px 12px;
-    }
-    
-    #modalAvailableDays {
-        font-size: 22px;
-    }
-    
-    .days-text {
-        font-size: 12px;
-    }
-}
-
-/* Estilos para el departamento compacto */
-.department-info-compact {
-    display: flex;
-    align-items: center;
-    gap: 15px;
-    padding: 15px;
-    background: linear-gradient(to right, #FFFFFF, #FFF8E1);
-    border-radius: 8px;
-    box-shadow: 0 3px 10px rgba(0,0,0,0.1);
-    border-left: 4px solid #FF9800;
-    animation: fadeIn 0.5s;
-}
-
-.department-info-compact i {
-    font-size: 24px;
-    color: white;
-    background-color: #FF9800;
-    width: 50px;
-    height: 50px;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    box-shadow: 0 4px 8px rgba(255, 152, 0, 0.3);
-}
-
-.department-info-compact h2 {
-    margin: 0;
-    color: #654321;
-    font-weight: 600;
-    font-size: 22px;
-}
-
-.department-stats {
-    display: flex;
-    gap: 15px;
-    margin-left: auto;
-}
-
-/* Estilos para días que ya están registrados como vacaciones */
-.registered-vacation-day {
-    background-color: rgba(76, 175, 80, 0.15) !important; /* Verde claro */
-    position: relative;
-    pointer-events: none; /* Deshabilitar interacción */
-}
-
-.registered-vacation-day:before {
-    content: "\f058"; /* Icono de círculo con check */
-    font-family: "Font Awesome 5 Free";
-    font-weight: 900;
-    font-size: 10px;
-    color: #4CAF50; /* Verde */
-    position: absolute;
-    top: 4px;
-    right: 4px;
-}
-
-.fc .fc-daygrid-day.registered-vacation-day .fc-daygrid-day-number {
-    color: #4CAF50; /* Verde */
-    font-weight: 500;
-    text-decoration: none; /* Quitar el tachado */
-    opacity: 0.9;
-}
-
-/* Estilo para indicar que el día no es seleccionable */
-.registered-vacation-day .fc-daygrid-day-frame {
-    cursor: not-allowed !important;
-}
-
-/* Estilos para la leyenda del calendario */
-.calendar-legend {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 12px;
-    margin-top: 15px;
-    padding: 12px;
-    background-color: #f9f9f9;
-    border-radius: 8px;
-    font-size: 13px;
-    border: 1px solid #e0e0e0;
-}
-.legend-title {
-    width: 100%;
-    font-weight: 500;
-    margin-bottom: 5px;
-    color: #555;
-}
-.legend-item {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-}
-
-.legend-color {
-    width: 16px;
-    height: 16px;
-    border-radius: 4px;
-}
-
-.registered-color {
-    background-color: rgba(76, 175, 80, 0.15);
-    border: 1px solid #4CAF50;
-}
-.mini-summary-item.registered-item {
-    color: #4CAF50;
-}
-
-.mini-summary-item.registered-item i {
-    color: #4CAF50;
-}
-.weekend-color {
-    background-color: #f9f9f9;
-    border: 1px solid #e0e0e0;
-}
-
-.special-color {
-    background-color: rgba(255, 82, 82, 0.2);
-    border: 1px solid #FF5252;
-}
-
-.holy-week-color {
-    background-color: rgba(156, 39, 176, 0.2);
-    border: 1px solid #9C27B0;
-}
-
-/* Estilos para el indicador de días mínimos */
-.min-days-info {
-    background-color: #E3F2FD;
-    color: #1976D2;
-    padding: 8px 12px;
-    border-radius: 8px;
-    font-size: 14px;
-    margin: 10px 0;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    border-left: 3px solid #1976D2;
-}
-
-.min-days-info i {
-    color: #1976D2;
-    font-size: 16px;
-}
-
-.min-days-note {
-    font-size: 12px;
-    color: #FF9800;
-    margin-top: 6px;
-    padding-top: 6px;
-    border-top: 1px dashed #E0E0E0;
-    width: 100%;
-}
-
-/* Estilos para la advertencia de días mínimos */
-.date-value.highlight.days-warning {
-    background-color: #FF9800;
-    position: relative;
-}
-
-.date-value.highlight.days-warning:after {
-    content: attr(data-tooltip);
-    position: absolute;
-    background-color: rgba(0, 0, 0, 0.8);
-    color: white;
-    padding: 5px 10px;
-    border-radius: 4px;
-    font-size: 12px;
-    bottom: calc(100% + 10px);
-    left: 50%;
-    transform: translateX(-50%);
-    white-space: nowrap;
-    visibility: hidden;
-    opacity: 0;
-    transition: opacity 0.3s;
-}
-
-.date-value.highlight.days-warning:before {
-    content: '';
-    position: absolute;
-    bottom: calc(100% + 5px);
-    left: 50%;
-    transform: translateX(-50%);
-    border-width: 5px;
-    border-style: solid;
-    border-color: rgba(0, 0, 0, 0.8) transparent transparent transparent;
-    visibility: hidden;
-    opacity: 0;
-    transition: opacity 0.3s;
-}
-
-.date-value.highlight.days-warning:hover:after,
-.date-value.highlight.days-warning:hover:before {
-    visibility: visible;
-    opacity: 1;
-}
-
-.days-note-container {
-    margin: 10px 0;
-}
-
-.days-note {
-    background-color: #FFF3E0;
-    border-left: 3px solid #FF9800;
-    padding: 10px 12px;
-    border-radius: 6px;
-    font-size: 13px;
-    color: #E65100;
-    display: flex;
-    align-items: flex-start;
-    gap: 10px;
-}
-
-.days-note i {
-    color: #FF9800;
-    font-size: 16px;
-    margin-top: 2px;
-}
-/* Estilos para la información de distribución de períodos */
-.periodos-container {
-    margin: 15px 0;
-}
-
-.periodos-info {
-    background-color: #E8F5E9;
-    border-radius: 8px;
-    padding: 12px;
-    font-size: 13px;
-}
-
-.periodos-title {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    color: #2E7D32;
-    font-weight: 500;
-    margin-bottom: 10px;
-}
-
-.periodos-title i {
-    color: #4CAF50;
-    font-size: 16px;
-}
-
-.periodos-list {
-    background-color: white;
-    border-radius: 6px;
-    padding: 8px;
-    margin-bottom: 10px;
-}
-
-.periodo-item {
-    display: flex;
-    justify-content: space-between;
-    padding: 6px 8px;
-    border-bottom: 1px dashed #E0E0E0;
-}
-
-.periodo-item:last-child {
-    border-bottom: none;
-}
-
-.periodo-dates {
-    color: #555;
-}
-
-.periodo-days {
-    color: #4CAF50;
-    font-weight: 500;
-}
-
-.periodos-note {
-    display: flex;
-    align-items: flex-start;
-    gap: 8px;
-    color: #689F38;
-    font-size: 12px;
-}
-
-.periodos-note i {
-    color: #8BC34A;
-    margin-top: 2px;
-}
-
-/* Estilos para la distribución de períodos en la confirmación */
-.distribucion-periodos {
-    background-color: #F1F8E9;
-    border-radius: 8px;
-    padding: 10px 15px;
-    margin: 15px 0;
-    border-left: 4px solid #8BC34A;
-}
-
-.distribucion-periodos p {
-    color: #33691E;
-    margin-bottom: 8px;
-    font-weight: 500;
-}
-
-.distribucion-periodos ul {
-    margin: 0;
-    padding-left: 20px;
-}
-
-.distribucion-periodos li {
-    margin-bottom: 5px;
-    color: #558B2F;
-}
-
-/* Estilos para el mensaje de carga con animación */
-.loading-container {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    padding: 40px;
-    text-align: center;
-}
-
-.spinner {
-    border: 4px solid #f3f3f3;
-    border-top: 4px solid #FF9800;
-    border-radius: 50%;
-    width: 50px;
-    height: 50px;
-    animation: spin 1s linear infinite;
-    margin-bottom: 20px;
-}
-
-@keyframes spin {
-    0% { transform: rotate(0deg); }
-    100% { transform: rotate(360deg); }
-}
-
-.loading-text {
-    color: #555;
-    font-size: 18px;
-    font-weight: 500;
-}
-
-/* Para el SweetAlert con spinner */
-.swal2-popup .spinner {
-    border: 5px solid #f3f3f3;
-    border-top: 5px solid #FF9800;
-    border-radius: 50%;
-    width: 50px;
-    height: 50px;
-    animation: spin 1s linear infinite;
-    margin: 20px auto;
-}
-.generate-pdf-btn {
-    padding: 8px 15px;
-    border: none;
-    border-radius: 4px;
-    font-size: 14px;
-    cursor: pointer;
-    transition: var(--transition);
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    background-color: #E91E63;
-    color: white;
-}
-
-.generate-pdf-btn:hover {
-    filter: brightness(1.1);
-    transform: translateY(-2px);
-    box-shadow: 0 4px 10px rgba(0,0,0,0.15);
-}
-
-.generate-pdf-btn:active {
-    transform: translateY(0);
-}
-
-/* Estilos para el modal de generación de PDF */
-.form-group {
-    margin-bottom: 20px;
-}
-
-.form-group label {
-    display: block;
-    margin-bottom: 8px;
-    color: var(--color-primary);
-    font-weight: 500;
-}
-
-.period-info-container {
-    background-color: #f9f9f9;
-    border-radius: var(--radius-md);
-    padding: 20px;
-    margin-top: 20px;
-}
-
-.period-info-container h4 {
-    color: var(--color-primary);
-    margin-bottom: 15px;
-}
-
-.period-details p {
-    margin: 8px 0;
-}
-
-.period-details strong {
-    color: var(--color-primary);
-}
-.btn-generate:hover {
-    background-color: #C2185B;
-}
-
-@media screen and (max-width: 375px) {
-    /* Estilos específicos para dispositivos pequeños */
-    .modal-content {
-        padding: 10px;
-    }
-    
-    .calendar-container {
-        padding: 5px;
-    }
-    
-    .fc-toolbar {
-        font-size: 12px;
-    }
-}
-
-
-
-
-/* Modal para generar PDF - Diseño mejorado */
-.pdf-modal {
-    max-width: 650px;
-    overflow: hidden;
-}
-
-.modal-title-section {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-}
-
-.modal-icon {
-    font-size: 24px;
-    color: #E91E63;
-}
-
+/* Componentes del Modal PDF */
 .pdf-generator-content {
     padding: 10px;
 }
 
-/* Instrucciones mejoradas */
 .pdf-instructions {
     background-color: #E3F2FD;
     border-radius: 10px;
@@ -2091,7 +1748,6 @@ body {
     font-size: 14px;
 }
 
-/* Form groups mejorados */
 .form-group.enhanced {
     margin-bottom: 25px;
 }
@@ -2111,7 +1767,6 @@ body {
     font-size: 18px;
 }
 
-/* Select wrapper para diseño personalizado */
 .select-wrapper {
     position: relative;
 }
@@ -2158,6 +1813,10 @@ body {
     color: #FF9800;
 }
 
+.select-arrow.disabled {
+    color: #ccc;
+}
+
 /* Card de información del período */
 .period-info-card {
     background: linear-gradient(135deg, #FFF8E1 0%, #FFFFFF 100%);
@@ -2166,17 +1825,6 @@ body {
     margin-top: 30px;
     box-shadow: 0 5px 20px rgba(0,0,0,0.1);
     animation: slideIn 0.3s ease-out;
-}
-
-@keyframes slideIn {
-    from {
-        opacity: 0;
-        transform: translateY(-20px);
-    }
-    to {
-        opacity: 1;
-        transform: translateY(0);
-    }
 }
 
 .period-info-header {
@@ -2283,12 +1931,6 @@ body {
     color: #FF9800;
 }
 
-.stat-info {
-    display: flex;
-    flex-direction: column;
-    gap: 5px;
-}
-
 .stat-value {
     font-size: 24px;
     font-weight: 700;
@@ -2375,69 +2017,67 @@ body {
     transform: none;
 }
 
-/* Responsive */
-@media (max-width: 768px) {
-    .pdf-modal {
-        width: 95%;
-        margin: 20px auto;
-    }
-    
-    .period-stats {
-        grid-template-columns: 1fr;
-        gap: 10px;
-    }
-    
-    .stat-item {
-        display: flex;
-        align-items: center;
-        text-align: left;
-        gap: 15px;
-    }
-    
-    .stat-icon {
-        margin: 0;
-    }
-}
-
-
-/* Animaciones adicionales */
-@keyframes slideOut {
-    from {
-        opacity: 1;
-        transform: translateY(0);
-    }
-    to {
-        opacity: 0;
-        transform: translateY(-20px);
-    }
-}
-
-@keyframes fadeIn {
-    from {
-        opacity: 0;
-    }
-    to {
-        opacity: 1;
-    }
-}
-
-@keyframes pulse {
-    0% {
-        box-shadow: 0 0 0 0 rgba(233, 30, 99, 0.4);
-    }
-    70% {
-        box-shadow: 0 0 0 10px rgba(233, 30, 99, 0);
-    }
-    100% {
-        box-shadow: 0 0 0 0 rgba(233, 30, 99, 0);
-    }
-}
-
 .pulse {
     animation: pulse 1s;
 }
 
-/* Estilos para el loading popup */
+/* Tooltips */
+.tooltip {
+    position: relative;
+    display: inline-block;
+}
+
+.tooltip .tooltip-text {
+    visibility: hidden;
+    width: 120px;
+    background-color: rgba(0, 0, 0, 0.8);
+    color: #fff;
+    text-align: center;
+    border-radius: 4px;
+    padding: 5px;
+    position: absolute;
+    z-index: 1;
+    bottom: 125%;
+    left: 50%;
+    transform: translateX(-50%);
+    opacity: 0;
+    transition: opacity 0.3s;
+    font-size: 12px;
+    pointer-events: none;
+}
+
+.tooltip .tooltip-text::after {
+    content: "";
+    position: absolute;
+    top: 100%;
+    left: 50%;
+    margin-left: -5px;
+    border-width: 5px;
+    border-style: solid;
+    border-color: rgba(0, 0, 0, 0.8) transparent transparent transparent;
+}
+
+.tooltip:hover .tooltip-text {
+    visibility: visible;
+    opacity: 1;
+}
+
+/* Mensaje de carga y contenedores */
+.loading-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 40px;
+    text-align: center;
+}
+
+.loading-text {
+    color: #555;
+    font-size: 18px;
+    font-weight: 500;
+}
+
 .loading-popup {
     padding: 30px;
 }
@@ -2452,24 +2092,7 @@ body {
     font-size: 16px;
 }
 
-/* Disabled state para el arrow del select */
-.select-arrow.disabled {
-    color: #ccc;
-}
-
-/* Mejorar el hover de opciones */
-.form-select option:hover {
-    background-color: #FFF8E1;
-}
-
-/* Texto muted para información adicional */
-.text-muted {
-    color: #999;
-    font-size: 14px;
-    margin-top: 10px;
-}
-
-/* Estilos para el search select */
+/* Elementos de búsqueda en el PDF */
 .search-select-wrapper {
     position: relative;
     width: 100%;
@@ -2566,22 +2189,6 @@ body {
     border: 2px solid #FF9800;
 }
 
-.result-info {
-    flex: 1;
-}
-
-.result-name {
-    font-weight: 600;
-    color: #333;
-    font-size: 14px;
-    margin-bottom: 3px;
-}
-
-.result-position {
-    font-size: 12px;
-    color: #666;
-}
-
 .no-results {
     padding: 20px;
     text-align: center;
@@ -2653,42 +2260,211 @@ body {
     color: white;
 }
 
-/* Estados de carga */
-.search-loading {
-    padding: 20px;
-    text-align: center;
-}
-
-.search-loading .spinner {
-    width: 30px;
-    height: 30px;
-    margin: 0 auto;
-    border: 3px solid #f3f3f3;
-    border-top: 3px solid #FF9800;
-    border-radius: 50%;
-    animation: spin 1s linear infinite;
-}
-
-/* Destacar coincidencias en la búsqueda */
-.highlight {
-    background-color: #FFEB3B;
-    font-weight: 600;
-}
-
 /* Responsive */
-@media (max-width: 768px) {
-    .search-results {
-        max-height: 200px;
+@media screen and (max-width: 1000px) {
+    .header {
+        flex-direction: column;
+        padding: 10px;
     }
     
-    .result-photo {
+    .header-left, .header-right, .header-center {
+        margin-bottom: 10px;
+    }
+    
+    .control-panel {
+        flex-direction: column;
+    }
+    
+    .search-bar {
+        width: 100%;
+    }
+    
+    .filter-controls {
+        width: 100%;
+        justify-content: space-between;
+    }
+    
+    .department-stats {
+        flex-direction: column;
+        gap: 5px;
+    }
+    
+    .fc-header-toolbar {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+    
+    .fc-toolbar-chunk {
+        margin-bottom: 10px;
+        display: flex;
+        gap: 5px;
+    }
+}
+
+@media screen and (max-width: 900px) {
+    .modal-body {
+        flex-direction: column;
+    }
+    
+    .employee-info-column,
+    .calendar-column {
+        flex: 1 1 100%;
+    }
+    
+    .form-actions {
+        padding: 15px;
+    }
+    
+    .period-stats {
+        grid-template-columns: 1fr;
+        gap: 10px;
+    }
+    
+    .stat-item {
+        display: flex;
+        align-items: center;
+        text-align: left;
+        gap: 15px;
+    }
+    
+    .stat-icon {
+        margin: 0;
+    }
+}
+
+@media screen and (max-width: 768px) {
+    .content {
+        padding: 15px;
+    }
+    
+    .department-card {
+        flex-direction: column;
+        text-align: center;
+    }
+    
+    .department-icon {
+        margin-right: 0;
+        margin-bottom: 15px;
+    }
+    
+    .employees-table th,
+    .employees-table td {
+        padding: 8px 10px;
+    }
+    
+    .employee-profile {
+        flex-direction: column;
+        text-align: center;
+    }
+    
+    .calendar-container {
+        height: 350px;
+    }
+    
+    .calendar-info {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+    
+    .day-box {
         width: 35px;
         height: 35px;
+        font-size: 12px;
+    }
+    
+    .modal-content {
+        margin: 20px auto;
+        width: 95%;
+    }
+    
+    .history-header {
+        flex-direction: column;
+        gap: 10px;
+    }
+    
+    .history-controls {
+        flex-direction: column;
+        width: 100%;
+    }
+    
+    .date-filter {
+        flex-wrap: wrap;
+        width: 100%;
+    }
+    
+    .date-input-group {
+        flex-direction: column;
+        align-items: flex-start;
+        width: 100%;
+    }
+    
+    .date-input-group input[type="date"] {
+        width: 100%;
+    }
+    
+    .btn-filter,
+    .btn-search-employee {
+        width: 100%;
+        justify-content: center;
+    }
+    
+    .search-employee-modal {
+        width: 95%;
+        max-height: 80vh;
+        display: flex;
+        flex-direction: column;
+    }
+    
+    .modal-search-results {
+        flex: 1;
+        max-height: none;
+    }
+    
+    .pdf-modal {
+        width: 95%;
+        margin: 20px auto;
+    }
+}
+
+@media screen and (max-width: 480px) {
+    .department-stats {
+        flex-direction: column;
+        gap: 5px;
+    }
+    
+    .date-range {
+        width: 100%;
+    }
+    
+    .day-box {
+        width: 30px;
+        height: 30px;
+        font-size: 11px;
+    }
+    
+    .modal-header h2 {
+        font-size: 18px;
+    }
+    
+    .employee-photo {
+        width: 60px;
+        height: 60px;
+    }
+    
+    .days-available-badge {
+        padding: 8px 12px;
+    }
+    
+    #modalAvailableDays {
+        font-size: 22px;
+    }
+    
+    .days-text {
+        font-size: 12px;
     }
     
     .selected-employee {
         flex-direction: column;
-        align-items: flex-start;
         gap: 10px;
     }
     
