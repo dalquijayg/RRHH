@@ -41,6 +41,7 @@ const PagoVacaciones = document.getElementById('solicitarPagoVacacionesBtn');
 const GestionarVacaciones = document.getElementById('gestionarVacacionesBtn');
 const GestionarPagoVacaciones = document.getElementById('procesarPagosVacacionesBtn');
 const GestionProcesoPagoVacaciones = document.getElementById('gestionProcesoVacacionesBtn');
+const PagoBonificaciones = document.getElementById('registrarAdicionalesBtn');
 
 // Inicializar conexión con la base de datos
 async function getConnection() {
@@ -1427,6 +1428,44 @@ GestionProcesoPagoVacaciones.addEventListener('click', async () => {
             // Tiene permiso, abrir la ventana
             mostrarNotificacion('Abriendo Procesos Pagos...', 'success');
             ipcRenderer.send('open_Ventana_GestionPagosVacaciones');
+        } else {
+            // No tiene permiso, mostrar error
+            Swal.fire({
+                icon: 'error',
+                title: 'Acceso denegado',
+                text: 'No tienes permisos para acceder a esta funcionalidad.'
+            });
+        }
+    } catch (error) {
+        console.error('Error al verificar permisos:', error);
+        mostrarNotificacion('Error al verificar permisos', 'error');
+    }
+});
+PagoBonificaciones.addEventListener('click', async () => {
+    try {
+        // Mostrar notificación de verificación
+        mostrarNotificacion('Verificando permisos...', 'info');
+        
+        // Obtener el ID del usuario actual
+        const idPersonal = userData.IdPersonal;
+        
+        // Verificar permisos en la base de datos
+        const connection = await getConnection();
+        
+        const permisosQuery = `
+            SELECT COUNT(*) AS tienePermiso 
+            FROM TransaccionesRRHH 
+            WHERE IdPersonal = ${idPersonal} AND Codigo = 118
+        `;
+        
+        const resultado = await connection.query(permisosQuery);
+        await connection.close();
+        
+        // Verificar si tiene permiso (si el conteo es mayor a 0)
+        if (resultado[0].tienePermiso > 0) {
+            // Tiene permiso, abrir la ventana
+            mostrarNotificacion('Abriendo Pagos Bonificaciones...', 'success');
+            ipcRenderer.send('open_Ventana_Pagosbonis');
         } else {
             // No tiene permiso, mostrar error
             Swal.fire({

@@ -21,6 +21,7 @@ let PagoVacacionesWindow = null;
 let GestionarVacacionesWindow = null;
 let GestionarPagoVacacionesWindow = null;
 let EstadoPagosVacacionesWindow = null;
+let PagosBonisWindow = null;
 
 if(process.env.NODE_ENV !=='production'){
     require('electron-reload')(__dirname,{
@@ -496,6 +497,35 @@ function createEstadoPagosWindow() {
         EstadoPagosVacacionesWindow = null;
     });
 }
+function createPagosBonisWindow() {
+    // Verifica si la ventana ya está abierta
+    if (PagosBonisWindow) {
+        // Si ya está abierta, simplemente enfócala
+        if (PagosBonisWindow.isMinimized()) PagosBonisWindow.restore();
+        PagosBonisWindow.focus();
+        return;
+    }
+    
+    // Crea una nueva ventana si no existe
+    PagosBonisWindow = new BrowserWindow({
+        width: 1200,
+        height: 800,
+        webPreferences: {
+            nodeIntegration: true,
+            contextIsolation: false,
+        },
+        icon: path.join(__dirname, 'LogoRecursos.ico'),
+        title: 'Permisos',
+        autoHideMenuBar: true
+    });
+
+    PagosBonisWindow.loadURL(`file://${__dirname}/Vistas/Bonificaciones.html`);
+    
+    // Elimina la referencia a la ventana cuando se cierre
+    PagosBonisWindow.on('closed', () => {
+        PagosBonisWindow = null;
+    });
+}
 // Añade este receptor para abrir la ventana de pago nómina
 ipcMain.on('open_pago_nomina', () => {
     createPagoNominaWindow();
@@ -545,4 +575,7 @@ ipcMain.on('open_Ventana_GestionPagoVacaciones', () => {
 });
 ipcMain.on('open_Ventana_GestionPagosVacaciones', () => {
     createEstadoPagosWindow();
+});
+ipcMain.on('open_Ventana_Pagosbonis', () => {
+    createPagosBonisWindow();
 });

@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bonificaciones - Recursos Humanos</title>
+    <link rel="stylesheet" href="../Disenos/Bonis/Bonificaciones.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+</head>
+<body>
+    <!-- Elementos decorativos de fondo -->
+    <div class="bg-decoration bubble bubble1"></div>
+    <div class="bg-decoration bubble bubble2"></div>
+    <div class="bg-decoration bubble bubble3"></div>
+    <div class="bg-decoration bubble bubble4"></div>
+    <div class="bg-decoration bubble bubble5"></div>
+    
+    <div class="bg-decoration pattern pattern1"></div>
+    <div class="bg-decoration pattern pattern2"></div>
+    
+    <div class="bg-decoration wave wave1"></div>
+    <div class="bg-decoration wave wave2"></div>
+
+    <div class="container">
+        <!-- Header Section - Más compacto -->
+        <div class="header-section">
+            <div class="header-content">
+                <div class="logo-section">
+                    <img src="../Imagenes/Logo Recursos Humanos new.png" alt="Logo RRHH" class="logo">
+                    <div class="color-strip">
+                        <div class="color-strip-item color-red"></div>
+                        <div class="color-strip-item color-blue"></div>
+                        <div class="color-strip-item color-green"></div>
+                        <div class="color-strip-item color-yellow"></div>
+                        <div class="color-strip-item color-orange"></div>
+                    </div>
+                </div>
+                
+                <div class="title-section">
+                    <h1><i class="fas fa-gift"></i> Bonificaciones</h1>
+                    <p class="subtitle">Gestión mensual del personal</p>
+                </div>
+                
+                <!-- Filtros integrados en el header -->
+                <div class="filters-inline">
+                    <div class="filter-group">
+                        <label for="mes-selector">Mes</label>
+                        <select id="mes-selector" class="filter-select">
+                            <option value="">Seleccionar</option>
+                            <option value="1">Enero</option>
+                            <option value="2">Febrero</option>
+                            <option value="3">Marzo</option>
+                            <option value="4">Abril</option>
+                            <option value="5">Mayo</option>
+                            <option value="6">Junio</option>
+                            <option value="7">Julio</option>
+                            <option value="8">Agosto</option>
+                            <option value="9">Septiembre</option>
+                            <option value="10">Octubre</option>
+                            <option value="11">Noviembre</option>
+                            <option value="12">Diciembre</option>
+                        </select>
+                    </div>
+
+                    <div class="filter-group">
+                        <label for="anio-selector">Año</label>
+                        <select id="anio-selector" class="filter-select">
+                            <!-- Se llenará dinámicamente -->
+                        </select>
+                    </div>
+
+                    <div class="filter-group">
+                        <button id="generar-detalle" class="btn-generate" disabled>
+                            <i class="fas fa-list-alt"></i> Generar
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Loading Section -->
+        <div id="loading-section" class="loading-section" style="display: none;">
+            <div class="loading-spinner">
+                <div class="spinner"></div>
+                <p>Cargando personal...</p>
+            </div>
+        </div>
+
+        <!-- Personal Section - Formato Tabla -->
+        <div id="personal-section" class="personal-section" style="display: none;">
+            <div class="section-header">
+                <div class="header-info">
+                    <h2><i class="fas fa-users"></i> Personal del Departamento</h2>
+                    <div class="summary-info">
+                        <span id="total-empleados" class="summary-badge">0 empleados</span>
+                        <span id="total-general" class="summary-badge total">Total: Q0.00</span>
+                    </div>
+                </div>
+                <div class="search-container-header">
+                    <div class="search-box-header">
+                        <i class="fas fa-search"></i>
+                        <input type="text" id="search-input" placeholder="Buscar empleado o puesto..." />
+                        <button id="clear-search" title="Limpiar búsqueda">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
+                </div>
+                <div class="actions-header">
+                    <button id="limpiar-todo" class="btn-clear-small">
+                        <i class="fas fa-eraser"></i> Limpiar
+                    </button>
+                    <button id="guardar-bonificaciones" class="btn-save-small" disabled>
+                        <i class="fas fa-save"></i> Guardar
+                    </button>
+                </div>
+            </div>
+
+            <!-- Tabla de Personal -->
+            <div class="table-container">
+                <table id="personal-table" class="personal-table">
+                    <thead>
+                        <tr>
+                            <th class="col-empleado sortable" data-sort="empleado" data-tooltip="Click para ordenar por nombre">
+                                Empleado
+                            </th>
+                            <th class="col-puesto sortable" data-sort="puesto" data-tooltip="Click para ordenar por puesto">
+                                Puesto
+                            </th>
+                            <th class="col-bonificacion sortable" data-sort="bonificacion" data-tooltip="Click para ordenar por bonificación">
+                                Bonificación
+                            </th>
+                            <th class="col-credito sortable" data-sort="credito" data-tooltip="Click para ordenar por descuento crédito">
+                                Desc. Crédito
+                            </th>
+                            <th class="col-vale sortable" data-sort="vale" data-tooltip="Click para ordenar por descuento vale">
+                                Desc. Vale
+                            </th>
+                            <th class="col-documento" data-tooltip="Número de documento">
+                                No. Doc.
+                            </th>
+                            <th class="col-no-vale" data-tooltip="Número de vale">
+                                No. Vale
+                            </th>
+                            <th class="col-adicional sortable" data-sort="adicional" data-tooltip="Click para ordenar por monto adicional">
+                                Adicional
+                            </th>
+                            <th class="col-observaciones" data-tooltip="Observaciones del monto adicional">
+                                Observaciones
+                            </th>
+                            <th class="col-total sortable" data-sort="total" data-tooltip="Click para ordenar por total">
+                                Total
+                            </th>
+                        </tr>
+                    </thead>
+                    <tbody id="personal-tbody">
+                        <!-- Se llenará dinámicamente -->
+                    </tbody>
+                    <tfoot>
+                        <tr class="totals-row">
+                            <td colspan="2"><strong>TOTALES:</strong></td>
+                            <td id="total-bonificaciones"><strong>Q0.00</strong></td>
+                            <td id="total-creditos"><strong>Q0.00</strong></td>
+                            <td id="total-vales"><strong>Q0.00</strong></td>
+                            <td colspan="2"></td>
+                            <td id="total-adicionales"><strong>Q0.00</strong></td>
+                            <td></td>
+                            <td id="total-final"><strong>Q0.00</strong></td>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- Template para filas de empleados -->
+    <template id="empleado-row-template">
+        <tr class="empleado-row" data-id="">
+            <td class="empleado-nombre"></td>
+            <td class="empleado-puesto"></td>
+            <td>
+                <input type="number" class="input-bonificacion table-input" placeholder="0.00" step="0.01" min="0">
+            </td>
+            <td>
+                <input type="number" class="input-credito table-input" placeholder="0.00" step="0.01" min="0">
+            </td>
+            <td>
+                <input type="number" class="input-vale table-input" placeholder="0.00" step="0.01" min="0">
+            </td>
+            <td>
+                <input type="text" class="input-documento table-input-text" placeholder="Documento">
+            </td>
+            <td>
+                <input type="text" class="input-no-vale table-input-text" placeholder="Vale">
+            </td>
+            <td>
+                <input type="number" class="input-adicional table-input" placeholder="0.00" step="0.01">
+            </td>
+            <td>
+                <input type="text" class="input-observaciones table-input-text" placeholder="Observaciones...">
+            </td>
+            <td class="total-cell">
+                <span class="total-amount">Q0.00</span>
+            </td>
+        </tr>
+    </template>
+
+    <script src="../Logica/Bonis/Bonificaciones.js"></script>
+</body>
+</html>
