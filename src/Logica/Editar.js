@@ -2616,11 +2616,6 @@ async function guardarCambiosLaboral() {
             hayErrores = true;
         }
         
-        if (!planilla.value) {
-            planilla.classList.add('invalid');
-            hayErrores = true;
-        }
-        
         if (!inicioLaboral.value) {
             inicioLaboral.classList.add('invalid');
             hayErrores = true;
@@ -2628,15 +2623,6 @@ async function guardarCambiosLaboral() {
         
         if (!estadoLaboral.value) {
             estadoLaboral.classList.add('invalid');
-            hayErrores = true;
-        }
-        if (!salarioBase.value) {
-            salarioBase.classList.add('invalid');
-            hayErrores = true;
-        }
-        
-        if (!bonificacion.value) {
-            bonificacion.classList.add('invalid');
             hayErrores = true;
         }
         if (hayErrores) {
@@ -2667,7 +2653,7 @@ async function guardarCambiosLaboral() {
             IdSucuDepa: departamento.value,
             IdPuesto: puesto.value,
             TipoPersonal: tipoPersonal.value,
-            IdPlanilla: planilla.value,
+            IdPlanilla: planilla.value || null, // Permitir NULL
             InicioLaboral: inicioLaboral.value,
             FechaContrato: fechaContrato.value || null,
             FechaPlanilla: fechaPlanilla.value || null,
@@ -2678,8 +2664,8 @@ async function guardarCambiosLaboral() {
             SalarioDiario: salarioDiario.value ? parseFloat(salarioDiario.value) : null,
             SalarioQuincena: salarioQuincena.value ? parseFloat(salarioQuincena.value) : null,
             SalarioQuincenaFinMes: salarioQuincenaFinMes.value ? parseFloat(salarioQuincenaFinMes.value) : null,
-            SalarioBase: parseFloat(salarioBase.value),
-            Bonificacion: parseFloat(bonificacion.value)
+            SalarioBase: salarioBase.value ? parseFloat(salarioBase.value) : null, // Permitir NULL
+            Bonificacion: bonificacion.value ? parseFloat(bonificacion.value) : null // Permitir NULL
         };
         
         // Formar el nombre completo
@@ -5533,7 +5519,7 @@ function mostrarModalFoto() {
     currentPhoto.src = employeePhoto.src;
     
     // Restablecer la imagen de selección para nueva foto
-    newPhoto.src = '../Imagenes/upload-photo.png';
+    newPhoto.src = '../Imagenes/user-default.png';
     
     // Limpiar archivo seleccionado
     selectedFile = null;
