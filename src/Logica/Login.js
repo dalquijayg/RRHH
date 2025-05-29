@@ -1,4 +1,4 @@
-const odbc = require('odbc');
+const { connectionString } = require('../Conexion/Conexion');
 const path = require('path');
 const { json } = require('stream/consumers');
 const { authenticator } = require('otplib');
@@ -6,29 +6,6 @@ const qrcode = require('qrcode');
 const Swal = require('sweetalert2');
 const conexion = 'DSN=recursos2'; // Asegúrate de tener configurado el DSN correctamente
 
-async function connectionString() {
-    try {
-            const connection = await odbc.connect(conexion, {
-                // Añadir opciones específicas para manejar datos binarios
-                binaryAsString: true,  // Tratar datos binarios como cadenas
-                bigint: 'string'       // Manejar números grandes
-            });
-            
-            // Configuración adicional de la conexión
-            await connection.query('SET NAMES utf8mb4');
-            await connection.query('SET character_set_results = utf8mb4');
-            
-            return connection;
-        } catch (error) {
-            console.error('Error de conexión:', error);
-            Swal.fire({
-                icon: 'error',
-                title: 'Error de conexión',
-                text: 'No se pudo conectar a la base de datos. Por favor intente nuevamente.'
-            });
-            throw error;
-        }
-}
 
 async function verificarDPI(dpi) {
     try {
@@ -79,7 +56,7 @@ async function verificarDPI(dpi) {
 
 async function guardarSecret2FA(id, secret) {
     try {
-        const connection = await odbc.connect(conexion);
+        const connection = await connectionString();
         await connection.query('UPDATE personal SET Secret_2FA = ? WHERE IdPersonal = ?', [secret, id]);
         await connection.close();
         return true;

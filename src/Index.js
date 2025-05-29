@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain } = require('electron');
+const { app, BrowserWindow, ipcMain,dialog } = require('electron');
 const path = require('path');
 const {autoUpdater} = require('electron-updater')
 const log = require('electron-log');
@@ -578,4 +578,11 @@ ipcMain.on('open_Ventana_GestionPagosVacaciones', () => {
 });
 ipcMain.on('open_Ventana_Pagosbonis', () => {
     createPagosBonisWindow();
+});
+ipcMain.handle('show-save-dialog', async (event, options) => {
+    const result = await dialog.showOpenDialog(options);
+    return {
+        canceled: result.canceled,
+        filePath: result.canceled ? null : result.filePaths[0]
+    };
 });

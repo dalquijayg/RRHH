@@ -1,11 +1,8 @@
-const odbc = require('odbc');
+const { connectionString } = require('../Conexion/Conexion');
 const path = require('path');
 const { writeFile } = require('fs').promises;
 const XLSX = require('xlsx');
 const Swal = require('sweetalert2');
-
-// Configuración de conexión a la base de datos
-const conexion = 'DSN=recursos2';
 
 // Variables para la paginación
 let currentPage = 1;
@@ -26,29 +23,6 @@ let datosAutorizacion = null;
 let mapaAutorizaciones = new Map(); // NoCuenta -> NoAutorizacion
 let detallesColaboradoresMap = new Map(); // IdPagoPlanilla -> [detalles de colaboradores]
 
-// Función para establecer conexión a la base de datos
-async function connectionString() {
-    try {
-        const connection = await odbc.connect(conexion, {
-            binaryAsString: true,
-            bigint: 'string'
-        });
-        
-        // Configuración adicional de la conexión
-        await connection.query('SET NAMES utf8mb4');
-        await connection.query('SET character_set_results = utf8mb4');
-        
-        return connection;
-    } catch (error) {
-        console.error('Error de conexión:', error);
-        await Swal.fire({
-            icon: 'error',
-            title: 'Error de conexión',
-            text: 'No se pudo conectar a la base de datos. Por favor intente nuevamente.'
-        });
-        throw error;
-    }
-}
 
 // Función para verificar qué planillas ya están guardadas
 async function obtenerPlanillasGuardadas() {
@@ -86,7 +60,22 @@ async function obtenerPlanillasGuardadas() {
 async function cargarPlanillas() {
     try {
         const connection = await connectionString();
-        const planillas = await connection.query('SELECT IdPlanilla, Nombre_Planilla FROM planillas ORDER BY Nombre_Planilla');
+        
+        // Consulta modificada para incluir la división
+        const planillas = await connection.query(`
+            SELECT 
+                p.IdPlanilla, 
+                CASE 
+                    WHEN d.Nombre IS NOT NULL THEN CONCAT(d.Nombre, ' - ', p.Nombre_Planilla)
+                    ELSE p.Nombre_Planilla
+                END AS Nombre_Planilla_Completo,
+                p.Nombre_Planilla,
+                d.Nombre AS NombreDivision
+            FROM planillas p
+            LEFT JOIN divisiones d ON p.Division = d.IdDivision
+            ORDER BY d.Nombre ASC, p.Nombre_Planilla ASC
+        `);
+        
         await connection.close();
         
         // Obtener las planillas ya guardadas
@@ -111,11 +100,11 @@ async function cargarPlanillas() {
             
             // Marcar visualmente las planillas ya guardadas
             if (yaGuardada) {
-                option.textContent = `${planilla.Nombre_Planilla} (✓ Guardada)`;
+                option.textContent = `${planilla.Nombre_Planilla_Completo} (✓ Guardada)`;
                 option.classList.add('planilla-guardada');
                 option.setAttribute('data-guardada', 'true');
             } else {
-                option.textContent = planilla.Nombre_Planilla;
+                option.textContent = planilla.Nombre_Planilla_Completo;
             }
             
             planillaSelect.appendChild(option);
@@ -260,7 +249,7 @@ async function obtenerDatosNomina() {
         
         console.log('Filtros aplicados:', { planillaId, tipoQuincena, mes, anio });
         
-        // Construir la consulta SQL para personal activo
+        // Construir la consulta SQL para personal activo (MODIFICADA)
         let queryActivos = `
             SELECT
                 personal.IdPersonal, 
@@ -270,6 +259,10 @@ async function obtenerDatosNomina() {
                 departamentos.NombreDepartamento, 
                 planillas.IdPlanilla, 
                 planillas.Nombre_Planilla, 
+                CASE 
+                    WHEN divisiones.Nombre IS NOT NULL THEN CONCAT(divisiones.Nombre, ' - ', planillas.Nombre_Planilla)
+                    ELSE planillas.Nombre_Planilla
+                END AS Nombre_Planilla_Completo,
                 planillas.EsCapital, 
                 planillas.NoCentroTrabajo,
                 planillas.Division,
@@ -306,7 +299,7 @@ async function obtenerDatosNomina() {
             finQuincena = `${anio}-${mes.padStart(2, '0')}-${ultimoDia}`;
         }
         
-        // Construir la consulta SQL para personal con bajas en el periodo
+        // Construir la consulta SQL para personal con bajas en el periodo (MODIFICADA)
         let queryBajas = `
             SELECT
                 personal.IdPersonal, 
@@ -316,6 +309,10 @@ async function obtenerDatosNomina() {
                 departamentos.NombreDepartamento, 
                 planillas.IdPlanilla, 
                 planillas.Nombre_Planilla, 
+                CASE 
+                    WHEN divisiones.Nombre IS NOT NULL THEN CONCAT(divisiones.Nombre, ' - ', planillas.Nombre_Planilla)
+                    ELSE planillas.Nombre_Planilla
+                END AS Nombre_Planilla_Completo,
                 planillas.EsCapital, 
                 planillas.NoCentroTrabajo,
                 planillas.Division,
@@ -345,6 +342,7 @@ async function obtenerDatosNomina() {
                 dr.FechaFinColaborador >= ? AND
                 dr.FechaFinColaborador <= ?`;
         
+        // El resto de la función permanece igual...
         // Agregar filtros
         const params = [];
         const paramsBajas = [inicioQuincena, finQuincena];
@@ -358,8 +356,8 @@ async function obtenerDatosNomina() {
         }
         
         // Ordenar los resultados
-        queryActivos += ' ORDER BY planillas.Nombre_Planilla ASC, NombreCompleto ASC';
-        queryBajas += ' ORDER BY planillas.Nombre_Planilla ASC, NombreCompleto ASC';
+        queryActivos += ' ORDER BY divisiones.Nombre ASC, planillas.Nombre_Planilla ASC, NombreCompleto ASC';
+        queryBajas += ' ORDER BY divisiones.Nombre ASC, planillas.Nombre_Planilla ASC, NombreCompleto ASC';
         
         // Ejecutar las consultas
         const connection = await connectionString();
@@ -554,7 +552,7 @@ function renderizarTabla(datos) {
             <td>${empleado.IdPersonal}</td>
             <td class="highlight">${nombreCompleto}</td>
             <td>${empleado.NombreDepartamento}</td>
-            <td>${empleado.Nombre_Planilla}</td>
+            <td>${empleado.Nombre_Planilla_Completo}</td>
             <td>
                 <span class="status-badge ${empleado.EsCapital ? 'capital' : 'regional'}">
                     ${empleado.EsCapital ? 'Capital' : 'Regional'}
@@ -765,295 +763,6 @@ function formatearFecha(fecha) {
     const anio = d.getFullYear();
     
     return `${dia}/${mes}/${anio}`;
-}
-
-// Función para exportar a Excel con etiquetas de suspensiones
-async function exportarExcel() {
-    try {
-        if (filteredData.length === 0) {
-            await Swal.fire({
-                icon: 'warning',
-                title: 'Sin datos',
-                text: 'No hay datos para exportar.'
-            });
-            return;
-        }
-        
-        // Mostrar mensaje de carga
-        Swal.fire({
-            title: 'Generando Excel',
-            html: 'Por favor espere mientras se genera el archivo...',
-            allowOutsideClick: false,
-            didOpen: () => {
-                Swal.showLoading();
-            }
-        });
-        
-        // Obtener valores de filtros
-        const tipoQuincena = document.getElementById('tipoQuincenaFilter').value === 'normal' 
-            ? 'Planilla_Quincela' 
-            : 'Planilla_Fin_Mes';
-        
-        const mes = parseInt(document.getElementById('mesFilter').value);
-        const mesNombre = document.getElementById('mesFilter').options[document.getElementById('mesFilter').selectedIndex].text;
-        const anio = parseInt(document.getElementById('anioFilter').value);
-        
-        // Crear un nuevo libro de Excel
-        const wb = XLSX.utils.book_new();
-        
-        // Determinar fechas de inicio y fin de la quincena
-        let fechaInicio, fechaFin;
-        
-        if (document.getElementById('tipoQuincenaFilter').value === 'normal') {
-            // Primera quincena: del 1 al 15
-            fechaInicio = new Date(anio, mes - 1, 1);
-            fechaFin = new Date(anio, mes - 1, 15);
-        } else {
-            // Segunda quincena: del 16 al último día del mes
-            fechaInicio = new Date(anio, mes - 1, 16);
-            const ultimoDiaMes = new Date(anio, mes, 0).getDate();
-            fechaFin = new Date(anio, mes - 1, ultimoDiaMes);
-        }
-        
-        // Filtrar colaboradores que son altas
-        const colaboradoresAltas = filteredData.filter(row => {
-            if (row.FechaPlanilla) {
-                const fechaPlanilla = parsearFechaISO(row.FechaPlanilla);
-                return fechaPlanilla >= fechaInicio && fechaPlanilla <= fechaFin;
-            }
-            return false;
-        });
-        
-        // Obtener bajas del periodo
-        const colaboradoresBajas = await obtenerBajasColaboradores(
-            mes.toString(),
-            anio.toString(),
-            document.getElementById('tipoQuincenaFilter').value
-        );
-        
-        console.log(`Altas: ${colaboradoresAltas.length}, Bajas: ${colaboradoresBajas.length}`);
-        
-        const tipoQuincenaField = document.getElementById('tipoQuincenaFilter').value;
-        const campoSalario = tipoQuincenaField === 'normal' ? 'SalarioQuincena' : 'SalarioQuincenaFinMes';
-        
-        // Obtener información de suspensiones para cada empleado
-        const datosConSuspensiones = [];
-        
-        for (const empleado of filteredData) {
-            // Obtener detalles de las suspensiones del empleado
-            const suspensiones = await obtenerDetallesSuspensiones(
-                empleado.IdPersonal, 
-                mes, 
-                anio, 
-                tipoQuincenaField
-            );
-            
-            // Crear etiqueta de suspensiones si las hay
-            let etiquetaSuspension = '';
-            if (suspensiones.length > 0) {
-                etiquetaSuspension = 'Suspensión:\n';
-                suspensiones.forEach(susp => {
-                    etiquetaSuspension += `Suspendido del\n${formatearFecha(susp.FechaInicio)} al\n${formatearFecha(susp.FechaFin)}.\n`;
-                });
-            }
-            
-            // Crear etiqueta de baja si aplica
-            let etiquetaBaja = '';
-            if (empleado.TipoBaja) {
-                etiquetaBaja = `${empleado.TipoBaja}:\n${formatearFecha(empleado.FechaFinColaborador)}`;
-            }
-            
-            datosConSuspensiones.push({
-                ...empleado,
-                etiquetaSuspension,
-                etiquetaBaja
-            });
-        }
-        
-        // Ordenar datos
-        const datosOrdenados = [...datosConSuspensiones].sort((a, b) => {
-            // Primero ordenar por División
-            if (a.NombreDivision !== b.NombreDivision) {
-                return (a.NombreDivision || '').localeCompare(b.NombreDivision || '');
-            }
-            
-            // Si están en la misma División, ordenar por NoCentroTrabajo
-            const centroTrabajoA = parseInt(a.NoCentroTrabajo || '0', 10);
-            const centroTrabajoB = parseInt(b.NoCentroTrabajo || '0', 10);
-            return centroTrabajoA - centroTrabajoB;
-        });
-        
-        // Preparar datos generales para la primera hoja con etiquetas
-        const excelData = datosOrdenados.map(row => ({
-            'ID': row.IdPersonal,
-            'Nombre Completo': row.NombreCompleto,
-            'Departamento': row.NombreDepartamento,
-            'Planilla': `${row.NombreDivision || ''} - ${row.Nombre_Planilla}`,
-            'Centro Trabajo': row.NoCentroTrabajo || '',
-            'Tipo': row.EsCapital ? 'Capital' : 'Regional',
-            'Salario Diario': row.SalarioDiario,
-            'Salario Quincenal': row[campoSalario],
-            'Días Laborados': row.DiasLaborados,
-            'Días Suspendidos': row.DiasSuspendidos,
-            'Salario Proporcional': row.SalarioProporcional,
-            'Descuento Judicial': row.DescuentoJudicial,
-            'No. Documento': row.NoDocumentoJudicial,
-            'No. Cuenta': row.NoCuenta || '',
-            'Salario a Pagar': row.SalarioFinalAPagar,
-            'Fecha Planilla': formatearFecha(row.FechaPlanilla),
-            'Observaciones': (row.etiquetaSuspension || '') + (row.etiquetaBaja || '')
-        }));
-        
-        // Preparar datos de altas para la segunda hoja
-        const altasData = colaboradoresAltas.map(row => ({
-            'ID': row.IdPersonal,
-            'Nombre Completo': row.NombreCompleto,
-            'Departamento': row.NombreDepartamento,
-            'Planilla': `${row.NombreDivision || ''} - ${row.Nombre_Planilla}`,
-            'Fecha de Alta': formatearFecha(row.FechaPlanilla),
-            'Salario Base': row.SalarioBase || 0,
-            'Salario Quincenal': row[campoSalario],
-            'Tipo': row.EsCapital ? 'Capital' : 'Regional',
-            'No. Cuenta': row.NoCuenta || ''
-        }));
-        
-        // Preparar datos de bajas para la tercera hoja
-        const bajasData = colaboradoresBajas.map(row => ({
-            'ID': row.IdPersonal,
-            'Nombre Completo': row.NombreCompleto,
-            'Departamento': row.NombreDepartamento,
-            'Planilla': row.Nombre_Planilla || '',
-            'Tipo de Baja': row.TipoBaja,
-            'Fecha Fin': formatearFecha(row.FechaFinColaborador),
-            'Salario Base': row.SalarioBase || 0,
-            'Tipo': row.EsCapital ? 'Capital' : 'Regional',
-            'No. Cuenta': row.NoCuenta || ''
-        }));
-        
-        // Crear hojas de cálculo
-        const wsGeneral = XLSX.utils.json_to_sheet(excelData);
-        const wsAltas = XLSX.utils.json_to_sheet(altasData.length > 0 ? altasData : [{ 'Sin altas en el periodo': '' }]);
-        const wsBajas = XLSX.utils.json_to_sheet(bajasData.length > 0 ? bajasData : [{ 'Sin bajas en el periodo': '' }]);
-        
-        // Aplicar estilo de altura de fila para las celdas con etiquetas
-        const range = XLSX.utils.decode_range(wsGeneral['!ref']);
-        wsGeneral['!rows'] = [];
-        
-        for (let rowNum = 1; rowNum <= range.e.r; rowNum++) {
-            const cellAddress = XLSX.utils.encode_cell({ r: rowNum, c: 16 }); // Columna 'Observaciones'
-            if (wsGeneral[cellAddress] && wsGeneral[cellAddress].v && wsGeneral[cellAddress].v.length > 0) {
-                // Contar líneas en el texto
-                const lineCount = (wsGeneral[cellAddress].v.match(/\n/g) || []).length + 1;
-                wsGeneral['!rows'][rowNum] = { hpt: lineCount * 15 }; // 15 puntos por línea
-            }
-        }
-        
-        // Establecer ancho de columnas
-        const colWidths = [
-            { wch: 8 },   // ID
-            { wch: 30 },  // Nombre Completo
-            { wch: 20 },  // Departamento
-            { wch: 25 },  // Planilla
-            { wch: 12 },  // Centro Trabajo
-            { wch: 10 },  // Tipo
-            { wch: 12 },  // Salario Diario
-            { wch: 14 },  // Salario Quincenal
-            { wch: 12 },  // Días Laborados
-            { wch: 14 },  // Días Suspendidos
-            { wch: 16 },  // Salario Proporcional
-            { wch: 16 },  // Descuento Judicial
-            { wch: 15 },  // No. Documento
-            { wch: 15 },  // No. Cuenta
-            { wch: 14 },  // Salario a Pagar
-            { wch: 14 },  // Fecha Planilla
-            { wch: 30 }   // Observaciones
-        ];
-        wsGeneral['!cols'] = colWidths;
-        
-        // Agregar las hojas al libro
-        XLSX.utils.book_append_sheet(wb, wsGeneral, 'Nómina General');
-        XLSX.utils.book_append_sheet(wb, wsAltas, 'Altas del Periodo');
-        XLSX.utils.book_append_sheet(wb, wsBajas, 'Bajas del Periodo');
-        
-        // Crear hoja de resumen
-        const resumenData = [{
-            'Concepto': 'Total de Colaboradores',
-            'Cantidad': filteredData.length
-        }, {
-            'Concepto': 'Altas en el Periodo',
-            'Cantidad': colaboradoresAltas.length
-        }, {
-            'Concepto': 'Bajas en el Periodo',
-            'Cantidad': colaboradoresBajas.length
-        }, {
-            'Concepto': 'Despidos',
-            'Cantidad': colaboradoresBajas.filter(b => b.IdEstadoPersonal === 2).length
-        }, {
-            'Concepto': 'Renuncias',
-            'Cantidad': colaboradoresBajas.filter(b => b.IdEstadoPersonal === 3).length
-        }, {
-            'Concepto': 'Periodo',
-            'Cantidad': document.getElementById('tipoQuincenaFilter').value === 'normal' 
-                ? `1 al 15 de ${mesNombre} ${anio}` 
-                : `16 al ${fechaFin.getDate()} de ${mesNombre} ${anio}`
-        }];
-        
-        const wsResumen = XLSX.utils.json_to_sheet(resumenData);
-        XLSX.utils.book_append_sheet(wb, wsResumen, 'Resumen');
-        
-        // Generar buffer
-        const excelBuffer = XLSX.write(wb, { bookType: 'xlsx', type: 'buffer' });
-        
-        // Crear nombre de archivo
-        const fileName = `Nomina_${tipoQuincena}_${mesNombre}_${anio}_con_altas_bajas.xlsx`;
-        
-        try {
-            // Guardar archivo en disco
-            const desktopPath = path.join(require('os').homedir(), 'Desktop');
-            const filePath = path.join(desktopPath, fileName);
-            
-            await writeFile(filePath, excelBuffer);
-            
-            Swal.fire({
-                icon: 'success',
-                title: 'Excel Generado',
-                text: `El archivo ha sido guardado en tu escritorio como ${fileName}`,
-                html: `<p>El archivo contiene:</p>
-                       <ul style="text-align: left;">
-                         <li>Hoja de Nómina General con observaciones</li>
-                         <li>Hoja de Altas del Periodo (${colaboradoresAltas.length} altas)</li>
-                         <li>Hoja de Bajas del Periodo (${colaboradoresBajas.length} bajas)</li>
-                         <li>Hoja de Resumen con estadísticas</li>
-                       </ul>`
-            });
-        } catch (saveError) {
-            console.error('Error al guardar el archivo:', saveError);
-            
-            // Si falla, ofrecer descarga directa
-            Swal.fire({
-                icon: 'warning',
-                title: 'No se pudo guardar automáticamente',
-                text: 'Se iniciará la descarga del archivo.'
-            });
-            
-            // Código para descargar
-            const blob = new Blob([excelBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = fileName;
-            a.click();
-            URL.revokeObjectURL(url);
-        }
-        
-    } catch (error) {
-        console.error('Error al exportar a Excel:', error);
-        Swal.fire({
-            icon: 'error',
-            title: 'Error',
-            text: 'Ocurrió un error al generar el archivo Excel.'
-        });
-    }
 }
 
 // Funciones para obtener información adicional
@@ -4639,7 +4348,728 @@ function inicializarCargaArchivos() {
         return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
     }
 }
-
+// Función principal para generar Excel
+async function generarExcel() {
+    try {
+        // Mostrar diálogo de selección de filtros
+        const { value: formValues } = await Swal.fire({
+            title: 'Generar reportes Excel',
+            html: `
+                <div style="text-align: left; margin-bottom: 20px;">
+                    <p>Seleccione los parámetros para generar los reportes:</p>
+                    <p style="color: #666; font-size: 14px;">Se generará un archivo Excel por cada planilla.</p>
+                </div>
+                <div style="display: flex; flex-direction: column; gap: 15px; text-align: left;">
+                    <div>
+                        <label for="excelTipoQuincena" style="display: block; margin-bottom: 5px; font-weight: bold;">Tipo de Quincena:</label>
+                        <select id="excelTipoQuincena" class="swal2-input" style="width: 100%;">
+                            <option value="normal">Planilla Quincenal</option>
+                            <option value="finMes">Planilla Fin de Mes</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label for="excelMes" style="display: block; margin-bottom: 5px; font-weight: bold;">Mes:</label>
+                        <select id="excelMes" class="swal2-input" style="width: 100%;">
+                            <option value="1">Enero</option>
+                            <option value="2">Febrero</option>
+                            <option value="3">Marzo</option>
+                            <option value="4">Abril</option>
+                            <option value="5">Mayo</option>
+                            <option value="6">Junio</option>
+                            <option value="7">Julio</option>
+                            <option value="8">Agosto</option>
+                            <option value="9">Septiembre</option>
+                            <option value="10">Octubre</option>
+                            <option value="11">Noviembre</option>
+                            <option value="12">Diciembre</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label for="excelAnio" style="display: block; margin-bottom: 5px; font-weight: bold;">Año:</label>
+                        <select id="excelAnio" class="swal2-input" style="width: 100%;">
+                            ${generarOpcionesAnio()}
+                        </select>
+                    </div>
+                </div>
+                `,
+            focusConfirm: false,
+            showCancelButton: true,
+            confirmButtonText: 'Continuar',
+            cancelButtonText: 'Cancelar',
+            preConfirm: () => {
+                return {
+                    tipoQuincena: document.getElementById('excelTipoQuincena').value,
+                    mes: document.getElementById('excelMes').value,
+                    anio: document.getElementById('excelAnio').value
+                };
+            }
+        });
+        
+        if (!formValues) {
+            return; // Usuario canceló
+        }
+        
+        // Guardar los valores seleccionados en los filtros de la pantalla principal
+        document.getElementById('tipoQuincenaFilter').value = formValues.tipoQuincena;
+        document.getElementById('mesFilter').value = formValues.mes;
+        document.getElementById('anioFilter').value = formValues.anio;
+        
+        // Mostrar mensaje de carga
+        Swal.fire({
+            title: 'Obteniendo datos',
+            html: 'Por favor espere mientras se obtienen las planillas...',
+            allowOutsideClick: false,
+            didOpen: () => {
+                Swal.showLoading();
+            }
+        });
+        
+        // Obtener datos para el reporte
+        const datosPlanillas = await obtenerDatosPlanillasParaReporte();
+        
+        if (!datosPlanillas || datosPlanillas.length === 0) {
+            Swal.close();
+            await Swal.fire({
+                icon: 'warning',
+                title: 'Sin datos',
+                text: 'No hay planillas guardadas para los parámetros seleccionados.'
+            });
+            return;
+        }
+        
+        // Mostrar selector de carpeta
+        const carpetaSeleccionada = await seleccionarCarpetaDestino();
+        
+        if (!carpetaSeleccionada) {
+            return; // Usuario canceló la selección de carpeta
+        }
+        
+        // Actualizar mensaje de carga
+        Swal.fire({
+            title: 'Generando archivos Excel',
+            html: `
+                <div style="margin-bottom: 15px;">
+                    <p>Generando archivos en:</p>
+                    <p style="font-family: monospace; background: #f5f5f5; padding: 8px; border-radius: 4px; word-break: break-all;">
+                        ${carpetaSeleccionada}
+                    </p>
+                </div>
+                <div class="progress-container" style="margin-top: 20px;">
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
+                        <span>Progreso:</span>
+                        <span id="progress-text">0 de ${datosPlanillas.length}</span>
+                    </div>
+                    <div style="width: 100%; background-color: #f0f0f0; border-radius: 10px; overflow: hidden;">
+                        <div id="progress-bar" style="width: 0%; height: 20px; background-color: #FF9800; transition: width 0.3s ease;"></div>
+                    </div>
+                </div>
+            `,
+            allowOutsideClick: false,
+            showConfirmButton: false
+        });
+        
+        // Generar un archivo por cada planilla
+        const archivosGenerados = [];
+        const nombresMeses = [
+            'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+            'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'
+        ];
+        
+        for (let i = 0; i < datosPlanillas.length; i++) {
+            const planilla = datosPlanillas[i];
+            
+            try {
+                // Crear el libro de Excel para esta planilla
+                const workbook = XLSX.utils.book_new();
+                
+                // Crear hoja de trabajo
+                const worksheetData = await crearHojaPlanilla(planilla, formValues, nombresMeses);
+                const worksheet = XLSX.utils.aoa_to_sheet(worksheetData);
+                
+                // Aplicar estilos
+                aplicarEstilosExcel(worksheet, planilla);
+                
+                // Agregar la hoja al libro
+                XLSX.utils.book_append_sheet(workbook, worksheet, 'Planilla');
+                
+                // Generar nombre de archivo
+                const mesNombre = nombresMeses[parseInt(formValues.mes) - 1];
+                const tipoQuincenaTexto = formValues.tipoQuincena === 'normal' ? 'Quincenal' : 'FinMes';
+                
+                // Limpiar nombre de planilla para nombre de archivo
+                const nombrePlanillaLimpio = limpiarNombreArchivo(planilla.NombrePlanilla);
+                const nombreDivisionLimpio = limpiarNombreArchivo(planilla.NombreDivision || 'Division');
+                
+                const nombreArchivo = `${nombreDivisionLimpio}_${nombrePlanillaLimpio}_${tipoQuincenaTexto}_${mesNombre}_${formValues.anio}.xlsx`;
+                const rutaCompleta = require('path').join(carpetaSeleccionada, nombreArchivo);
+                
+                // Escribir archivo
+                XLSX.writeFile(workbook, rutaCompleta);
+                
+                archivosGenerados.push({
+                    nombre: nombreArchivo,
+                    planilla: planilla.NombrePlanilla,
+                    division: planilla.NombreDivision
+                });
+                
+                // Actualizar progreso
+                const progreso = Math.round(((i + 1) / datosPlanillas.length) * 100);
+                const progressBar = document.getElementById('progress-bar');
+                const progressText = document.getElementById('progress-text');
+                
+                if (progressBar) progressBar.style.width = `${progreso}%`;
+                if (progressText) progressText.textContent = `${i + 1} de ${datosPlanillas.length}`;
+                
+                // Pequeña pausa para que se vea el progreso
+                await new Promise(resolve => setTimeout(resolve, 100));
+                
+            } catch (error) {
+                console.error(`Error al generar archivo para planilla ${planilla.NombrePlanilla}:`, error);
+                // Continuar con las demás planillas
+            }
+        }
+        
+        Swal.close();
+        
+        // Mostrar resumen de archivos generados
+        await mostrarResumenGeneracion(archivosGenerados, carpetaSeleccionada);
+        
+    } catch (error) {
+        console.error('Error al generar Excel:', error);
+        
+        Swal.close();
+        
+        await Swal.fire({
+            icon: 'error',
+            title: 'Error',
+            text: 'Ocurrió un problema al generar los archivos Excel. Por favor intente nuevamente.'
+        });
+    }
+}
+async function seleccionarCarpetaDestino() {
+    try {
+        // Usar la API de Electron para mostrar el diálogo de selección de carpeta
+        const { ipcRenderer } = require('electron');
+        
+        const result = await ipcRenderer.invoke('show-save-dialog', {
+            title: 'Seleccionar carpeta para guardar archivos Excel',
+            buttonLabel: 'Seleccionar Carpeta',
+            properties: ['openDirectory', 'createDirectory']
+        });
+        
+        if (result.canceled) {
+            return null;
+        }
+        
+        return result.filePath;
+        
+    } catch (error) {
+        // Fallback: usar un directorio por defecto si hay problemas con el diálogo
+        console.warn('No se pudo mostrar diálogo de carpeta, usando directorio por defecto:', error);
+        
+        const { app } = require('electron').remote || require('@electron/remote');
+        const path = require('path');
+        const os = require('os');
+        
+        // Carpeta de documentos del usuario
+        const carpetaPorDefecto = path.join(os.homedir(), 'Documents', 'Reportes_Nomina');
+        
+        // Crear carpeta si no existe
+        const fs = require('fs');
+        if (!fs.existsSync(carpetaPorDefecto)) {
+            fs.mkdirSync(carpetaPorDefecto, { recursive: true });
+        }
+        
+        // Mostrar confirmación al usuario
+        const { value: confirmed } = await Swal.fire({
+            title: 'Carpeta de destino',
+            html: `
+                <p>Los archivos se guardarán en:</p>
+                <p style="font-family: monospace; background: #f5f5f5; padding: 8px; border-radius: 4px; word-break: break-all;">
+                    ${carpetaPorDefecto}
+                </p>
+                <p>¿Desea continuar?</p>
+            `,
+            showCancelButton: true,
+            confirmButtonText: 'Continuar',
+            cancelButtonText: 'Cancelar'
+        });
+        
+        return confirmed ? carpetaPorDefecto : null;
+    }
+}
+function limpiarNombreArchivo(nombre) {
+    if (!nombre) return 'Sin_Nombre';
+    
+    return nombre
+        .replace(/[<>:"/\\|?*]/g, '') // Remover caracteres no válidos
+        .replace(/\s+/g, '_') // Reemplazar espacios con guiones bajos
+        .replace(/_{2,}/g, '_') // Reemplazar múltiples guiones bajos con uno solo
+        .substring(0, 50); // Limitar longitud
+}
+async function mostrarResumenGeneracion(archivosGenerados, carpeta) {
+    let html = `
+        <div style="text-align: left;">
+            <p><strong>Se generaron ${archivosGenerados.length} archivo(s) Excel exitosamente</strong></p>
+            <p><strong>Ubicación:</strong></p>
+            <p style="font-family: monospace; background: #f5f5f5; padding: 8px; border-radius: 4px; word-break: break-all; margin-bottom: 15px;">
+                ${carpeta}
+            </p>
+            <p><strong>Archivos generados:</strong></p>
+            <div style="max-height: 200px; overflow-y: auto; border: 1px solid #ddd; border-radius: 4px; padding: 10px;">
+    `;
+    
+    archivosGenerados.forEach((archivo, index) => {
+        html += `
+            <div style="margin-bottom: 8px; padding: 8px; background: ${index % 2 === 0 ? '#f9f9f9' : 'white'}; border-radius: 3px;">
+                <div style="font-weight: bold; color: #FF9800;">${archivo.division || 'División'}</div>
+                <div style="font-size: 14px;">${archivo.planilla}</div>
+                <div style="font-size: 12px; color: #666; font-family: monospace;">${archivo.nombre}</div>
+            </div>
+        `;
+    });
+    
+    html += `
+            </div>
+        </div>
+    `;
+    
+    await Swal.fire({
+        icon: 'success',
+        title: 'Archivos Excel Generados',
+        html: html,
+        width: 600,
+        confirmButtonText: 'Entendido',
+        footer: `
+            <div style="text-align: left; margin-top: 10px;">
+                <small style="color: #666;">
+                    💡 Consejo: Puede abrir la carpeta desde el explorador de archivos para acceder a los reportes.
+                </small>
+            </div>
+        `
+    });
+}
+async function crearHojaPlanilla(planilla, formValues, nombresMeses) {
+    const data = [];
+    let filaActual = 0;
+    
+    // Título principal
+    const tituloCompleto = planilla.NombreDivision 
+        ? `${planilla.NombreDivision} - ${planilla.NombrePlanilla}`
+        : planilla.NombrePlanilla;
+    data[filaActual++] = [tituloCompleto, '', '', '', '', '', '', ''];
+    
+    // Información de la planilla
+    data[filaActual++] = [`Tipo de Quincena: ${planilla.TipoPago}`, '', '', '', '', '', '', ''];
+    
+    // Período
+    const mesNombre = nombresMeses[planilla.Mes - 1];
+    let periodo = '';
+    if (planilla.TipoPago.includes('Quincenal') || planilla.TipoPago.includes('Quincena')) {
+        periodo = `Del 1 al 15 de ${mesNombre} ${planilla.Anyo}`;
+    } else {
+        const ultimoDia = obtenerUltimoDiaMes(planilla.Mes, planilla.Anyo);
+        periodo = `Del 16 al ${ultimoDia} de ${mesNombre} ${planilla.Anyo}`;
+    }
+    data[filaActual++] = [`Período: ${periodo}`, '', '', '', '', '', '', ''];
+    
+    data[filaActual++] = [`No. Centro de Trabajo: ${planilla.NoCentroTrabajo || 'No especificado'}`, '', '', '', '', '', '', ''];
+    data[filaActual++] = [`Cantidad de Colaboradores: ${planilla.CantColaboradores}`, '', '', '', '', '', '', ''];
+    
+    // Encabezados de la tabla (con nuevas columnas)
+    data[filaActual++] = ['No.', 'Nombre Completo', 'Salario Diario', 'Días Laborados', 'Descuento Judicial', 'Total a Pagar', 'No. de Cuenta', 'Observaciones'];
+    
+    // Datos de empleados
+    let totalPlanilla = 0;
+    if (planilla.detalles && planilla.detalles.length > 0) {
+        for (let j = 0; j < planilla.detalles.length; j++) {
+            const empleado = planilla.detalles[j];
+            const numeroConsecutivo = j + 1;
+            
+            // Calcular descuento judicial
+            const salarioProporcional = (empleado.SalarioQuincenal / 15) * empleado.DiasLaborados;
+            let descuentoJudicial = 0;
+            
+            if (planilla.TipoPago.includes('Fin de Mes')) {
+                const bonificacion = empleado.Bonificacion || 0;
+                const igss = empleado.PagoIGSS || 0;
+                descuentoJudicial = Math.max(0, (salarioProporcional + bonificacion - igss - empleado.MontoPagado));
+            } else {
+                descuentoJudicial = Math.max(0, salarioProporcional - empleado.MontoPagado);
+            }
+            
+            // Obtener observaciones para este empleado
+            const observaciones = await obtenerObservacionesEmpleado(
+                empleado.IdPersonal, 
+                planilla.Mes, 
+                planilla.Anyo, 
+                formValues.tipoQuincena
+            );
+            
+            data[filaActual++] = [
+                numeroConsecutivo,
+                empleado.NombrePersonal,
+                parseFloat(empleado.SalarioDiario),
+                empleado.DiasLaborados,
+                parseFloat(descuentoJudicial),
+                parseFloat(empleado.MontoPagado),
+                empleado.NoCuenta || 'Sin cuenta', // Nueva columna No. de Cuenta
+                observaciones // Nueva columna Observaciones
+            ];
+            
+            totalPlanilla += parseFloat(empleado.MontoPagado);
+        }
+    }
+    
+    // Total de la planilla (con las nuevas columnas)
+    data[filaActual++] = ['', '', '', '', '', 'TOTAL:', parseFloat(totalPlanilla), ''];
+    
+    return data;
+}
+async function obtenerObservacionesEmpleado(idPersonal, mes, anio, tipoQuincena) {
+    try {
+        const connection = await connectionString();
+        const observaciones = [];
+        
+        // Determinar fechas de inicio y fin de la quincena
+        let inicioQuincena, finQuincena;
+        
+        if (tipoQuincena === 'normal') {
+            // Primera quincena: del 1 al 15
+            inicioQuincena = `${anio}-${mes.toString().padStart(2, '0')}-01`;
+            finQuincena = `${anio}-${mes.toString().padStart(2, '0')}-15`;
+        } else {
+            // Segunda quincena: del 16 al último día del mes
+            inicioQuincena = `${anio}-${mes.toString().padStart(2, '0')}-16`;
+            const ultimoDia = new Date(anio, parseInt(mes), 0).getDate();
+            finQuincena = `${anio}-${mes.toString().padStart(2, '0')}-${ultimoDia}`;
+        }
+        
+        // FUNCIÓN AUXILIAR PARA FORMATEAR FECHAS CORRECTAMENTE
+        function formatearFechaLocal(fecha) {
+            // Si es string, parsearlo como fecha local
+            if (typeof fecha === 'string') {
+                // Parsear la fecha como local para evitar problemas de zona horaria
+                const partes = fecha.split('T')[0].split('-'); // Tomar solo la parte de fecha (YYYY-MM-DD)
+                const fechaLocal = new Date(parseInt(partes[0]), parseInt(partes[1]) - 1, parseInt(partes[2]));
+                
+                const dia = fechaLocal.getDate().toString().padStart(2, '0');
+                const mes = (fechaLocal.getMonth() + 1).toString().padStart(2, '0');
+                const anio = fechaLocal.getFullYear();
+                
+                return `${dia}-${mes}-${anio}`;
+            }
+            
+            // Si ya es objeto Date, usarlo directamente
+            if (fecha instanceof Date) {
+                const dia = fecha.getDate().toString().padStart(2, '0');
+                const mes = (fecha.getMonth() + 1).toString().padStart(2, '0');
+                const anio = fecha.getFullYear();
+                
+                return `${dia}-${mes}-${anio}`;
+            }
+            
+            return '';
+        }
+        
+        // 1. VERIFICAR BAJAS (DespidosRenuncias)
+        const queryBajas = `
+            SELECT 
+                DATE(FechaFinColaborador) as FechaFinColaborador,
+                IdEstadoPersonal
+            FROM 
+                DespidosRenuncias
+            WHERE 
+                IdPersonal = ? 
+                AND DATE(FechaFinColaborador) >= ? 
+                AND DATE(FechaFinColaborador) <= ?
+        `;
+        
+        const bajas = await connection.query(queryBajas, [idPersonal, inicioQuincena, finQuincena]);
+        
+        if (bajas.length > 0) {
+            const baja = bajas[0];
+            const fechaFormateada = formatearFechaLocal(baja.FechaFinColaborador);
+            observaciones.push(`B.${fechaFormateada}`);
+        }
+        
+        // 2. VERIFICAR ALTAS (FechaPlanilla en tabla personal)
+        const queryAltas = `
+            SELECT 
+                DATE(FechaPlanilla) as FechaPlanilla
+            FROM 
+                personal
+            WHERE 
+                IdPersonal = ? 
+                AND DATE(FechaPlanilla) >= ? 
+                AND DATE(FechaPlanilla) <= ?
+        `;
+        
+        const altas = await connection.query(queryAltas, [idPersonal, inicioQuincena, finQuincena]);
+        
+        if (altas.length > 0) {
+            const alta = altas[0];
+            const fechaFormateada = formatearFechaLocal(alta.FechaPlanilla);
+            observaciones.push(`A.${fechaFormateada}`);
+        }
+        
+        // 3. VERIFICAR SUSPENSIONES
+        const querySuspensiones = `
+            SELECT 
+                DATE(FechaInicio) as FechaInicio,
+                DATE(FechaFin) as FechaFin
+            FROM 
+                Suspensiones
+            WHERE 
+                IdPersonal = ? 
+                AND DATE(FechaInicio) <= ? 
+                AND DATE(FechaFin) >= ?
+            ORDER BY
+                FechaInicio
+        `;
+        
+        const suspensiones = await connection.query(querySuspensiones, [idPersonal, finQuincena, inicioQuincena]);
+        
+        if (suspensiones.length > 0) {
+            suspensiones.forEach(suspension => {
+                // Crear fechas locales para evitar problemas de zona horaria
+                const fechaInicioLocal = typeof suspension.FechaInicio === 'string' ? 
+                    new Date(suspension.FechaInicio + 'T12:00:00') : // Agregar hora del mediodía para evitar cambios de zona
+                    suspension.FechaInicio;
+                    
+                const fechaFinLocal = typeof suspension.FechaFin === 'string' ? 
+                    new Date(suspension.FechaFin + 'T12:00:00') : // Agregar hora del mediodía para evitar cambios de zona
+                    suspension.FechaFin;
+                
+                const inicioQuincenaDate = new Date(inicioQuincena + 'T12:00:00');
+                const finQuincenaDate = new Date(finQuincena + 'T12:00:00');
+                
+                // Calcular fechas efectivas dentro de la quincena
+                const inicioEfectivo = fechaInicioLocal < inicioQuincenaDate ? inicioQuincenaDate : fechaInicioLocal;
+                const finEfectivo = fechaFinLocal > finQuincenaDate ? finQuincenaDate : fechaFinLocal;
+                
+                const fechaInicioFormateada = formatearFechaLocal(inicioEfectivo);
+                const fechaFinFormateada = formatearFechaLocal(finEfectivo);
+                
+                observaciones.push(`S-IGSS.${fechaInicioFormateada} al ${fechaFinFormateada}`);
+            });
+        }
+        
+        await connection.close();
+        
+        // Retornar observaciones separadas por comas o vacío si no hay
+        return observaciones.length > 0 ? observaciones.join(', ') : '';
+        
+    } catch (error) {
+        console.error('Error al obtener observaciones:', error);
+        return '';
+    }
+}
+// Función para aplicar estilos al Excel (corrección específica para centrar y negrita)
+function aplicarEstilosExcel(worksheet, planilla) {
+    const range = XLSX.utils.decode_range(worksheet['!ref']);
+    
+    // Configurar anchos de columna (con nuevas columnas)
+    worksheet['!cols'] = [
+        { wch: 8 },   // No.
+        { wch: 40 },  // Nombre Completo
+        { wch: 15 },  // Salario Diario
+        { wch: 15 },  // Días Laborados
+        { wch: 18 },  // Descuento Judicial
+        { wch: 15 },  // Total a Pagar
+        { wch: 18 },  // No. de Cuenta (nueva)
+        { wch: 25 }   // Observaciones (nueva)
+    ];
+    
+    // Aplicar estilos (similar al anterior pero con más columnas)
+    for (let R = range.s.r; R <= range.e.r; ++R) {
+        for (let C = range.s.c; C <= range.e.c; ++C) {
+            const cellAddress = XLSX.utils.encode_cell({ r: R, c: C });
+            
+            if (!worksheet[cellAddress]) {
+                worksheet[cellAddress] = { t: 's', v: '' };
+            }
+            
+            const cell = worksheet[cellAddress];
+            
+            // INFORMACIÓN DE LA PLANILLA (filas 1-4) - CENTRADO Y NEGRITA
+            if (R >= 1 && R <= 4) {
+                cell.s = {
+                    font: {
+                        name: "Calibri",
+                        sz: 12,
+                        bold: 1,
+                        color: { rgb: "000000" }
+                    },
+                    alignment: {
+                        horizontal: "center",
+                        vertical: "center"
+                    },
+                    border: {
+                        top: { style: "thin", color: { rgb: "000000" } },
+                        bottom: { style: "thin", color: { rgb: "000000" } },
+                        left: { style: "thin", color: { rgb: "000000" } },
+                        right: { style: "thin", color: { rgb: "000000" } }
+                    }
+                };
+            }
+            // TÍTULO PRINCIPAL (fila 0)
+            else if (R === 0) {
+                cell.s = {
+                    font: {
+                        name: "Calibri",
+                        sz: 14,
+                        bold: 1,
+                        color: { rgb: "000000" }
+                    },
+                    alignment: {
+                        horizontal: "center",
+                        vertical: "center"
+                    },
+                    border: {
+                        top: { style: "medium", color: { rgb: "000000" } },
+                        bottom: { style: "medium", color: { rgb: "000000" } },
+                        left: { style: "medium", color: { rgb: "000000" } },
+                        right: { style: "medium", color: { rgb: "000000" } }
+                    }
+                };
+            }
+            // ENCABEZADOS (fila 5)
+            else if (R === 5) {
+                cell.s = {
+                    font: {
+                        name: "Calibri",
+                        sz: 11,
+                        bold: 1,
+                        color: { rgb: "FFFFFF" }
+                    },
+                    alignment: {
+                        horizontal: "center",
+                        vertical: "center"
+                    },
+                    border: {
+                        top: { style: "thin", color: { rgb: "000000" } },
+                        bottom: { style: "thin", color: { rgb: "000000" } },
+                        left: { style: "thin", color: { rgb: "000000" } },
+                        right: { style: "thin", color: { rgb: "000000" } }
+                    },
+                    fill: {
+                        fgColor: { rgb: "D18A47" }
+                    }
+                };
+            }
+            // DATOS DE EMPLEADOS
+            else if (R > 5) {
+                const esFilaPar = (R - 6) % 2 === 0;
+                const fillColor = esFilaPar ? "FFFFFF" : "FDF2E9";
+                
+                const esTotalRow = cell.v === 'TOTAL:' || (R > 5 && worksheet[XLSX.utils.encode_cell({ r: R, c: 5 })]?.v === 'TOTAL:');
+                
+                if (esTotalRow && cell.v === 'TOTAL:') {
+                    cell.s = {
+                        font: {
+                            name: "Calibri",
+                            sz: 11,
+                            bold: 1,
+                            color: { rgb: "000000" }
+                        },
+                        alignment: {
+                            horizontal: "center",
+                            vertical: "center"
+                        },
+                        border: {
+                            top: { style: "thin", color: { rgb: "000000" } },
+                            bottom: { style: "thin", color: { rgb: "000000" } },
+                            left: { style: "thin", color: { rgb: "000000" } },
+                            right: { style: "thin", color: { rgb: "000000" } }
+                        }
+                    };
+                } else if (esTotalRow && C === 6 && typeof cell.v === 'number') {
+                    cell.s = {
+                        font: {
+                            name: "Calibri",
+                            sz: 11,
+                            bold: 1,
+                            color: { rgb: "00B050" }
+                        },
+                        alignment: {
+                            horizontal: "center",
+                            vertical: "center"
+                        },
+                        border: {
+                            top: { style: "thin", color: { rgb: "000000" } },
+                            bottom: { style: "thin", color: { rgb: "000000" } },
+                            left: { style: "thin", color: { rgb: "000000" } },
+                            right: { style: "thin", color: { rgb: "000000" } }
+                        },
+                        numFmt: "#,##0"
+                    };
+                } else if (!esTotalRow) {
+                    cell.s = {
+                        font: {
+                            name: "Calibri",
+                            sz: 10,
+                            bold: 0,
+                            color: { rgb: "000000" }
+                        },
+                        alignment: {
+                            horizontal: (C === 1 || C === 6 || C === 7) ? "left" : "center", // Nombre, No. Cuenta y Observaciones a la izquierda
+                            vertical: "center"
+                        },
+                        border: {
+                            top: { style: "thin", color: { rgb: "000000" } },
+                            bottom: { style: "thin", color: { rgb: "000000" } },
+                            left: { style: "thin", color: { rgb: "000000" } },
+                            right: { style: "thin", color: { rgb: "000000" } }
+                        },
+                        fill: {
+                            fgColor: { rgb: fillColor }
+                        }
+                    };
+                    
+                    if (C === 2 || C === 4 || C === 5) {
+                        cell.s.numFmt = "#,##0.0";
+                    }
+                } else {
+                    // Celdas vacías en fila de total
+                    cell.s = {
+                        border: {
+                            top: { style: "thin", color: { rgb: "000000" } },
+                            bottom: { style: "thin", color: { rgb: "000000" } },
+                            left: { style: "thin", color: { rgb: "000000" } },
+                            right: { style: "thin", color: { rgb: "000000" } }
+                        }
+                    };
+                }
+            }
+        }
+    }
+    
+    // Combinar celdas (ahora con 8 columnas)
+    worksheet['!merges'] = [
+        { s: { r: 0, c: 0 }, e: { r: 0, c: 7 } }, // Título
+        { s: { r: 1, c: 0 }, e: { r: 1, c: 7 } }, // Tipo de Quincena
+        { s: { r: 2, c: 0 }, e: { r: 2, c: 7 } }, // Período
+        { s: { r: 3, c: 0 }, e: { r: 3, c: 7 } }, // Centro de Trabajo
+        { s: { r: 4, c: 0 }, e: { r: 4, c: 7 } }  // Cantidad de Colaboradores
+    ];
+    
+    // Altura de filas
+    worksheet['!rows'] = [
+        { hpt: 25 }, // 0: Título
+        { hpt: 22 }, // 1: Tipo de quincena
+        { hpt: 22 }, // 2: Período
+        { hpt: 22 }, // 3: Centro de trabajo
+        { hpt: 22 }, // 4: Cantidad de colaboradores
+        { hpt: 25 }  // 5: Encabezados
+    ];
+    
+    for (let i = 6; i <= range.e.r; i++) {
+        if (!worksheet['!rows'][i]) {
+            worksheet['!rows'][i] = { hpt: 20 };
+        }
+    }
+}
 // Eventos al cargar la página
 document.addEventListener('DOMContentLoaded', async function() {
     try {
@@ -4738,8 +5168,8 @@ document.addEventListener('DOMContentLoaded', async function() {
         addEventIfElementExists('applyFilters', 'click', cargarDatosNomina);
         addEventIfElementExists('buscarPlanillasBtn', 'click', buscarPlanillasModificables);
         addEventIfElementExists('buscarPlanillasAuthBtn', 'click', buscarPlanillasAutorizables);
-        addEventIfElementExists('exportBtn', 'click', exportarExcel);
         addEventIfElementExists('pdfBtn', 'click', generarPDF);
+        addEventIfElementExists('exportBtn', 'click', generarExcel);
         addEventIfElementExists('saveBtn', 'click', guardarPlanilla);
         addEventIfElementExists('authorizePlanillasBtn', 'click', autorizarPlanillas);
         

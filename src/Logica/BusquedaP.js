@@ -164,7 +164,7 @@ async function buscarPersonal() {
                         personal.IdPersonal, 
                         CONCAT(personal.PrimerNombre, ' ', IFNULL(personal.SegundoNombre, ''), ' ', IFNULL(personal.TercerNombre, ''), ' ', personal.PrimerApellido, ' ', IFNULL(personal.SegundoApellido, '')) AS NombreCompleto, 
                         departamentos.NombreDepartamento, 
-                        PuestosGenerales.Nombre AS Puesto,
+                        Puestos.Nombre AS Puesto,
                         estadocivil.EstadoCivil, 
                         TipoPersonal.TipoPersonal, 
                         IFNULL(planillas.Nombre_Planilla, 'Sin Planilla') AS Nombre_Planilla,
