@@ -6,9 +6,10 @@
     <title>Bonificaciones - Recursos Humanos</title>
     <link rel="stylesheet" href="../Disenos/Bonis/Bonificaciones.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 </head>
 <body>
-    <!-- Elementos decorativos de fondo -->
+    <!-- Elementos decorativos de fondo - Reducidos para mejor rendimiento -->
     <div class="bg-decoration bubble bubble1"></div>
     <div class="bg-decoration bubble bubble2"></div>
     <div class="bg-decoration bubble bubble3"></div>
@@ -19,191 +20,263 @@
     <div class="bg-decoration pattern pattern2"></div>
     
     <div class="bg-decoration wave wave1"></div>
-    <div class="bg-decoration wave wave2"></div>
+    
+    <div class="bg-decoration particle particle1"></div>
+    <div class="bg-decoration particle particle2"></div>
+    <div class="bg-decoration particle particle3"></div>
 
-    <div class="container">
-        <!-- Header Section - Más compacto -->
-        <div class="header-section">
-            <div class="header-content">
-                <div class="logo-section">
-                    <img src="../Imagenes/Logo Recursos Humanos new.png" alt="Logo RRHH" class="logo">
-                    <div class="color-strip">
-                        <div class="color-strip-item color-red"></div>
-                        <div class="color-strip-item color-blue"></div>
-                        <div class="color-strip-item color-green"></div>
-                        <div class="color-strip-item color-yellow"></div>
-                        <div class="color-strip-item color-orange"></div>
-                    </div>
+    <!-- Header compacto con toda la información -->
+    <div class="header-container">
+        <!-- Usuario y sistema en una sola línea -->
+        <div class="header-left">
+            <div class="user-info-compact">
+                <div class="user-photo-small">
+                    <img id="userPhoto" src="../Imagenes/user-default.png" alt="Usuario">
                 </div>
-                
-                <div class="title-section">
-                    <h1><i class="fas fa-gift"></i> Bonificaciones</h1>
-                    <p class="subtitle">Gestión mensual del personal</p>
+                <div class="user-details-compact">
+                    <span id="userName" class="user-name-small">Cargando...</span>
+                    <span id="userDepartment" class="user-department-small">Departamento</span>
                 </div>
-                
-                <!-- Filtros integrados en el header -->
-                <div class="filters-inline">
-                    <div class="filter-group">
-                        <label for="mes-selector">Mes</label>
-                        <select id="mes-selector" class="filter-select">
-                            <option value="">Seleccionar</option>
-                            <option value="1">Enero</option>
-                            <option value="2">Febrero</option>
-                            <option value="3">Marzo</option>
-                            <option value="4">Abril</option>
-                            <option value="5">Mayo</option>
-                            <option value="6">Junio</option>
-                            <option value="7">Julio</option>
-                            <option value="8">Agosto</option>
-                            <option value="9">Septiembre</option>
-                            <option value="10">Octubre</option>
-                            <option value="11">Noviembre</option>
-                            <option value="12">Diciembre</option>
-                        </select>
-                    </div>
-
-                    <div class="filter-group">
-                        <label for="anio-selector">Año</label>
-                        <select id="anio-selector" class="filter-select">
-                            <!-- Se llenará dinámicamente -->
-                        </select>
-                    </div>
-
-                    <div class="filter-group">
-                        <button id="generar-detalle" class="btn-generate" disabled>
-                            <i class="fas fa-list-alt"></i> Generar
-                        </button>
-                    </div>
+            </div>
+            
+            <div class="system-info-compact">
+                <img src="../Imagenes/Logo Recursos Humanos new.png" alt="Logo RRHH" class="system-logo-tiny">
+                <div class="color-strip-tiny">
+                    <div class="color-strip-item-tiny color-red"></div>
+                    <div class="color-strip-item-tiny color-blue"></div>
+                    <div class="color-strip-item-tiny color-green"></div>
+                    <div class="color-strip-item-tiny color-yellow"></div>
+                    <div class="color-strip-item-tiny color-orange"></div>
                 </div>
+                <span class="system-title-tiny">Gestión de Bonificaciones</span>
             </div>
         </div>
-
-        <!-- Loading Section -->
-        <div id="loading-section" class="loading-section" style="display: none;">
-            <div class="loading-spinner">
-                <div class="spinner"></div>
-                <p>Cargando personal...</p>
+        
+        <!-- Controles y acciones en la misma línea -->
+        <div class="header-center">
+            <div class="period-selectors-container">
+                <div class="period-selector">
+                    <label class="period-label">Mes:</label>
+                    <select class="period-select" id="monthSelector">
+                        <option value="01">Enero</option>
+                        <option value="02">Febrero</option>
+                        <option value="03">Marzo</option>
+                        <option value="04">Abril</option>
+                        <option value="05">Mayo</option>
+                        <option value="06">Junio</option>
+                        <option value="07">Julio</option>
+                        <option value="08">Agosto</option>
+                        <option value="09">Septiembre</option>
+                        <option value="10">Octubre</option>
+                        <option value="11">Noviembre</option>
+                        <option value="12">Diciembre</option>
+                    </select>
+                </div>
+                
+                <div class="period-selector">
+                    <label class="period-label">Año:</label>
+                    <select class="period-select" id="yearSelector">
+                        <!-- Las opciones se generarán dinámicamente -->
+                    </select>
+                </div>
+                
+                <button class="btn-check-period" id="checkPeriodBtn" title="Verificar período seleccionado">
+                    <i class="fas fa-search"></i>
+                    Verificar
+                </button>
+            </div>
+            <div class="search-container-compact">
+                <i class="fas fa-search"></i>
+                <input type="text" id="searchEmployee" placeholder="Buscar colaborador...">
             </div>
         </div>
-
-        <!-- Personal Section - Formato Tabla -->
-        <div id="personal-section" class="personal-section" style="display: none;">
-            <div class="section-header">
-                <div class="header-info">
-                    <h2><i class="fas fa-users"></i> Personal del Departamento</h2>
-                    <div class="summary-info">
-                        <span id="total-empleados" class="summary-badge">0 empleados</span>
-                        <span id="total-general" class="summary-badge total">Total: Q0.00</span>
-                    </div>
+        
+        <div class="header-right">
+            <!-- Información del IdBonificacion -->
+            <div class="bonificacion-info" id="bonificacionInfo" style="display: none;">
+                <div class="bonificacion-id">
+                    <span class="bonificacion-label">ID Bonificación:</span>
+                    <span class="bonificacion-value" id="currentBonificacionId">---</span>
                 </div>
-                <div class="search-container-header">
-                    <div class="search-box-header">
-                        <i class="fas fa-search"></i>
-                        <input type="text" id="search-input" placeholder="Buscar empleado o puesto..." />
-                        <button id="clear-search" title="Limpiar búsqueda">
-                            <i class="fas fa-times"></i>
-                        </button>
-                    </div>
-                </div>
-                <div class="actions-header">
-                    <button id="limpiar-todo" class="btn-clear-small">
-                        <i class="fas fa-eraser"></i> Limpiar
-                    </button>
-                    <button id="guardar-bonificaciones" class="btn-save-small" disabled>
-                        <i class="fas fa-save"></i> Guardar
-                    </button>
+                <div class="bonificacion-status">
+                    <span class="bonificacion-status-badge" id="bonificacionStatus">Nuevo</span>
                 </div>
             </div>
-
-            <!-- Tabla de Personal -->
-            <div class="table-container">
-                <table id="personal-table" class="personal-table">
-                    <thead>
-                        <tr>
-                            <th class="col-empleado sortable" data-sort="empleado" data-tooltip="Click para ordenar por nombre">
-                                Empleado
-                            </th>
-                            <th class="col-puesto sortable" data-sort="puesto" data-tooltip="Click para ordenar por puesto">
-                                Puesto
-                            </th>
-                            <th class="col-bonificacion sortable" data-sort="bonificacion" data-tooltip="Click para ordenar por bonificación">
-                                Bonificación
-                            </th>
-                            <th class="col-credito sortable" data-sort="credito" data-tooltip="Click para ordenar por descuento crédito">
-                                Desc. Crédito
-                            </th>
-                            <th class="col-vale sortable" data-sort="vale" data-tooltip="Click para ordenar por descuento vale">
-                                Desc. Vale
-                            </th>
-                            <th class="col-documento" data-tooltip="Número de documento">
-                                No. Doc.
-                            </th>
-                            <th class="col-no-vale" data-tooltip="Número de vale">
-                                No. Vale
-                            </th>
-                            <th class="col-adicional sortable" data-sort="adicional" data-tooltip="Click para ordenar por monto adicional">
-                                Adicional
-                            </th>
-                            <th class="col-observaciones" data-tooltip="Observaciones del monto adicional">
-                                Observaciones
-                            </th>
-                            <th class="col-total sortable" data-sort="total" data-tooltip="Click para ordenar por total">
-                                Total
-                            </th>
-                        </tr>
-                    </thead>
-                    <tbody id="personal-tbody">
-                        <!-- Se llenará dinámicamente -->
-                    </tbody>
-                    <tfoot>
-                        <tr class="totals-row">
-                            <td colspan="2"><strong>TOTALES:</strong></td>
-                            <td id="total-bonificaciones"><strong>Q0.00</strong></td>
-                            <td id="total-creditos"><strong>Q0.00</strong></td>
-                            <td id="total-vales"><strong>Q0.00</strong></td>
-                            <td colspan="2"></td>
-                            <td id="total-adicionales"><strong>Q0.00</strong></td>
-                            <td></td>
-                            <td id="total-final"><strong>Q0.00</strong></td>
-                        </tr>
-                    </tfoot>
-                </table>
+            
+            <div class="quick-stats">
+                <div class="quick-stat">
+                    <span class="quick-stat-label">Bonif:</span>
+                    <span class="quick-stat-value" id="headerTotalBonus">Q0.00</span>
+                </div>
+                <div class="quick-stat">
+                    <span class="quick-stat-label">Desc:</span>
+                    <span class="quick-stat-value" id="headerTotalDiscounts">Q0.00</span>
+                </div>
+                <div class="quick-stat-main">
+                    <span class="quick-stat-label">Total:</span>
+                    <span class="quick-stat-value" id="headerTotalNet">Q0.00</span>
+                </div>
+            </div>
+            
+            <div class="header-actions-compact">
+                <button class="btn-action-small btn-load-employees" id="loadEmployeesBtn" title="Cargar Colaboradores">
+                    <i class="fas fa-users"></i>
+                </button>
+                <button class="btn-action-small btn-export" id="exportBtn" title="Exportar a Excel" disabled>
+                    <i class="fas fa-file-excel"></i>
+                </button>
+                <button class="btn-action-small btn-clear-all" id="clearAllBtn" title="Limpiar Todo" disabled>
+                    <i class="fas fa-eraser"></i>
+                </button>
+                <button class="btn-action-small btn-finalize" id="finalizeBtn" title="Finalizar Bonificación" disabled>
+                    <i class="fas fa-check-circle"></i>
+                </button>
             </div>
         </div>
     </div>
 
-    <!-- Template para filas de empleados -->
-    <template id="empleado-row-template">
-        <tr class="empleado-row" data-id="">
-            <td class="empleado-nombre"></td>
-            <td class="empleado-puesto"></td>
-            <td>
-                <input type="number" class="input-bonificacion table-input" placeholder="0.00" step="0.01" min="0">
-            </td>
-            <td>
-                <input type="number" class="input-credito table-input" placeholder="0.00" step="0.01" min="0">
-            </td>
-            <td>
-                <input type="number" class="input-vale table-input" placeholder="0.00" step="0.01" min="0">
-            </td>
-            <td>
-                <input type="text" class="input-documento table-input-text" placeholder="Documento">
-            </td>
-            <td>
-                <input type="text" class="input-no-vale table-input-text" placeholder="Vale">
-            </td>
-            <td>
-                <input type="number" class="input-adicional table-input" placeholder="0.00" step="0.01">
-            </td>
-            <td>
-                <input type="text" class="input-observaciones table-input-text" placeholder="Observaciones...">
-            </td>
-            <td class="total-cell">
-                <span class="total-amount">Q0.00</span>
-            </td>
-        </tr>
-    </template>
+    <!-- Contenedor principal que ocupa toda la pantalla disponible -->
+    <div class="main-container-fullscreen">
+        <!-- Tabla que ocupa todo el espacio disponible -->
+        <div class="table-section">
+            <!-- Controles mínimos de la tabla -->
+            <div class="table-controls-minimal">
+                <div class="table-controls-left">
+                    <label>
+                        Mostrar 
+                        <select class="entries-select-small" id="entriesPerPage">
+                            <option value="10">10</option>
+                            <option value="25" selected>25</option>
+                            <option value="50">50</option>
+                            <option value="100">100</option>
+                        </select>
+                        entradas
+                    </label>
+                </div>
+            </div>
+
+            <!-- Tabla optimizada para ocupar todo el espacio -->
+            <div class="table-container-fullscreen">
+                <div class="empty-state" id="emptyState">
+                    <div class="empty-state-content">
+                        <i class="fas fa-users empty-state-icon"></i>
+                        <h3>No hay colaboradores cargados</h3>
+                        <p>Haz clic en "Cargar Colaboradores" para comenzar</p>
+                        <button class="btn-load-employees-large" id="loadEmployeesLargeBtn">
+                            <i class="fas fa-users"></i>
+                            Cargar Colaboradores
+                        </button>
+                    </div>
+                </div>
+                
+                <table id="bonificacionesTable" class="table-compact" style="display: none;">
+                    <thead>
+                        <tr>
+                            <th width="6%" class="sortable" data-sort="id">ID</th>
+                            <th width="25%" class="sortable" data-sort="name">Colaborador</th>
+                            <th width="18%" class="sortable" data-sort="position">Puesto</th>
+                            <th width="12%" class="sortable" data-sort="bonus-regular">
+                                <span class="th-compact">Bonif. Regular</span>
+                            </th>
+                            <th width="12%" class="sortable" data-sort="bonus-extra">
+                                <span class="th-compact">Bonif. Extra</span>
+                            </th>
+                            <th width="10%" class="sortable" data-sort="discount-vales">
+                                <span class="th-compact">Desc. Vales</span>
+                            </th>
+                            <th width="10%" class="sortable" data-sort="discount-creditos">
+                                <span class="th-compact">Desc. Créditos</span>
+                            </th>
+                            <th width="8%" class="sortable" data-sort="total">
+                                <span class="th-compact">Total</span>
+                            </th>
+                            <th width="7%">
+                                <i class="fas fa-save" title="Acciones"></i>
+                            </th>
+                        </tr>
+                    </thead>
+                    <tbody id="employeesTableBody">
+                        <!-- Los datos se cargarán dinámicamente aquí -->
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Paginación y información compacta -->
+            <div class="table-footer-compact">
+                <div class="table-info-compact">
+                    <span id="tableInfoText">Mostrando 0 de 0 entradas</span>
+                </div>
+                <div class="pagination-container-compact" id="paginationContainer">
+                    <!-- La paginación se generará dinámicamente -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal para detalles de descuentos - Más compacto -->
+    <div id="discountModal" class="modal">
+        <div class="modal-content-compact">
+            <div class="modal-header-compact">
+                <h4 id="modalTitle">Detalles del Descuento</h4>
+                <span class="close" id="closeModal">&times;</span>
+            </div>
+            <div class="modal-body-compact">
+                <div class="form-group-compact">
+                    <label for="referenceNumber">Número de Referencia:</label>
+                    <input type="text" id="referenceNumber" class="form-input-compact" placeholder="Ej: DOC-001">
+                </div>
+                <div class="form-group-compact">
+                    <label for="discountNotes">Observaciones:</label>
+                    <textarea id="discountNotes" class="form-input-compact" rows="2" placeholder="Observaciones adicionales"></textarea>
+                </div>
+            </div>
+            <div class="modal-footer-compact">
+                <button class="btn-modal-compact btn-cancel" id="cancelModal">Cancelar</button>
+                <button class="btn-modal-compact btn-confirm" id="confirmModal">Confirmar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Loading overlay más discreto -->
+    <div id="loadingOverlay" class="loading-overlay">
+        <div class="loading-content-compact">
+            <div class="loading-spinner-small"></div>
+            <p>Cargando...</p>
+        </div>
+    </div>
 
     <script src="../Logica/Bonis/Bonificaciones.js"></script>
+    <script>
+        const { ipcRenderer } = require('electron');
+        
+        // Manejo de actualizaciones
+        ipcRenderer.on('update_available', () => {
+            ipcRenderer.removeAllListeners('update_available');
+            Swal.fire({
+                title: '¡Actualización disponible!',
+                text: 'Se está descargando una nueva versión.',
+                icon: 'info',
+                toast: true,
+                position: 'top-end',
+                showConfirmButton: false,
+                timer: 3000
+            });
+        });
+        
+        ipcRenderer.on('update_downloaded', () => {
+            ipcRenderer.removeAllListeners('update_downloaded');
+            Swal.fire({
+                title: '¡Actualización lista!',
+                text: 'La aplicación se reiniciará para instalar la actualización.',
+                icon: 'success',
+                showCancelButton: false,
+                confirmButtonText: 'Reiniciar ahora'
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    ipcRenderer.send('restart_app');
+                }
+            });
+        });
+    </script>
 </body>
 </html>

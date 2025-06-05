@@ -2764,3 +2764,56 @@ tr:has(.descuento-judicial:not(:empty):not([data-tooltip=""])):hover {
         margin-top: 5px;
     }
 }
+
+/* Estilos para descuentos judiciales */
+.descuento-judicial {
+    background-color: #ffebee;
+    color: #c62828;
+    font-weight: bold;
+}
+
+.descuento-no-aplicado {
+    background-color: #fff3e0;
+    color: #e65100;
+    font-style: italic;
+}
+
+.descuento-suspendido {
+    color: #ff9800;
+    font-size: 0.9em;
+}
+
+/* Tooltips mejorados */
+[data-tooltip] {
+    position: relative;
+    cursor: help;
+}
+
+[data-tooltip]:hover::after {
+    content: attr(data-tooltip);
+    position: absolute;
+    bottom: 125%;
+    left: 50%;
+    transform: translateX(-50%);
+    background-color: #333;
+    color: white;
+    padding: 8px 12px;
+    border-radius: 4px;
+    font-size: 12px;
+    white-space: nowrap;
+    z-index: 1000;
+    max-width: 300px;
+    white-space: normal;
+    word-wrap: break-word;
+}
+
+[data-tooltip]:hover::before {
+    content: '';
+    position: absolute;
+    bottom: 120%;
+    left: 50%;
+    transform: translateX(-50%);
+    border: 5px solid transparent;
+    border-top-color: #333;
+    z-index: 1000;
+}

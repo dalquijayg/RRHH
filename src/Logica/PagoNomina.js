@@ -210,7 +210,8 @@ async function obtenerDescuentosJudiciales(idPersonal) {
                 DescuentoQuincenalFinMes: parseFloat(results[0].DescuentoQuincenalFinMes) || 0,
                 NoDocumento: results[0].NoDocumento || '',
                 SaldoPendiente: parseFloat(results[0].SaldoPendiente) || 0,
-                IdDescuentoJudicial: results[0].IdDescuentoJudicial
+                IdDescuentoJudicial: results[0].IdDescuentoJudicial,
+                TieneDescuento: true
             };
         } else {
             // Si no hay descuentos judiciales
@@ -219,7 +220,8 @@ async function obtenerDescuentosJudiciales(idPersonal) {
                 DescuentoQuincenalFinMes: 0,
                 NoDocumento: '',
                 SaldoPendiente: 0,
-                IdDescuentoJudicial: null
+                IdDescuentoJudicial: null,
+                TieneDescuento: false
             };
         }
     } catch (error) {
@@ -229,12 +231,11 @@ async function obtenerDescuentosJudiciales(idPersonal) {
             DescuentoQuincenalFinMes: 0,
             NoDocumento: '',
             SaldoPendiente: 0,
-            IdDescuentoJudicial: null
+            IdDescuentoJudicial: null,
+            TieneDescuento: false
         };
     }
 }
-
-// Función modificada para obtener todos los datos de nómina incluyendo bajas
 async function obtenerDatosNomina() {
     try {
         // Mostrar loader
@@ -342,7 +343,6 @@ async function obtenerDatosNomina() {
                 dr.FechaFinColaborador >= ? AND
                 dr.FechaFinColaborador <= ?`;
         
-        // El resto de la función permanece igual...
         // Agregar filtros
         const params = [];
         const paramsBajas = [inicioQuincena, finQuincena];
@@ -415,21 +415,16 @@ async function obtenerDatosNomina() {
             // Calcular salario proporcional según los días laborados
             const salarioProporcional = (salarioBaseQuincenal / diasTotalesQuincena) * diasLaborados;
             
-            // Determinar el monto de descuento judicial según el tipo de quincena
-            const campoDescuento = tipoQuincena === 'normal' ? 'DescuentoQuincenal' : 'DescuentoQuincenalFinMes';
-            let montoDescuentoJudicial = descuentosJudiciales[campoDescuento];
-
-            // Verificar si el saldo pendiente es menor que el descuento establecido
-            if (descuentosJudiciales.SaldoPendiente > 0 && descuentosJudiciales.SaldoPendiente < montoDescuentoJudicial) {
-                // Si el saldo pendiente es menor, solo descontar ese monto
-                montoDescuentoJudicial = descuentosJudiciales.SaldoPendiente;
-            }
+            // USAR LA NUEVA FUNCIÓN PARA CALCULAR EL DESCUENTO CON INDICADORES
+            const indicadoresDescuento = calcularDescuentoJudicialConIndicadores(
+                descuentosJudiciales, 
+                tipoQuincena, 
+                diasLaborados, 
+                diasTotalesQuincena
+            );
             
-            // Si el empleado trabajó menos días, ajustar el descuento judicial proporcionalmente
-            if (diasLaborados < diasTotalesQuincena && montoDescuentoJudicial > 0) {
-                montoDescuentoJudicial = (montoDescuentoJudicial / diasTotalesQuincena) * diasLaborados;
-            }
-
+            const montoDescuentoJudicial = indicadoresDescuento.montoDescuento;
+            
             // Calcular el salario final a pagar (salario proporcional - descuento judicial)
             const salarioFinalAPagar = Math.max(0, salarioProporcional - montoDescuentoJudicial);
             
@@ -440,6 +435,7 @@ async function obtenerDatosNomina() {
             empleado.DescuentoJudicial = montoDescuentoJudicial;
             empleado.NoDocumentoJudicial = descuentosJudiciales.NoDocumento;
             empleado.SalarioFinalAPagar = salarioFinalAPagar;
+            empleado.IndicadoresDescuento = indicadoresDescuento; // NUEVO CAMPO CON INDICADORES
             empleado.FechaFinColaboradorFormateada = empleado.FechaFinColaborador ? 
                 new Date(empleado.FechaFinColaborador).toLocaleDateString('es-GT') : null;
             
@@ -460,8 +456,163 @@ async function obtenerDatosNomina() {
         document.getElementById('loader').style.display = 'none';
     }
 }
-
+function calcularDescuentoJudicialConIndicadores(descuentosJudiciales, tipoQuincena, diasLaborados, diasTotalesQuincena = 15) {
+    // Inicializar resultado
+    const resultado = {
+        montoDescuento: 0,
+        tieneDescuentoJudicial: descuentosJudiciales.TieneDescuento,
+        aplicaDescuento: false,
+        motivoNoAplica: '',
+        numeroDocumento: descuentosJudiciales.NoDocumento || '',
+        indicadorVisual: ''
+    };
+    
+    // Si no tiene descuento judicial configurado, retornar vacío
+    if (!descuentosJudiciales.TieneDescuento) {
+        return resultado;
+    }
+    
+    // Determinar el monto de descuento según el tipo de quincena
+    const campoDescuento = tipoQuincena === 'normal' ? 'DescuentoQuincenal' : 'DescuentoQuincenalFinMes';
+    let montoDescuentoBase = descuentosJudiciales[campoDescuento];
+    
+    // Si no hay descuento configurado para este tipo de quincena
+    if (montoDescuentoBase <= 0) {
+        resultado.motivoNoAplica = 'Sin descuento configurado para este tipo de quincena';
+        resultado.indicadorVisual = '⚠️ Sin config.';
+        return resultado;
+    }
+    
+    // Verificar si el saldo pendiente es menor que el descuento establecido
+    if (descuentosJudiciales.SaldoPendiente > 0 && descuentosJudiciales.SaldoPendiente < montoDescuentoBase) {
+        montoDescuentoBase = descuentosJudiciales.SaldoPendiente;
+    }
+    
+    // REGLA PRINCIPAL: Solo aplicar descuento si trabajó los días completos
+    if (diasLaborados >= diasTotalesQuincena) {
+        // Trabajó días completos - APLICAR DESCUENTO
+        resultado.montoDescuento = montoDescuentoBase;
+        resultado.aplicaDescuento = true;
+        resultado.indicadorVisual = '💼 Aplicado';
+    } else {
+        // No trabajó días completos - NO APLICAR DESCUENTO
+        resultado.montoDescuento = 0;
+        resultado.aplicaDescuento = false;
+        resultado.motivoNoAplica = `Días incompletos (${diasLaborados}/${diasTotalesQuincena})`;
+        resultado.indicadorVisual = `🚫 No aplicado (${diasLaborados}/${diasTotalesQuincena})`;
+    }
+    
+    return resultado;
+}
 // Función actualizada para renderizar la tabla con indicadores de bajas
+// Función para obtener descuentos judiciales del empleado
+async function obtenerDescuentosJudiciales(idPersonal) {
+    try {
+        const connection = await connectionString();
+        
+        // Consulta para obtener los descuentos judiciales del empleado
+        const query = `
+            SELECT 
+                IdPersonal,
+                DescuentoQuincenal,
+                DescuentoQuincenalFinMes,
+                NoDocumento,
+                SaldoPendiente,
+                IdDescuentoJudicial
+            FROM 
+                DescuentosJudiciales
+            WHERE 
+                IdPersonal = ? AND Estado = 0
+        `;
+        
+        const results = await connection.query(query, [idPersonal]);
+        await connection.close();
+        
+        // Si hay resultados, devolver la información de descuentos
+        if (results.length > 0) {
+            return {
+                DescuentoQuincenal: parseFloat(results[0].DescuentoQuincenal) || 0,
+                DescuentoQuincenalFinMes: parseFloat(results[0].DescuentoQuincenalFinMes) || 0,
+                NoDocumento: results[0].NoDocumento || '',
+                SaldoPendiente: parseFloat(results[0].SaldoPendiente) || 0,
+                IdDescuentoJudicial: results[0].IdDescuentoJudicial,
+                TieneDescuento: true
+            };
+        } else {
+            // Si no hay descuentos judiciales
+            return {
+                DescuentoQuincenal: 0,
+                DescuentoQuincenalFinMes: 0,
+                NoDocumento: '',
+                SaldoPendiente: 0,
+                IdDescuentoJudicial: null,
+                TieneDescuento: false
+            };
+        }
+    } catch (error) {
+        console.error('Error al obtener descuentos judiciales:', error);
+        return {
+            DescuentoQuincenal: 0,
+            DescuentoQuincenalFinMes: 0,
+            NoDocumento: '',
+            SaldoPendiente: 0,
+            IdDescuentoJudicial: null,
+            TieneDescuento: false
+        };
+    }
+}
+
+// Función para calcular el descuento judicial y generar indicadores
+function calcularDescuentoJudicialConIndicadores(descuentosJudiciales, tipoQuincena, diasLaborados, diasTotalesQuincena = 15) {
+    // Inicializar resultado
+    const resultado = {
+        montoDescuento: 0,
+        tieneDescuentoJudicial: descuentosJudiciales.TieneDescuento,
+        aplicaDescuento: false,
+        motivoNoAplica: '',
+        numeroDocumento: descuentosJudiciales.NoDocumento || '',
+        indicadorVisual: ''
+    };
+    
+    // Si no tiene descuento judicial configurado, retornar vacío
+    if (!descuentosJudiciales.TieneDescuento) {
+        return resultado;
+    }
+    
+    // Determinar el monto de descuento según el tipo de quincena
+    const campoDescuento = tipoQuincena === 'normal' ? 'DescuentoQuincenal' : 'DescuentoQuincenalFinMes';
+    let montoDescuentoBase = descuentosJudiciales[campoDescuento];
+    
+    // Si no hay descuento configurado para este tipo de quincena
+    if (montoDescuentoBase <= 0) {
+        resultado.motivoNoAplica = 'Sin descuento configurado para este tipo de quincena';
+        resultado.indicadorVisual = '⚠️ Sin config.';
+        return resultado;
+    }
+    
+    // Verificar si el saldo pendiente es menor que el descuento establecido
+    if (descuentosJudiciales.SaldoPendiente > 0 && descuentosJudiciales.SaldoPendiente < montoDescuentoBase) {
+        montoDescuentoBase = descuentosJudiciales.SaldoPendiente;
+    }
+    
+    // REGLA PRINCIPAL: Solo aplicar descuento si trabajó los días completos
+    if (diasLaborados >= diasTotalesQuincena) {
+        // Trabajó días completos - APLICAR DESCUENTO
+        resultado.montoDescuento = montoDescuentoBase;
+        resultado.aplicaDescuento = true;
+        resultado.indicadorVisual = '💼 Aplicado';
+    } else {
+        // No trabajó días completos - NO APLICAR DESCUENTO
+        resultado.montoDescuento = 0;
+        resultado.aplicaDescuento = false;
+        resultado.motivoNoAplica = `Días incompletos (${diasLaborados}/${diasTotalesQuincena})`;
+        resultado.indicadorVisual = `🚫 No aplicado (${diasLaborados}/${diasTotalesQuincena})`;
+    }
+    
+    return resultado;
+}
+
+// Función actualizada para renderizar la tabla con indicadores de descuentos
 function renderizarTabla(datos) {
     const tbody = document.getElementById('nominaTableBody');
     const tipoQuincena = document.getElementById('tipoQuincenaFilter').value;
@@ -524,11 +675,29 @@ function renderizarTabla(datos) {
         // Determinar si el salario es reducido
         const claseSalario = empleado.DiasLaborados < diasQuincenaCompleta ? 'currency salario-reducido' : 'currency';
         
-        // Preparar el tooltip para descuentos judiciales
+        // Preparar el tooltip y clases para descuentos judiciales
         let claseDescuentoJudicial = 'currency';
         let tooltipDescuento = '';
+        let contenidoDescuento = descuentoJudicial;
         
-        if (empleado.DescuentoJudicial > 0) {
+        // Usar los nuevos indicadores de descuento judicial
+        if (empleado.IndicadoresDescuento) {
+            const indicadores = empleado.IndicadoresDescuento;
+            
+            if (indicadores.tieneDescuentoJudicial) {
+                if (indicadores.aplicaDescuento) {
+                    // Descuento aplicado normalmente
+                    claseDescuentoJudicial += ' descuento-judicial';
+                    tooltipDescuento = `data-tooltip="Embargo No. ${indicadores.numeroDocumento} - ${indicadores.indicadorVisual}"`;
+                } else {
+                    // Tiene descuento pero no se aplicó
+                    claseDescuentoJudicial += ' descuento-no-aplicado';
+                    tooltipDescuento = `data-tooltip="Embargo No. ${indicadores.numeroDocumento} - ${indicadores.indicadorVisual}. Motivo: ${indicadores.motivoNoAplica}"`;
+                    contenidoDescuento = `<span class="descuento-suspendido">${descuentoJudicial} ${indicadores.indicadorVisual}</span>`;
+                }
+            }
+        } else if (empleado.DescuentoJudicial > 0) {
+            // Fallback para compatibilidad
             claseDescuentoJudicial += ' descuento-judicial';
             tooltipDescuento = `data-tooltip="Embargo No. ${empleado.NoDocumentoJudicial}"`;
         }
@@ -562,7 +731,7 @@ function renderizarTabla(datos) {
             <td class="currency">${salarioQuincenal}</td>
             <td class="${claseDiasLaborados}" ${tooltipSuspension}>${empleado.DiasLaborados} / ${diasQuincenaCompleta}</td>
             <td class="${claseSalario}">${salarioProporcional}</td>
-            <td class="${claseDescuentoJudicial}" ${tooltipDescuento}>${descuentoJudicial}</td>
+            <td class="${claseDescuentoJudicial}" ${tooltipDescuento}>${contenidoDescuento}</td>
             <td class="currency salario-final">${salarioFinalAPagar}</td>
         `;
         
@@ -3739,7 +3908,7 @@ function obtenerUltimoDiaMes(mes, anio) {
 
 // Función para formatear números con separador de miles y dos decimales
 function formatearNumero(valor) {
-    if (valor === null || valor === undefined) return '0.00';
+    if (valor === null || valor === undefined) return '0.0000';
     
     return parseFloat(valor).toLocaleString('es-GT', {
         minimumFractionDigits: 2,
@@ -3844,24 +4013,65 @@ async function guardarPlanilla() {
             
             // 2. Insertar detalles en PagoPlanillaDetalle
             for (const empleado of planillaActual.empleados) {
-                const campoSalario = tipoQuincena === 'normal' ? 'SalarioQuincena' : 'SalarioQuincenaFinMes';
                 
-                // Calcular el pago de IGSS (4.83% del salario base) solo para quincena fin de mes
+                // CAMPOS BASE (se guardan tal cual)
+                const salarioQuincenal = tipoQuincena === 'normal' ? empleado.SalarioQuincena : empleado.SalarioQuincenaFinMes;
+                const salarioDiario = empleado.SalarioDiario;
+                const diasLaborados = empleado.DiasLaborados;
+                
+                // Variables para los cálculos
+                let bonificacion = 0;
                 let pagoIGSS = 0;
-                if (tipoQuincena === 'finMes' && empleado.SalarioBase) {
-                    pagoIGSS = empleado.SalarioBase * 0.0483;
+                let subTotalPagar = 0;
+                let montoPagado = 0;
+                
+                if (tipoQuincena === 'normal') {
+                    // **LÓGICA PARA QUINCENA NORMAL**
+                    
+                    // SubTotalPagar = SueldoDiario * Días Laborados
+                    subTotalPagar = salarioDiario * diasLaborados;
+                    
+                    // MontoPagado = SubTotalPagar - Descuento Judicial
+                    montoPagado = Math.max(0, subTotalPagar - empleado.DescuentoJudicial);
+                    
+                } else {
+                    // **LÓGICA PARA FIN DE MES** (CORREGIDA)
+                    
+                    // 1. Obtener datos de la quincena anterior
+                    const datosQuincenaAnterior = await obtenerDatosQuincenaAnterior(empleado.IdPersonal, mes, anio);
+                    
+                    // 2. Calcular: SueldoDiario * Días Laborados
+                    const salarioCalculado = salarioDiario * diasLaborados;
+                    
+                    // 3. Sumar SubTotalPagar de quincena + este cálculo de fin de mes
+                    const sumaSubTotales = datosQuincenaAnterior.subTotalPagar + salarioCalculado;
+                    
+                    // 4. Calcular IGSS = Suma de SubTotales * 4.83%
+                    pagoIGSS = sumaSubTotales * 0.0483;
+                    
+                    // 5. Calcular Bonificación = (Bonificación Mensual / 30) * (Días Quincena + Días Fin Mes)
+                    const bonificacionMensual = empleado.Bonificacion || 0;
+                    const totalDiasAmbasQuincenas = datosQuincenaAnterior.diasLaborados + diasLaborados;
+                    bonificacion = (bonificacionMensual / 30) * totalDiasAmbasQuincenas;
+                    
+                    // 6. SubTotalPagar = SueldoDiario * Días + Bonificación - IGSS
+                    subTotalPagar = salarioCalculado + bonificacion - pagoIGSS;
+                    
+                    // 7. MontoPagado = SubTotalPagar - Descuento Judicial
+                    montoPagado = Math.max(0, subTotalPagar - empleado.DescuentoJudicial);
                 }
                 
                 const detallePlanilla = {
                     IdPagoPlanilla: idPagoPlanilla,
                     IdPersonal: empleado.IdPersonal,
                     NombrePersonal: formatearNombreApellidoPrimero(empleado.NombreCompleto),
-                    SalarioQuincenal: empleado[campoSalario],
-                    SalarioDiario: empleado.SalarioDiario,
-                    MontoPagado: empleado.SalarioFinalAPagar,
-                    Bonificacion: empleado.Bonificacion || 0,
-                    PagoIGSS: pagoIGSS,
-                    DiasLaborados: empleado.DiasLaborados,
+                    SalarioQuincenal: salarioQuincenal,      // SE GUARDA TAL CUAL
+                    SalarioDiario: salarioDiario,            // SE GUARDA TAL CUAL
+                    MontoPagado: montoPagado,                // CALCULADO SEGÚN LÓGICA
+                    SubTotalPagar: subTotalPagar,            // CALCULADO SEGÚN LÓGICA
+                    Bonificacion: bonificacion,              // 0 para quincena, calculado para fin de mes
+                    PagoIGSS: pagoIGSS,                      // 0 para quincena, calculado para fin de mes
+                    DiasLaborados: diasLaborados,
                     NoCuenta: empleado.NoCuenta || ''
                 };
                 
@@ -3884,6 +4094,18 @@ async function guardarPlanilla() {
             html: `
                 <p>La planilla ha sido guardada exitosamente con <strong>Estado = 0</strong> (Editable).</p>
                 <p>Puede modificarla desde la pestaña "Modificar Nómina".</p>
+                ${tipoQuincena === 'finMes' ? 
+                    '<p><strong>Cálculos aplicados para Fin de Mes:</strong></p>' +
+                    '<ul style="text-align: left;">' +
+                    '<li>✅ SalarioDiario × Días Laborados</li>' +
+                    '<li>✅ IGSS = (SubTotal Quincena + SubTotal Fin Mes) × 4.83%</li>' +
+                    '<li>✅ Bonificación = (Bonificación/30) × Total Días</li>' +
+                    '<li>✅ SubTotalPagar = Salario + Bonificación - IGSS</li>' +
+                    '<li>✅ MontoPagado = SubTotalPagar - Descuentos</li>' +
+                    '</ul>' 
+                    : 
+                    '<p><strong>✅ Cálculos para Quincena Normal aplicados</strong></p>'
+                }
             `,
             confirmButtonText: 'Entendido'
         });
@@ -4063,75 +4285,44 @@ async function insertarCabeceraPlanilla(cabecera) {
     }
 }
 
-// Función para insertar el detalle de la planilla
+// Función actualizada para insertar el detalle de la planilla
 async function insertarDetallePlanilla(detalle) {
     try {
         const connection = await connectionString();
         
-        // Determinar si se incluye el campo bonificación y pago IGSS según el tipo de quincena
-        const incluirBonificacionIGSS = detalle.Bonificacion > 0 || detalle.PagoIGSS > 0;
+        // Consulta SQL para insertar el detalle incluyendo SubTotalPagar
+        const query = `
+            INSERT INTO PagoPlanillaDetalle (
+                IdPagoPlanilla,
+                IdPersonal,
+                NombrePersonal,
+                SalarioQuincenal,
+                SalarioDiario,
+                MontoPagado,
+                SubTotalPagar,
+                Bonificacion,
+                PagoIGSS,
+                DiasLaborados,
+                NoCuenta
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `;
         
-        // Consulta SQL para insertar el detalle
-        let query;
-        let params;
-        
-        if (incluirBonificacionIGSS) {
-            query = `
-                INSERT INTO PagoPlanillaDetalle (
-                    IdPagoPlanilla,
-                    IdPersonal,
-                    NombrePersonal,
-                    SalarioQuincenal,
-                    SalarioDiario,
-                    MontoPagado,
-                    Bonificacion,
-                    PagoIGSS,
-                    DiasLaborados,
-                    NoCuenta
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            `;
-            
-            params = [
-                detalle.IdPagoPlanilla,
-                detalle.IdPersonal,
-                detalle.NombrePersonal,
-                detalle.SalarioQuincenal,
-                detalle.SalarioDiario,
-                detalle.MontoPagado,
-                detalle.Bonificacion,
-                detalle.PagoIGSS,
-                detalle.DiasLaborados,
-                detalle.NoCuenta
-            ];
-        } else {
-            query = `
-                INSERT INTO PagoPlanillaDetalle (
-                    IdPagoPlanilla,
-                    IdPersonal,
-                    NombrePersonal,
-                    SalarioQuincenal,
-                    SalarioDiario,
-                    MontoPagado,
-                    DiasLaborados,
-                    NoCuenta
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-            `;
-            
-            params = [
-                detalle.IdPagoPlanilla,
-                detalle.IdPersonal,
-                detalle.NombrePersonal,
-                detalle.SalarioQuincenal,
-                detalle.SalarioDiario,
-                detalle.MontoPagado,
-                detalle.DiasLaborados,
-                detalle.NoCuenta
-            ];
-        }
+        const params = [
+            detalle.IdPagoPlanilla,
+            detalle.IdPersonal,
+            detalle.NombrePersonal,
+            detalle.SalarioQuincenal,
+            detalle.SalarioDiario,
+            detalle.MontoPagado,
+            detalle.SubTotalPagar,     // Nuevo campo
+            detalle.Bonificacion || 0,
+            detalle.PagoIGSS || 0,
+            detalle.DiasLaborados,
+            detalle.NoCuenta
+        ];
         
         // Ejecutar la consulta
         await connection.query(query, params);
-        
         await connection.close();
         
     } catch (error) {
@@ -4649,54 +4840,79 @@ async function mostrarResumenGeneracion(archivosGenerados, carpeta) {
         `
     });
 }
+// Función actualizada para crear hoja de planilla (con columnas para Fin de Mes)
 async function crearHojaPlanilla(planilla, formValues, nombresMeses) {
     const data = [];
     let filaActual = 0;
+    
+    // Determinar si es fin de mes
+    const esFinDeMes = formValues.tipoQuincena === 'finMes';
     
     // Título principal
     const tituloCompleto = planilla.NombreDivision 
         ? `${planilla.NombreDivision} - ${planilla.NombrePlanilla}`
         : planilla.NombrePlanilla;
-    data[filaActual++] = [tituloCompleto, '', '', '', '', '', '', ''];
+    data[filaActual++] = [tituloCompleto, '', '', '', '', '', '', '', '', '', '', ''];
     
     // Información de la planilla
-    data[filaActual++] = [`Tipo de Quincena: ${planilla.TipoPago}`, '', '', '', '', '', '', ''];
+    const tipoTexto = esFinDeMes ? 'Planilla Fin de Mes' : 'Planilla Quincenal';
+    data[filaActual++] = [`Tipo de Quincena: ${tipoTexto}`, '', '', '', '', '', '', '', '', '', '', ''];
     
     // Período
     const mesNombre = nombresMeses[planilla.Mes - 1];
     let periodo = '';
-    if (planilla.TipoPago.includes('Quincenal') || planilla.TipoPago.includes('Quincena')) {
-        periodo = `Del 1 al 15 de ${mesNombre} ${planilla.Anyo}`;
-    } else {
+    if (esFinDeMes) {
         const ultimoDia = obtenerUltimoDiaMes(planilla.Mes, planilla.Anyo);
         periodo = `Del 16 al ${ultimoDia} de ${mesNombre} ${planilla.Anyo}`;
+    } else {
+        periodo = `Del 1 al 15 de ${mesNombre} ${planilla.Anyo}`;
     }
-    data[filaActual++] = [`Período: ${periodo}`, '', '', '', '', '', '', ''];
+    data[filaActual++] = [`Período: ${periodo}`, '', '', '', '', '', '', '', '', '', '', ''];
     
-    data[filaActual++] = [`No. Centro de Trabajo: ${planilla.NoCentroTrabajo || 'No especificado'}`, '', '', '', '', '', '', ''];
-    data[filaActual++] = [`Cantidad de Colaboradores: ${planilla.CantColaboradores}`, '', '', '', '', '', '', ''];
+    data[filaActual++] = [`No. Centro de Trabajo: ${planilla.NoCentroTrabajo || 'No especificado'}`, '', '', '', '', '', '', '', '', '', '', ''];
+    data[filaActual++] = [`Cantidad de Colaboradores: ${planilla.CantColaboradores}`, '', '', '', '', '', '', '', '', '', '', ''];
     
-    // Encabezados de la tabla (con nuevas columnas)
-    data[filaActual++] = ['No.', 'Nombre Completo', 'Salario Diario', 'Días Laborados', 'Descuento Judicial', 'Total a Pagar', 'No. de Cuenta', 'Observaciones'];
+    // Encabezados de la tabla
+    if (esFinDeMes) {
+        // Encabezados para FIN DE MES
+        data[filaActual++] = [
+            'No.', 
+            'Nombre Completo', 
+            'Salario Diario', 
+            'Días Laborados', 
+            'Bonificación',
+            'IGSS',
+            'Descuento Judicial', 
+            'SubTotal',
+            'Total a Pagar',
+            'No. de Cuenta', 
+            'Observaciones'
+        ];
+    } else {
+        // Encabezados para QUINCENAL
+        data[filaActual++] = [
+            'No.', 
+            'Nombre Completo', 
+            'Salario Diario', 
+            'Días Laborados', 
+            'Descuento Judicial', 
+            'Total a Pagar', 
+            'No. de Cuenta', 
+            'Observaciones'
+        ];
+    }
     
     // Datos de empleados
     let totalPlanilla = 0;
+    let totalBonificaciones = 0;
+    let totalIGSS = 0;
+    let totalDescuentos = 0;
+    let totalSubTotal = 0;
+    
     if (planilla.detalles && planilla.detalles.length > 0) {
         for (let j = 0; j < planilla.detalles.length; j++) {
             const empleado = planilla.detalles[j];
             const numeroConsecutivo = j + 1;
-            
-            // Calcular descuento judicial
-            const salarioProporcional = (empleado.SalarioQuincenal / 15) * empleado.DiasLaborados;
-            let descuentoJudicial = 0;
-            
-            if (planilla.TipoPago.includes('Fin de Mes')) {
-                const bonificacion = empleado.Bonificacion || 0;
-                const igss = empleado.PagoIGSS || 0;
-                descuentoJudicial = Math.max(0, (salarioProporcional + bonificacion - igss - empleado.MontoPagado));
-            } else {
-                descuentoJudicial = Math.max(0, salarioProporcional - empleado.MontoPagado);
-            }
             
             // Obtener observaciones para este empleado
             const observaciones = await obtenerObservacionesEmpleado(
@@ -4706,25 +4922,368 @@ async function crearHojaPlanilla(planilla, formValues, nombresMeses) {
                 formValues.tipoQuincena
             );
             
-            data[filaActual++] = [
-                numeroConsecutivo,
-                empleado.NombrePersonal,
-                parseFloat(empleado.SalarioDiario),
-                empleado.DiasLaborados,
-                parseFloat(descuentoJudicial),
-                parseFloat(empleado.MontoPagado),
-                empleado.NoCuenta || 'Sin cuenta', // Nueva columna No. de Cuenta
-                observaciones // Nueva columna Observaciones
-            ];
-            
-            totalPlanilla += parseFloat(empleado.MontoPagado);
+            if (esFinDeMes) {
+                // DATOS PARA FIN DE MES - CÁLCULO CORREGIDO
+                const bonificacion = parseFloat(empleado.Bonificacion) || 0;
+                const igss = parseFloat(empleado.PagoIGSS) || 0;
+                const montoPagado = parseFloat(empleado.MontoPagado) || 0;
+                
+                // CALCULAR SUBTOTAL = SalarioDiario * Días + Bonificación - IGSS
+                const salarioCalculado = parseFloat(empleado.SalarioDiario) * parseInt(empleado.DiasLaborados);
+                const subTotal = salarioCalculado + bonificacion - igss;
+                
+                // CALCULAR DESCUENTO = SubTotal - MontoPagado
+                const descuentoJudicial = Math.max(0, subTotal - montoPagado);
+                
+                // Acumular totales
+                totalBonificaciones += bonificacion;
+                totalIGSS += igss;
+                totalDescuentos += descuentoJudicial;
+                totalSubTotal += subTotal;
+                totalPlanilla += montoPagado;
+                
+                data[filaActual++] = [
+                    numeroConsecutivo,
+                    empleado.NombrePersonal,
+                    parseFloat(empleado.SalarioDiario),
+                    empleado.DiasLaborados,
+                    bonificacion,
+                    igss,
+                    descuentoJudicial,
+                    subTotal,                       // SUBTOTAL CALCULADO CORRECTAMENTE
+                    montoPagado,
+                    empleado.NoCuenta || 'Sin cuenta',
+                    observaciones
+                ];
+            } else {
+                // DATOS PARA QUINCENAL (lógica original)
+                const salarioProporcional = (empleado.SalarioQuincenal / 15) * empleado.DiasLaborados;
+                const descuentoJudicial = Math.max(0, salarioProporcional - empleado.MontoPagado);
+                
+                totalDescuentos += descuentoJudicial;
+                totalPlanilla += parseFloat(empleado.MontoPagado);
+                
+                data[filaActual++] = [
+                    numeroConsecutivo,
+                    empleado.NombrePersonal,
+                    parseFloat(empleado.SalarioDiario),
+                    empleado.DiasLaborados,
+                    descuentoJudicial,
+                    parseFloat(empleado.MontoPagado),
+                    empleado.NoCuenta || 'Sin cuenta',
+                    observaciones
+                ];
+            }
         }
     }
     
-    // Total de la planilla (con las nuevas columnas)
-    data[filaActual++] = ['', '', '', '', '', 'TOTAL:', parseFloat(totalPlanilla), ''];
+    // Filas de totales
+    if (esFinDeMes) {
+        // TOTALES PARA FIN DE MES
+        data[filaActual++] = [
+            '', 
+            '', 
+            '', 
+            '', 
+            'TOTAL BONIFICACIONES:', 
+            parseFloat(totalBonificaciones),
+            '', 
+            '', 
+            '', 
+            '', 
+            ''
+        ];
+        data[filaActual++] = [
+            '', 
+            '', 
+            '', 
+            '', 
+            'TOTAL IGSS:', 
+            parseFloat(totalIGSS),
+            '', 
+            '', 
+            '', 
+            '', 
+            ''
+        ];
+        data[filaActual++] = [
+            '', 
+            '', 
+            '', 
+            '', 
+            'TOTAL DESCUENTOS:', 
+            '', 
+            parseFloat(totalDescuentos),
+            '', 
+            '', 
+            '', 
+            ''
+        ];
+        data[filaActual++] = [
+            '', 
+            '', 
+            '', 
+            '', 
+            '', 
+            '', 
+            '', 
+            'TOTAL SUBTOTAL:', 
+            parseFloat(totalSubTotal),
+            '', 
+            ''
+        ];
+        data[filaActual++] = [
+            '', 
+            '', 
+            '', 
+            '', 
+            '', 
+            '', 
+            '', 
+            'TOTAL A PAGAR:', 
+            parseFloat(totalPlanilla),
+            '', 
+            ''
+        ];
+    } else {
+        // TOTALES PARA QUINCENAL
+        data[filaActual++] = [
+            '', 
+            '', 
+            '', 
+            '', 
+            'TOTAL DESCUENTOS:', 
+            parseFloat(totalDescuentos),
+            '', 
+            ''
+        ];
+        data[filaActual++] = [
+            '', 
+            '', 
+            '', 
+            '', 
+            '', 
+            'TOTAL A PAGAR:', 
+            parseFloat(totalPlanilla),
+            ''
+        ];
+    }
     
     return data;
+}
+
+// Función actualizada para aplicar estilos al Excel (con nuevas columnas)
+function aplicarEstilosExcel(worksheet, planilla) {
+    const range = XLSX.utils.decode_range(worksheet['!ref']);
+    
+    // Determinar si es fin de mes para ajustar anchos de columna
+    const esFinDeMes = planilla.TipoPago.includes('Fin de Mes');
+    
+    // Configurar anchos de columna según el tipo
+    if (esFinDeMes) {
+        // Anchos para FIN DE MES (11 columnas)
+        worksheet['!cols'] = [
+            { wch: 8 },   // No.
+            { wch: 35 },  // Nombre Completo
+            { wch: 12 },  // Salario Diario
+            { wch: 12 },  // Días Laborados
+            { wch: 15 },  // Bonificación
+            { wch: 12 },  // IGSS
+            { wch: 18 },  // Descuento Judicial
+            { wch: 15 },  // SubTotal
+            { wch: 15 },  // Total a Pagar
+            { wch: 18 },  // No. de Cuenta
+            { wch: 25 }   // Observaciones
+        ];
+    } else {
+        // Anchos para QUINCENAL (8 columnas)
+        worksheet['!cols'] = [
+            { wch: 8 },   // No.
+            { wch: 40 },  // Nombre Completo
+            { wch: 15 },  // Salario Diario
+            { wch: 15 },  // Días Laborados
+            { wch: 18 },  // Descuento Judicial
+            { wch: 15 },  // Total a Pagar
+            { wch: 18 },  // No. de Cuenta
+            { wch: 25 }   // Observaciones
+        ];
+    }
+    
+    // Aplicar estilos a las celdas
+    for (let R = range.s.r; R <= range.e.r; ++R) {
+        for (let C = range.s.c; C <= range.e.c; ++C) {
+            const cellAddress = XLSX.utils.encode_cell({ r: R, c: C });
+            
+            if (!worksheet[cellAddress]) {
+                worksheet[cellAddress] = { t: 's', v: '' };
+            }
+            
+            const cell = worksheet[cellAddress];
+            
+            // INFORMACIÓN DE LA PLANILLA (filas 1-4) - CENTRADO Y NEGRITA
+            if (R >= 1 && R <= 4) {
+                cell.s = {
+                    font: {
+                        name: "Calibri",
+                        sz: 12,
+                        bold: 1,
+                        color: { rgb: "000000" }
+                    },
+                    alignment: {
+                        horizontal: "center",
+                        vertical: "center"
+                    },
+                    border: {
+                        top: { style: "thin", color: { rgb: "000000" } },
+                        bottom: { style: "thin", color: { rgb: "000000" } },
+                        left: { style: "thin", color: { rgb: "000000" } },
+                        right: { style: "thin", color: { rgb: "000000" } }
+                    }
+                };
+            }
+            // TÍTULO PRINCIPAL (fila 0)
+            else if (R === 0) {
+                cell.s = {
+                    font: {
+                        name: "Calibri",
+                        sz: 14,
+                        bold: 1,
+                        color: { rgb: "000000" }
+                    },
+                    alignment: {
+                        horizontal: "center",
+                        vertical: "center"
+                    },
+                    border: {
+                        top: { style: "medium", color: { rgb: "000000" } },
+                        bottom: { style: "medium", color: { rgb: "000000" } },
+                        left: { style: "medium", color: { rgb: "000000" } },
+                        right: { style: "medium", color: { rgb: "000000" } }
+                    }
+                };
+            }
+            // ENCABEZADOS (fila 5)
+            else if (R === 5) {
+                cell.s = {
+                    font: {
+                        name: "Calibri",
+                        sz: 11,
+                        bold: 1,
+                        color: { rgb: "FFFFFF" }
+                    },
+                    alignment: {
+                        horizontal: "center",
+                        vertical: "center"
+                    },
+                    border: {
+                        top: { style: "thin", color: { rgb: "000000" } },
+                        bottom: { style: "thin", color: { rgb: "000000" } },
+                        left: { style: "thin", color: { rgb: "000000" } },
+                        right: { style: "thin", color: { rgb: "000000" } }
+                    },
+                    fill: {
+                        fgColor: { rgb: "D18A47" }
+                    }
+                };
+            }
+            // DATOS DE EMPLEADOS Y TOTALES
+            else if (R > 5) {
+                const esFilaPar = (R - 6) % 2 === 0;
+                const fillColor = esFilaPar ? "FFFFFF" : "FDF2E9";
+                
+                // Detectar filas de totales
+                const esTotalRow = cell.v && (
+                    cell.v.toString().includes('TOTAL') || 
+                    (typeof cell.v === 'string' && cell.v.startsWith('TOTAL'))
+                );
+                
+                if (esTotalRow) {
+                    // Estilo para filas de totales
+                    cell.s = {
+                        font: {
+                            name: "Calibri",
+                            sz: 11,
+                            bold: 1,
+                            color: { rgb: "000000" }
+                        },
+                        alignment: {
+                            horizontal: "center",
+                            vertical: "center"
+                        },
+                        border: {
+                            top: { style: "thin", color: { rgb: "000000" } },
+                            bottom: { style: "thin", color: { rgb: "000000" } },
+                            left: { style: "thin", color: { rgb: "000000" } },
+                            right: { style: "thin", color: { rgb: "000000" } }
+                        },
+                        fill: {
+                            fgColor: { rgb: "E8F5E8" }
+                        }
+                    };
+                } else {
+                    // Estilo para datos normales
+                    cell.s = {
+                        font: {
+                            name: "Calibri",
+                            sz: 10,
+                            bold: 0,
+                            color: { rgb: "000000" }
+                        },
+                        alignment: {
+                            horizontal: (C === 1 || C === (esFinDeMes ? 9 : 6) || C === (esFinDeMes ? 10 : 7)) ? "left" : "center",
+                            vertical: "center"
+                        },
+                        border: {
+                            top: { style: "thin", color: { rgb: "000000" } },
+                            bottom: { style: "thin", color: { rgb: "000000" } },
+                            left: { style: "thin", color: { rgb: "000000" } },
+                            right: { style: "thin", color: { rgb: "000000" } }
+                        },
+                        fill: {
+                            fgColor: { rgb: fillColor }
+                        }
+                    };
+                    
+                    // Formato numérico para columnas monetarias
+                    if (esFinDeMes) {
+                        if (C === 2 || C === 4 || C === 5 || C === 6 || C === 7 || C === 8) {
+                            cell.s.numFmt = "#,##0.00";
+                        }
+                    } else {
+                        if (C === 2 || C === 4 || C === 5) {
+                            cell.s.numFmt = "#,##0.00";
+                        }
+                    }
+                }
+            }
+        }
+    }
+    
+    // Combinar celdas para títulos (ajustar según número de columnas)
+    const maxCol = esFinDeMes ? 10 : 7;
+    worksheet['!merges'] = [
+        { s: { r: 0, c: 0 }, e: { r: 0, c: maxCol } }, // Título
+        { s: { r: 1, c: 0 }, e: { r: 1, c: maxCol } }, // Tipo de Quincena
+        { s: { r: 2, c: 0 }, e: { r: 2, c: maxCol } }, // Período
+        { s: { r: 3, c: 0 }, e: { r: 3, c: maxCol } }, // Centro de Trabajo
+        { s: { r: 4, c: 0 }, e: { r: 4, c: maxCol } }  // Cantidad de Colaboradores
+    ];
+    
+    // Altura de filas
+    worksheet['!rows'] = [
+        { hpt: 25 }, // 0: Título
+        { hpt: 22 }, // 1: Tipo de quincena
+        { hpt: 22 }, // 2: Período
+        { hpt: 22 }, // 3: Centro de trabajo
+        { hpt: 22 }, // 4: Cantidad de colaboradores
+        { hpt: 25 }  // 5: Encabezados
+    ];
+    
+    for (let i = 6; i <= range.e.r; i++) {
+        if (!worksheet['!rows'][i]) {
+            worksheet['!rows'][i] = { hpt: 20 };
+        }
+    }
 }
 async function obtenerObservacionesEmpleado(idPersonal, mes, anio, tipoQuincena) {
     try {
@@ -4863,6 +5422,48 @@ async function obtenerObservacionesEmpleado(idPersonal, mes, anio, tipoQuincena)
     } catch (error) {
         console.error('Error al obtener observaciones:', error);
         return '';
+    }
+}
+async function obtenerDatosQuincenaAnterior(idPersonal, mes, anio) {
+    try {
+        const connection = await connectionString();
+        
+        // Consulta para obtener datos de la quincena anterior (IdTipoPago = 1)
+        const query = `
+            SELECT 
+                ppd.DiasLaborados,
+                ppd.SubTotalPagar
+            FROM 
+                PagoPlanillaDetalle ppd
+                INNER JOIN PagoPlanilla pp ON ppd.IdPagoPlanilla = pp.IdPagoPlanilla
+            WHERE 
+                ppd.IdPersonal = ?
+                AND pp.IdTipoPago = 1
+                AND pp.Mes = ?
+                AND pp.Anyo = ?
+        `;
+        
+        const resultado = await connection.query(query, [idPersonal, mes, anio]);
+        await connection.close();
+        
+        if (resultado.length > 0) {
+            return {
+                diasLaborados: parseInt(resultado[0].DiasLaborados) || 0,
+                subTotalPagar: parseFloat(resultado[0].SubTotalPagar) || 0
+            };
+        }
+        
+        return {
+            diasLaborados: 0,
+            subTotalPagar: 0
+        };
+        
+    } catch (error) {
+        console.error('Error al obtener datos de quincena anterior:', error);
+        return {
+            diasLaborados: 0,
+            subTotalPagar: 0
+        };
     }
 }
 // Función para aplicar estilos al Excel (corrección específica para centrar y negrita)
