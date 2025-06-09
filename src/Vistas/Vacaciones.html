@@ -12,8 +12,6 @@
     <script src="https://cdn.jsdelivr.net/npm/fullcalendar@5.10.0/main.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/fullcalendar@5.10.0/locales/es.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-    <script src="https://unpkg.com/@popperjs/core@2"></script>
-<script src="https://unpkg.com/tippy.js@6"></script>
 </head>
 <body>
     <!-- Encabezado con logos y título -->
@@ -36,34 +34,57 @@
 
     <!-- Contenido principal -->
     <main class="content">
-        <!-- Panel de control integrado con información del departamento -->
-        <section class="control-panel">
-            <div class="department-info-compact">
-                <i class="fas fa-building"></i>
-                <h2 id="departmentName">Sistemas</h2>
-                    <div class="department-stats">
-                        <span><i class="fas fa-users"></i> Total: <span id="departmentManager">14</span></span>
+        <!-- Panel de control compacto -->
+        <section class="control-panel compact">
+            <div class="control-row">
+                <!-- Información del departamento (automática basada en usuario) -->
+                <div class="department-info-display">
+                    <div class="department-badge">
+                        <div class="department-icon">
+                            <i class="fas fa-building"></i>
+                        </div>
+                        <div class="department-details">
+                            <span class="department-label">Departamento:</span>
+                            <span class="department-name" id="departmentName">Cargando...</span>
+                        </div>
                     </div>
+                    <div class="department-stats">
+                        <div class="info-badge">
+                            <i class="fas fa-user-tie"></i>
+                            <span class="info-label">Total:</span>
+                            <span class="info-value" id="departmentTotal">0</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Controles de acción -->
+                <div class="action-controls">
+                    <button id="refreshBtn" class="action-btn refresh-btn" title="Actualizar">
+                        <i class="fas fa-sync-alt"></i>
+                    </button>
+                    <button id="exportBtn" class="action-btn export-btn" title="Exportar Excel">
+                        <i class="fas fa-file-export"></i>
+                    </button>
+                    <button id="generatePdfBtn" class="action-btn pdf-btn" title="Generar PDF">
+                        <i class="fas fa-file-pdf"></i>
+                    </button>
+                </div>
             </div>
-            <div class="search-bar">
-                <i class="fas fa-search"></i>
-                <input type="text" id="searchInput" placeholder="Buscar colaborador por nombre o puesto...">
-            </div>
-            <div class="filter-controls">
-                <button id="refreshBtn" class="refresh-btn">
-                    <i class="fas fa-sync-alt"></i> Actualizar
-                </button>
-                <button id="exportBtn" class="export-btn">
-                    <i class="fas fa-file-export"></i> Exportar
-                </button>
-                <button id="generatePdfBtn" class="generate-pdf-btn">
-                    <i class="fas fa-file-pdf"></i> Generar PDF
-                </button>
+            
+            <!-- Barra de búsqueda -->
+            <div class="search-row">
+                <div class="search-bar-compact">
+                    <i class="fas fa-search"></i>
+                    <input type="text" id="searchInput" placeholder="Buscar colaborador por nombre o puesto...">
+                    <button class="clear-search-btn" id="clearSearchBtn" style="display: none;">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
             </div>
         </section>
 
-        <!-- Tabla de colaboradores -->
-        <section class="employees-table-section">
+        <!-- Tabla de colaboradores con más espacio -->
+        <section class="employees-table-section expanded">
             <div class="table-container">
                 <table id="employeesTable" class="employees-table">
                     <thead>
@@ -78,31 +99,41 @@
                         </tr>
                     </thead>
                     <tbody>
-                        <!-- Los datos se cargarán dinámicamente con JavaScript -->
+                        <!-- Mensaje inicial -->
+                        <tr>
+                            <td colspan="7" class="loading-message">
+                                <div class="loading-state">
+                                    <div class="spinner"></div>
+                                    <h3>Cargando colaboradores</h3>
+                                    <p>Obteniendo la lista de colaboradores de su departamento...</p>
+                                </div>
+                            </td>
+                        </tr>
                     </tbody>
                 </table>
             </div>
             
             <!-- Paginación -->
             <div class="pagination">
-                <button id="prevPage" class="pagination-btn"><i class="fas fa-chevron-left"></i> Anterior</button>
+                <button id="prevPage" class="pagination-btn" disabled>
+                    <i class="fas fa-chevron-left"></i> Anterior
+                </button>
                 <div id="pageIndicator" class="page-indicator">Página 1 de 1</div>
-                <button id="nextPage" class="pagination-btn">Siguiente <i class="fas fa-chevron-right"></i></button>
+                <button id="nextPage" class="pagination-btn" disabled>
+                    Siguiente <i class="fas fa-chevron-right"></i>
+                </button>
             </div>
         </section>
     </main>
 
     <!-- Elementos decorativos de fondo -->
-    <!-- Burbujas -->
     <div class="bg-decoration bubble bubble1"></div>
     <div class="bg-decoration bubble bubble2"></div>
     <div class="bg-decoration bubble bubble3"></div>
-    
-    <!-- Patrones -->
     <div class="bg-decoration pattern pattern1"></div>
     <div class="bg-decoration pattern pattern2"></div>
 
-    <!-- Modal para solicitud de vacaciones (mejorado con calendario) -->
+    <!-- Modal para solicitud de vacaciones -->
     <div id="vacationModal" class="modal">
         <div class="modal-content modal-compact">
             <div class="modal-header">
@@ -197,89 +228,94 @@
     <form id="vacationForm" style="display:none;"></form>
     
     <!-- Modal para ver información del empleado -->
-    <div id="infoModal" class="modal">
-        <div class="modal-content modal-lg">
-            <div class="modal-header">
-                <h2>Información del Colaborador</h2>
-                <span class="close-modal">&times;</span>
-            </div>
-            <div class="modal-body">
-                <!-- Sección de información básica -->
-                <div class="info-section">
-                    <div class="employee-profile">
-                        <div class="employee-photo">
-                            <img id="infoEmployeePhoto" src="../Imagenes/user-default.png" alt="Foto del colaborador">
-                        </div>
-                        <div class="employee-info">
-                            <h3 id="infoEmployeeName">Nombre del Colaborador</h3>
-                            <p id="infoEmployeePosition">Puesto</p>
-                        </div>
+<div id="infoModal" class="modal">
+    <div class="modal-content modal-lg">
+        <div class="modal-header">
+            <h2>Información del Colaborador</h2>
+            <span class="close-modal">&times;</span>
+        </div>
+        <div class="modal-body">
+            <!-- Sección de información básica -->
+            <div class="info-section">
+                <div class="employee-profile">
+                    <div class="employee-photo">
+                        <img id="infoEmployeePhoto" src="../Imagenes/user-default.png" alt="Foto del colaborador">
                     </div>
-                    <div class="info-details">
+                    <div class="employee-info">
+                        <h3 id="infoEmployeeName">Nombre del Colaborador</h3>
+                        <p id="infoEmployeePosition">Puesto</p>
+                    </div>
+                </div>
+                <div class="info-details">
+                    <div class="info-item">
+                        <span class="info-label">Días disponibles:</span>
+                        <span id="infoAvailableDays" class="info-value">15 días</span>
+                    </div>
                     <div class="info-item">
                         <span class="info-label">ID de empleado:</span>
                         <span id="infoEmployeeId" class="info-value">12345</span>
                     </div>
                 </div>
-                </div>
-                
-                <!-- Nueva sección: Historial de vacaciones -->
-                <div class="history-section">
-                    <div class="history-header">
-                        <h3>
-                            <i class="fas fa-history"></i> 
-                            Historial de Vacaciones
-                            <span class="badge" id="vacationHistoryCount">0</span>
-                        </h3>
-                        
-                        <!-- Controles de búsqueda y filtrado -->
-                        <div class="history-controls">
-                            <div class="date-filter">
-                                <div class="date-input-group">
-                                    <label for="dateFilterStart">Desde:</label>
-                                    <input type="date" id="dateFilterStart">
-                                </div>
-                                <div class="date-input-group">
-                                    <label for="dateFilterEnd">Hasta:</label>
-                                    <input type="date" id="dateFilterEnd">
-                                </div>
-                                <button id="filterDatesBtn" class="btn-filter">
-                                    <i class="fas fa-filter"></i> Filtrar
-                                </button>
+            </div>
+            
+            <!-- Nueva sección: Historial de vacaciones -->
+            <div class="history-section">
+                <div class="history-header">
+                    <h3>
+                        <i class="fas fa-history"></i> 
+                        Historial de Vacaciones
+                        <span class="badge" id="vacationHistoryCount">0</span>
+                    </h3>
+                    
+                    <!-- Controles de búsqueda y filtrado -->
+                    <div class="history-controls">
+                        <div class="date-filter">
+                            <div class="date-input-group">
+                                <label for="dateFilterStart">Desde:</label>
+                                <input type="date" id="dateFilterStart">
                             </div>
-                            
-                            <button id="searchEmployeeBtn" class="btn-search-employee">
-                                <i class="fas fa-search"></i> Buscar otro colaborador
+                            <div class="date-input-group">
+                                <label for="dateFilterEnd">Hasta:</label>
+                                <input type="date" id="dateFilterEnd">
+                            </div>
+                            <button id="filterDatesBtn" class="btn-filter">
+                                <i class="fas fa-filter"></i> Filtrar
                             </button>
                         </div>
+                        
+                        <button id="searchEmployeeBtn" class="btn-search-employee">
+                            <i class="fas fa-search"></i> Buscar otro colaborador
+                        </button>
                     </div>
-                    
-                    <!-- Tabla de historial -->
-                    <div class="history-table-container">
-                        <table id="vacationHistoryTable" class="history-table">
-                            <thead>
-                                <tr>
-                                    <th>Fecha</th>
-                                    <th>Período</th>
-                                    <th>Registrado por</th>
-                                    <th>Fecha de registro</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <!-- Los datos se cargarán dinámicamente -->
-                                <tr>
-                                    <td colspan="4" class="no-data">
-                                        <i class="fas fa-spinner fa-spin"></i>
-                                        <p>Cargando historial...</p>
-                                    </td>
-                                </tr>
-                            </tbody>
-                        </table>
-                    </div>
+                </div>
+                
+                <!-- Tabla de historial -->
+                <div class="history-table-container">
+                    <table id="vacationHistoryTable" class="history-table">
+                        <thead>
+                            <tr>
+                                <th>Fecha</th>
+                                <th>Período</th>
+                                <th>Registrado por</th>
+                                <th>Fecha de registro</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <!-- Los datos se cargarán dinámicamente -->
+                            <tr>
+                                <td colspan="4" class="no-data">
+                                    <i class="fas fa-spinner fa-spin"></i>
+                                    <p>Cargando historial...</p>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
                 </div>
             </div>
         </div>
     </div>
+</div>
+    
     <!-- Modal para generar PDF -->
     <div id="pdfGeneratorModal" class="modal">
         <div class="modal-content pdf-modal">
@@ -411,6 +447,7 @@
             </div>
         </div>
     </div>
+    
     <script src="../Logica/Vacaciones/Vacaciones.js"></script>
 </body>
 </html>

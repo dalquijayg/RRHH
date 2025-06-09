@@ -254,7 +254,23 @@ async function obtenerDatosNomina() {
         let queryActivos = `
             SELECT
                 personal.IdPersonal, 
-                CONCAT(personal.PrimerNombre, ' ', IFNULL(personal.SegundoNombre, ''), ' ', IFNULL(personal.TercerNombre, ''), ' ', personal.PrimerApellido, ' ', IFNULL(personal.SegundoApellido, '')) AS NombreCompleto, 
+                CONCAT(
+                    personal.PrimerApellido, 
+                    CASE WHEN personal.SegundoApellido IS NOT NULL AND personal.SegundoApellido != '' 
+                         THEN CONCAT(' ', personal.SegundoApellido) 
+                         ELSE '' 
+                    END,
+                    ', ',
+                    personal.PrimerNombre,
+                    CASE WHEN personal.SegundoNombre IS NOT NULL AND personal.SegundoNombre != '' 
+                         THEN CONCAT(' ', personal.SegundoNombre) 
+                         ELSE '' 
+                    END,
+                    CASE WHEN personal.TercerNombre IS NOT NULL AND personal.TercerNombre != '' 
+                         THEN CONCAT(' ', personal.TercerNombre) 
+                         ELSE '' 
+                    END
+                ) AS NombreCompleto, 
                 personal.IdSucuDepa, 
                 personal.FechaPlanilla, 
                 departamentos.NombreDepartamento, 
@@ -304,7 +320,23 @@ async function obtenerDatosNomina() {
         let queryBajas = `
             SELECT
                 personal.IdPersonal, 
-                CONCAT(personal.PrimerNombre, ' ', IFNULL(personal.SegundoNombre, ''), ' ', IFNULL(personal.TercerNombre, ''), ' ', personal.PrimerApellido, ' ', IFNULL(personal.SegundoApellido, '')) AS NombreCompleto, 
+                CONCAT(
+                    personal.PrimerApellido, 
+                    CASE WHEN personal.SegundoApellido IS NOT NULL AND personal.SegundoApellido != '' 
+                         THEN CONCAT(' ', personal.SegundoApellido) 
+                         ELSE '' 
+                    END,
+                    ', ',
+                    personal.PrimerNombre,
+                    CASE WHEN personal.SegundoNombre IS NOT NULL AND personal.SegundoNombre != '' 
+                         THEN CONCAT(' ', personal.SegundoNombre) 
+                         ELSE '' 
+                    END,
+                    CASE WHEN personal.TercerNombre IS NOT NULL AND personal.TercerNombre != '' 
+                         THEN CONCAT(' ', personal.TercerNombre) 
+                         ELSE '' 
+                    END
+                ) AS NombreCompleto, 
                 personal.IdSucuDepa, 
                 personal.FechaPlanilla, 
                 departamentos.NombreDepartamento, 
@@ -355,9 +387,9 @@ async function obtenerDatosNomina() {
             paramsBajas.push(planillaId);
         }
         
-        // Ordenar los resultados
-        queryActivos += ' ORDER BY divisiones.Nombre ASC, planillas.Nombre_Planilla ASC, NombreCompleto ASC';
-        queryBajas += ' ORDER BY divisiones.Nombre ASC, planillas.Nombre_Planilla ASC, NombreCompleto ASC';
+        // Ordenar los resultados (MODIFICADO - ordenar por apellidos)
+        queryActivos += ' ORDER BY divisiones.Nombre ASC, planillas.Nombre_Planilla ASC, personal.PrimerApellido ASC, personal.SegundoApellido ASC, personal.PrimerNombre ASC';
+        queryBajas += ' ORDER BY divisiones.Nombre ASC, planillas.Nombre_Planilla ASC, personal.PrimerApellido ASC, personal.SegundoApellido ASC, personal.PrimerNombre ASC';
         
         // Ejecutar las consultas
         const connection = await connectionString();
@@ -382,10 +414,10 @@ async function obtenerDatosNomina() {
             let diasLaborados = diasTotalesQuincena;
             
             if (empleado.FechaFinColaborador) {
-                // El empleado tiene baja, calcular días trabajados hasta su fecha de fin
-                const fechaFinColaborador = new Date(empleado.FechaFinColaborador);
-                const fechaInicioQuincena = new Date(inicioQuincena);
-                const fechaFinQuincena = new Date(finQuincena);
+                // CORRECCIÓN AQUÍ: Usar la función auxiliar para evitar problemas de zona horaria
+                const fechaFinColaborador = parsearFechaISO(empleado.FechaFinColaborador);
+                const fechaInicioQuincena = parsearFechaISO(inicioQuincena);
+                const fechaFinQuincena = parsearFechaISO(finQuincena);
                 
                 if (fechaFinColaborador >= fechaInicioQuincena && fechaFinColaborador <= fechaFinQuincena) {
                     // Calcular días trabajados desde el inicio de la quincena hasta la fecha de baja
@@ -428,6 +460,13 @@ async function obtenerDatosNomina() {
             // Calcular el salario final a pagar (salario proporcional - descuento judicial)
             const salarioFinalAPagar = Math.max(0, salarioProporcional - montoDescuentoJudicial);
             
+            // CORRECCIÓN AQUÍ: Formatear fecha correctamente sin problemas de zona horaria
+            if (empleado.FechaFinColaborador) {
+                empleado.FechaFinColaboradorFormateada = formatearFecha(empleado.FechaFinColaborador);
+            } else {
+                empleado.FechaFinColaboradorFormateada = null;
+            }
+            
             // Agregar los nuevos campos al objeto del empleado
             empleado.DiasLaborados = diasLaborados;
             empleado.DiasSuspendidos = diasSuspendidos;
@@ -435,9 +474,7 @@ async function obtenerDatosNomina() {
             empleado.DescuentoJudicial = montoDescuentoJudicial;
             empleado.NoDocumentoJudicial = descuentosJudiciales.NoDocumento;
             empleado.SalarioFinalAPagar = salarioFinalAPagar;
-            empleado.IndicadoresDescuento = indicadoresDescuento; // NUEVO CAMPO CON INDICADORES
-            empleado.FechaFinColaboradorFormateada = empleado.FechaFinColaborador ? 
-                new Date(empleado.FechaFinColaborador).toLocaleDateString('es-GT') : null;
+            empleado.IndicadoresDescuento = indicadoresDescuento;
             
             resultadosCompletos.push(empleado);
         }
@@ -664,8 +701,8 @@ function renderizarTabla(datos) {
             
             claseDiasLaborados += ' reducido';
             
-            // Agregar información específica al tooltip
-            if (empleado.TipoBaja) {
+            // CORRECCIÓN AQUÍ: Agregar información específica al tooltip con fecha corregida
+            if (empleado.TipoBaja && empleado.FechaFinColaboradorFormateada) {
                 tooltipSuspension = `data-tooltip="${empleado.TipoBaja} el ${empleado.FechaFinColaboradorFormateada}. Días trabajados: ${empleado.DiasLaborados}"`;
             } else if (empleado.DiasSuspendidos > 0) {
                 tooltipSuspension = `data-tooltip="El colaborador tiene ${empleado.DiasSuspendidos} día(s) suspendido(s)"`;
@@ -708,10 +745,10 @@ function renderizarTabla(datos) {
             clasesFila = 'empleado-baja';
         }
         
-        // Agregar indicador de tipo de baja en el nombre
+        // CORRECCIÓN AQUÍ: Agregar indicador de tipo de baja en el nombre con fecha corregida
         let nombreCompleto = empleado.NombreCompleto;
-        if (empleado.TipoBaja) {
-            nombreCompleto += ` <span class="indicador-baja">[${empleado.TipoBaja}]</span>`;
+        if (empleado.TipoBaja && empleado.FechaFinColaboradorFormateada) {
+            nombreCompleto += ` <span class="indicador-baja" title="Fecha de baja: ${empleado.FechaFinColaboradorFormateada}">[${empleado.TipoBaja}]</span>`;
         }
         
         // Crear la fila
@@ -840,8 +877,8 @@ async function cargarDatosNomina() {
         console.log(`Datos obtenidos inicialmente: ${datosCompletos ? datosCompletos.length : 0} registros`);
         
         // Filtrar los datos para eliminar empleados de planillas ya guardadas
-        // Filtrar los datos para eliminar empleados de planillas ya guardadas
         if (datosCompletos && datosCompletos.length > 0) {
+            // ORDENAMIENTO ADICIONAL POR APELLIDOS (por si acaso)
             datosCompletos.sort((a, b) => {
                 // Primero ordenar por División
                 if (a.NombreDivision !== b.NombreDivision) {
@@ -851,8 +888,14 @@ async function cargarDatosNomina() {
                 // Si están en la misma División, ordenar por NoCentroTrabajo
                 const centroTrabajoA = parseInt(a.NoCentroTrabajo || '0', 10);
                 const centroTrabajoB = parseInt(b.NoCentroTrabajo || '0', 10);
-                return centroTrabajoA - centroTrabajoB;
+                if (centroTrabajoA !== centroTrabajoB) {
+                    return centroTrabajoA - centroTrabajoB;
+                }
+                
+                // Finalmente, ordenar por nombre completo (que ya está en formato "Apellidos, Nombres")
+                return a.NombreCompleto.localeCompare(b.NombreCompleto);
             });
+            
             // Si se seleccionó una planilla específica
             if (planillaFilterValue !== 'todos') {
                 // Verificar si esa planilla ya está guardada
@@ -909,14 +952,21 @@ async function cargarDatosNomina() {
 // Función auxiliar para parsear fecha del formato ISO sin problemas de zona horaria
 function parsearFechaISO(fechaISO) {
     if (!fechaISO) return null;
+    
     // Si la fecha ya es un objeto Date, devolverla
     if (fechaISO instanceof Date) return fechaISO;
     
-    // Si es string en formato ISO (YYYY-MM-DD)
+    // Si es string en formato ISO (YYYY-MM-DD) o con hora
     if (typeof fechaISO === 'string') {
-        const partes = fechaISO.split('-');
-        // Crear fecha usando los componentes locales para evitar problemas de zona horaria
-        return new Date(parseInt(partes[0]), parseInt(partes[1]) - 1, parseInt(partes[2]));
+        // Si viene con hora, tomar solo la parte de fecha
+        const soloFecha = fechaISO.split('T')[0];
+        const partes = soloFecha.split('-');
+        
+        if (partes.length === 3) {
+            // Crear fecha usando hora del mediodía para evitar problemas de zona horaria
+            const fecha = new Date(parseInt(partes[0]), parseInt(partes[1]) - 1, parseInt(partes[2]), 12, 0, 0);
+            return fecha;
+        }
     }
     return null;
 }
@@ -924,12 +974,20 @@ function parsearFechaISO(fechaISO) {
 // Función para formatear fecha sin problemas de zona horaria
 function formatearFecha(fecha) {
     if (!fecha) return '';
-    const d = fecha instanceof Date ? fecha : parsearFechaISO(fecha);
-    if (!d) return '';
     
-    const dia = d.getDate().toString().padStart(2, '0');
-    const mes = (d.getMonth() + 1).toString().padStart(2, '0');
-    const anio = d.getFullYear();
+    let fechaObj;
+    if (fecha instanceof Date) {
+        fechaObj = fecha;
+    } else {
+        fechaObj = parsearFechaISO(fecha);
+    }
+    
+    if (!fechaObj) return '';
+    
+    // Formatear manualmente para evitar problemas de zona horaria
+    const dia = fechaObj.getDate().toString().padStart(2, '0');
+    const mes = (fechaObj.getMonth() + 1).toString().padStart(2, '0');
+    const anio = fechaObj.getFullYear();
     
     return `${dia}/${mes}/${anio}`;
 }
@@ -1006,13 +1064,29 @@ async function obtenerBajasColaboradores(mes, anio, tipoQuincena) {
             finQuincena = `${anio}-${mes.toString().padStart(2, '0')}-${ultimoDia}`;
         }
         
-        // Consulta para obtener las bajas del periodo
+        // Consulta para obtener las bajas del periodo (MODIFICADA)
         const query = `
             SELECT 
                 dr.IdPersonal,
                 dr.IdEstadoPersonal,
                 dr.FechaFinColaborador,
-                CONCAT(p.PrimerNombre, ' ', IFNULL(p.SegundoNombre, ''), ' ', IFNULL(p.TercerNombre, ''), ' ', p.PrimerApellido, ' ', IFNULL(p.SegundoApellido, '')) AS NombreCompleto,
+                CONCAT(
+                    p.PrimerApellido, 
+                    CASE WHEN p.SegundoApellido IS NOT NULL AND p.SegundoApellido != '' 
+                         THEN CONCAT(' ', p.SegundoApellido) 
+                         ELSE '' 
+                    END,
+                    ', ',
+                    p.PrimerNombre,
+                    CASE WHEN p.SegundoNombre IS NOT NULL AND p.SegundoNombre != '' 
+                         THEN CONCAT(' ', p.SegundoNombre) 
+                         ELSE '' 
+                    END,
+                    CASE WHEN p.TercerNombre IS NOT NULL AND p.TercerNombre != '' 
+                         THEN CONCAT(' ', p.TercerNombre) 
+                         ELSE '' 
+                    END
+                ) AS NombreCompleto,
                 p.IdPlanilla,
                 p.IdSucuDepa,
                 p.SalarioBase,
@@ -1035,14 +1109,22 @@ async function obtenerBajasColaboradores(mes, anio, tipoQuincena) {
                 AND dr.FechaFinColaborador >= ?
                 AND dr.FechaFinColaborador <= ?
             ORDER BY 
-                dr.FechaFinColaborador, NombreCompleto
+                dr.FechaFinColaborador, p.PrimerApellido ASC, p.SegundoApellido ASC, p.PrimerNombre ASC
         `;
         
         const params = [inicioQuincena, finQuincena];
         const results = await connection.query(query, params);
         
+        // CORRECCIÓN AQUÍ: Formatear fechas en los resultados
+        const resultadosCorregidos = results.map(result => {
+            if (result.FechaFinColaborador) {
+                result.FechaFinColaboradorFormateada = formatearFecha(result.FechaFinColaborador);
+            }
+            return result;
+        });
+        
         await connection.close();
-        return results;
+        return resultadosCorregidos;
         
     } catch (error) {
         console.error('Error al obtener bajas de colaboradores:', error);
@@ -1442,7 +1524,7 @@ async function cargarDetallesAccordeon(idPagoPlanilla, detailCell) {
         
         const connection = await connectionString();
         
-        // Consulta para obtener los detalles de la planilla
+        // Consulta para obtener los detalles de la planilla (MODIFICADA)
         const query = `
             SELECT 
                 ppd.IdDetallePagoPlanilla,
@@ -1461,7 +1543,7 @@ async function cargarDetallesAccordeon(idPagoPlanilla, detailCell) {
             WHERE 
                 ppd.IdPagoPlanilla = ?
             ORDER BY 
-                ppd.NombrePersonal
+                ppd.NombrePersonal ASC
         `;
         
         const detalles = await connection.query(query, [idPagoPlanilla]);
@@ -2465,16 +2547,24 @@ function actualizarEstadoBotonAutorizar() {
 function formatearFechaHora(fecha) {
     if (!fecha) return '';
     
-    const d = new Date(fecha);
+    let fechaObj;
+    if (fecha instanceof Date) {
+        fechaObj = fecha;
+    } else {
+        fechaObj = parsearFechaISO(fecha);
+    }
     
-    const dia = d.getDate().toString().padStart(2, '0');
-    const mes = (d.getMonth() + 1).toString().padStart(2, '0');
-    const anio = d.getFullYear();
-    const hora = d.getHours().toString().padStart(2, '0');
-    const minutos = d.getMinutes().toString().padStart(2, '0');
+    if (!fechaObj) return '';
+    
+    const dia = fechaObj.getDate().toString().padStart(2, '0');
+    const mes = (fechaObj.getMonth() + 1).toString().padStart(2, '0');
+    const anio = fechaObj.getFullYear();
+    const hora = fechaObj.getHours().toString().padStart(2, '0');
+    const minutos = fechaObj.getMinutes().toString().padStart(2, '0');
     
     return `${dia}/${mes}/${anio} ${hora}:${minutos}`;
 }
+
 
 // Función para mostrar detalles de una planilla
 async function mostrarDetallesPlanilla(idPlanilla) {
@@ -2503,7 +2593,7 @@ async function mostrarDetallesPlanilla(idPlanilla) {
         // Si no, cargarlos desde la base de datos
         const connection = await connectionString();
         
-        // Consulta para obtener los detalles de la planilla
+        // Consulta para obtener los detalles de la planilla (MODIFICADA)
         const query = `
             SELECT 
                 ppd.IdDetallePagoPlanilla,
@@ -2518,7 +2608,7 @@ async function mostrarDetallesPlanilla(idPlanilla) {
             WHERE 
                 ppd.IdPagoPlanilla = ?
             ORDER BY 
-                ppd.NombrePersonal
+                ppd.NombrePersonal ASC
         `;
         
         const detalles = await connection.query(query, [idPlanilla]);
@@ -2700,6 +2790,8 @@ function buscarColaborador(texto) {
         const idPersonal = fila.querySelector('td:nth-child(1)').textContent.toLowerCase();
         const noCuenta = fila.querySelector('td:nth-child(3)').textContent.toLowerCase();
         
+        // La búsqueda funciona tanto con apellidos como con nombres
+        // gracias al formato "Apellidos, Nombres"
         if (nombre.includes(terminoBusqueda) || 
             idPersonal.includes(terminoBusqueda) || 
             noCuenta.includes(terminoBusqueda)) {
@@ -3843,7 +3935,7 @@ async function obtenerDatosPlanillasParaReporte() {
                 }
             }
             
-            // 3. Obtener los detalles de cada empleado en la planilla, incluyendo el NoCuenta y NoAutorizacion
+            // 3. Obtener los detalles de cada empleado en la planilla, incluyendo el NoCuenta y NoAutorizacion (MODIFICADO)
             const queryDetalles = `
                 SELECT 
                     PPD.IdPersonal,
@@ -3863,7 +3955,7 @@ async function obtenerDatosPlanillasParaReporte() {
                 WHERE 
                     PPD.IdPagoPlanilla = ?
                 ORDER BY 
-                    PPD.NombrePersonal
+                    PPD.NombrePersonal ASC
             `;
             
             const detalles = await connection.query(queryDetalles, [planilla.IdPagoPlanilla]);
@@ -3888,16 +3980,9 @@ async function obtenerDatosPlanillasParaReporte() {
 
 // Función para formatear nombre con apellido primero
 function formatearNombreApellidoPrimero(nombreCompleto) {
-    // Esto es solo un ejemplo, habría que adaptarlo según cómo estén estructurados los datos
-    const partes = nombreCompleto.split(' ');
-    if (partes.length <= 2) return nombreCompleto; // No hay suficientes partes para reorganizar
-    
-    // Asumiendo formato: [PrimerNombre] [SegundoNombre] [PrimerApellido] [SegundoApellido]
-    // Convertir a: [PrimerApellido] [SegundoApellido], [PrimerNombre] [SegundoNombre]
-    const nombres = partes.slice(0, partes.length-2).join(' ');
-    const apellidos = partes.slice(partes.length-2).join(' ');
-    
-    return `${apellidos}, ${nombres}`;
+    // Como ya viene formateado desde la BD con el formato "Apellidos, Nombres", 
+    // solo lo retornamos tal como está
+    return nombreCompleto;
 }
 
 // Función para obtener UltimoDiaMes
@@ -5304,34 +5389,33 @@ async function obtenerObservacionesEmpleado(idPersonal, mes, anio, tipoQuincena)
             finQuincena = `${anio}-${mes.toString().padStart(2, '0')}-${ultimoDia}`;
         }
         
-        // FUNCIÓN AUXILIAR PARA FORMATEAR FECHAS CORRECTAMENTE
+        // FUNCIÓN AUXILIAR CORREGIDA PARA FORMATEAR FECHAS LOCALMENTE
         function formatearFechaLocal(fecha) {
+            if (!fecha) return '';
+            
+            let fechaObj;
+            
             // Si es string, parsearlo como fecha local
             if (typeof fecha === 'string') {
-                // Parsear la fecha como local para evitar problemas de zona horaria
-                const partes = fecha.split('T')[0].split('-'); // Tomar solo la parte de fecha (YYYY-MM-DD)
-                const fechaLocal = new Date(parseInt(partes[0]), parseInt(partes[1]) - 1, parseInt(partes[2]));
-                
-                const dia = fechaLocal.getDate().toString().padStart(2, '0');
-                const mes = (fechaLocal.getMonth() + 1).toString().padStart(2, '0');
-                const anio = fechaLocal.getFullYear();
-                
-                return `${dia}-${mes}-${anio}`;
+                // Tomar solo la parte de fecha (YYYY-MM-DD)
+                const soloFecha = fecha.split('T')[0];
+                const partes = soloFecha.split('-');
+                // Crear fecha local evitando problemas de zona horaria
+                fechaObj = new Date(parseInt(partes[0]), parseInt(partes[1]) - 1, parseInt(partes[2]), 12, 0, 0);
+            } else if (fecha instanceof Date) {
+                fechaObj = fecha;
+            } else {
+                return '';
             }
             
-            // Si ya es objeto Date, usarlo directamente
-            if (fecha instanceof Date) {
-                const dia = fecha.getDate().toString().padStart(2, '0');
-                const mes = (fecha.getMonth() + 1).toString().padStart(2, '0');
-                const anio = fecha.getFullYear();
-                
-                return `${dia}-${mes}-${anio}`;
-            }
+            const dia = fechaObj.getDate().toString().padStart(2, '0');
+            const mes = (fechaObj.getMonth() + 1).toString().padStart(2, '0');
+            const anio = fechaObj.getFullYear();
             
-            return '';
+            return `${dia}-${mes}-${anio}`;
         }
         
-        // 1. VERIFICAR BAJAS (DespidosRenuncias)
+        // 1. VERIFICAR BAJAS (DespidosRenuncias) - CORREGIDO
         const queryBajas = `
             SELECT 
                 DATE(FechaFinColaborador) as FechaFinColaborador,
@@ -5352,7 +5436,7 @@ async function obtenerObservacionesEmpleado(idPersonal, mes, anio, tipoQuincena)
             observaciones.push(`B.${fechaFormateada}`);
         }
         
-        // 2. VERIFICAR ALTAS (FechaPlanilla en tabla personal)
+        // 2. VERIFICAR ALTAS (FechaPlanilla en tabla personal) - CORREGIDO
         const queryAltas = `
             SELECT 
                 DATE(FechaPlanilla) as FechaPlanilla
@@ -5372,7 +5456,7 @@ async function obtenerObservacionesEmpleado(idPersonal, mes, anio, tipoQuincena)
             observaciones.push(`A.${fechaFormateada}`);
         }
         
-        // 3. VERIFICAR SUSPENSIONES
+        // 3. VERIFICAR SUSPENSIONES - CORREGIDO
         const querySuspensiones = `
             SELECT 
                 DATE(FechaInicio) as FechaInicio,
@@ -5391,15 +5475,9 @@ async function obtenerObservacionesEmpleado(idPersonal, mes, anio, tipoQuincena)
         
         if (suspensiones.length > 0) {
             suspensiones.forEach(suspension => {
-                // Crear fechas locales para evitar problemas de zona horaria
-                const fechaInicioLocal = typeof suspension.FechaInicio === 'string' ? 
-                    new Date(suspension.FechaInicio + 'T12:00:00') : // Agregar hora del mediodía para evitar cambios de zona
-                    suspension.FechaInicio;
-                    
-                const fechaFinLocal = typeof suspension.FechaFin === 'string' ? 
-                    new Date(suspension.FechaFin + 'T12:00:00') : // Agregar hora del mediodía para evitar cambios de zona
-                    suspension.FechaFin;
-                
+                // Crear fechas locales evitando problemas de zona horaria
+                const fechaInicioLocal = new Date(suspension.FechaInicio + 'T12:00:00');
+                const fechaFinLocal = new Date(suspension.FechaFin + 'T12:00:00');
                 const inicioQuincenaDate = new Date(inicioQuincena + 'T12:00:00');
                 const finQuincenaDate = new Date(finQuincena + 'T12:00:00');
                 

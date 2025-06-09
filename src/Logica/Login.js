@@ -6,6 +6,7 @@ const qrcode = require('qrcode');
 const Swal = require('sweetalert2');
 const conexion = 'DSN=recursos2'; // Asegúrate de tener configurado el DSN correctamente
 
+
 async function verificarDPI(dpi) {
     try {
         const connection = await connectionString();
@@ -15,7 +16,7 @@ async function verificarDPI(dpi) {
                                                 personal.IdSucuDepa, 
                                                 departamentos.NombreDepartamento, 
                                                 PuestosGenerales.Id_Puesto, 
-                                                personal.IdPuesto,
+                                                PuestosGenerales.Nombre,
                                                 personal.Secret_2FA,
                                                 personal.IngresoSistema,
                                                 CASE 
@@ -63,33 +64,6 @@ async function guardarSecret2FA(id, secret) {
     } catch (error) {
         console.error('Error al guardar Secret_2FA:', error);
         return false;
-    }
-}
-
-// Nueva función para obtener el nombre del puesto
-async function obtenerNombrePuesto(idPuesto) {
-    try {
-        const connection = await connectionString();
-        const result = await connection.query(`
-            SELECT 
-                pg.Nombre AS NombrePuesto
-            FROM 
-                Puestos p
-                INNER JOIN PuestosGenerales pg ON p.Id_PuestoGeneral = pg.Id_Puesto
-            WHERE 
-                p.IdPuesto = ?
-        `, [idPuesto]);
-        
-        await connection.close();
-        
-        if (result.length > 0) {
-            return result[0].NombrePuesto;
-        } else {
-            return 'Puesto no encontrado';
-        }
-    } catch (error) {
-        console.error('Error al obtener nombre del puesto:', error);
-        return 'Error al cargar puesto';
     }
 }
 
@@ -308,9 +282,6 @@ document.getElementById('loginForm').addEventListener('submit', async (event) =>
             });
 
             if (result.isConfirmed) {
-                // Determinar el rol antes de mostrar la bienvenida
-                const rolUsuario = await determinarRol(userData.Id_Puesto, userData.IdPuesto);
-                
                 // Mostrar mensaje de bienvenida con foto antes de redirigir
                 await Swal.fire({
                     icon: 'success',
@@ -325,7 +296,7 @@ document.getElementById('loginForm').addEventListener('submit', async (event) =>
                             <p style="color: #777;">${userData.NombreDepartamento}</p>
                             <div style="margin-top: 15px;">
                                 <span style="display: inline-block; background-color: #FF9800; color: white; padding: 5px 12px; border-radius: 20px; font-size: 0.85rem; animation: fadeInUp 0.8s;">
-                                    ${rolUsuario}
+                                    ${determinarRol(userData.Id_Puesto)}
                                 </span>
                             </div>
                         </div>
@@ -376,36 +347,14 @@ document.getElementById('loginForm').addEventListener('submit', async (event) =>
     }
 });
 
-// Función para determinar el rol basado en el ID del puesto (ACTUALIZADA Y MEJORADA)
-async function determinarRol(idPuestoGeneral, idPuesto) {
-    try {
-        // Casos especiales primero
-        if (idPuestoGeneral == 5) {
-            return 'Administrador RRHH';
-        } else if (idPuestoGeneral == 1) {
-            return 'Gerente';
-        } else if (idPuestoGeneral == 140) {
-            // Para ID 140, obtener el nombre específico del puesto
-            const nombrePuesto = await obtenerNombrePuesto(idPuesto);
-            return nombrePuesto;
-        } else {
-            // Para cualquier otro puesto, obtener el nombre real
-            const nombrePuesto = await obtenerNombrePuesto(idPuesto);
-            return nombrePuesto;
-        }
-    } catch (error) {
-        console.error('Error al determinar rol:', error);
-        
-        // Fallback en caso de error
-        if (idPuestoGeneral == 5) {
-            return 'Administrador RRHH';
-        } else if (idPuestoGeneral == 1) {
-            return 'Gerente';
-        } else if (idPuestoGeneral == 140) {
-            return 'Colaborador Especializado';
-        } else {
-            return 'Colaborador';
-        }
+// Función para determinar el rol basado en el ID del puesto
+function determinarRol(idPuesto) {
+    if (idPuesto == 5) {
+        return 'Administrador RRHH';
+    } else if (idPuesto == 1) {
+        return 'Gerente';
+    } else {
+        return 'Colaborador';
     }
 }
 
