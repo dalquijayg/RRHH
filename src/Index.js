@@ -22,6 +22,7 @@ let GestionarVacacionesWindow = null;
 let GestionarPagoVacacionesWindow = null;
 let EstadoPagosVacacionesWindow = null;
 let PagosBonisWindow = null;
+let BajasWindow = null;
 
 if(process.env.NODE_ENV !=='production'){
     require('electron-reload')(__dirname,{
@@ -526,6 +527,35 @@ function createPagosBonisWindow() {
         PagosBonisWindow = null;
     });
 }
+function createBajasWindow() {
+    // Verifica si la ventana ya está abierta
+    if (BajasWindow) {
+        // Si ya está abierta, simplemente enfócala
+        if (BajasWindow.isMinimized()) BajasWindow.restore();
+        PagBajasWindowosBonisWindow.focus();
+        return;
+    }
+    
+    // Crea una nueva ventana si no existe
+    BajasWindow = new BrowserWindow({
+        width: 1200,
+        height: 800,
+        webPreferences: {
+            nodeIntegration: true,
+            contextIsolation: false,
+        },
+        icon: path.join(__dirname, 'LogoRecursos.ico'),
+        title: 'Permisos',
+        autoHideMenuBar: true
+    });
+
+    BajasWindow.loadURL(`file://${__dirname}/Vistas/ReporteBajas.html`);
+    
+    // Elimina la referencia a la ventana cuando se cierre
+    BajasWindow.on('closed', () => {
+        BajasWindow = null;
+    });
+}
 // Añade este receptor para abrir la ventana de pago nómina
 ipcMain.on('open_pago_nomina', () => {
     createPagoNominaWindow();
@@ -578,6 +608,9 @@ ipcMain.on('open_Ventana_GestionPagosVacaciones', () => {
 });
 ipcMain.on('open_Ventana_Pagosbonis', () => {
     createPagosBonisWindow();
+});
+ipcMain.on('open_Ventana_Bajas', () => {
+    createBajasWindow();
 });
 ipcMain.handle('show-save-dialog', async (event, options) => {
     const result = await dialog.showOpenDialog(options);

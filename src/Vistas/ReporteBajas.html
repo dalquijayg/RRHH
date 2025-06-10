@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Reporte de Bajas - Recursos Humanos</title>
+    <link rel="stylesheet" href="../Disenos/Reportes/ReporteBajas.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.7.1/chart.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css">
+</head>
+<body>
+    <!-- Contenedor principal -->
+    <div class="container">
+        <!-- Encabezado de la página -->
+        <div class="page-header animate__animated animate__fadeInDown">
+            <div class="header-content">
+                <div class="page-title-container">
+                    <div class="page-icon">
+                        <i class="fas fa-chart-line"></i>
+                    </div>
+                    <div class="title-info">
+                        <h1 class="page-title">Reporte de Bajas de Personal</h1>
+                        <p class="page-subtitle">Análisis detallado de despidos y renuncias</p>
+                    </div>
+                </div>
+                
+                <!-- Estadísticas rápidas -->
+                <div class="quick-stats">
+                    <div class="stat-card stat-total">
+                        <div class="stat-icon">
+                            <i class="fas fa-users"></i>
+                        </div>
+                        <div class="stat-info">
+                            <span class="stat-number" id="totalBajas">0</span>
+                            <span class="stat-label">Total Bajas</span>
+                        </div>
+                    </div>
+                    <div class="stat-card stat-despidos">
+                        <div class="stat-icon">
+                            <i class="fas fa-user-times"></i>
+                        </div>
+                        <div class="stat-info">
+                            <span class="stat-number" id="totalDespidos">0</span>
+                            <span class="stat-label">Despidos</span>
+                        </div>
+                    </div>
+                    <div class="stat-card stat-renuncias">
+                        <div class="stat-icon">
+                            <i class="fas fa-user-minus"></i>
+                        </div>
+                        <div class="stat-info">
+                            <span class="stat-number" id="totalRenuncias">0</span>
+                            <span class="stat-label">Renuncias</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Panel de filtros -->
+        <div class="filters-panel animate__animated animate__fadeIn" style="--delay: 0.2s">
+            <div class="panel-header">
+                <h2>
+                    <i class="fas fa-filter"></i>
+                    Filtros de Búsqueda
+                </h2>
+                <div class="panel-actions">
+                    <button class="btn btn-secondary btn-sm" id="btnClearFilters">
+                        <i class="fas fa-eraser"></i>
+                        Limpiar
+                    </button>
+                    <button class="btn btn-primary btn-sm" id="btnExportReport">
+                        <i class="fas fa-file-excel"></i>
+                        Exportar
+                    </button>
+                </div>
+            </div>
+            
+            <div class="filters-content">
+                <div class="filter-row">
+                    <div class="filter-group">
+                        <label for="fechaDesde">
+                            <i class="fas fa-calendar-alt"></i>
+                            Fecha Desde
+                        </label>
+                        <div class="input-with-icon">
+                            <input type="date" id="fechaDesde" class="form-control">
+                        </div>
+                    </div>
+                    
+                    <div class="filter-group">
+                        <label for="fechaHasta">
+                            <i class="fas fa-calendar-alt"></i>
+                            Fecha Hasta
+                        </label>
+                        <div class="input-with-icon">
+                            <input type="date" id="fechaHasta" class="form-control">
+                        </div>
+                    </div>
+                    
+                    <div class="filter-group">
+                        <label for="tipoRetiro">
+                            <i class="fas fa-user-tag"></i>
+                            Tipo de Retiro
+                        </label>
+                        <div class="select-wrapper">
+                            <select id="tipoRetiro" class="form-control">
+                                <option value="">Todos los tipos</option>
+                                <option value="2">Despidos</option>
+                                <option value="3">Renuncias</option>
+                            </select>
+                            <i class="fas fa-chevron-down"></i>
+                        </div>
+                    </div>
+                    
+                    <div class="filter-group">
+                        <label for="estadoRegistro">
+                            <i class="fas fa-toggle-on"></i>
+                            Estado del Registro
+                        </label>
+                        <div class="select-wrapper">
+                            <select id="estadoRegistro" class="form-control">
+                                <option value="">Todos los estados</option>
+                                <option value="1">Activos</option>
+                                <option value="0">Invalidados</option>
+                            </select>
+                            <i class="fas fa-chevron-down"></i>
+                        </div>
+                    </div>
+                    
+                    <div class="filter-group filter-actions">
+                        <button class="btn btn-primary btn-search" id="btnBuscar">
+                            <i class="fas fa-search"></i>
+                            Buscar
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Panel de gráficos -->
+        <div class="charts-panel animate__animated animate__fadeIn" style="--delay: 0.4s">
+            <div class="chart-container">
+                <div class="chart-header">
+                    <h3>
+                        <i class="fas fa-chart-pie"></i>
+                        Distribución por Tipo de Retiro
+                    </h3>
+                </div>
+                <div class="chart-content">
+                    <canvas id="chartTipoRetiro" height="200"></canvas>
+                </div>
+            </div>
+            
+            <div class="chart-container">
+                <div class="chart-header">
+                    <h3>
+                        <i class="fas fa-chart-bar"></i>
+                        Bajas por Mes
+                    </h3>
+                </div>
+                <div class="chart-content">
+                    <canvas id="chartBajasPorMes" height="200"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- Panel de resultados -->
+        <div class="results-panel animate__animated animate__fadeIn" style="--delay: 0.6s">
+            <div class="panel-header">
+                <h2>
+                    <i class="fas fa-list"></i>
+                    Resultados del Reporte
+                    <span class="results-count" id="resultsCount">(0 registros)</span>
+                </h2>
+                <div class="panel-actions">
+                    <div class="view-toggle">
+                        <button class="btn btn-sm view-btn active" data-view="table">
+                            <i class="fas fa-table"></i>
+                        </button>
+                        <button class="btn btn-sm view-btn" data-view="cards">
+                            <i class="fas fa-th-large"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Vista de tabla -->
+            <div class="table-view" id="tableView">
+                <div class="table-container">
+                    <table class="data-table" id="bajasTable">
+                        <thead>
+                            <tr>
+                                <th>
+                                    <i class="fas fa-user"></i>
+                                    Colaborador
+                                </th>
+                                <th>
+                                    <i class="fas fa-tag"></i>
+                                    Tipo de Retiro
+                                </th>
+                                <th>
+                                    <i class="fas fa-calendar"></i>
+                                    Fecha Fin Laboral
+                                </th>
+                                <th>
+                                    <i class="fas fa-clock"></i>
+                                    Fecha Registro
+                                </th>
+                                <th>
+                                    <i class="fas fa-user-tie"></i>
+                                    Registrado por
+                                </th>
+                                <th>
+                                    <i class="fas fa-toggle-on"></i>
+                                    Estado
+                                </th>
+                                <th>
+                                    <i class="fas fa-cog"></i>
+                                    Acciones
+                                </th>
+                            </tr>
+                        </thead>
+                        <tbody id="bajasTableBody">
+                            <!-- Los datos se cargarán dinámicamente -->
+                        </tbody>
+                    </table>
+                </div>
+                
+                <!-- Mensaje cuando no hay datos -->
+                <div class="no-data-message" id="noDataMessage" style="display: none;">
+                    <div class="no-data-icon">
+                        <i class="fas fa-search"></i>
+                    </div>
+                    <h3>No se encontraron registros</h3>
+                    <p>Intente modificar los filtros de búsqueda para obtener resultados</p>
+                </div>
+            </div>
+            
+            <!-- Vista de tarjetas -->
+            <div class="cards-view" id="cardsView" style="display: none;">
+                <div class="cards-container" id="cardsContainer">
+                    <!-- Las tarjetas se cargarán dinámicamente -->
+                </div>
+            </div>
+            
+            <!-- Paginación -->
+            <div class="pagination-container" id="paginationContainer">
+                <div class="pagination-info">
+                    <span id="paginationInfo">Mostrando 0 de 0 registros</span>
+                </div>
+                <div class="pagination-controls" id="paginationControls">
+                    <!-- Los controles se generarán dinámicamente -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal para ver detalles de la baja -->
+    <div class="modal-overlay" id="detailModal">
+        <div class="modal">
+            <div class="modal-header">
+                <div class="modal-title-container">
+                    <i class="fas fa-info-circle"></i>
+                    <h3>Detalles de la Baja</h3>
+                </div>
+                <div class="color-strip">
+                    <div class="color-strip-item color-red"></div>
+                    <div class="color-strip-item color-blue"></div>
+                    <div class="color-strip-item color-green"></div>
+                    <div class="color-strip-item color-yellow"></div>
+                    <div class="color-strip-item color-orange"></div>
+                </div>
+                <button class="close-modal" id="closeDetailModal">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="detail-content">
+                    <div class="detail-section">
+                        <h4>
+                            <i class="fas fa-user"></i>
+                            Información del Colaborador
+                        </h4>
+                        <div class="detail-grid">
+                            <div class="detail-item">
+                                <label>Nombre Completo:</label>
+                                <span id="detailNombre">-</span>
+                            </div>
+                            <div class="detail-item">
+                                <label>Tipo de Retiro:</label>
+                                <span id="detailTipoRetiro" class="badge">-</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="detail-section">
+                        <h4>
+                            <i class="fas fa-calendar"></i>
+                            Fechas Importantes
+                        </h4>
+                        <div class="detail-grid">
+                            <div class="detail-item">
+                                <label>Fecha Fin Laboral:</label>
+                                <span id="detailFechaFin">-</span>
+                            </div>
+                            <div class="detail-item">
+                                <label>Fecha de Registro:</label>
+                                <span id="detailFechaRegistro">-</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="detail-section">
+                        <h4>
+                            <i class="fas fa-file-alt"></i>
+                            Observaciones
+                        </h4>
+                        <div class="detail-item full-width">
+                            <div class="observation-content" id="detailObservacion">
+                                -
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="detail-section">
+                        <h4>
+                            <i class="fas fa-info"></i>
+                            Información de Registro
+                        </h4>
+                        <div class="detail-grid">
+                            <div class="detail-item">
+                                <label>Registrado por:</label>
+                                <span id="detailUsuario">-</span>
+                            </div>
+                            <div class="detail-item">
+                                <label>Estado del Registro:</label>
+                                <span id="detailEstado" class="badge">-</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Sección de invalidación (solo si aplica) -->
+                    <div class="detail-section" id="invalidacionSection" style="display: none;">
+                        <h4>
+                            <i class="fas fa-ban"></i>
+                            Información de Invalidación
+                        </h4>
+                        <div class="detail-grid">
+                            <div class="detail-item">
+                                <label>Fecha Invalidación:</label>
+                                <span id="detailFechaInvalidacion">-</span>
+                            </div>
+                            <div class="detail-item">
+                                <label>Invalidado por:</label>
+                                <span id="detailUsuarioInvalidacion">-</span>
+                            </div>
+                        </div>
+                        <div class="detail-item full-width">
+                            <label>Observación de Invalidación:</label>
+                            <div class="observation-content" id="detailObservacionInvalidacion">
+                                -
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary close-modal-btn">
+                    <i class="fas fa-times"></i>
+                    Cerrar
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Contenedor de notificaciones toast -->
+    <div class="toast-container"></div>
+
+    <!-- Scripts -->
+    <script src="../Logica/Reportes/ReporteBajas.js"></script>
+</body>
+</html>

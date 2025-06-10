@@ -2590,6 +2590,7 @@ function verificarCambioEnCampoLaboral(idCampo) {
     btnSaveWork.disabled = Object.keys(camposModificadosLaboral).length === 0;
 }
 // Guardar cambios en información laboral
+// Guardar cambios en información laboral
 async function guardarCambiosLaboral() {
     try {
         // Verificar si hay cambios
@@ -2625,6 +2626,7 @@ async function guardarCambiosLaboral() {
             estadoLaboral.classList.add('invalid');
             hayErrores = true;
         }
+
         if (hayErrores) {
             mostrarMensajeSistema(warningMessage, 'Por favor complete todos los campos obligatorios');
             return;
@@ -2856,14 +2858,65 @@ async function guardarCambiosLaboral() {
                 datosActualizados.Bonificacion,
                 empleadoActual.IdPersonal
             ]);
+
+            // 2. NUEVA FUNCIONALIDAD: Verificar reactivación de colaborador
+            const esReactivacion = (estadoOriginal === 2 || estadoOriginal === 3) && parseInt(datosActualizados.Estado) === 1;
             
-            // 2. Si es cambio a estado de Despedido o Renunció, registrar en la tabla DespidosRenuncias
+            if (esReactivacion) {
+                // Buscar y invalidar registros activos en DespidosRenuncias
+                const verificarRetiroQuery = `
+                    SELECT IdDespidoRenuncia, EstadoPersonal 
+                    FROM DespidosRenuncias 
+                    WHERE IdPersonal = ? AND Estado = 1
+                    ORDER BY FechaRegistro DESC 
+                    LIMIT 1
+                `;
+                
+                const registrosRetiro = await connection.query(verificarRetiroQuery, [empleadoActual.IdPersonal]);
+                
+                if (registrosRetiro.length > 0) {
+                    // Invalidar el registro de retiro más reciente
+                    const invalidarRetiroQuery = `
+                        UPDATE DespidosRenuncias 
+                        SET Estado = 0
+                        WHERE IdDespidoRenuncia = ?
+                    `;
+                    
+                    const observacionInvalidacion = `Colaborador reactivado - Estado cambiado de ${registrosRetiro[0].EstadoPersonal} a Activo por ${userData.NombreCompleto}`;
+                    
+                    await connection.query(invalidarRetiroQuery, [
+                        registrosRetiro[0].IdDespidoRenuncia
+                    ]);
+                    
+                    console.log(`Registro de retiro invalidado para colaborador ID: ${empleadoActual.IdPersonal}`);
+                    
+                    // Registrar en historial la reactivación
+                    const historialReactivacionQuery = `
+                        INSERT INTO CambiosPersonal 
+                        (IdPersonal, NombrePersonal, TipoCambio, Cambio, ValorAnterior, ValorNuevo, IdUsuario, NombreUsuario)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    `;
+                    
+                    await connection.query(historialReactivacionQuery, [
+                        empleadoActual.IdPersonal,
+                        nombreCompleto,
+                        4, // TipoCambio 4 = Información Laboral
+                        'Reactivación de Colaborador',
+                        `Registro de ${registrosRetiro[0].EstadoPersonal} invalidado`,
+                        'Colaborador reactivado exitosamente',
+                        userData.IdPersonal,
+                        userData.NombreCompleto
+                    ]);
+                }
+            }
+            
+            // 3. Si es cambio a estado de Despedido o Renunció, registrar en la tabla DespidosRenuncias
             if (cambioARetiro) {
                 const retiroQuery = `
                     INSERT INTO DespidosRenuncias 
                     (IdPersonal, NombrePersonal, IdEstadoPersonal, EstadoPersonal, 
-                    FechaFinColaborador, ObservacionRetiro, IdUsuario, NombreUsuario)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    FechaFinColaborador, ObservacionRetiro, IdUsuario, NombreUsuario, Estado)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1)
                 `;
                 
                 await connection.query(retiroQuery, [
@@ -2878,7 +2931,7 @@ async function guardarCambiosLaboral() {
                 ]);
             }
             
-            // 3. Registrar cambios en historial
+            // 4. Registrar cambios en historial
             for (const campo in camposModificadosLaboral) {
                 let nombreCampo, valorAnterior, valorNuevo, tipoCambio = 4; // TipoCambio 4 = Información Laboral
                 
@@ -2924,7 +2977,7 @@ async function guardarCambiosLaboral() {
                         valorAnterior = nombresOriginales.estadoLaboral;
                         valorNuevo = nombresActualizados.estadoLaboral;
                         break;
-                        case 'igss':
+                    case 'igss':
                         nombreCampo = 'IGSS';
                         valorAnterior = datosOriginalesLaboral.igss || 'No registrado';
                         valorNuevo = datosActualizados.IGSS || 'No registrado';
@@ -3030,8 +3083,11 @@ async function guardarCambiosLaboral() {
                 observacionRetiro.value = '';
             }
             
-            // Mostrar mensaje de éxito
-            if (cambioARetiro) {
+            // Mostrar mensaje de éxito específico según el tipo de operación
+            if (esReactivacion) {
+                mostrarMensajeSistema(successMessage, 'Colaborador reactivado correctamente - Registro de retiro invalidado');
+                mostrarNotificacion('Colaborador reactivado exitosamente', 'success');
+            } else if (cambioARetiro) {
                 mostrarMensajeSistema(successMessage, 'Retiro del colaborador registrado correctamente');
                 mostrarNotificacion('Retiro registrado y datos laborales actualizados', 'success');
             } else {

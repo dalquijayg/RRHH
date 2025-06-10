@@ -373,7 +373,8 @@ async function obtenerDatosNomina() {
                 personal.TipoPersonal = 1 AND
                 dr.IdEstadoPersonal IN (2, 3) AND
                 dr.FechaFinColaborador >= ? AND
-                dr.FechaFinColaborador <= ?`;
+                dr.FechaFinColaborador <= ? AND
+                dr.Estado = 1`;
         
         // Agregar filtros
         const params = [];
@@ -1107,7 +1108,8 @@ async function obtenerBajasColaboradores(mes, anio, tipoQuincena) {
             WHERE 
                 dr.IdEstadoPersonal IN (2, 3)
                 AND dr.FechaFinColaborador >= ?
-                AND dr.FechaFinColaborador <= ?
+                AND dr.FechaFinColaborador <= ? AND
+                dr.Estado = 1
             ORDER BY 
                 dr.FechaFinColaborador, p.PrimerApellido ASC, p.SegundoApellido ASC, p.PrimerNombre ASC
         `;
@@ -5425,7 +5427,8 @@ async function obtenerObservacionesEmpleado(idPersonal, mes, anio, tipoQuincena)
             WHERE 
                 IdPersonal = ? 
                 AND DATE(FechaFinColaborador) >= ? 
-                AND DATE(FechaFinColaborador) <= ?
+                AND DATE(FechaFinColaborador) <= ? AND
+                Estado = 1
         `;
         
         const bajas = await connection.query(queryBajas, [idPersonal, inicioQuincena, finQuincena]);
