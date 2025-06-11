@@ -1,80 +1,124 @@
-// Variables globales
+// ===== VARIABLES GLOBALES =====
 const { ipcRenderer } = require('electron');
 const odbc = require('odbc');
 const conexion = 'DSN=recursos2';
 
-// Obtener datos del usuario de localStorage
+// Datos del usuario
 const userData = JSON.parse(localStorage.getItem('userData'));
 
-// Variables para paginación y filtros
+// Variables de estado
 let currentPage = 1;
-let recordsPerPage = 10;
+let recordsPerPage = 15;
 let totalRecords = 0;
 let allData = [];
 let filteredData = [];
+let searchTimeout = null;
+
+// Variables de gráficos
 let chartTipoRetiro = null;
 let chartBajasPorMes = null;
 
-// Referencias a elementos DOM
+// Referencias DOM - Filtros
 const fechaDesde = document.getElementById('fechaDesde');
 const fechaHasta = document.getElementById('fechaHasta');
 const tipoRetiro = document.getElementById('tipoRetiro');
 const estadoRegistro = document.getElementById('estadoRegistro');
-const btnBuscar = document.getElementById('btnBuscar');
+const searchCollaborator = document.getElementById('searchCollaborator');
+
+// Referencias DOM - Botones
 const btnClearFilters = document.getElementById('btnClearFilters');
 const btnExportReport = document.getElementById('btnExportReport');
+const btnToggleCharts = document.getElementById('btnToggleCharts');
+const btnCollapseSidebar = document.getElementById('btnCollapseSidebar');
 
-// Elementos de estadísticas
+// Referencias DOM - Estadísticas
 const totalBajas = document.getElementById('totalBajas');
 const totalDespidos = document.getElementById('totalDespidos');
 const totalRenuncias = document.getElementById('totalRenuncias');
 const resultsCount = document.getElementById('resultsCount');
 
-// Elementos de vista
+// Referencias DOM - Vistas
 const tableView = document.getElementById('tableView');
 const cardsView = document.getElementById('cardsView');
 const bajasTableBody = document.getElementById('bajasTableBody');
 const cardsContainer = document.getElementById('cardsContainer');
 const noDataMessage = document.getElementById('noDataMessage');
+
+// Referencias DOM - Paginación
 const paginationContainer = document.getElementById('paginationContainer');
 const paginationInfo = document.getElementById('paginationInfo');
 const paginationControls = document.getElementById('paginationControls');
 
-// Modal de detalles
+// Referencias DOM - Modal
 const detailModal = document.getElementById('detailModal');
 const closeDetailModal = document.getElementById('closeDetailModal');
 
-// Inicialización
+// Referencias DOM - Sidebar
+const chartsSidebar = document.getElementById('chartsSidebar');
+
+// ===== INICIALIZACIÓN =====
 document.addEventListener('DOMContentLoaded', function() {
     try {
+        console.log('🚀 Inicializando Reporte de Bajas...');
+        
+        // Configurar eventos
         inicializarEventos();
+        
+        // Configurar fechas por defecto
         configurarFechasPorDefecto();
+        
+        // Cargar datos iniciales
         cargarDatosIniciales();
+        
+        // Configurar funcionalidades adicionales
+        configurarFuncionalidadesAdicionales();
+        
+        console.log('✅ Reporte de Bajas inicializado correctamente');
+        
     } catch (error) {
-        console.error('Error al inicializar:', error);
-        mostrarNotificacion('Error al inicializar la página', 'error');
+        console.error('❌ Error al inicializar:', error);
+        mostrarNotificacion('Error al inicializar la aplicación', 'error');
     }
 });
 
-// Inicializar conexión con la base de datos
+// ===== CONEXIÓN BASE DE DATOS =====
 async function getConnection() {
     try {
         const connection = await odbc.connect(conexion);
         await connection.query('SET NAMES utf8mb4');
         return connection;
     } catch (error) {
-        console.error('Error de conexión:', error);
+        console.error('❌ Error de conexión:', error);
         mostrarNotificacion('Error de conexión a la base de datos', 'error');
         throw error;
     }
 }
 
-// Inicializar eventos
+// ===== CONFIGURACIÓN DE EVENTOS =====
 function inicializarEventos() {
     // Eventos de filtros
-    btnBuscar.addEventListener('click', cargarDatosFiltrados);
-    btnClearFilters.addEventListener('click', limpiarFiltros);
-    btnExportReport.addEventListener('click', exportarReporte);
+    btnClearFilters?.addEventListener('click', limpiarFiltros);
+    btnExportReport?.addEventListener('click', exportarReporte);
+    btnToggleCharts?.addEventListener('click', toggleCharts);
+    btnCollapseSidebar?.addEventListener('click', toggleSidebar);
+    
+    // Eventos de fechas con auto-búsqueda
+    fechaDesde?.addEventListener('change', handleFechaChange);
+    fechaHasta?.addEventListener('change', handleFechaChange);
+    
+    // Eventos de selects con auto-búsqueda
+    tipoRetiro?.addEventListener('change', () => {
+        currentPage = 1;
+        cargarDatosFiltrados();
+    });
+    
+    estadoRegistro?.addEventListener('change', () => {
+        currentPage = 1;
+        cargarDatosFiltrados();
+    });
+    
+    // Búsqueda en tiempo real
+    searchCollaborator?.addEventListener('input', handleSearch);
     
     // Eventos de vista
     document.querySelectorAll('.view-btn').forEach(btn => {
@@ -84,48 +128,94 @@ function inicializarEventos() {
     });
     
     // Eventos de modal
-    closeDetailModal.addEventListener('click', cerrarModal);
-    document.querySelector('.close-modal-btn').addEventListener('click', cerrarModal);
-    detailModal.addEventListener('click', function(event) {
+    closeDetailModal?.addEventListener('click', cerrarModal);
+    document.querySelector('.close-modal-btn')?.addEventListener('click', cerrarModal);
+    
+    detailModal?.addEventListener('click', function(event) {
         if (event.target === detailModal) {
             cerrarModal();
         }
     });
     
-    // Eventos de fechas - auto-búsqueda al cambiar
-    fechaDesde.addEventListener('change', function() {
-        if (fechaHasta.value && this.value > fechaHasta.value) {
-            fechaHasta.value = this.value;
-        }
-        if (fechaDesde.value && fechaHasta.value) {
-            cargarDatosFiltrados();
-        }
-    });
-    
-    fechaHasta.addEventListener('change', function() {
-        if (fechaDesde.value && this.value < fechaDesde.value) {
-            fechaDesde.value = this.value;
-        }
-        if (fechaDesde.value && fechaHasta.value) {
-            cargarDatosFiltrados();
-        }
-    });
-    
-    // Auto-búsqueda al cambiar selects
-    tipoRetiro.addEventListener('change', cargarDatosFiltrados);
-    estadoRegistro.addEventListener('change', cargarDatosFiltrados);
-    
-    // Tecla Enter en campos de fecha
-    [fechaDesde, fechaHasta].forEach(campo => {
-        campo.addEventListener('keypress', function(e) {
-            if (e.key === 'Enter') {
-                cargarDatosFiltrados();
-            }
+    // Eventos de tabs del modal
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            cambiarTab(this.dataset.tab);
         });
     });
+    
+    // Teclas de acceso rápido
+    document.addEventListener('keydown', handleKeyboardShortcuts);
+    
+    console.log('📋 Eventos inicializados');
 }
 
-// Configurar fechas por defecto (último mes)
+// ===== MANEJADORES DE EVENTOS =====
+function handleFechaChange() {
+    // Validar rango de fechas
+    if (fechaDesde.value && fechaHasta.value) {
+        if (fechaDesde.value > fechaHasta.value) {
+            const fechaTemp = fechaHasta.value;
+            fechaHasta.value = fechaDesde.value;
+            fechaDesde.value = fechaTemp;
+            mostrarNotificacion('Fechas corregidas automáticamente', 'info');
+        }
+        currentPage = 1;
+        cargarDatosFiltrados();
+    }
+}
+
+function handleSearch(e) {
+    clearTimeout(searchTimeout);
+    searchTimeout = setTimeout(() => {
+        filtrarDatosPorBusqueda(e.target.value);
+    }, 300);
+}
+
+function handleKeyboardShortcuts(e) {
+    // Esc para cerrar modal
+    if (e.key === 'Escape') {
+        cerrarModal();
+    }
+    
+    // Ctrl + F para enfocar búsqueda
+    if (e.ctrlKey && e.key === 'f') {
+        e.preventDefault();
+        searchCollaborator?.focus();
+    }
+    
+    // Ctrl + E para exportar
+    if (e.ctrlKey && e.key === 'e') {
+        e.preventDefault();
+        exportarReporte();
+    }
+    
+    // Ctrl + R para actualizar
+    if (e.ctrlKey && e.key === 'r') {
+        e.preventDefault();
+        cargarDatosFiltrados();
+    }
+    
+    // Navegación con flechas en paginación
+    if (e.ctrlKey && e.key === 'ArrowLeft') {
+        e.preventDefault();
+        if (currentPage > 1) {
+            currentPage--;
+            mostrarDatos();
+        }
+    }
+    
+    if (e.ctrlKey && e.key === 'ArrowRight') {
+        e.preventDefault();
+        const totalPages = Math.ceil(filteredData.length / recordsPerPage);
+        if (currentPage < totalPages) {
+            currentPage++;
+            mostrarDatos();
+        }
+    }
+}
+
+// ===== CONFIGURACIÓN INICIAL =====
 function configurarFechasPorDefecto() {
     const hoy = new Date();
     const haceTresMeses = new Date();
@@ -135,25 +225,52 @@ function configurarFechasPorDefecto() {
     fechaDesde.value = haceTresMeses.toISOString().split('T')[0];
     
     // Establecer fecha máxima como hoy
-    fechaHasta.setAttribute('max', hoy.toISOString().split('T')[0]);
-    fechaDesde.setAttribute('max', hoy.toISOString().split('T')[0]);
+    const maxDate = hoy.toISOString().split('T')[0];
+    fechaHasta.setAttribute('max', maxDate);
+    fechaDesde.setAttribute('max', maxDate);
 }
 
-// Cargar datos iniciales
 async function cargarDatosIniciales() {
-    mostrarCargando(true, 'Cargando reporte de bajas...');
+    mostrarCargando(true, 'Cargando datos iniciales...');
     await cargarDatosFiltrados();
     mostrarCargando(false);
 }
 
-// Cargar datos con filtros aplicados
+function configurarFuncionalidadesAdicionales() {
+    // Configurar tooltips
+    configurarTooltips();
+    
+    // Configurar actualización automática cada 5 minutos
+    setInterval(() => {
+        if (!document.hidden) {
+            cargarDatosFiltrados();
+        }
+    }, 300000);
+    
+    // Configurar manejo de visibilidad de página
+    document.addEventListener('visibilitychange', () => {
+        if (!document.hidden) {
+            cargarDatosFiltrados();
+        }
+    });
+}
+
+function configurarTooltips() {
+    // Implementar tooltips simples
+    document.querySelectorAll('[title]').forEach(element => {
+        element.addEventListener('mouseenter', showTooltip);
+        element.addEventListener('mouseleave', hideTooltip);
+    });
+}
+
+// ===== CARGA Y FILTRADO DE DATOS =====
 async function cargarDatosFiltrados() {
     try {
         mostrarCargando(true, 'Aplicando filtros...');
         
         const connection = await getConnection();
         
-        // Construir consulta con filtros
+        // Construir consulta SQL
         let query = `
             SELECT 
                 dr.IdDespidoRenuncia,
@@ -168,7 +285,6 @@ async function cargarDatosFiltrados() {
                 dr.FechaRegistro,
                 dr.FechaHoraRegistro,
                 dr.Estado
-                
             FROM 
                 DespidosRenuncias dr
             WHERE 1=1
@@ -176,7 +292,7 @@ async function cargarDatosFiltrados() {
         
         const params = [];
         
-        // Filtro de fechas
+        // Aplicar filtros
         if (fechaDesde.value) {
             query += ` AND DATE(dr.FechaFinColaborador) >= ?`;
             params.push(fechaDesde.value);
@@ -187,13 +303,11 @@ async function cargarDatosFiltrados() {
             params.push(fechaHasta.value);
         }
         
-        // Filtro de tipo de retiro
         if (tipoRetiro.value) {
             query += ` AND dr.IdEstadoPersonal = ?`;
             params.push(tipoRetiro.value);
         }
         
-        // Filtro de estado del registro
         if (estadoRegistro.value !== '') {
             query += ` AND dr.Estado = ?`;
             params.push(estadoRegistro.value);
@@ -201,40 +315,56 @@ async function cargarDatosFiltrados() {
         
         query += ` ORDER BY dr.FechaHoraRegistro DESC`;
         
-        console.log('Ejecutando consulta:', query);
-        console.log('Parámetros:', params);
-        
         const result = await connection.query(query, params);
         await connection.close();
         
-        allData = result;
+        allData = result || [];
         filteredData = [...allData];
         totalRecords = filteredData.length;
         
-        // Actualizar estadísticas
+        // Aplicar búsqueda de texto si existe
+        if (searchCollaborator?.value) {
+            filtrarDatosPorBusqueda(searchCollaborator.value);
+        }
+        
+        // Actualizar interfaz
         actualizarEstadisticas();
-        
-        // Actualizar gráficos
         actualizarGraficos();
+        actualizarMetricas();
         
-        // Mostrar datos
         currentPage = 1;
         mostrarDatos();
         
         mostrarCargando(false);
         
-        if (totalRecords === 0) {
-            mostrarNotificacion('No se encontraron registros con los filtros aplicados', 'info');
-        }
-        
     } catch (error) {
-        console.error('Error al cargar datos:', error);
+        console.error('❌ Error al cargar datos:', error);
         mostrarCargando(false);
         mostrarNotificacion('Error al cargar datos: ' + error.message, 'error');
     }
 }
 
-// Actualizar estadísticas
+function filtrarDatosPorBusqueda(termino) {
+    if (!termino.trim()) {
+        filteredData = [...allData];
+    } else {
+        const terminoLower = termino.toLowerCase().trim();
+        filteredData = allData.filter(item => 
+            item.NombrePersonal?.toLowerCase().includes(terminoLower) ||
+            item.EstadoPersonal?.toLowerCase().includes(terminoLower) ||
+            item.NombreUsuario?.toLowerCase().includes(terminoLower) ||
+            item.ObservacionRetiro?.toLowerCase().includes(terminoLower)
+        );
+    }
+    
+    totalRecords = filteredData.length;
+    currentPage = 1;
+    
+    actualizarEstadisticas();
+    mostrarDatos();
+}
+
+// ===== ESTADÍSTICAS Y MÉTRICAS =====
 function actualizarEstadisticas() {
     const stats = {
         total: filteredData.length,
@@ -251,8 +381,9 @@ function actualizarEstadisticas() {
     resultsCount.textContent = `(${stats.total} registros)`;
 }
 
-// Animar números en las estadísticas
 function animarNumero(elemento, valorFinal) {
+    if (!elemento) return;
+    
     const valorInicial = parseInt(elemento.textContent) || 0;
     const duracion = 1000;
     const pasos = 30;
@@ -271,15 +402,60 @@ function animarNumero(elemento, valorFinal) {
     }, duracion / pasos);
 }
 
-// Actualizar gráficos
+function actualizarMetricas() {
+    // Calcular métricas adicionales
+    const promedioMensual = document.getElementById('promedioMensual');
+    const mesMasBajas = document.getElementById('mesMasBajas');
+    
+    if (filteredData.length > 0) {
+        // Agrupar por mes
+        const datosPorMes = {};
+        filteredData.forEach(item => {
+            if (item.FechaFinColaborador) {
+                const fecha = new Date(item.FechaFinColaborador);
+                const mesAnio = `${fecha.getFullYear()}-${String(fecha.getMonth() + 1).padStart(2, '0')}`;
+                datosPorMes[mesAnio] = (datosPorMes[mesAnio] || 0) + 1;
+            }
+        });
+        
+        const meses = Object.keys(datosPorMes);
+        if (meses.length > 0) {
+            // Promedio mensual
+            const totalBajasMes = Object.values(datosPorMes).reduce((a, b) => a + b, 0);
+            const promedio = Math.round(totalBajasMes / meses.length);
+            if (promedioMensual) promedioMensual.textContent = promedio;
+            
+            // Mes con más bajas
+            const mesMaxBajas = Object.keys(datosPorMes).reduce((a, b) => 
+                datosPorMes[a] > datosPorMes[b] ? a : b
+            );
+            
+            if (mesMasBajas && mesMaxBajas) {
+                const [anio, mes] = mesMaxBajas.split('-');
+                const nombreMes = new Date(anio, mes - 1).toLocaleDateString('es-ES', { 
+                    month: 'short', 
+                    year: '2-digit' 
+                });
+                mesMasBajas.textContent = nombreMes;
+            }
+        }
+    } else {
+        if (promedioMensual) promedioMensual.textContent = '0';
+        if (mesMasBajas) mesMasBajas.textContent = '-';
+    }
+}
+
+// ===== GRÁFICOS =====
 function actualizarGraficos() {
     actualizarGraficoTipoRetiro();
     actualizarGraficoBajasPorMes();
 }
 
-// Actualizar gráfico de tipo de retiro
 function actualizarGraficoTipoRetiro() {
-    const ctx = document.getElementById('chartTipoRetiro').getContext('2d');
+    const canvas = document.getElementById('chartTipoRetiro');
+    if (!canvas) return;
+    
+    const ctx = canvas.getContext('2d');
     
     const despidos = filteredData.filter(item => item.IdEstadoPersonal === 2).length;
     const renuncias = filteredData.filter(item => item.IdEstadoPersonal === 3).length;
@@ -295,14 +471,15 @@ function actualizarGraficoTipoRetiro() {
             datasets: [{
                 data: [despidos, renuncias],
                 backgroundColor: [
-                    'rgba(220, 53, 69, 0.8)',
-                    'rgba(255, 193, 7, 0.8)'
+                    'rgba(239, 68, 68, 0.8)',
+                    'rgba(245, 158, 11, 0.8)'
                 ],
                 borderColor: [
-                    'rgba(220, 53, 69, 1)',
-                    'rgba(255, 193, 7, 1)'
+                    'rgba(239, 68, 68, 1)',
+                    'rgba(245, 158, 11, 1)'
                 ],
-                borderWidth: 2
+                borderWidth: 2,
+                hoverOffset: 4
             }]
         },
         options: {
@@ -312,10 +489,10 @@ function actualizarGraficoTipoRetiro() {
                 legend: {
                     position: 'bottom',
                     labels: {
-                        padding: 20,
+                        padding: 15,
                         usePointStyle: true,
                         font: {
-                            size: 12,
+                            size: 11,
                             weight: '500'
                         }
                     }
@@ -324,19 +501,22 @@ function actualizarGraficoTipoRetiro() {
                     callbacks: {
                         label: function(context) {
                             const total = context.dataset.data.reduce((a, b) => a + b, 0);
-                            const percentage = ((context.parsed / total) * 100).toFixed(1);
+                            const percentage = total > 0 ? ((context.parsed / total) * 100).toFixed(1) : 0;
                             return `${context.label}: ${context.parsed} (${percentage}%)`;
                         }
                     }
                 }
-            }
+            },
+            cutout: '60%'
         }
     });
 }
 
-// Actualizar gráfico de bajas por mes
 function actualizarGraficoBajasPorMes() {
-    const ctx = document.getElementById('chartBajasPorMes').getContext('2d');
+    const canvas = document.getElementById('chartBajasPorMes');
+    if (!canvas) return;
+    
+    const ctx = canvas.getContext('2d');
     
     // Agrupar datos por mes
     const datosPorMes = {};
@@ -357,16 +537,18 @@ function actualizarGraficoBajasPorMes() {
         }
     });
     
-    // Ordenar por fecha
-    const mesesOrdenados = Object.keys(datosPorMes).sort();
+    // Ordenar por fecha y tomar últimos 6 meses
+    const mesesOrdenados = Object.keys(datosPorMes).sort().slice(-6);
     const labels = mesesOrdenados.map(mes => {
         const [anio, mesNum] = mes.split('-');
-        const nombreMes = new Date(anio, mesNum - 1).toLocaleDateString('es-ES', { month: 'short', year: '2-digit' });
-        return nombreMes;
+        return new Date(anio, mesNum - 1).toLocaleDateString('es-ES', { 
+            month: 'short', 
+            year: '2-digit' 
+        });
     });
     
-    const despidosData = mesesOrdenados.map(mes => datosPorMes[mes].despidos);
-    const renunciasData = mesesOrdenados.map(mes => datosPorMes[mes].renuncias);
+    const despidosData = mesesOrdenados.map(mes => datosPorMes[mes]?.despidos || 0);
+    const renunciasData = mesesOrdenados.map(mes => datosPorMes[mes]?.renuncias || 0);
     
     if (chartBajasPorMes) {
         chartBajasPorMes.destroy();
@@ -380,16 +562,18 @@ function actualizarGraficoBajasPorMes() {
                 {
                     label: 'Despidos',
                     data: despidosData,
-                    backgroundColor: 'rgba(220, 53, 69, 0.8)',
-                    borderColor: 'rgba(220, 53, 69, 1)',
-                    borderWidth: 1
+                    backgroundColor: 'rgba(239, 68, 68, 0.8)',
+                    borderColor: 'rgba(239, 68, 68, 1)',
+                    borderWidth: 1,
+                    borderRadius: 4
                 },
                 {
                     label: 'Renuncias',
                     data: renunciasData,
-                    backgroundColor: 'rgba(255, 193, 7, 0.8)',
-                    borderColor: 'rgba(255, 193, 7, 1)',
-                    borderWidth: 1
+                    backgroundColor: 'rgba(245, 158, 11, 0.8)',
+                    borderColor: 'rgba(245, 158, 11, 1)',
+                    borderWidth: 1,
+                    borderRadius: 4
                 }
             ]
         },
@@ -400,10 +584,10 @@ function actualizarGraficoBajasPorMes() {
                 legend: {
                     position: 'bottom',
                     labels: {
-                        padding: 20,
+                        padding: 15,
                         usePointStyle: true,
                         font: {
-                            size: 12,
+                            size: 11,
                             weight: '500'
                         }
                     }
@@ -416,7 +600,7 @@ function actualizarGraficoBajasPorMes() {
                     },
                     ticks: {
                         font: {
-                            size: 11
+                            size: 10
                         }
                     }
                 },
@@ -425,7 +609,7 @@ function actualizarGraficoBajasPorMes() {
                     ticks: {
                         stepSize: 1,
                         font: {
-                            size: 11
+                            size: 10
                         }
                     },
                     grid: {
@@ -437,9 +621,9 @@ function actualizarGraficoBajasPorMes() {
     });
 }
 
-// Mostrar datos en la vista actual
+// ===== VISUALIZACIÓN DE DATOS =====
 function mostrarDatos() {
-    const vista = document.querySelector('.view-btn.active').dataset.view;
+    const vista = document.querySelector('.view-btn.active')?.dataset.view || 'table';
     
     if (vista === 'table') {
         mostrarVistaTabla();
@@ -450,7 +634,6 @@ function mostrarDatos() {
     actualizarPaginacion();
 }
 
-// Mostrar vista de tabla
 function mostrarVistaTabla() {
     if (filteredData.length === 0) {
         bajasTableBody.innerHTML = '';
@@ -467,11 +650,8 @@ function mostrarVistaTabla() {
     let html = '';
     
     datosPage.forEach(item => {
-        const fechaFin = item.FechaFinColaborador ? 
-            new Date(item.FechaFinColaborador).toLocaleDateString('es-ES') : 'No registrada';
-        
-        const fechaRegistro = item.FechaHoraRegistro ? 
-            new Date(item.FechaHoraRegistro).toLocaleString('es-ES') : 'No registrada';
+        const fechaFin = formatearFecha(item.FechaFinColaborador);
+        const fechaRegistro = formatearFecha(item.FechaHoraRegistro, true);
         
         const tipoRetiroBadge = item.IdEstadoPersonal === 2 ? 
             '<span class="badge badge-despido"><i class="fas fa-user-times"></i> Despido</span>' :
@@ -481,14 +661,21 @@ function mostrarVistaTabla() {
             '<span class="badge badge-activo"><i class="fas fa-check-circle"></i> Activo</span>' :
             '<span class="badge badge-invalidado"><i class="fas fa-ban"></i> Invalidado</span>';
         
+        // Generar iniciales para avatar
+        const iniciales = generarIniciales(item.NombrePersonal);
+        
         html += `
             <tr>
-                <td data-label="Colaborador">${item.NombrePersonal}</td>
-                <td data-label="Tipo de Retiro">${tipoRetiroBadge}</td>
-                <td data-label="Fecha Fin Laboral">${fechaFin}</td>
-                <td data-label="Fecha Registro">${fechaRegistro}</td>
-                <td data-label="Registrado por">${item.NombreUsuario}</td>
+                <td data-label="Avatar">
+                    <div class="collaborator-avatar" title="${item.NombrePersonal}">
+                        ${iniciales}
+                    </div>
+                </td>
+                <td data-label="Colaborador" class="col-name">${item.NombrePersonal}</td>
+                <td data-label="Tipo">${tipoRetiroBadge}</td>
+                <td data-label="Fecha Fin">${fechaFin}</td>
                 <td data-label="Estado">${estadoBadge}</td>
+                <td data-label="Registrado por">${item.NombreUsuario || 'No especificado'}</td>
                 <td data-label="Acciones">
                     <div class="action-buttons">
                         <button class="action-btn btn-view" onclick="verDetalle(${item.IdDespidoRenuncia})" title="Ver detalles">
@@ -503,7 +690,6 @@ function mostrarVistaTabla() {
     bajasTableBody.innerHTML = html;
 }
 
-// Mostrar vista de tarjetas
 function mostrarVistaTarjetas() {
     if (filteredData.length === 0) {
         cardsContainer.innerHTML = '';
@@ -520,11 +706,8 @@ function mostrarVistaTarjetas() {
     let html = '';
     
     datosPage.forEach(item => {
-        const fechaFin = item.FechaFinColaborador ? 
-            new Date(item.FechaFinColaborador).toLocaleDateString('es-ES') : 'No registrada';
-        
-        const fechaRegistro = item.FechaHoraRegistro ? 
-            new Date(item.FechaHoraRegistro).toLocaleString('es-ES') : 'No registrada';
+        const fechaFin = formatearFecha(item.FechaFinColaborador);
+        const fechaRegistro = formatearFecha(item.FechaHoraRegistro, true);
         
         const tipoClass = item.IdEstadoPersonal === 2 ? 'despido' : 'renuncia';
         const tipoTexto = item.IdEstadoPersonal === 2 ? 'Despido' : 'Renuncia';
@@ -534,11 +717,14 @@ function mostrarVistaTarjetas() {
         const estadoTexto = item.Estado === 1 ? 'Activo' : 'Invalidado';
         const estadoClass = item.Estado === 1 ? 'badge-activo' : 'badge-invalidado';
         
+        const iniciales = generarIniciales(item.NombrePersonal);
+        
         html += `
-            <div class="baja-card ${tipoClass}">
+            <div class="collaborator-card ${tipoClass}">
                 <div class="card-header">
                     <div>
-                        <h3 class="card-title">${item.NombrePersonal}</h3>
+                        <div class="card-avatar">${iniciales}</div>
+                        <h3 class="card-name">${item.NombrePersonal}</h3>
                         <span class="badge badge-${tipoClass}">
                             <i class="fas ${tipoIcon}"></i> ${tipoTexto}
                         </span>
@@ -549,26 +735,26 @@ function mostrarVistaTarjetas() {
                 </div>
                 
                 <div class="card-info">
-                    <div class="info-item">
+                    <div class="info-row">
                         <i class="fas fa-calendar"></i>
                         <span>Fecha Fin: ${fechaFin}</span>
                     </div>
-                    <div class="info-item">
+                    <div class="info-row">
                         <i class="fas fa-clock"></i>
                         <span>Registrado: ${fechaRegistro}</span>
                     </div>
-                    <div class="info-item">
+                    <div class="info-row">
                         <i class="fas fa-user-tie"></i>
-                        <span>Por: ${item.NombreUsuario}</span>
+                        <span>Por: ${item.NombreUsuario || 'No especificado'}</span>
                     </div>
-                    <div class="info-item">
+                    <div class="info-row">
                         <i class="fas fa-comment"></i>
-                        <span>${item.ObservacionRetiro ? item.ObservacionRetiro.substring(0, 50) + '...' : 'Sin observaciones'}</span>
+                        <span>${truncarTexto(item.ObservacionRetiro, 60)}</span>
                     </div>
                 </div>
                 
                 <div class="card-actions">
-                    <button class="btn btn-primary btn-sm" onclick="verDetalle(${item.IdDespidoRenuncia})">
+                    <button class="btn-card" onclick="verDetalle(${item.IdDespidoRenuncia})">
                         <i class="fas fa-eye"></i> Ver Detalles
                     </button>
                 </div>
@@ -579,7 +765,7 @@ function mostrarVistaTarjetas() {
     cardsContainer.innerHTML = html;
 }
 
-// Ver detalle de una baja
+// ===== MODAL DE DETALLES =====
 async function verDetalle(idDespidoRenuncia) {
     try {
         mostrarCargando(true, 'Cargando detalles...');
@@ -590,7 +776,7 @@ async function verDetalle(idDespidoRenuncia) {
             throw new Error('Registro no encontrado');
         }
         
-        // Llenar modal con datos
+        // Llenar datos generales
         document.getElementById('detailNombre').textContent = registro.NombrePersonal;
         
         const tipoRetiroBadge = registro.IdEstadoPersonal === 2 ? 
@@ -598,45 +784,60 @@ async function verDetalle(idDespidoRenuncia) {
             '<span class="badge badge-renuncia"><i class="fas fa-user-minus"></i> Renuncia</span>';
         document.getElementById('detailTipoRetiro').innerHTML = tipoRetiroBadge;
         
-        document.getElementById('detailFechaFin').textContent = registro.FechaFinColaborador ? 
-            new Date(registro.FechaFinColaborador).toLocaleDateString('es-ES') : 'No registrada';
-        
-        document.getElementById('detailFechaRegistro').textContent = registro.FechaHoraRegistro ? 
-            new Date(registro.FechaHoraRegistro).toLocaleString('es-ES') : 'No registrada';
-        
-        document.getElementById('detailObservacion').textContent = registro.ObservacionRetiro || 'Sin observaciones';
-        document.getElementById('detailUsuario').textContent = registro.NombreUsuario || 'No registrado';
-        
         const estadoBadge = registro.Estado === 1 ? 
             '<span class="badge badge-activo"><i class="fas fa-check-circle"></i> Activo</span>' :
             '<span class="badge badge-invalidado"><i class="fas fa-ban"></i> Invalidado</span>';
         document.getElementById('detailEstado').innerHTML = estadoBadge;
         
+        // Llenar datos de fechas
+        document.getElementById('detailFechaFin').textContent = formatearFecha(registro.FechaFinColaborador);
+        document.getElementById('detailFechaRegistro').textContent = formatearFecha(registro.FechaHoraRegistro, true);
+        document.getElementById('detailUsuario').textContent = registro.NombreUsuario || 'No especificado';
+        
+        // Llenar observaciones
+        document.getElementById('detailObservacion').textContent = registro.ObservacionRetiro || 'Sin observaciones registradas';
         
         // Mostrar modal
         detailModal.classList.add('show');
         
+        // Ir a la primera tab
+        cambiarTab('general');
+        
         mostrarCargando(false);
         
     } catch (error) {
-        console.error('Error al cargar detalles:', error);
+        console.error('❌ Error al cargar detalles:', error);
         mostrarCargando(false);
         mostrarNotificacion('Error al cargar detalles: ' + error.message, 'error');
     }
 }
 
-// Cerrar modal
-function cerrarModal() {
-    detailModal.classList.remove('show');
+function cambiarTab(tabName) {
+    // Desactivar todas las tabs
+    document.querySelectorAll('.tab-btn').forEach(btn => {
+        btn.classList.remove('active');
+    });
+    
+    document.querySelectorAll('.tab-content').forEach(content => {
+        content.classList.remove('active');
+    });
+    
+    // Activar la tab seleccionada
+    document.querySelector(`[data-tab="${tabName}"]`).classList.add('active');
+    document.querySelector(`.tab-content[data-tab="${tabName}"]`).classList.add('active');
 }
 
-// Cambiar vista (tabla/tarjetas)
+function cerrarModal() {
+    detailModal?.classList.remove('show');
+}
+
+// ===== CAMBIO DE VISTA =====
 function cambiarVista(vista) {
     // Actualizar botones activos
     document.querySelectorAll('.view-btn').forEach(btn => {
         btn.classList.remove('active');
     });
-    document.querySelector(`.view-btn[data-view="${vista}"]`).classList.add('active');
+    document.querySelector(`.view-btn[data-view="${vista}"]`)?.classList.add('active');
     
     // Mostrar/ocultar vistas
     if (vista === 'table') {
@@ -652,14 +853,14 @@ function cambiarVista(vista) {
     mostrarDatos();
 }
 
-// Actualizar paginación
+// ===== PAGINACIÓN =====
 function actualizarPaginacion() {
-    const totalPages = Math.ceil(totalRecords / recordsPerPage);
+    const totalPages = Math.ceil(filteredData.length / recordsPerPage);
     
     // Actualizar información
-    const inicio = (currentPage - 1) * recordsPerPage + 1;
-    const fin = Math.min(currentPage * recordsPerPage, totalRecords);
-    paginationInfo.textContent = `Mostrando ${inicio}-${fin} de ${totalRecords} registros`;
+    const inicio = Math.min((currentPage - 1) * recordsPerPage + 1, filteredData.length);
+    const fin = Math.min(currentPage * recordsPerPage, filteredData.length);
+    paginationInfo.textContent = `Mostrando ${inicio}-${fin} de ${filteredData.length} colaboradores`;
     
     // Limpiar controles
     paginationControls.innerHTML = '';
@@ -672,16 +873,7 @@ function actualizarPaginacion() {
     paginationContainer.style.display = 'flex';
     
     // Botón anterior
-    const btnPrev = document.createElement('button');
-    btnPrev.className = 'page-btn';
-    btnPrev.innerHTML = '<i class="fas fa-chevron-left"></i>';
-    btnPrev.disabled = currentPage === 1;
-    btnPrev.addEventListener('click', () => {
-        if (currentPage > 1) {
-            currentPage--;
-            mostrarDatos();
-        }
-    });
+    const btnPrev = createPageButton('<i class="fas fa-chevron-left"></i>', currentPage - 1, currentPage === 1);
     paginationControls.appendChild(btnPrev);
     
     // Números de página
@@ -693,45 +885,105 @@ function actualizarPaginacion() {
         startPage = Math.max(1, endPage - maxVisible + 1);
     }
     
+    // Primera página si no está visible
+    if (startPage > 1) {
+        paginationControls.appendChild(createPageButton('1', 1));
+        if (startPage > 2) {
+            const ellipsis = document.createElement('span');
+            ellipsis.textContent = '...';
+            ellipsis.className = 'page-ellipsis';
+            paginationControls.appendChild(ellipsis);
+        }
+    }
+    
+    // Páginas visibles
     for (let i = startPage; i <= endPage; i++) {
-        const pageBtn = document.createElement('button');
-        pageBtn.className = `page-btn ${i === currentPage ? 'active' : ''}`;
-        pageBtn.textContent = i;
-        pageBtn.addEventListener('click', () => {
-            currentPage = i;
-            mostrarDatos();
-        });
-        paginationControls.appendChild(pageBtn);
+        paginationControls.appendChild(createPageButton(i.toString(), i, false, i === currentPage));
+    }
+    
+    // Última página si no está visible
+    if (endPage < totalPages) {
+        if (endPage < totalPages - 1) {
+            const ellipsis = document.createElement('span');
+            ellipsis.textContent = '...';
+            ellipsis.className = 'page-ellipsis';
+            paginationControls.appendChild(ellipsis);
+        }
+        paginationControls.appendChild(createPageButton(totalPages.toString(), totalPages));
     }
     
     // Botón siguiente
-    const btnNext = document.createElement('button');
-    btnNext.className = 'page-btn';
-    btnNext.innerHTML = '<i class="fas fa-chevron-right"></i>';
-    btnNext.disabled = currentPage === totalPages;
-    btnNext.addEventListener('click', () => {
-        if (currentPage < totalPages) {
-            currentPage++;
-            mostrarDatos();
-        }
-    });
+    const btnNext = createPageButton('<i class="fas fa-chevron-right"></i>', currentPage + 1, currentPage === totalPages);
     paginationControls.appendChild(btnNext);
 }
 
-// Limpiar filtros
+function createPageButton(text, page, disabled = false, active = false) {
+    const button = document.createElement('button');
+    button.className = `page-btn ${active ? 'active' : ''}`;
+    button.innerHTML = text;
+    button.disabled = disabled;
+    
+    if (!disabled) {
+        button.addEventListener('click', () => {
+            currentPage = page;
+            mostrarDatos();
+            // Scroll suave al inicio de la tabla
+            document.querySelector('.collaborators-panel').scrollIntoView({ 
+                behavior: 'smooth',
+                block: 'start'
+            });
+        });
+    }
+    
+    return button;
+}
+
+// ===== FUNCIONES DE CONTROL =====
 function limpiarFiltros() {
     fechaDesde.value = '';
     fechaHasta.value = '';
     tipoRetiro.value = '';
     estadoRegistro.value = '';
+    searchCollaborator.value = '';
     
     configurarFechasPorDefecto();
+    currentPage = 1;
     cargarDatosFiltrados();
     
-    mostrarNotificacion('Filtros limpiados', 'info');
+    mostrarNotificacion('Filtros limpiados correctamente', 'success');
 }
 
-// Exportar reporte
+function toggleCharts() {
+    const sidebar = document.getElementById('chartsSidebar');
+    const mainContainer = document.querySelector('.main-container');
+    
+    if (sidebar.style.display === 'none') {
+        sidebar.style.display = 'flex';
+        mainContainer.style.gridTemplateColumns = '1fr 350px';
+        btnToggleCharts.innerHTML = '<i class="fas fa-chart-pie"></i>';
+        btnToggleCharts.title = 'Ocultar gráficos';
+    } else {
+        sidebar.style.display = 'none';
+        mainContainer.style.gridTemplateColumns = '1fr';
+        btnToggleCharts.innerHTML = '<i class="fas fa-chart-pie"></i>';
+        btnToggleCharts.title = 'Mostrar gráficos';
+    }
+}
+
+function toggleSidebar() {
+    const sidebar = chartsSidebar;
+    const icon = btnCollapseSidebar.querySelector('i');
+    
+    if (sidebar.classList.contains('collapsed')) {
+        sidebar.classList.remove('collapsed');
+        icon.className = 'fas fa-chevron-right';
+    } else {
+        sidebar.classList.add('collapsed');
+        icon.className = 'fas fa-chevron-left';
+    }
+}
+
+// ===== EXPORTACIÓN =====
 async function exportarReporte() {
     try {
         if (filteredData.length === 0) {
@@ -746,15 +998,11 @@ async function exportarReporte() {
             'ID': item.IdDespidoRenuncia,
             'Colaborador': item.NombrePersonal,
             'Tipo de Retiro': item.EstadoPersonal,
-            'Fecha Fin Laboral': item.FechaFinColaborador ? 
-                new Date(item.FechaFinColaborador).toLocaleDateString('es-ES') : 'No registrada',
+            'Fecha Fin Laboral': formatearFecha(item.FechaFinColaborador),
             'Observación': item.ObservacionRetiro || 'Sin observaciones',
-            'Registrado por': item.NombreUsuario,
-            'Fecha de Registro': item.FechaHoraRegistro ? 
-                new Date(item.FechaHoraRegistro).toLocaleString('es-ES') : 'No registrada',
-            'Estado del Registro': item.Estado === 1 ? 'Activo' : 'Invalidado',
-            'Fecha Invalidación': item.FechaInvalidacion ? 
-                new Date(item.FechaInvalidacion).toLocaleString('es-ES') : ''
+            'Registrado por': item.NombreUsuario || 'No especificado',
+            'Fecha de Registro': formatearFecha(item.FechaHoraRegistro, true),
+            'Estado del Registro': item.Estado === 1 ? 'Activo' : 'Invalidado'
         }));
         
         // Crear CSV
@@ -763,25 +1011,32 @@ async function exportarReporte() {
             headers.join(','),
             ...datosExport.map(row => 
                 headers.map(header => {
-                    const value = row[header];
-                    // Escapar comillas y envolver en comillas si contiene coma o salto de línea
-                    if (typeof value === 'string' && (value.includes(',') || value.includes('\n') || value.includes('"'))) {
-                        return '"' + value.replace(/"/g, '""') + '"';
+                    let value = row[header];
+                    // Limpiar y escapar el valor
+                    if (typeof value === 'string') {
+                        value = value.replace(/"/g, '""');
+                        if (value.includes(',') || value.includes('\n') || value.includes('"')) {
+                            value = '"' + value + '"';
+                        }
                     }
                     return value;
                 }).join(',')
             )
         ].join('\n');
         
+        // Crear blob con BOM para UTF-8
+        const BOM = '\uFEFF';
+        const blob = new Blob([BOM + csvContent], { type: 'text/csv;charset=utf-8;' });
+        
         // Crear y descargar archivo
-        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
         const link = document.createElement('a');
         const url = URL.createObjectURL(blob);
         link.setAttribute('href', url);
         
-        // Nombre del archivo con fecha
-        const fechaHoy = new Date().toISOString().split('T')[0];
-        const nombreArchivo = `reporte_bajas_${fechaHoy}.csv`;
+        // Nombre del archivo con fecha y hora
+        const ahora = new Date();
+        const timestamp = ahora.toISOString().slice(0, 19).replace(/:/g, '-');
+        const nombreArchivo = `reporte_bajas_${timestamp}.csv`;
         link.setAttribute('download', nombreArchivo);
         
         // Disparar descarga
@@ -790,137 +1045,41 @@ async function exportarReporte() {
         link.click();
         document.body.removeChild(link);
         
+        // Liberar URL
+        URL.revokeObjectURL(url);
+        
         mostrarCargando(false);
         mostrarNotificacion(`Reporte exportado: ${nombreArchivo}`, 'success');
         
     } catch (error) {
-        console.error('Error al exportar:', error);
+        console.error('❌ Error al exportar:', error);
         mostrarCargando(false);
         mostrarNotificacion('Error al exportar reporte: ' + error.message, 'error');
     }
 }
 
-// Mostrar/ocultar indicador de carga
-function mostrarCargando(mostrar, mensaje = 'Cargando...') {
-    if (mostrar) {
-        const existingOverlay = document.querySelector('.loading-overlay');
-        if (existingOverlay) {
-            existingOverlay.remove();
-        }
-        
-        const loadingOverlay = document.createElement('div');
-        loadingOverlay.className = 'loading-overlay';
-        loadingOverlay.innerHTML = `
-            <div class="loading-spinner-large"></div>
-            <div class="loading-text">${mensaje}</div>
-        `;
-        document.body.appendChild(loadingOverlay);
-    } else {
-        const loadingOverlay = document.querySelector('.loading-overlay');
-        if (loadingOverlay) {
-            loadingOverlay.style.opacity = '0';
-            setTimeout(() => {
-                if (loadingOverlay.parentNode) {
-                    loadingOverlay.parentNode.removeChild(loadingOverlay);
-                }
-            }, 300);
-        }
-    }
-}
-
-// Sistema de notificaciones toast
-function mostrarNotificacion(mensaje, tipo = 'info') {
-    // Verificar si ya existe el contenedor de toast
-    let toastContainer = document.querySelector('.toast-container');
-    
-    if (!toastContainer) {
-        toastContainer = document.createElement('div');
-        toastContainer.className = 'toast-container';
-        document.body.appendChild(toastContainer);
-    }
-    
-    // Crear el toast
-    const toast = document.createElement('div');
-    toast.className = `toast toast-${tipo}`;
-    
-    // Definir iconos según el tipo
-    const iconMap = {
-        success: 'check-circle',
-        error: 'times-circle',
-        warning: 'exclamation-triangle',
-        info: 'info-circle'
-    };
-    
-    // Crear contenido del toast
-    toast.innerHTML = `
-        <div class="toast-icon">
-            <i class="fas fa-${iconMap[tipo]}"></i>
-        </div>
-        <div class="toast-content">${mensaje}</div>
-        <button class="toast-close">
-            <i class="fas fa-times"></i>
-        </button>
-    `;
-    
-    // Agregar al contenedor
-    toastContainer.appendChild(toast);
-    
-    // Manejar el cierre del toast
-    const closeBtn = toast.querySelector('.toast-close');
-    closeBtn.addEventListener('click', () => {
-        toast.classList.add('toast-hiding');
-        setTimeout(() => {
-            if (toast.parentElement) toast.remove();
-        }, 400);
-    });
-    
-    // Auto-cierre después de 5 segundos
-    setTimeout(() => {
-        if (toast.parentElement) {
-            toast.classList.add('toast-hiding');
-            setTimeout(() => {
-                if (toast.parentElement) toast.remove();
-            }, 400);
-        }
-    }, 5000);
-}
-
-// Funciones para búsqueda en tiempo real
-function configurarBusquedaEnTiempoReal() {
-    let searchTimeout;
-    
-    // Función de búsqueda con debounce
-    function buscarConDebounce() {
-        clearTimeout(searchTimeout);
-        searchTimeout = setTimeout(() => {
-            cargarDatosFiltrados();
-        }, 300);
-    }
-    
-    // Aplicar a todos los filtros
-    [fechaDesde, fechaHasta, tipoRetiro, estadoRegistro].forEach(elemento => {
-        elemento.addEventListener('input', buscarConDebounce);
-        elemento.addEventListener('change', buscarConDebounce);
-    });
-}
-
-// Funciones de utilidad
+// ===== FUNCIONES DE UTILIDAD =====
 function formatearFecha(fecha, incluirHora = false) {
     if (!fecha) return 'No registrada';
     
-    const opciones = {
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit'
-    };
-    
-    if (incluirHora) {
-        opciones.hour = '2-digit';
-        opciones.minute = '2-digit';
-        opciones.second = '2-digit';
+    try {
+        const fechaObj = new Date(fecha);
+        const opciones = {
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit'
+        };
+        
+        if (incluirHora) {
+            opciones.hour = '2-digit';
+            opciones.minute = '2-digit';
+            opciones.hour12 = false;
+        }
+        
+        return fechaObj.toLocaleDateString('es-ES', opciones);
+    } catch (error) {
+        return 'Fecha inválida';
     }
-    
-    return new Date(fecha).toLocaleDateString('es-ES', opciones);
 }
 
 function truncarTexto(texto, longitud = 50) {
@@ -928,72 +1087,181 @@ function truncarTexto(texto, longitud = 50) {
     return texto.length > longitud ? texto.substring(0, longitud) + '...' : texto;
 }
 
-// Función para actualizar contadores en tiempo real
-function actualizarContadoresEnTiempoReal() {
-    const intervalo = setInterval(() => {
-        // Solo actualizar si la página está visible
-        if (!document.hidden) {
-            cargarDatosFiltrados();
-        }
-    }, 60000); // Actualizar cada minuto
+function generarIniciales(nombreCompleto) {
+    if (!nombreCompleto) return '??';
     
-    // Limpiar intervalo cuando se cierre la página
-    window.addEventListener('beforeunload', () => {
-        clearInterval(intervalo);
-    });
+    const palabras = nombreCompleto.trim().split(' ');
+    if (palabras.length === 1) {
+        return palabras[0].substring(0, 2).toUpperCase();
+    }
+    
+    return (palabras[0].charAt(0) + palabras[palabras.length - 1].charAt(0)).toUpperCase();
 }
 
-// Configurar atajos de teclado
-function configurarAtajosTeclado() {
-    document.addEventListener('keydown', function(e) {
-        // Ctrl + F para enfocar en filtros
-        if (e.ctrlKey && e.key === 'f') {
-            e.preventDefault();
-            fechaDesde.focus();
-        }
-        
-        // Ctrl + E para exportar
-        if (e.ctrlKey && e.key === 'e') {
-            e.preventDefault();
-            exportarReporte();
-        }
-        
-        // Ctrl + R para actualizar
-        if (e.ctrlKey && e.key === 'r') {
-            e.preventDefault();
-            cargarDatosFiltrados();
-        }
-        
-        // Escape para cerrar modal
-        if (e.key === 'Escape') {
-            cerrarModal();
-        }
-        
-        // Teclas de navegación en paginación
-        if (e.ctrlKey && e.key === 'ArrowLeft') {
-            e.preventDefault();
-            if (currentPage > 1) {
-                currentPage--;
-                mostrarDatos();
-            }
-        }
-        
-        if (e.ctrlKey && e.key === 'ArrowRight') {
-            e.preventDefault();
-            const totalPages = Math.ceil(totalRecords / recordsPerPage);
-            if (currentPage < totalPages) {
-                currentPage++;
-                mostrarDatos();
-            }
-        }
-    });
+function debounce(func, wait) {
+    let timeout;
+    return function executedFunction(...args) {
+        const later = () => {
+            clearTimeout(timeout);
+            func(...args);
+        };
+        clearTimeout(timeout);
+        timeout = setTimeout(later, wait);
+    };
 }
 
-// Función para imprimir reporte
+// ===== INDICADOR DE CARGA =====
+function mostrarCargando(mostrar, mensaje = 'Cargando...') {
+    const existingOverlay = document.querySelector('.loading-overlay');
+    
+    if (mostrar) {
+        if (existingOverlay) {
+            existingOverlay.remove();
+        }
+        
+        const loadingOverlay = document.createElement('div');
+        loadingOverlay.className = 'loading-overlay';
+        loadingOverlay.innerHTML = `
+            <div class="loading-spinner"></div>
+            <div class="loading-text">${mensaje}</div>
+        `;
+        
+        // Estilos inline para el overlay
+        loadingOverlay.style.cssText = `
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(255, 255, 255, 0.9);
+            backdrop-filter: blur(5px);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 9999;
+            gap: 1rem;
+        `;
+        
+        loadingOverlay.querySelector('.loading-spinner').style.cssText = `
+            width: 40px;
+            height: 40px;
+            border: 4px solid #e5e7eb;
+            border-top: 4px solid #2563eb;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        `;
+        
+        loadingOverlay.querySelector('.loading-text').style.cssText = `
+            color: #374151;
+            font-size: 1rem;
+            font-weight: 500;
+        `;
+        
+        // Agregar keyframes para la animación
+        if (!document.getElementById('loading-styles')) {
+            const style = document.createElement('style');
+            style.id = 'loading-styles';
+            style.textContent = `
+                @keyframes spin {
+                    0% { transform: rotate(0deg); }
+                    100% { transform: rotate(360deg); }
+                }
+            `;
+            document.head.appendChild(style);
+        }
+        
+        document.body.appendChild(loadingOverlay);
+    } else {
+        if (existingOverlay) {
+            existingOverlay.style.opacity = '0';
+            setTimeout(() => {
+                if (existingOverlay.parentNode) {
+                    existingOverlay.parentNode.removeChild(existingOverlay);
+                }
+            }, 300);
+        }
+    }
+}
+
+// ===== SISTEMA DE NOTIFICACIONES =====
+function mostrarNotificacion(mensaje, tipo = 'info', duracion = 5000) {
+    let toastContainer = document.querySelector('.toast-container-modern');
+    
+    if (!toastContainer) {
+        toastContainer = document.createElement('div');
+        toastContainer.className = 'toast-container-modern';
+        document.body.appendChild(toastContainer);
+    }
+    
+    const toast = document.createElement('div');
+    toast.className = `toast-modern toast-${tipo}`;
+    
+    const iconMap = {
+        success: 'check-circle',
+        error: 'times-circle',
+        warning: 'exclamation-triangle',
+        info: 'info-circle'
+    };
+    
+    toast.innerHTML = `
+        <div class="toast-icon-modern">
+            <i class="fas fa-${iconMap[tipo]}"></i>
+        </div>
+        <div class="toast-content-modern">${mensaje}</div>
+        <button class="toast-close-modern">
+            <i class="fas fa-times"></i>
+        </button>
+    `;
+    
+    toastContainer.appendChild(toast);
+    
+    // Manejar cierre manual
+    const closeBtn = toast.querySelector('.toast-close-modern');
+    closeBtn.addEventListener('click', () => {
+        cerrarToast(toast);
+    });
+    
+    // Auto-cierre
+    setTimeout(() => {
+        if (toast.parentElement) {
+            cerrarToast(toast);
+        }
+    }, duracion);
+    
+    // Efecto de entrada
+    setTimeout(() => {
+        toast.style.transform = 'translateX(0)';
+    }, 10);
+}
+
+function cerrarToast(toast) {
+    toast.classList.add('hiding');
+    setTimeout(() => {
+        if (toast.parentElement) {
+            toast.remove();
+        }
+    }, 300);
+}
+
+// ===== FUNCIONES ADICIONALES =====
 function imprimirReporte() {
-    // Crear ventana de impresión con estilos específicos
     const printWindow = window.open('', '_blank');
     const fechaHoy = new Date().toLocaleDateString('es-ES');
+    
+    let filtrosTexto = '';
+    if (fechaDesde.value || fechaHasta.value) {
+        filtrosTexto += `Período: ${fechaDesde.value || 'Sin límite'} - ${fechaHasta.value || 'Sin límite'}<br>`;
+    }
+    if (tipoRetiro.value) {
+        filtrosTexto += `Tipo: ${tipoRetiro.options[tipoRetiro.selectedIndex].text}<br>`;
+    }
+    if (estadoRegistro.value !== '') {
+        filtrosTexto += `Estado: ${estadoRegistro.options[estadoRegistro.selectedIndex].text}<br>`;
+    }
+    if (searchCollaborator.value) {
+        filtrosTexto += `Búsqueda: "${searchCollaborator.value}"<br>`;
+    }
     
     let html = `
         <!DOCTYPE html>
@@ -1001,46 +1269,41 @@ function imprimirReporte() {
         <head>
             <title>Reporte de Bajas - ${fechaHoy}</title>
             <style>
-                body { font-family: Arial, sans-serif; margin: 20px; }
+                body { font-family: Arial, sans-serif; margin: 20px; font-size: 12px; }
                 .header { text-align: center; margin-bottom: 30px; border-bottom: 2px solid #333; padding-bottom: 20px; }
                 .filters { margin-bottom: 20px; background: #f5f5f5; padding: 15px; border-radius: 5px; }
                 .stats { display: flex; justify-content: space-around; margin-bottom: 20px; }
                 .stat { text-align: center; padding: 10px; border: 1px solid #ddd; border-radius: 5px; }
                 table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
-                th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+                th, td { border: 1px solid #ddd; padding: 6px; text-align: left; }
                 th { background-color: #f5f5f5; font-weight: bold; }
-                .badge { padding: 2px 8px; border-radius: 10px; font-size: 12px; }
+                .badge { padding: 2px 6px; border-radius: 10px; font-size: 10px; }
                 .badge-despido { background: #ffebee; color: #c62828; }
                 .badge-renuncia { background: #fff8e1; color: #f57c00; }
                 .badge-activo { background: #e8f5e8; color: #2e7d32; }
                 .badge-invalidado { background: #f5f5f5; color: #616161; }
-                .footer { margin-top: 30px; text-align: center; font-size: 12px; color: #666; }
+                .footer { margin-top: 30px; text-align: center; font-size: 10px; color: #666; }
             </style>
         </head>
         <body>
             <div class="header">
                 <h1>Reporte de Bajas de Personal</h1>
-                <p>Generado el ${fechaHoy} por ${userData.NombreCompleto}</p>
+                <p>Generado el ${fechaHoy} por ${userData?.NombreCompleto || 'Sistema'}</p>
             </div>
             
-            <div class="filters">
-                <strong>Filtros aplicados:</strong><br>
-                Período: ${fechaDesde.value || 'Sin límite'} - ${fechaHasta.value || 'Sin límite'}<br>
-                Tipo de retiro: ${tipoRetiro.value ? tipoRetiro.options[tipoRetiro.selectedIndex].text : 'Todos'}<br>
-                Estado: ${estadoRegistro.value !== '' ? estadoRegistro.options[estadoRegistro.selectedIndex].text : 'Todos'}
-            </div>
+            ${filtrosTexto ? `<div class="filters"><strong>Filtros aplicados:</strong><br>${filtrosTexto}</div>` : ''}
             
             <div class="stats">
                 <div class="stat">
-                    <h3>${totalBajas.textContent}</h3>
+                    <h3>${totalBajas?.textContent || '0'}</h3>
                     <p>Total Bajas</p>
                 </div>
                 <div class="stat">
-                    <h3>${totalDespidos.textContent}</h3>
+                    <h3>${totalDespidos?.textContent || '0'}</h3>
                     <p>Despidos</p>
                 </div>
                 <div class="stat">
-                    <h3>${totalRenuncias.textContent}</h3>
+                    <h3>${totalRenuncias?.textContent || '0'}</h3>
                     <p>Renuncias</p>
                 </div>
             </div>
@@ -1049,10 +1312,10 @@ function imprimirReporte() {
                 <thead>
                     <tr>
                         <th>Colaborador</th>
-                        <th>Tipo de Retiro</th>
-                        <th>Fecha Fin Laboral</th>
-                        <th>Fecha Registro</th>
+                        <th>Tipo</th>
+                        <th>Fecha Fin</th>
                         <th>Registrado por</th>
+                        <th>Fecha Registro</th>
                         <th>Estado</th>
                     </tr>
                 </thead>
@@ -1060,10 +1323,8 @@ function imprimirReporte() {
     `;
     
     filteredData.forEach(item => {
-        const fechaFin = item.FechaFinColaborador ? 
-            new Date(item.FechaFinColaborador).toLocaleDateString('es-ES') : 'No registrada';
-        const fechaRegistro = item.FechaHoraRegistro ? 
-            new Date(item.FechaHoraRegistro).toLocaleString('es-ES') : 'No registrada';
+        const fechaFin = formatearFecha(item.FechaFinColaborador);
+        const fechaRegistro = formatearFecha(item.FechaHoraRegistro, true);
         
         const tipoClass = item.IdEstadoPersonal === 2 ? 'badge-despido' : 'badge-renuncia';
         const tipoTexto = item.IdEstadoPersonal === 2 ? 'Despido' : 'Renuncia';
@@ -1076,8 +1337,8 @@ function imprimirReporte() {
                 <td>${item.NombrePersonal}</td>
                 <td><span class="badge ${tipoClass}">${tipoTexto}</span></td>
                 <td>${fechaFin}</td>
+                <td>${item.NombreUsuario || 'No especificado'}</td>
                 <td>${fechaRegistro}</td>
-                <td>${item.NombreUsuario}</td>
                 <td><span class="badge ${estadoClass}">${estadoTexto}</span></td>
             </tr>
         `;
@@ -1089,6 +1350,7 @@ function imprimirReporte() {
             
             <div class="footer">
                 <p>Sistema de Recursos Humanos - Reporte generado automáticamente</p>
+                <p>Total de registros: ${filteredData.length}</p>
             </div>
         </body>
         </html>
@@ -1097,56 +1359,66 @@ function imprimirReporte() {
     printWindow.document.write(html);
     printWindow.document.close();
     
-    // Esperar a que se cargue el contenido y luego imprimir
     printWindow.onload = function() {
         printWindow.print();
         printWindow.close();
     };
 }
 
-// Registrar funciones globales para uso en HTML
+function showTooltip(event) {
+    // Implementación simple de tooltip
+    const tooltip = document.createElement('div');
+    tooltip.className = 'tooltip';
+    tooltip.textContent = event.target.getAttribute('title');
+    tooltip.style.cssText = `
+        position: absolute;
+        background: #333;
+        color: white;
+        padding: 4px 8px;
+        border-radius: 4px;
+        font-size: 12px;
+        z-index: 10000;
+        pointer-events: none;
+    `;
+    
+    document.body.appendChild(tooltip);
+    
+    const rect = event.target.getBoundingClientRect();
+    tooltip.style.left = rect.left + 'px';
+    tooltip.style.top = (rect.top - tooltip.offsetHeight - 5) + 'px';
+    
+    event.target._tooltip = tooltip;
+}
+
+function hideTooltip(event) {
+    if (event.target._tooltip) {
+        event.target._tooltip.remove();
+        delete event.target._tooltip;
+    }
+}
+
+// ===== REGISTRO DE FUNCIONES GLOBALES =====
 window.verDetalle = verDetalle;
 window.imprimirReporte = imprimirReporte;
+window.limpiarFiltros = limpiarFiltros;
 
-// Inicializar funcionalidades adicionales cuando la página esté lista
-document.addEventListener('DOMContentLoaded', function() {
-    // Configurar búsqueda en tiempo real
-    configurarBusquedaEnTiempoReal();
-    
-    // Configurar atajos de teclado
-    configurarAtajosTeclado();
-    
-    // Configurar actualización automática
-    actualizarContadoresEnTiempoReal();
-    
-    // Agregar botón de impresión
-    const printBtn = document.createElement('button');
-    printBtn.className = 'btn btn-secondary btn-sm';
-    printBtn.innerHTML = '<i class="fas fa-print"></i> Imprimir';
-    printBtn.addEventListener('click', imprimirReporte);
-    
-    // Agregar al panel de acciones
-    const panelActions = document.querySelector('.panel-actions');
-    if (panelActions) {
-        panelActions.insertBefore(printBtn, btnExportReport);
-    }
-    
-    console.log('Reporte de Bajas inicializado correctamente');
-});
-
-// Manejo de errores globales
+// ===== MANEJO DE ERRORES GLOBALES =====
 window.addEventListener('error', function(e) {
-    console.error('Error global:', e.error);
+    console.error('❌ Error global:', e.error);
     mostrarNotificacion('Ha ocurrido un error inesperado', 'error');
 });
 
-// Prevenir cierre accidental
+window.addEventListener('unhandledrejection', function(e) {
+    console.error('❌ Promise rechazada:', e.reason);
+    mostrarNotificacion('Error en operación asíncrona', 'error');
+});
+
+// ===== PREVENIR CIERRE ACCIDENTAL =====
 window.addEventListener('beforeunload', function(e) {
-    // Solo prevenir si hay algún proceso en curso
     const loadingOverlay = document.querySelector('.loading-overlay');
     if (loadingOverlay) {
         e.preventDefault();
-        e.returnValue = '';
-        return 'Hay un proceso en curso. ¿Está seguro que desea salir?';
+        e.returnValue = 'Hay una operación en curso. ¿Está seguro que desea salir?';
+        return e.returnValue;
     }
 });

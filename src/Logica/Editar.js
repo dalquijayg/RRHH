@@ -2449,11 +2449,10 @@ async function cargarPuestos(idDepartamento) {
         
         const connection = await getConnection();
         const query = `
-            SELECT p.IdPuesto, pg.Nombre
+            SELECT p.IdPuesto, p.Nombre
             FROM Puestos p
-            JOIN PuestosGenerales pg ON p.Id_PuestoGeneral = pg.Id_Puesto
             WHERE p.IdDepartamento = ?
-            ORDER BY pg.Nombre
+            ORDER BY p.Nombre
         `;
         
         const result = await connection.query(query, [idDepartamento]);
