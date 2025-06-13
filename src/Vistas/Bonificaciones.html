@@ -119,6 +119,9 @@
             </div>
             
             <div class="header-actions-compact">
+                <button class="btn-action-small btn-add-external" id="addExternalBtn" title="Agregar colaborador de otro departamento" style="display: none;">
+                    <i class="fas fa-user-plus"></i>
+                </button>
                 <button class="btn-action-small btn-load-employees" id="loadEmployeesBtn" title="Cargar Colaboradores">
                     <i class="fas fa-users"></i>
                 </button>
@@ -236,7 +239,57 @@
             </div>
         </div>
     </div>
-
+<div id="externalEmployeeModal" class="modal">
+        <div class="modal-content-external">
+            <div class="modal-header-compact">
+                <h4 id="externalModalTitle">Agregar Colaborador de Otro Departamento</h4>
+                <span class="close" id="closeExternalModal">&times;</span>
+            </div>
+            <div class="modal-body-external">
+                <div class="form-group-compact">
+                    <label for="departmentSelect">Seleccionar Departamento:</label>
+                    <select id="departmentSelect" class="form-input-compact">
+                        <option value="">-- Seleccione un departamento --</option>
+                    </select>
+                </div>
+                
+                <div class="form-group-compact" id="employeeSelectGroup" style="display: none;">
+                    <label for="externalEmployeeSelect">Seleccionar Colaborador:</label>
+                    <div class="employee-select-container">
+                        <select id="externalEmployeeSelect" class="form-input-compact">
+                            <option value="">-- Seleccione un colaborador --</option>
+                        </select>
+                        <div class="employee-loading" id="employeeLoading" style="display: none;">
+                            <div class="loading-spinner-mini"></div>
+                            <span class="loading-text">Cargando colaboradores...</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="external-employee-info" id="externalEmployeeInfo" style="display: none;">
+                    <div class="employee-preview">
+                        <div class="employee-preview-photo">
+                            <img id="previewPhoto" src="../Imagenes/user-default.png" alt="Foto">
+                        </div>
+                        <div class="employee-preview-details">
+                            <div class="preview-name" id="previewName">-</div>
+                            <div class="preview-position" id="previewPosition">-</div>
+                            <div class="preview-department" id="previewDepartment">-</div>
+                            <div class="preview-id" id="previewId">ID: -</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="validation-status" id="validationStatus" style="display: none;">
+                    <!-- Aquí se mostrará el estado de validación -->
+                </div>
+            </div>
+            <div class="modal-footer-compact">
+                <button class="btn-modal-compact btn-cancel" id="cancelExternalModal">Cancelar</button>
+                <button class="btn-modal-compact btn-confirm" id="confirmExternalModal" disabled>Agregar Colaborador</button>
+            </div>
+        </div>
+    </div>
     <!-- Loading overlay más discreto -->
     <div id="loadingOverlay" class="loading-overlay">
         <div class="loading-content-compact">
@@ -244,7 +297,7 @@
             <p>Cargando...</p>
         </div>
     </div>
-
+    
     <script src="../Logica/Bonis/Bonificaciones.js"></script>
     <script>
         const { ipcRenderer } = require('electron');

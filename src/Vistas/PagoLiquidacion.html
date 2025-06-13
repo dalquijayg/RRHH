@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Liquidación de Colaborador - Recursos Humanos</title>
+    <link rel="stylesheet" href="../Disenos/Planilla/PagoLiquidacion.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+</head>
+<body>
+    
+    <!-- Elementos decorativos de fondo -->
+    <div class="bg-decoration bubble bubble1"></div>
+    <div class="bg-decoration bubble bubble2"></div>
+    <div class="bg-decoration bubble bubble3"></div>
+    <div class="bg-decoration bubble bubble4"></div>
+    <div class="bg-decoration bubble bubble5"></div>
+    
+    <div class="bg-decoration pattern pattern1"></div>
+    <div class="bg-decoration pattern pattern2"></div>
+    
+    <div class="bg-decoration wave wave1"></div>
+    <div class="bg-decoration wave wave2"></div>
+    
+    <div class="container">
+        <div class="liquidacion-box">
+            <img src="../Imagenes/Logo Recursos Humanos new.png" alt="Logo" class="logo">
+            
+            <!-- Franja de colores -->
+            <div class="color-strip">
+                <div class="color-strip-item color-red"></div>
+                <div class="color-strip-item color-blue"></div>
+                <div class="color-strip-item color-green"></div>
+                <div class="color-strip-item color-yellow"></div>
+                <div class="color-strip-item color-orange"></div>
+            </div>
+            
+            <h2><i class="fas fa-calculator"></i> Liquidación de Colaborador</h2>
+            
+            <!-- Buscador de colaboradores -->
+            <div class="search-container">
+                <div class="input-container">
+                    <label for="buscarColaborador">Buscar Colaborador</label>
+                    <div class="search-input-wrapper">
+                        <input type="text" id="buscarColaborador" placeholder="Escribe el nombre del colaborador...">
+                        <i class="fas fa-search search-icon"></i>
+                    </div>
+                </div>
+                
+                <!-- Resultados de búsqueda -->
+                <div id="resultadosBusqueda" class="search-results" style="display: none;"></div>
+            </div>
+            
+            <!-- Información del colaborador seleccionado -->
+            <div id="infoColaborador" class="colaborador-info" style="display: none;">
+                <div class="colaborador-header">
+                    <div class="colaborador-foto">
+                        <img id="fotoColaborador" src="../Imagenes/user-default.png" alt="Foto del colaborador">
+                    </div>
+                    <div class="colaborador-datos">
+                        <h3 id="nombreColaborador"></h3>
+                        <p id="departamentoColaborador"></p>
+                        <div class="badge-container">
+                            <span id="planillaInfo" class="badge badge-primary"></span>
+                        </div>
+                    </div>
+                    <div class="salario-destacado">
+                        <div class="salario-label">Salario Base</div>
+                        <div class="salario-valor" id="salarioBase">Q 0.00</div>
+                    </div>
+                </div>
+                
+                <div class="info-grid-compact">
+                    <div class="info-card-small">
+                        <div class="card-icon-small">
+                            <i class="fas fa-calendar-alt"></i>
+                        </div>
+                        <div class="card-content-small">
+                            <label>Fecha Ingreso</label>
+                            <span id="fechaPlanilla"></span>
+                        </div>
+                    </div>
+                    
+                    <div class="info-card-small">
+                        <div class="card-icon-small">
+                            <i class="fas fa-clock"></i>
+                        </div>
+                        <div class="card-content-small">
+                            <label>Tiempo Laborado</label>
+                            <span id="tiempoLaborado"></span>
+                        </div>
+                    </div>
+                    
+                    <div class="info-card-small">
+                        <div class="card-icon-small">
+                            <i class="fas fa-building"></i>
+                        </div>
+                        <div class="card-content-small">
+                            <label>División</label>
+                            <span id="divisionInfo"></span>
+                        </div>
+                    </div>
+                    
+                    <div class="info-card-small">
+                        <div class="card-icon-small">
+                            <i class="fas fa-users"></i>
+                        </div>
+                        <div class="card-content-small">
+                            <label>Departamento</label>
+                            <span id="departamentoInfo"></span>
+                        </div>
+                    </div>
+                    
+                    <div class="info-card-small aguinaldo-card">
+                        <div class="card-icon-small">
+                            <i class="fas fa-gift"></i>
+                        </div>
+                        <div class="card-content-small">
+                            <label>Días Aguinaldo</label>
+                            <span id="diasAguinaldo"></span>
+                            <small id="periodoAguinaldo" class="periodo-texto"></small>
+                        </div>
+                    </div>
+                    
+                    <div class="info-card-small vacaciones-card">
+                        <div class="card-icon-small">
+                            <i class="fas fa-umbrella-beach"></i>
+                        </div>
+                        <div class="card-content-small">
+                            <label>Días Vacaciones</label>
+                            <span id="diasVacaciones"></span>
+                            <small id="periodoVacaciones" class="periodo-texto"></small>
+                        </div>
+                    </div>
+                    
+                    <div class="info-card-small bono14-card">
+                        <div class="card-icon-small">
+                            <i class="fas fa-coins"></i>
+                        </div>
+                        <div class="card-content-small">
+                            <label>Días Bono 14</label>
+                            <span id="diasBono14"></span>
+                            <small id="periodoBono14" class="periodo-texto"></small>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="action-buttons">
+                    <button id="btnCalcularLiquidacion" class="btn btn-primary">
+                        <i class="fas fa-calculator"></i>
+                        Calcular Liquidación
+                    </button>
+                    <button id="btnNuevaBusqueda" class="btn btn-secondary">
+                        <i class="fas fa-search"></i>
+                        Nueva Búsqueda
+                    </button>
+                </div>
+            </div>
+            
+            <div class="footer-text">
+                <p>Sistema de Recursos Humanos - Liquidaciones</p>
+                <p>© New Technology 2025</p>
+            </div>
+        </div>
+    </div>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="../Logica/Planillas/PagoLiquidacion.js"></script>
+</body>
+</html>

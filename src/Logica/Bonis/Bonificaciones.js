@@ -12,6 +12,8 @@ const ENCRYPTION_OFFSET = 7; // Número para offset
 let selectedMonth = null;
 let selectedYear = null;
 let currentPeriodMesAnio = null;
+let availableDepartments = [];
+let selectedExternalEmployee = null;
 
 // ===== CONFIGURACIÓN DE CIFRADO =====
 const ENCRYPTION_CONFIG = {
@@ -997,6 +999,37 @@ async function saveIndividualEmployee(index) {
     if (!employee || !currentBonificacionId) return;
     
     try {
+        // VALIDACIÓN OBLIGATORIA ANTES DE GUARDAR
+        const validationErrors = validateEmployeeData(employee);
+        if (validationErrors.length > 0) {
+            Swal.fire({
+                icon: 'error',
+                title: 'Datos incompletos',
+                html: `
+                    <div style="text-align: left; padding: 10px;">
+                        <p><strong>❌ No se puede guardar:</strong></p>
+                        <ul style="margin: 10px 0; padding-left: 20px;">
+                            ${validationErrors.map(error => `<li>${error}</li>`).join('')}
+                        </ul>
+                        <p><small>Complete todos los campos obligatorios para continuar.</small></p>
+                    </div>
+                `,
+                confirmButtonColor: '#FF9800',
+                confirmButtonText: 'Entendido'
+            });
+            
+            // Marcar botón como inválido
+            const saveButton = document.querySelector(`[data-index="${index}"].btn-save-employee`);
+            if (saveButton) {
+                saveButton.classList.add('invalid');
+                saveButton.style.backgroundColor = '#f44336';
+                saveButton.title = 'Complete los campos obligatorios';
+                saveButton.disabled = true;
+            }
+            
+            return;
+        }
+        
         // Mostrar estado de guardando
         const saveButton = document.querySelector(`[data-index="${index}"].btn-save-employee`);
         const row = document.querySelector(`tr[data-index="${index}"]`);
@@ -1008,29 +1041,6 @@ async function saveIndividualEmployee(index) {
         
         if (row) {
             row.classList.add('saving');
-        }
-        
-        // Validar datos antes de guardar
-        const validationErrors = validateEmployeeData(employee);
-        if (validationErrors.length > 0) {
-            Swal.fire({
-                icon: 'error',
-                title: 'Errores de validación',
-                text: validationErrors.join(', '),
-                confirmButtonColor: '#FF9800',
-                toast: true,
-                position: 'top-end',
-                timer: 4000
-            });
-            
-            // Restaurar estado
-            if (saveButton) {
-                saveButton.classList.remove('saving');
-                saveButton.disabled = false;
-            }
-            if (row) row.classList.remove('saving');
-            
-            return;
         }
         
         // Cifrar los montos antes de guardar
@@ -1125,10 +1135,11 @@ async function saveIndividualEmployee(index) {
         }
         
         if (saveButton) {
-            saveButton.classList.remove('saving');
+            saveButton.classList.remove('saving', 'invalid', 'ready');
             saveButton.classList.add('saved');
             saveButton.disabled = true;
             saveButton.title = 'Guardado';
+            saveButton.style.backgroundColor = '#2196F3';
         }
         
         // Actualizar header con nuevo total
@@ -1157,6 +1168,7 @@ async function saveIndividualEmployee(index) {
         if (saveButton) {
             saveButton.classList.remove('saving');
             saveButton.disabled = false;
+            saveButton.style.backgroundColor = '#4CAF50';
         }
         if (row) row.classList.remove('saving');
         
@@ -1708,6 +1720,14 @@ function setupTableEventListeners() {
             updateFieldStyle(this);
             calculateRowTotal(this.dataset.index);
             markAsModified(this.dataset.index);
+            
+            // VALIDACIÓN VISUAL EN TIEMPO REAL
+            const employee = employeesData[this.dataset.index];
+            if (!employee.bonificacionRegular || employee.bonificacionRegular <= 0) {
+                this.classList.add('required-empty');
+            } else {
+                this.classList.remove('required-empty');
+            }
         });
     });
     
@@ -1729,6 +1749,18 @@ function setupTableEventListeners() {
             calculateRowTotal(this.dataset.index);
             toggleDiscountButton(this.dataset.index, 'vales', parseFloat(this.value) || 0);
             markAsModified(this.dataset.index);
+            
+            // VALIDACIÓN PARA DESCUENTOS
+            const employee = employeesData[this.dataset.index];
+            if (employee.descuentoVales > 0) {
+                if (!employee.referenciaVales || !employee.observacionesVales) {
+                    this.classList.add('required-empty');
+                } else {
+                    this.classList.remove('required-empty');
+                }
+            } else {
+                this.classList.remove('required-empty');
+            }
         });
     });
     
@@ -1817,12 +1849,24 @@ function markAsModified(index) {
         row.classList.add('unsaved');
         row.classList.remove('saved');
         
-        // Habilitar botón de guardar
+        // VALIDAR ANTES DE HABILITAR EL BOTÓN
         const saveButton = row.querySelector('.btn-save-employee');
         if (saveButton) {
-            saveButton.disabled = false;
-            saveButton.classList.remove('saved');
-            saveButton.title = 'Guardar empleado';
+            const canSave = validateEmployeeForSave(employee);
+            
+            if (canSave) {
+                saveButton.disabled = false;
+                saveButton.classList.remove('saved', 'invalid');
+                saveButton.classList.add('ready');
+                saveButton.title = 'Guardar empleado';
+                saveButton.style.backgroundColor = '#4CAF50';
+            } else {
+                saveButton.disabled = true;
+                saveButton.classList.add('invalid');
+                saveButton.classList.remove('saved', 'ready');
+                saveButton.title = 'Complete los campos obligatorios';
+                saveButton.style.backgroundColor = '#f44336';
+            }
         }
     }
     
@@ -3842,6 +3886,11 @@ async function goBack() {
 function validateEmployeeData(employee) {
     const errors = [];
     
+    // VALIDACIÓN PRINCIPAL: Bonificación Regular es obligatoria para guardar
+    if (!employee.bonificacionRegular || employee.bonificacionRegular <= 0) {
+        errors.push('La Bonificación Regular es obligatoria y debe ser mayor a 0');
+    }
+    
     // Validar que los montos sean positivos o cero
     if (employee.bonificacionRegular < 0) {
         errors.push('La bonificación regular no puede ser negativa');
@@ -3859,18 +3908,50 @@ function validateEmployeeData(employee) {
         errors.push('El descuento por créditos no puede ser negativo');
     }
     
-    // Validar referencias cuando hay descuentos MAYORES A 0
-    if (employee.descuentoVales > 0 && !employee.referenciaVales.trim()) {
-        errors.push('Se requiere referencia para el descuento por vales');
+    // VALIDACIONES OBLIGATORIAS PARA DESCUENTOS
+    if (employee.descuentoVales > 0) {
+        if (!employee.referenciaVales || !employee.referenciaVales.trim()) {
+            errors.push('Se requiere Número de Referencia para el descuento por vales');
+        }
+        if (!employee.observacionesVales || !employee.observacionesVales.trim()) {
+            errors.push('Se requiere Observación para el descuento por vales');
+        }
     }
     
-    if (employee.descuentoCreditos > 0 && !employee.referenciaCreditos.trim()) {
-        errors.push('Se requiere referencia para el descuento por créditos');
+    if (employee.descuentoCreditos > 0) {
+        if (!employee.referenciaCreditos || !employee.referenciaCreditos.trim()) {
+            errors.push('Se requiere Número de Referencia para el descuento por créditos');
+        }
+        if (!employee.observacionesCreditos || !employee.observacionesCreditos.trim()) {
+            errors.push('Se requiere Observación para el descuento por créditos');
+        }
     }
     
     return errors;
 }
-
+function validateEmployeeForSave(employee) {
+    // No permitir guardar si no hay Bonificación Regular
+    if (!employee.bonificacionRegular || employee.bonificacionRegular <= 0) {
+        return false;
+    }
+    
+    // Si hay descuentos, validar referencias y observaciones
+    if (employee.descuentoVales > 0) {
+        if (!employee.referenciaVales || !employee.referenciaVales.trim() ||
+            !employee.observacionesVales || !employee.observacionesVales.trim()) {
+            return false;
+        }
+    }
+    
+    if (employee.descuentoCreditos > 0) {
+        if (!employee.referenciaCreditos || !employee.referenciaCreditos.trim() ||
+            !employee.observacionesCreditos || !employee.observacionesCreditos.trim()) {
+            return false;
+        }
+    }
+    
+    return true;
+}
 function validateAllData() {
     const errors = [];
     
@@ -4071,7 +4152,534 @@ function initializeTooltips() {
         element.classList.add('has-tooltip');
     });
 }
+//Agregar colaboradores fuera de su departamento
+async function checkExternalEmployeePermission() {
+    try {
+        if (!userData || !userData.IdPersonal) return false;
+        
+        const connection = await connectionString();
+        const result = await connection.query(`
+            SELECT Codigo FROM TransaccionesRRHH 
+            WHERE IdPersonal = ? AND Codigo = '121' AND Activo = 1
+        `, [userData.IdPersonal]);
+        
+        await connection.close();
+        
+        const hasPermission = result.length > 0;
+        
+        // Mostrar/ocultar botón según permisos
+        const addExternalBtn = document.getElementById('addExternalBtn');
+        if (addExternalBtn) {
+            if (hasPermission) {
+                addExternalBtn.style.display = 'flex';
+                addExternalBtn.addEventListener('click', openExternalEmployeeModal);
+            } else {
+                addExternalBtn.style.display = 'none';
+            }
+        }
+        
+        return hasPermission;
+        
+    } catch (error) {
+        console.error('Error al verificar permisos:', error);
+        return false;
+    }
+}
 
+// Abrir modal de colaboradores externos
+async function openExternalEmployeeModal() {
+    try {
+        if (!currentPeriodMesAnio) {
+            Swal.fire({
+                icon: 'warning',
+                title: 'Período no seleccionado',
+                text: 'Debe seleccionar y verificar un período antes de agregar colaboradores externos.',
+                confirmButtonColor: '#FF9800'
+            });
+            return;
+        }
+        
+        const modal = document.getElementById('externalEmployeeModal');
+        const departmentSelect = document.getElementById('departmentSelect');
+        
+        // Limpiar modal
+        resetExternalEmployeeModal();
+        
+        // Mostrar modal primero
+        if (modal) {
+            modal.style.display = 'block';
+        }
+        
+        // Mostrar loading temporal en el select de departamentos
+        if (departmentSelect) {
+            departmentSelect.innerHTML = '<option value="">Cargando departamentos...</option>';
+            departmentSelect.disabled = true;
+            
+            // Crear loading indicator temporal
+            const loadingDiv = document.createElement('div');
+            loadingDiv.className = 'department-loading';
+            loadingDiv.innerHTML = '<div class="loading-spinner-mini"></div> Cargando departamentos disponibles...';
+            departmentSelect.parentNode.appendChild(loadingDiv);
+            
+            // Cargar departamentos
+            await loadDepartments();
+            
+            // Remover loading
+            departmentSelect.disabled = false;
+            const loadingElement = departmentSelect.parentNode.querySelector('.department-loading');
+            if (loadingElement) {
+                loadingElement.remove();
+            }
+        }
+        
+    } catch (error) {
+        console.error('Error al abrir modal externo:', error);
+        Swal.fire({
+            icon: 'error',
+            title: 'Error',
+            text: 'No se pudo cargar la información de departamentos.',
+            confirmButtonColor: '#FF9800'
+        });
+    }
+}
+
+// Cargar lista de departamentos
+async function loadDepartments() {
+    try {
+        const connection = await connectionString();
+        const result = await connection.query(`
+            SELECT IdDepartamento, NombreDepartamento 
+            FROM departamentos 
+            WHERE IdDepartamento != ?
+            ORDER BY NombreDepartamento
+        `, [userData.IdSucuDepa]);
+        
+        await connection.close();
+        
+        availableDepartments = result;
+        
+        const departmentSelect = document.getElementById('departmentSelect');
+        if (departmentSelect) {
+            // Limpiar opciones existentes
+            departmentSelect.innerHTML = '<option value="">-- Seleccione un departamento --</option>';
+            
+            // Agregar departamentos
+            result.forEach(dept => {
+                const option = document.createElement('option');
+                option.value = dept.IdDepartamento;
+                option.textContent = dept.NombreDepartamento;
+                departmentSelect.appendChild(option);
+            });
+        }
+        
+    } catch (error) {
+        console.error('Error al cargar departamentos:', error);
+        throw error;
+    }
+}
+
+// Cargar colaboradores de departamento seleccionado
+async function loadEmployeesFromDepartment(departmentId) {
+    const employeeSelect = document.getElementById('externalEmployeeSelect');
+    const employeeGroup = document.getElementById('employeeSelectGroup');
+    const employeeLoading = document.getElementById('employeeLoading');
+    const validationStatus = document.getElementById('validationStatus');
+    
+    try {
+        console.log('Cargando empleados del departamento:', departmentId);
+        
+        if (!departmentId) return;
+        
+        // MOSTRAR LOADING
+        if (employeeGroup) employeeGroup.style.display = 'block';
+        if (employeeLoading) {
+            employeeLoading.style.display = 'flex';
+            employeeLoading.classList.add('pulse');
+        }
+        if (employeeSelect) {
+            employeeSelect.classList.add('loading');
+            employeeSelect.disabled = true;
+            employeeSelect.innerHTML = '<option value="">Cargando colaboradores...</option>';
+        }
+        if (validationStatus) validationStatus.style.display = 'none';
+        
+        // Ocultar preview anterior
+        const employeeInfo = document.getElementById('externalEmployeeInfo');
+        if (employeeInfo) employeeInfo.style.display = 'none';
+        
+        // Simular un pequeño delay para mostrar el loading (opcional)
+        await new Promise(resolve => setTimeout(resolve, 500));
+        
+        const connection = await connectionString();
+        const result = await connection.query(`
+            SELECT 
+                personal.IdPersonal, 
+                CONCAT(personal.PrimerNombre, ' ', IFNULL(personal.SegundoNombre, ''), ' ', IFNULL(personal.TercerNombre, ''), ' ', personal.PrimerApellido, ' ', IFNULL(personal.SegundoApellido, '')) AS NombreCompleto, 
+                Puestos.Nombre AS NombrePuesto,
+                departamentos.NombreDepartamento,
+                CASE 
+                    WHEN FotosPersonal.Foto IS NOT NULL THEN CONCAT('data:image/jpeg;base64,', TO_BASE64(FotosPersonal.Foto))
+                    ELSE NULL 
+                END AS FotoBase64
+            FROM personal 
+            INNER JOIN Puestos ON personal.IdPuesto = Puestos.IdPuesto 
+            INNER JOIN departamentos ON personal.IdSucuDepa = departamentos.IdDepartamento
+            LEFT JOIN FotosPersonal ON personal.IdPersonal = FotosPersonal.IdPersonal
+            WHERE personal.Estado = 1 
+            AND personal.TipoPersonal = 1 
+            AND personal.IdSucuDepa = ?
+            ORDER BY NombreCompleto
+        `, [departmentId]);
+        
+        await connection.close();
+        
+        console.log('Empleados encontrados:', result.length);
+        
+        // OCULTAR LOADING
+        if (employeeLoading) {
+            employeeLoading.style.display = 'none';
+            employeeLoading.classList.remove('pulse');
+        }
+        if (employeeSelect) {
+            employeeSelect.classList.remove('loading');
+            employeeSelect.disabled = false;
+        }
+        
+        if (employeeSelect && employeeGroup) {
+            // Limpiar opciones existentes
+            employeeSelect.innerHTML = '<option value="">-- Seleccione un colaborador --</option>';
+            
+            if (result.length > 0) {
+                // Agregar colaboradores
+                result.forEach((emp, index) => {
+                    console.log(`Procesando empleado ${index + 1}:`, emp);
+                    
+                    const option = document.createElement('option');
+                    option.value = emp.IdPersonal;
+                    option.textContent = emp.NombreCompleto;
+                    
+                    const employeeDataForOption = {
+                        IdPersonal: emp.IdPersonal,
+                        NombreCompleto: emp.NombreCompleto || 'Sin nombre',
+                        NombrePuesto: emp.NombrePuesto || 'Sin puesto',
+                        NombreDepartamento: emp.NombreDepartamento || 'Sin departamento',
+                        FotoBase64: emp.FotoBase64 || null
+                    };
+                    
+                    option.dataset.employeeData = JSON.stringify(employeeDataForOption);
+                    employeeSelect.appendChild(option);
+                });
+                
+                // Mostrar mensaje de éxito
+                showValidationStatus('success', `✅ Se encontraron ${result.length} colaboradores disponibles.`);
+                
+            } else {
+                showValidationStatus('warning', '⚠️ No hay colaboradores disponibles en este departamento.');
+            }
+        }
+        
+    } catch (error) {
+        console.error('Error al cargar colaboradores:', error);
+        
+        // OCULTAR LOADING EN CASO DE ERROR
+        if (employeeLoading) {
+            employeeLoading.style.display = 'none';
+            employeeLoading.classList.remove('pulse');
+        }
+        if (employeeSelect) {
+            employeeSelect.classList.remove('loading');
+            employeeSelect.disabled = false;
+            employeeSelect.innerHTML = '<option value="">-- Error al cargar --</option>';
+        }
+        
+        showValidationStatus('error', '❌ Error al cargar colaboradores del departamento. Intente nuevamente.');
+    }
+}
+
+// Validar si el colaborador ya tiene bonificación en el período
+async function validateExternalEmployee(employeeId) {
+    try {
+        const connection = await connectionString();
+        
+        // Buscar si ya tiene bonificación en cualquier departamento para este período
+        const result = await connection.query(`
+            SELECT 
+                b.IdBonificacion,
+                b.IdDepaSucur,
+                d.NombreDepartamento,
+                bd.NombrePersonal
+            FROM Bonificaciones b
+            INNER JOIN BonificacionDetalle bd ON b.IdBonificacion = bd.IdBonificacion
+            INNER JOIN departamentos d ON b.IdDepaSucur = d.IdDepartamento
+            WHERE bd.IdPersonal = ? AND b.MesAnio = ?
+        `, [employeeId, currentPeriodMesAnio]);
+        
+        await connection.close();
+        
+        if (result.length > 0) {
+            const existing = result[0];
+            showValidationStatus('error', 
+                `❌ Este colaborador ya tiene bonificación registrada en ${existing.NombreDepartamento} para ${getMonthName(currentPeriodMesAnio.substring(0, 2))} ${currentPeriodMesAnio.substring(2)}.`
+            );
+            return false;
+        } else {
+            showValidationStatus('success', 
+                `✅ El colaborador está disponible para agregar a la bonificación de ${getMonthName(currentPeriodMesAnio.substring(0, 2))} ${currentPeriodMesAnio.substring(2)}.`
+            );
+            return true;
+        }
+        
+    } catch (error) {
+        console.error('Error al validar colaborador:', error);
+        showValidationStatus('error', '❌ Error al validar disponibilidad del colaborador.');
+        return false;
+    }
+}
+function showValidationStatus(type, message) {
+    const validationStatus = document.getElementById('validationStatus');
+    if (validationStatus) {
+        validationStatus.className = `validation-status ${type}`;
+        validationStatus.innerHTML = `<span class="status-icon">${type === 'success' ? '✅' : type === 'warning' ? '⚠️' : '❌'}</span>${message}`;
+        validationStatus.style.display = 'block';
+    }
+    
+    // Habilitar/deshabilitar botón confirmar
+    const confirmBtn = document.getElementById('confirmExternalModal');
+    if (confirmBtn) {
+        confirmBtn.disabled = type !== 'success';
+    }
+}
+function showEmployeePreview(employeeData) {
+    console.log('showEmployeePreview llamada con:', employeeData); // Debug
+    
+    if (!employeeData) {
+        console.error('No se recibieron datos del empleado');
+        return;
+    }
+    
+    const employeeInfo = document.getElementById('externalEmployeeInfo');
+    const previewPhoto = document.getElementById('previewPhoto');
+    const previewName = document.getElementById('previewName');
+    const previewPosition = document.getElementById('previewPosition');
+    const previewDepartment = document.getElementById('previewDepartment');
+    const previewId = document.getElementById('previewId');
+    
+    if (employeeInfo && previewPhoto && previewName && previewPosition && previewDepartment && previewId) {
+        previewPhoto.src = employeeData.FotoBase64 || '../Imagenes/user-default.png';
+        previewName.textContent = employeeData.NombreCompleto || 'Sin nombre';
+        previewPosition.textContent = employeeData.NombrePuesto || 'Sin puesto';
+        previewDepartment.textContent = employeeData.NombreDepartamento || 'Sin departamento';
+        previewId.textContent = `ID: ${employeeData.IdPersonal || 'N/A'}`;
+        
+        employeeInfo.style.display = 'block';
+        
+        // IMPORTANTE: Guardar la referencia
+        selectedExternalEmployee = { ...employeeData }; // Hacer una copia
+        console.log('selectedExternalEmployee asignado:', selectedExternalEmployee); // Debug
+    } else {
+        console.error('No se encontraron los elementos DOM necesarios');
+    }
+}
+async function addExternalEmployeeToList() {
+    try {
+        console.log('addExternalEmployeeToList llamada'); // Debug
+        console.log('selectedExternalEmployee actual:', selectedExternalEmployee); // Debug
+        
+        if (!selectedExternalEmployee) {
+            console.error('No hay colaborador seleccionado');
+            Swal.fire({
+                icon: 'warning',
+                title: 'Sin selección',
+                text: 'Debe seleccionar un colaborador antes de agregarlo.',
+                confirmButtonColor: '#FF9800'
+            });
+            return;
+        }
+        
+        // Verificar que tenga los datos necesarios
+        if (!selectedExternalEmployee.IdPersonal || !selectedExternalEmployee.NombreCompleto) {
+            console.error('Datos incompletos del colaborador:', selectedExternalEmployee);
+            Swal.fire({
+                icon: 'error',
+                title: 'Datos incompletos',
+                text: 'Los datos del colaborador están incompletos. Intente seleccionar nuevamente.',
+                confirmButtonColor: '#FF9800'
+            });
+            return;
+        }
+        
+        // Verificar que no esté ya en la lista local
+        const existsInLocal = employeesData.find(emp => emp.IdPersonal === selectedExternalEmployee.IdPersonal);
+        if (existsInLocal) {
+            Swal.fire({
+                icon: 'warning',
+                title: 'Colaborador ya agregado',
+                text: 'Este colaborador ya está en la lista actual.',
+                confirmButtonColor: '#FF9800'
+            });
+            return;
+        }
+        
+        // Crear objeto del nuevo empleado con datos completos
+        const newEmployee = {
+            IdPersonal: selectedExternalEmployee.IdPersonal,
+            NombreCompleto: selectedExternalEmployee.NombreCompleto,
+            NombrePuesto: selectedExternalEmployee.NombrePuesto || 'Sin puesto',
+            NombreDepartamento: selectedExternalEmployee.NombreDepartamento || 'Externo',
+            FotoBase64: selectedExternalEmployee.FotoBase64 || null,
+            bonificacionRegular: 0,
+            bonificacionExtra: 0,
+            descuentoVales: 0,
+            descuentoCreditos: 0,
+            referenciaVales: '',
+            referenciaCreditos: '',
+            observacionesVales: '',
+            observacionesCreditos: '',
+            observacionesBonificacionExtra: '',
+            totalNeto: 0,
+            isSaved: false,
+            isLoaded: false,
+            isModified: false,
+            isExternal: true // Marcar como externo
+        };
+        
+        console.log('Nuevo empleado a agregar:', newEmployee); // Debug
+        
+        // Agregar a la lista local
+        employeesData.push(newEmployee);
+        
+        // Actualizar datos filtrados
+        filteredData = [...employeesData];
+        
+        // Re-renderizar tabla
+        if (currentSort.field) {
+            sortData(currentSort.field, currentSort.direction);
+            updateSortIndicators(currentSort.field, currentSort.direction);
+        }
+        renderTable();
+        createPagination();
+        updateTableInfo();
+        
+        // Cerrar modal
+        closeExternalEmployeeModal();
+        
+        // Mostrar confirmación
+        Swal.fire({
+            icon: 'success',
+            title: 'Colaborador agregado',
+            text: `${newEmployee.NombreCompleto} ha sido agregado a la lista.`,
+            toast: true,
+            position: 'top-end',
+            timer: 3000,
+            showConfirmButton: false
+        });
+        
+    } catch (error) {
+        console.error('Error al agregar colaborador externo:', error);
+        Swal.fire({
+            icon: 'error',
+            title: 'Error',
+            text: 'No se pudo agregar el colaborador. Intente nuevamente.',
+            confirmButtonColor: '#FF9800'
+        });
+    }
+}
+
+// Resetear modal
+function resetExternalEmployeeModal() {
+    const departmentSelect = document.getElementById('departmentSelect');
+    const employeeSelect = document.getElementById('externalEmployeeSelect');
+    const employeeGroup = document.getElementById('employeeSelectGroup');
+    const employeeInfo = document.getElementById('externalEmployeeInfo');
+    const validationStatus = document.getElementById('validationStatus');
+    const confirmBtn = document.getElementById('confirmExternalModal');
+    
+    if (departmentSelect) departmentSelect.value = '';
+    if (employeeSelect) employeeSelect.value = '';
+    if (employeeGroup) employeeGroup.style.display = 'none';
+    if (employeeInfo) employeeInfo.style.display = 'none';
+    if (validationStatus) validationStatus.style.display = 'none';
+    if (confirmBtn) confirmBtn.disabled = true;
+    
+    selectedExternalEmployee = null;
+}
+
+// Cerrar modal
+function closeExternalEmployeeModal() {
+    const modal = document.getElementById('externalEmployeeModal');
+    if (modal) {
+        modal.style.display = 'none';
+    }
+    resetExternalEmployeeModal();
+}
+
+// Setup event listeners para modal externo
+function setupExternalEmployeeModalListeners() {
+    const modal = document.getElementById('externalEmployeeModal');
+    const closeBtn = document.getElementById('closeExternalModal');
+    const cancelBtn = document.getElementById('cancelExternalModal');
+    const confirmBtn = document.getElementById('confirmExternalModal');
+    const departmentSelect = document.getElementById('departmentSelect');
+    const employeeSelect = document.getElementById('externalEmployeeSelect');
+    
+    if (closeBtn) closeBtn.addEventListener('click', closeExternalEmployeeModal);
+    if (cancelBtn) cancelBtn.addEventListener('click', closeExternalEmployeeModal);
+    if (confirmBtn) confirmBtn.addEventListener('click', addExternalEmployeeToList);
+    
+    if (departmentSelect) {
+        departmentSelect.addEventListener('change', function() {
+            const selectedDept = this.value;
+            if (selectedDept) {
+                loadEmployeesFromDepartment(selectedDept);
+            } else {
+                document.getElementById('employeeSelectGroup').style.display = 'none';
+                document.getElementById('externalEmployeeInfo').style.display = 'none';
+                document.getElementById('validationStatus').style.display = 'none';
+            }
+        });
+    }
+    
+    if (employeeSelect) {
+        employeeSelect.addEventListener('change', async function() {
+            console.log('Empleado seleccionado, valor:', this.value); // Debug
+            
+            const selectedEmployeeId = this.value;
+            if (selectedEmployeeId) {
+                const option = this.options[this.selectedIndex];
+                console.log('Opción seleccionada:', option); // Debug
+                console.log('Dataset:', option.dataset.employeeData); // Debug
+                
+                try {
+                    const employeeData = JSON.parse(option.dataset.employeeData);
+                    console.log('Datos parseados del empleado:', employeeData); // Debug
+                    
+                    showEmployeePreview(employeeData);
+                    await validateExternalEmployee(selectedEmployeeId);
+                } catch (parseError) {
+                    console.error('Error al parsear datos del empleado:', parseError);
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Error',
+                        text: 'Error al procesar datos del colaborador seleccionado.',
+                        confirmButtonColor: '#FF9800'
+                    });
+                }
+            } else {
+                console.log('No hay empleado seleccionado, ocultando preview'); // Debug
+                document.getElementById('externalEmployeeInfo').style.display = 'none';
+                document.getElementById('validationStatus').style.display = 'none';
+                selectedExternalEmployee = null;
+            }
+        });
+    }
+    
+    // Cerrar modal al hacer clic fuera
+    window.addEventListener('click', function(event) {
+        if (event.target === modal) {
+            closeExternalEmployeeModal();
+        }
+    });
+}
 // ===== CLEANUP AL SALIR =====
 
 window.addEventListener('beforeunload', function(event) {
@@ -4128,6 +4736,10 @@ function debounce(func, wait) {
 // ===== INICIALIZACIÓN FINAL =====
 
 // Llamar al cargar la página
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
     setTimeout(initializeTooltips, 1000);
+    setupExternalEmployeeModalListeners();
+
+    // Verificar permisos para colaboradores externos
+    await checkExternalEmployeePermission();
 });

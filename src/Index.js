@@ -23,6 +23,7 @@ let GestionarPagoVacacionesWindow = null;
 let EstadoPagosVacacionesWindow = null;
 let PagosBonisWindow = null;
 let BajasWindow = null;
+let LiquidaciónWindow = null;
 
 if(process.env.NODE_ENV !=='production'){
     require('electron-reload')(__dirname,{
@@ -532,7 +533,7 @@ function createBajasWindow() {
     if (BajasWindow) {
         // Si ya está abierta, simplemente enfócala
         if (BajasWindow.isMinimized()) BajasWindow.restore();
-        PagBajasWindowosBonisWindow.focus();
+        BajasWindow.focus();
         return;
     }
     
@@ -554,6 +555,35 @@ function createBajasWindow() {
     // Elimina la referencia a la ventana cuando se cierre
     BajasWindow.on('closed', () => {
         BajasWindow = null;
+    });
+}
+function createLiquidacionWindow() {
+    // Verifica si la ventana ya está abierta
+    if (LiquidaciónWindow) {
+        // Si ya está abierta, simplemente enfócala
+        if (LiquidaciónWindow.isMinimized()) LiquidaciónWindow.restore();
+        LiquidaciónWindow.focus();
+        return;
+    }
+    
+    // Crea una nueva ventana si no existe
+    LiquidaciónWindow = new BrowserWindow({
+        width: 1200,
+        height: 800,
+        webPreferences: {
+            nodeIntegration: true,
+            contextIsolation: false,
+        },
+        icon: path.join(__dirname, 'LogoRecursos.ico'),
+        title: 'Permisos',
+        autoHideMenuBar: true
+    });
+
+    LiquidaciónWindow.loadURL(`file://${__dirname}/Vistas/PagoLiquidacion.html`);
+    
+    // Elimina la referencia a la ventana cuando se cierre
+    LiquidaciónWindow.on('closed', () => {
+        LiquidaciónWindow = null;
     });
 }
 // Añade este receptor para abrir la ventana de pago nómina
@@ -611,6 +641,9 @@ ipcMain.on('open_Ventana_Pagosbonis', () => {
 });
 ipcMain.on('open_Ventana_Bajas', () => {
     createBajasWindow();
+});
+ipcMain.on('open_Ventana_PagoLiquidacion', () => {
+    createLiquidacionWindow();
 });
 ipcMain.handle('show-save-dialog', async (event, options) => {
     const result = await dialog.showOpenDialog(options);
