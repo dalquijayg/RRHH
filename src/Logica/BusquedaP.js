@@ -58,6 +58,7 @@ async function getConnection() {
         throw error;
     }
 }
+
 function abrirVisorFoto(src, nombre) {
     photoViewerImage.src = src;
     photoViewerName.textContent = nombre;
@@ -74,6 +75,7 @@ function cerrarVisorFoto() {
     // Restaurar el desplazamiento de la página
     document.body.style.overflow = '';
 }
+
 // Cargar datos de departamentos
 async function cargarDepartamentos() {
     try {
@@ -121,6 +123,7 @@ async function cargarTiposPersonal() {
         mostrarNotificacion('Error al cargar tipos de personal', 'error');
     }
 }
+
 async function cargarEstadosPersonal() {
     try {
         const connection = await getConnection();
@@ -145,6 +148,7 @@ async function cargarEstadosPersonal() {
         mostrarNotificacion('Error al cargar estados de personal', 'error');
     }
 }
+
 // Función para realizar la búsqueda
 async function buscarPersonal() {
     mostrarCargando(true);
@@ -158,7 +162,7 @@ async function buscarPersonal() {
         const tipoPersonalValue = tipoPersonalFilter.value;
         const estadoValue = estadoFilter.value;
         
-        // Construir la consulta SQL base
+        // Construir la consulta SQL base (MODIFICADA PARA INCLUIR INFORMACIÓN DE REGISTRO)
         let query = `
                     SELECT
                         personal.IdPersonal, 
@@ -192,6 +196,9 @@ async function buscarPersonal() {
                         muniOrigen.NombreMunicipio AS MunicipioOrigen,
                         deptoResidencia.NombreDepartamento AS DepartamentoResidencia,
                         muniResidencia.NombreMunicipio AS MunicipioResidencia,
+                        personal.IdUsuario,
+                        personal.Fechahoraregistro,
+                        CONCAT(usuarioRegistro.PrimerNombre, ' ', IFNULL(usuarioRegistro.SegundoNombre, ''), ' ', IFNULL(usuarioRegistro.TercerNombre, ''), ' ', usuarioRegistro.PrimerApellido, ' ', IFNULL(usuarioRegistro.SegundoApellido, '')) AS UsuarioRegistro,
                         CASE 
                             WHEN FotosPersonal.Foto IS NOT NULL THEN CONCAT('data:image/jpeg;base64,', TO_BASE64(FotosPersonal.Foto))
                             ELSE NULL 
@@ -211,6 +218,7 @@ async function buscarPersonal() {
                         LEFT JOIN departamentosguatemala deptoResidencia ON personal.IdDepartamentoG = deptoResidencia.IdDepartamentoG
                         LEFT JOIN municipios muniResidencia ON personal.IdMunicipioG = muniResidencia.IdMunicipio
                         LEFT JOIN parentesco ON personal.IdParentesco = parentesco.IdParentesco
+                        LEFT JOIN personal usuarioRegistro ON personal.IdUsuario = usuarioRegistro.IdPersonal
                     WHERE 1=1
         `;
         
@@ -242,13 +250,27 @@ async function buscarPersonal() {
         const result = await connection.query(query, params);
         await connection.close();
         
-        // Procesar los resultados
+        // Función para formatear fecha y hora
+        const formatearFechaHora = (fechaHora) => {
+            if (!fechaHora) return 'No registrado';
+            
+            const fecha = new Date(fechaHora);
+            if (isNaN(fecha.getTime())) return 'No registrado';
+            
+            const dia = fecha.getUTCDate().toString().padStart(2, '0');
+            const mes = (fecha.getUTCMonth() + 1).toString().padStart(2, '0');
+            const año = fecha.getUTCFullYear();
+            const horas = fecha.getUTCHours().toString().padStart(2, '0');
+            const minutos = fecha.getUTCMinutes().toString().padStart(2, '0');
+            
+            return `${dia}/${mes}/${año} ${horas}:${minutos}`;
+        };
+        
+        // Procesar los resultados (MODIFICADO PARA INCLUIR INFORMACIÓN DE REGISTRO)
         allEmployees = result.map(employee => {
             // Calcular edad
             let edad = 'No registrada';
             if (employee.FechaNacimiento) {
-                // Aquí ya no usamos new Date() para evitar problemas de zona horaria
-                // En lugar de eso, trabajamos directamente con las partes de la fecha
                 const fechaNac = new Date(employee.FechaNacimiento);
                 const hoy = new Date();
                 edad = hoy.getFullYear() - fechaNac.getFullYear();
@@ -294,9 +316,8 @@ async function buscarPersonal() {
                 if (isNaN(fechaObj.getTime())) return 'No registrado';
                 
                 // Obtener componentes de la fecha (día, mes, año)
-                // Usamos getUTCDate(), getUTCMonth() y getUTCFullYear() para evitar ajustes por zona horaria
                 const dia = fechaObj.getUTCDate().toString().padStart(2, '0');
-                const mes = (fechaObj.getUTCMonth() + 1).toString().padStart(2, '0'); // +1 porque los meses empiezan en 0
+                const mes = (fechaObj.getUTCMonth() + 1).toString().padStart(2, '0');
                 const año = fechaObj.getUTCFullYear();
                 
                 // Retornar fecha formateada como DD/MM/YYYY
@@ -336,7 +357,11 @@ async function buscarPersonal() {
                 nombreContactoEmergencia: employee.NombreContactoEmergencia || 'No registrado',
                 telefonoContactoEmergencia: employee.TelefonoContactoEmergencia || 'No registrado',
                 parentescoEmergencia: employee.ParentescoEmergencia || 'No especificado',
-                foto: employee.FotoBase64 || '../Imagenes/user-default.png'
+                foto: employee.FotoBase64 || '../Imagenes/user-default.png',
+                // NUEVOS CAMPOS AGREGADOS PARA INFORMACIÓN DE REGISTRO
+                idUsuarioRegistro: employee.IdUsuario || null,
+                usuarioRegistro: employee.UsuarioRegistro || 'No registrado',
+                fechaHoraRegistro: formatearFechaHora(employee.Fechahoraregistro)
             };
         });
         
@@ -429,7 +454,6 @@ function mostrarCargando(mostrar, mensaje = 'Cargando personal...') {
         loadingIndicator.style.display = 'none';
     }
 }
-
 // Actualizar resultados según los filtros actuales
 function actualizarResultados() {
     // Actualizar contadores
@@ -474,7 +498,7 @@ function actualizarResultados() {
     }
 }
 
-// Renderizar vista de tarjetas
+// Renderizar vista de tarjetas (MODIFICADA PARA INCLUIR INFO DE REGISTRO)
 function renderizarGridView(empleados) {
     let html = '';
     
@@ -499,6 +523,14 @@ function renderizarGridView(empleados) {
                             <span class="detail-label">Planilla:</span>
                             <span class="detail-value">${empleado.planilla}</span>
                         </div>
+                        <div class="card-detail-item">
+                            <span class="detail-label">Registrado por:</span>
+                            <span class="detail-value" title="${empleado.usuarioRegistro}">${empleado.usuarioRegistro.length > 15 ? empleado.usuarioRegistro.substring(0, 15) + '...' : empleado.usuarioRegistro}</span>
+                        </div>
+                        <div class="card-detail-item">
+                            <span class="detail-label">Fecha registro:</span>
+                            <span class="detail-value">${empleado.fechaHoraRegistro}</span>
+                        </div>
                     </div>
                     <div class="card-actions">
                         <button class="card-btn view-btn" title="Ver detalles" onclick="mostrarDetallesEmpleado(${empleado.id})">
@@ -514,9 +546,23 @@ function renderizarGridView(empleados) {
     });
     
     gridView.innerHTML = html;
+    
+    // Añadir eventos a las imágenes de las tarjetas
+    document.querySelectorAll('.card-photo img').forEach(img => {
+        img.style.cursor = 'zoom-in';
+        img.addEventListener('click', function() {
+            const empleadoCard = this.closest('.employee-card');
+            const id = empleadoCard.dataset.id;
+            const empleado = filteredEmployees.find(emp => emp.id === parseInt(id));
+            
+            if (empleado) {
+                abrirVisorFoto(empleado.foto, empleado.nombre);
+            }
+        });
+    });
 }
 
-// Renderizar vista de tabla
+// Renderizar vista de tabla (MODIFICADA PARA INCLUIR INFO DE REGISTRO)
 function renderizarTableView(empleados) {
     let html = '';
     
@@ -538,6 +584,8 @@ function renderizarTableView(empleados) {
                         ${empleado.estado}
                     </span>
                 </td>
+                <td title="${empleado.usuarioRegistro}">${empleado.usuarioRegistro.length > 20 ? empleado.usuarioRegistro.substring(0, 20) + '...' : empleado.usuarioRegistro}</td>
+                <td>${empleado.fechaHoraRegistro}</td>
                 <td>
                     <div class="table-actions">
                         <button class="table-btn view-btn" title="Ver detalles" onclick="mostrarDetallesEmpleado(${empleado.id})">
@@ -553,7 +601,22 @@ function renderizarTableView(empleados) {
     });
     
     tableResults.innerHTML = html;
+    
+    // Añadir eventos a las imágenes de la tabla
+    document.querySelectorAll('.table-img').forEach(img => {
+        img.style.cursor = 'zoom-in';
+        img.addEventListener('click', function() {
+            const row = this.closest('tr');
+            const id = row.dataset.id;
+            const empleado = filteredEmployees.find(emp => emp.id === parseInt(id));
+            
+            if (empleado) {
+                abrirVisorFoto(empleado.foto, empleado.nombre);
+            }
+        });
+    });
 }
+
 function initTabs() {
     const tabButtons = document.querySelectorAll('.tab-btn');
     const tabPanes = document.querySelectorAll('.tab-pane');
@@ -571,10 +634,10 @@ function initTabs() {
         });
     });
 }
-// Mostrar detalles de un empleado
-// Mostrar detalles de un empleado
+
+// Mostrar detalles de un empleado (MODIFICADA PARA INCLUIR INFO DE REGISTRO)
 async function mostrarDetallesEmpleado(id) {
-    // Encuentra el empleado en la lista (código existente)
+    // Encuentra el empleado en la lista
     const empleado = filteredEmployees.find(emp => emp.id === id);
     
     if (!empleado) {
@@ -582,7 +645,7 @@ async function mostrarDetallesEmpleado(id) {
         return;
     }
     
-    // Actualizar el modal con los datos del empleado (código existente)
+    // Actualizar el modal con los datos del empleado
     document.getElementById('modalEmployeePhoto').src = empleado.foto;
     document.getElementById('modalEmployeeName').textContent = empleado.nombre;
     document.getElementById('modalEmployeePosition').textContent = empleado.puesto;
@@ -599,10 +662,8 @@ async function mostrarDetallesEmpleado(id) {
     
     // Corrección para la fecha de nacimiento
     if (empleado.fechaNacimiento && empleado.fechaNacimiento !== 'No registrado') {
-        // Ajustar la fecha para evitar el problema de zona horaria
         const fechaNacPartes = empleado.fechaNacimiento.split('/');
         if (fechaNacPartes.length === 3) {
-            // Formato DD/MM/YYYY
             const fechaCorrecta = `${fechaNacPartes[0]}/${fechaNacPartes[1]}/${fechaNacPartes[2]}`;
             document.getElementById('modalEmployeeBirthdate').textContent = fechaCorrecta;
         } else {
@@ -640,10 +701,8 @@ async function mostrarDetallesEmpleado(id) {
     
     // Corrección para la fecha de inicio laboral
     if (empleado.inicioLaboral && empleado.inicioLaboral !== 'No registrado') {
-        // Ajustar la fecha para evitar el problema de zona horaria
         const fechaInicioPartes = empleado.inicioLaboral.split('/');
         if (fechaInicioPartes.length === 3) {
-            // Formato DD/MM/YYYY
             const fechaCorrecta = `${fechaInicioPartes[0]}/${fechaInicioPartes[1]}/${fechaInicioPartes[2]}`;
             document.getElementById('modalEmployeeStartDate').textContent = fechaCorrecta;
         } else {
@@ -657,7 +716,12 @@ async function mostrarDetallesEmpleado(id) {
     document.getElementById('modalEmployeeContractDate').textContent = empleado.fechaContrato;
     document.getElementById('modalEmployeePayrollDate').textContent = empleado.fechaPlanilla;
     
-    // NUEVO: Cargar información académica
+    // NUEVA SECCIÓN: Información de Registro
+    document.getElementById('modalUsuarioRegistro').textContent = empleado.usuarioRegistro;
+    document.getElementById('modalFechaHoraRegistro').textContent = empleado.fechaHoraRegistro;
+    document.getElementById('modalIdUsuarioRegistro').textContent = empleado.idUsuarioRegistro || 'No registrado';
+    
+    // Cargar información académica
     try {
         const datosAcademicos = await cargarInfoAcademica(empleado.id);
         mostrarDatosAcademicos(datosAcademicos);
@@ -665,7 +729,7 @@ async function mostrarDetallesEmpleado(id) {
         console.error('Error al cargar datos académicos:', error);
     }
     
-    // NUEVO: Cargar resultados PMA
+    // Cargar resultados PMA
     try {
         const datosPMA = await cargarResultadosPMA(empleado.id);
         mostrarResultadosPMA(datosPMA);
@@ -677,6 +741,8 @@ async function mostrarDetallesEmpleado(id) {
     employeeModal.classList.add('show');
     initTabs();
 }
+
+// Cerrar modal
 document.querySelectorAll('.close-modal, .close-modal-btn').forEach(btn => {
     btn.addEventListener('click', () => {
         employeeModal.classList.remove('show');
@@ -689,11 +755,13 @@ employeeModal.addEventListener('click', event => {
         employeeModal.classList.remove('show');
     }
 });
+
 document.getElementById('modalEmployeePhoto').addEventListener('click', function() {
     const fotoSrc = this.src;
     const nombreEmpleado = document.getElementById('modalEmployeeName').textContent;
     abrirVisorFoto(fotoSrc, nombreEmpleado);
 });
+
 // Editar empleado
 async function editarEmpleado(id) {
     try {
@@ -819,6 +887,7 @@ function limpiarBusqueda() {
     searchText.value = '';
     searchText.focus();
 }
+
 // Función para cargar la información académica
 async function cargarInfoAcademica(idPersonal) {
     try {
@@ -936,13 +1005,6 @@ async function cargarResultadosPMA(idPersonal) {
         return null;
     }
 }
-
-// Función para verificar si una sección tiene datos
-function seccionTieneDatos(datos, prefijo) {
-    const campos = Object.keys(datos).filter(key => key.startsWith(prefijo));
-    return campos.some(campo => datos[campo] !== null && datos[campo] !== undefined);
-}
-
 // Función para mostrar datos académicos en el modal
 function mostrarDatosAcademicos(datosAcademicos) {
     if (!datosAcademicos) {
@@ -1054,47 +1116,10 @@ function mostrarDatosAcademicos(datosAcademicos) {
     }
 }
 
-// Función para interpretar puntuación PMA
-function interpretarPuntuacionPMA(puntuacion) {
-    if (puntuacion === null || puntuacion === undefined || puntuacion === '-') return 'No disponible';
-    
-    // Convertir a número si es string
-    const valor = typeof puntuacion === 'string' ? parseFloat(puntuacion) : puntuacion;
-    
-    if (isNaN(valor)) return 'No disponible';
-    
-    // Escala ajustada para puntajes sobre 50
-    if (valor >= 45) return 'Muy Superior';
-    if (valor >= 40) return 'Superior';
-    if (valor >= 35) return 'Medio-Alto';
-    if (valor >= 30) return 'Medio';
-    if (valor >= 25) return 'Medio-Bajo';
-    if (valor >= 20) return 'Bajo';
-    return 'Muy Bajo';
-}
-
-// Función para colorear puntuación PMA
-function colorPuntuacionPMA(puntuacion) {
-    if (puntuacion === null || puntuacion === undefined || puntuacion === '-') return '#ccc';
-    
-    // Convertir a número si es string
-    const valor = typeof puntuacion === 'string' ? parseFloat(puntuacion) : puntuacion;
-    
-    if (isNaN(valor)) return '#ccc';
-    
-    if (valor >= 90) return '#1e7e34'; // Verde oscuro
-    if (valor >= 80) return '#28a745'; // Verde
-    if (valor >= 70) return '#8bc34a'; // Verde claro
-    if (valor >= 60) return '#17a2b8'; // Azul
-    if (valor >= 50) return '#ffc107'; // Amarillo
-    if (valor >= 40) return '#fd7e14'; // Naranja
-    return '#dc3545'; // Rojo
-}
-
 // Variable para almacenar la instancia del gráfico PMA
 let pmaChart = null;
 
-// Actualizar la función que muestra los resultados PMA
+// Función para mostrar resultados PMA
 function mostrarResultadosPMA(datosPMA) {
     const seccionPMA = document.querySelector('#tab-pma .details-section');
     
@@ -1129,7 +1154,6 @@ function mostrarResultadosPMA(datosPMA) {
     }
     
     // Reconstruir completamente el contenido del contenedor PMA
-    // Esto garantiza que los elementos DOM existan antes de intentar establecer su contenido
     seccionPMA.innerHTML = `
         <h4><i class="fas fa-brain"></i> Resultados Evaluación PMA</h4>
         <div class="details-grid pma-grid">
@@ -1148,7 +1172,7 @@ function mostrarResultadosPMA(datosPMA) {
             <canvas id="pmaRadarChart" height="250"></canvas>
         </div>
         
-        <!-- Tabla de resultados detallados (sin columna de interpretación) -->
+        <!-- Tabla de resultados detallados -->
         <div class="pma-table-container">
             <table class="pma-table">
                 <thead>
@@ -1311,6 +1335,7 @@ function mostrarResultadosPMA(datosPMA) {
         }
     });
 }
+
 function mostrarInstruccionesBusqueda() {
     // Ocultar indicador de carga
     loadingIndicator.style.display = 'none';
@@ -1338,149 +1363,49 @@ function mostrarInstruccionesBusqueda() {
         <p>Utilice los filtros de búsqueda y haga clic en "Buscar" para ver resultados</p>
     `;
 }
-// Event Listeners
-document.addEventListener('DOMContentLoaded', () => {
+
+// Función para calcular promedio PMA
+function calcularPromedioPMA(pma) {
+    if (!pma) return 'No registrado';
     
-    // Cargar datos iniciales para los filtros
-    cargarDepartamentos();
-    cargarTiposPersonal();
-    cargarEstadosPersonal();
-    mostrarInstruccionesBusqueda();
-    // Event listeners para filtros
-    searchButton.addEventListener('click', buscarPersonal);
-    resetFiltersButton.addEventListener('click', resetearFiltros);
-    clearSearchButton.addEventListener('click', limpiarBusqueda);
+    const valores = [
+        pma.FactorV ? parseFloat(pma.FactorV) : null,
+        pma.FactorE ? parseFloat(pma.FactorE) : null,
+        pma.FactorR ? parseFloat(pma.FactorR) : null,
+        pma.FactorN ? parseFloat(pma.FactorN) : null,
+        pma.FactorF ? parseFloat(pma.FactorF) : null
+    ].filter(v => v !== null);
     
-    // Event listener para alternar los filtros
-    filtersToggle.addEventListener('click', () => {
-        colapsarFiltros(!filtersCollapsed);
-    });
+    if (valores.length === 0) return 'No registrado';
     
-    // Event listeners para paginación
-    prevPageBtn.addEventListener('click', () => {
-        if (currentPage > 1) {
-            currentPage--;
-            actualizarResultados();
-        }
-    });
+    const suma = valores.reduce((a, b) => a + b, 0);
+    return (suma / valores.length).toFixed(1);
+}
+
+// Función para obtener datos completos de empleados
+async function obtenerDatosCompletosEmpleados() {
+    // Copia profunda de los empleados filtrados
+    const empleadosCompletos = JSON.parse(JSON.stringify(filteredEmployees));
     
-    nextPageBtn.addEventListener('click', () => {
-        if (currentPage < totalPages) {
-            currentPage++;
-            actualizarResultados();
-        }
-    });
-    
-    // Event listener para cambiar vista
-    viewToggleBtns.forEach(btn => {
-        btn.addEventListener('click', () => {
-            const view = btn.dataset.view;
+    // Para cada empleado, obtener datos académicos y PMA
+    for (const empleado of empleadosCompletos) {
+        try {
+            // Obtener datos académicos
+            const datosAcademicos = await cargarInfoAcademica(empleado.id);
+            empleado.datosAcademicos = datosAcademicos;
             
-            // Actualizar botones
-            viewToggleBtns.forEach(b => {
-                b.classList.remove('active');
-            });
-            btn.classList.add('active');
-            
-            // Cambiar vista
-            currentView = view;
-            actualizarResultados();
-        });
-    });
-    
-    // Event listener para cerrar modal
-    document.querySelectorAll('.close-modal, .close-modal-btn').forEach(btn => {
-        btn.addEventListener('click', () => {
-            employeeModal.classList.remove('show');
-        });
-    });
-    
-    // Event listener para volver atrás
-    btnBack.addEventListener('click', () => {
-        window.location.href = 'Menu.html';
-    });
-    
-    // Event listener para cerrar modal al hacer clic fuera de él
-    employeeModal.addEventListener('click', event => {
-        if (event.target === employeeModal) {
-            employeeModal.classList.remove('show');
+            // Obtener resultados PMA
+            const datosPMA = await cargarResultadosPMA(empleado.id);
+            empleado.datosPMA = datosPMA;
+        } catch (error) {
+            console.error(`Error al obtener datos completos para empleado ID ${empleado.id}:`, error);
         }
-    });
-    
-    // Event listener para tecla Enter en campo de búsqueda
-    searchText.addEventListener('keypress', event => {
-        if (event.key === 'Enter') {
-            buscarPersonal();
-        }
-    });
-});
-closePhotoViewer.addEventListener('click', cerrarVisorFoto);
-photoViewer.addEventListener('click', event => {
-    if (event.target === photoViewer) {
-        cerrarVisorFoto();
     }
-});
-
-// Cerrar el visor con la tecla Escape
-document.addEventListener('keydown', event => {
-    if (event.key === 'Escape' && photoViewer.classList.contains('show')) {
-        cerrarVisorFoto();
-    }
-});
-
-// También agrega el visor a las fotos en las tarjetas de empleados
-// Modifica la función renderizarGridView para incluir el evento click en las imágenes
-// Al final de la función renderizarGridView, agrega este código:
-
-window.renderizarGridViewOriginal = window.renderizarGridView; // Guardar la función original
-
-window.renderizarGridView = function(empleados) {
-    // Llamar a la función original
-    window.renderizarGridViewOriginal(empleados);
     
-    // Añadir eventos a las imágenes de las tarjetas
-    document.querySelectorAll('.card-photo img').forEach(img => {
-        img.style.cursor = 'zoom-in';
-        img.addEventListener('click', function() {
-            const empleadoCard = this.closest('.employee-card');
-            const id = empleadoCard.dataset.id;
-            const empleado = filteredEmployees.find(emp => emp.id === parseInt(id));
-            
-            if (empleado) {
-                abrirVisorFoto(empleado.foto, empleado.nombre);
-            }
-        });
-    });
-};
+    return empleadosCompletos;
+}
 
-// Hacer lo mismo para la vista de tabla
-window.renderizarTableViewOriginal = window.renderizarTableView; // Guardar la función original
-
-window.renderizarTableView = function(empleados) {
-    // Llamar a la función original
-    window.renderizarTableViewOriginal(empleados);
-    
-    // Añadir eventos a las imágenes de la tabla
-    document.querySelectorAll('.table-img').forEach(img => {
-        img.style.cursor = 'zoom-in';
-        img.addEventListener('click', function() {
-            const row = this.closest('tr');
-            const id = row.dataset.id;
-            const empleado = filteredEmployees.find(emp => emp.id === parseInt(id));
-            
-            if (empleado) {
-                abrirVisorFoto(empleado.foto, empleado.nombre);
-            }
-        });
-    });
-};
-document.getElementById('exportToExcel').addEventListener('click', () => {
-    if (filteredEmployees.length > 0) {
-        exportarAExcel();
-    } else {
-        mostrarNotificacion('No hay datos para exportar', 'warning');
-    }
-});
+// Función de exportación a Excel (MODIFICADA PARA INCLUIR INFO DE REGISTRO)
 async function exportarAExcel() {
     try {
         // Mostrar indicador de carga
@@ -1596,7 +1521,11 @@ async function exportarAExcel() {
                 'Promedio': calcularPromedioPMA(pma)
             };
         });
-        // Hoja 5: Información Laboral (nueva)
+        
+        const worksheetPMA = XLSX.utils.json_to_sheet(datosPMA);
+        XLSX.utils.book_append_sheet(workbook, worksheetPMA, 'Evaluación PMA');
+        
+        // Hoja 5: Información Laboral
         const datosLaborales = datosCompletos.map(empleado => ({
             'ID': empleado.id,
             'Nombre Completo': empleado.nombre,
@@ -1613,8 +1542,18 @@ async function exportarAExcel() {
 
         const worksheetLaboral = XLSX.utils.json_to_sheet(datosLaborales);
         XLSX.utils.book_append_sheet(workbook, worksheetLaboral, 'Información Laboral');
-        const worksheetPMA = XLSX.utils.json_to_sheet(datosPMA);
-        XLSX.utils.book_append_sheet(workbook, worksheetPMA, 'Evaluación PMA');
+        
+        // Hoja 6: Información de Registro (NUEVA)
+        const datosRegistro = datosCompletos.map(empleado => ({
+            'ID': empleado.id,
+            'Nombre Completo': empleado.nombre,
+            'Registrado por': empleado.usuarioRegistro,
+            'Fecha y Hora de Registro': empleado.fechaHoraRegistro,
+            'ID Usuario Registro': empleado.idUsuarioRegistro || 'No registrado'
+        }));
+
+        const worksheetRegistro = XLSX.utils.json_to_sheet(datosRegistro);
+        XLSX.utils.book_append_sheet(workbook, worksheetRegistro, 'Información de Registro');
         
         // Generar el archivo y descargarlo
         // Crear nombre de archivo con fecha actual
@@ -1649,49 +1588,112 @@ async function exportarAExcel() {
         mostrarNotificacion('Error al exportar a Excel: ' + error.message, 'error');
     }
 }
-function calcularPromedioPMA(pma) {
-    if (!pma) return 'No registrado';
-    
-    const valores = [
-        pma.FactorV ? parseFloat(pma.FactorV) : null,
-        pma.FactorE ? parseFloat(pma.FactorE) : null,
-        pma.FactorR ? parseFloat(pma.FactorR) : null,
-        pma.FactorN ? parseFloat(pma.FactorN) : null,
-        pma.FactorF ? parseFloat(pma.FactorF) : null
-    ].filter(v => v !== null);
-    
-    if (valores.length === 0) return 'No registrado';
-    
-    const suma = valores.reduce((a, b) => a + b, 0);
-    return (suma / valores.length).toFixed(1);
-}
 
-// Función para obtener datos completos de empleados
-async function obtenerDatosCompletosEmpleados() {
-    // Copia profunda de los empleados filtrados
-    const empleadosCompletos = JSON.parse(JSON.stringify(filteredEmployees));
+// Event Listeners
+document.addEventListener('DOMContentLoaded', () => {
     
-    // Para cada empleado, obtener datos académicos y PMA
-    for (const empleado of empleadosCompletos) {
-        try {
-            // Obtener datos académicos
-            const datosAcademicos = await cargarInfoAcademica(empleado.id);
-            empleado.datosAcademicos = datosAcademicos;
-            
-            // Obtener resultados PMA
-            const datosPMA = await cargarResultadosPMA(empleado.id);
-            empleado.datosPMA = datosPMA;
-        } catch (error) {
-            console.error(`Error al obtener datos completos para empleado ID ${empleado.id}:`, error);
+    // Cargar datos iniciales para los filtros
+    cargarDepartamentos();
+    cargarTiposPersonal();
+    cargarEstadosPersonal();
+    mostrarInstruccionesBusqueda();
+    
+    // Event listeners para filtros
+    searchButton.addEventListener('click', buscarPersonal);
+    resetFiltersButton.addEventListener('click', resetearFiltros);
+    clearSearchButton.addEventListener('click', limpiarBusqueda);
+    
+    // Event listener para alternar los filtros
+    filtersToggle.addEventListener('click', () => {
+        colapsarFiltros(!filtersCollapsed);
+    });
+    
+    // Event listeners para paginación
+    prevPageBtn.addEventListener('click', () => {
+        if (currentPage > 1) {
+            currentPage--;
+            actualizarResultados();
         }
-    }
+    });
     
-    return empleadosCompletos;
-}
-window.exportarAExcel = exportarAExcel;
-// Asegúrate de hacer globales las funciones del visor
+    nextPageBtn.addEventListener('click', () => {
+        if (currentPage < totalPages) {
+            currentPage++;
+            actualizarResultados();
+        }
+    });
+    
+    // Event listener para cambiar vista
+    viewToggleBtns.forEach(btn => {
+        btn.addEventListener('click', () => {
+            const view = btn.dataset.view;
+            
+            // Actualizar botones
+            viewToggleBtns.forEach(b => {
+                b.classList.remove('active');
+            });
+            btn.classList.add('active');
+            
+            // Cambiar vista
+            currentView = view;
+            actualizarResultados();
+        });
+    });
+    
+    // Event listener para cerrar modal
+    document.querySelectorAll('.close-modal, .close-modal-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            employeeModal.classList.remove('show');
+        });
+    });
+    
+    // Event listener para volver atrás
+    btnBack.addEventListener('click', () => {
+        window.location.href = 'Menu.html';
+    });
+    
+    // Event listener para cerrar modal al hacer clic fuera de él
+    employeeModal.addEventListener('click', event => {
+        if (event.target === employeeModal) {
+            employeeModal.classList.remove('show');
+        }
+    });
+    
+    // Event listener para tecla Enter en campo de búsqueda
+    searchText.addEventListener('keypress', event => {
+        if (event.key === 'Enter') {
+            buscarPersonal();
+        }
+    });
+    
+    // Event listener para exportar a Excel
+    document.getElementById('exportToExcel').addEventListener('click', () => {
+        if (filteredEmployees.length > 0) {
+            exportarAExcel();
+        } else {
+            mostrarNotificacion('No hay datos para exportar', 'warning');
+        }
+    });
+});
+
+// Event listeners para el visor de fotos
+closePhotoViewer.addEventListener('click', cerrarVisorFoto);
+photoViewer.addEventListener('click', event => {
+    if (event.target === photoViewer) {
+        cerrarVisorFoto();
+    }
+});
+
+// Cerrar el visor con la tecla Escape
+document.addEventListener('keydown', event => {
+    if (event.key === 'Escape' && photoViewer.classList.contains('show')) {
+        cerrarVisorFoto();
+    }
+});
+
+// Hacer funciones disponibles globalmente
 window.abrirVisorFoto = abrirVisorFoto;
 window.cerrarVisorFoto = cerrarVisorFoto;
-// Hacer funciones disponibles globalmente
 window.mostrarDetallesEmpleado = mostrarDetallesEmpleado;
 window.editarEmpleado = editarEmpleado;
+window.exportarAExcel = exportarAExcel;

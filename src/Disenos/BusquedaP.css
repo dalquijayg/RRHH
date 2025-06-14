@@ -2240,3 +2240,204 @@ html, body {
     font-weight: 500;
     border: 1px solid rgba(29, 111, 66, 0.2);
 }
+
+/* ESTILOS PARA LA PESTAÑA DE INFORMACIÓN DE REGISTRO */
+
+/* Grid específico para la información de registro */
+.registro-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 25px;
+    margin-bottom: 25px;
+}
+
+/* Tarjeta informativa del registro */
+.registro-info-card {
+    background-color: rgba(255, 127, 39, 0.05);
+    border: 1px solid rgba(255, 127, 39, 0.2);
+    border-radius: 12px;
+    overflow: hidden;
+    margin-top: 20px;
+}
+
+.registro-info-header {
+    background-color: rgba(255, 127, 39, 0.1);
+    padding: 15px 20px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    border-bottom: 1px solid rgba(255, 127, 39, 0.2);
+}
+
+.registro-info-header i {
+    color: var(--color-primary);
+    font-size: 1.2rem;
+}
+
+.registro-info-header span {
+    font-weight: 600;
+    color: var(--color-dark);
+}
+
+.registro-info-content {
+    padding: 15px 20px;
+}
+
+.registro-info-content p {
+    margin: 0;
+    color: var(--color-gray);
+    line-height: 1.5;
+    font-size: 0.95rem;
+}
+
+/* Estilos especiales para los elementos de detalle en la pestaña de registro */
+#tab-registro .detail-item {
+    background-color: white;
+    padding: 15px;
+    border-radius: 8px;
+    border: 1px solid rgba(0, 0, 0, 0.05);
+    transition: all 0.3s;
+    position: relative;
+}
+
+#tab-registro .detail-item:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+    border-color: rgba(255, 127, 39, 0.3);
+}
+
+#tab-registro .detail-item::before {
+    background: linear-gradient(135deg, var(--color-primary), #ff9a56);
+}
+
+#tab-registro .detail-item label {
+    font-weight: 600;
+    color: var(--color-primary);
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+#tab-registro .detail-item label::before {
+    content: '';
+    width: 6px;
+    height: 6px;
+    background-color: var(--color-primary);
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+#tab-registro .detail-item span {
+    font-size: 1.1rem;
+    font-weight: 500;
+    color: var(--color-dark);
+    word-wrap: break-word;
+}
+
+/* Icono especial para la pestaña de registro */
+.tab-btn[data-tab="registro"] i {
+    background: linear-gradient(135deg, var(--color-primary), #ff9a56);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+.tab-btn[data-tab="registro"].active i {
+    -webkit-text-fill-color: var(--color-primary);
+}
+
+/* Estilos para mostrar la información en las tarjetas (si decides mostrarla) */
+.card-details .registro-detail {
+    grid-column: span 2;
+    padding: 8px 0;
+    border-top: 1px solid rgba(0, 0, 0, 0.05);
+    margin-top: 8px;
+}
+
+.registro-detail .detail-label {
+    color: var(--color-primary);
+    font-weight: 600;
+    font-size: 0.8rem;
+}
+
+.registro-detail .detail-value {
+    font-size: 0.9rem;
+    margin-top: 2px;
+}
+
+/* Estilos responsivos para la información de registro */
+@media (max-width: 768px) {
+    .registro-grid {
+        grid-template-columns: 1fr;
+        gap: 15px;
+    }
+    
+    .registro-info-card {
+        margin-top: 15px;
+    }
+    
+    .registro-info-header {
+        padding: 12px 15px;
+    }
+    
+    .registro-info-content {
+        padding: 12px 15px;
+    }
+    
+    #tab-registro .detail-item {
+        padding: 12px;
+    }
+}
+
+@media (max-width: 576px) {
+    .registro-info-header span {
+        font-size: 0.9rem;
+    }
+    
+    .registro-info-content p {
+        font-size: 0.85rem;
+    }
+}
+
+/* Animación especial para cuando se abre la pestaña de registro */
+#tab-registro.active .detail-item {
+    animation: slideInRegistro 0.6s ease-out forwards;
+}
+
+#tab-registro.active .detail-item:nth-child(1) {
+    animation-delay: 0.1s;
+}
+
+#tab-registro.active .detail-item:nth-child(2) {
+    animation-delay: 0.2s;
+}
+
+#tab-registro.active .detail-item:nth-child(3) {
+    animation-delay: 0.3s;
+}
+
+@keyframes slideInRegistro {
+    from {
+        opacity: 0;
+        transform: translateX(-30px);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
+/* Estilo especial para campos vacíos en registro */
+#tab-registro .detail-item span:contains("No registrado") {
+    color: var(--color-gray);
+    font-style: italic;
+}
+
+/* Mejora visual para IDs de usuario */
+#modalIdUsuarioRegistro {
+    font-family: 'Courier New', monospace;
+    background-color: rgba(0, 0, 0, 0.05);
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 1rem !important;
+}

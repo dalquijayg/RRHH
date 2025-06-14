@@ -180,7 +180,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         
         // Agregar información de compatibilidad después de un breve retraso
         setTimeout(() => {
-            addCompatibilityInfo();
             
             // Mostrar tip sobre funcionalidades si es la primera vez
             const hasSeenTip = localStorage.getItem('pdf_save_tip_seen');
@@ -816,16 +815,28 @@ async function loadEmployeesAndShow() {
         
         // Mensaje diferente según si había datos existentes o no
         if (hasExistingData && hasExistingData.count > 0) {
+            let messageHTML = `
+                <div style="text-align: left; padding: 10px;">
+                    <p><strong>Total colaboradores:</strong> ${employeesData.length}</p>
+                    <p><strong>Con bonificaciones:</strong> ${hasExistingData.count}</p>
+            `;
+            
+            if (hasExistingData.external > 0) {
+                messageHTML += `
+                    <p><strong>📋 Externos cargados:</strong> ${hasExistingData.external}</p>
+                    <p><strong>🏢 Del departamento:</strong> ${hasExistingData.local}</p>
+                `;
+            }
+            
+            messageHTML += `
+                    <p><strong>Sin bonificaciones:</strong> ${employeesData.length - hasExistingData.count}</p>
+                </div>
+            `;
+            
             Swal.fire({
                 icon: 'info',
                 title: 'Colaboradores cargados',
-                html: `
-                    <div style="text-align: left; padding: 10px;">
-                        <p><strong>Total colaboradores:</strong> ${employeesData.length}</p>
-                        <p><strong>Con bonificaciones:</strong> ${hasExistingData.count}</p>
-                        <p><strong>Sin bonificaciones:</strong> ${employeesData.length - hasExistingData.count}</p>
-                    </div>
-                `,
+                html: messageHTML,
                 toast: true,
                 position: 'top-end',
                 timer: 5000,
@@ -853,17 +864,34 @@ async function loadEmployeesAndShow() {
         });
     }
 }
-
 async function checkAndLoadExistingData() {
     try {
         if (!currentBonificacionId) return false;
         
         const connection = await connectionString();
         const result = await connection.query(`
-            SELECT * FROM BonificacionDetalle 
-            WHERE IdBonificacion = ?
-            ORDER BY NombrePersonal
-        `, [currentBonificacionId]);
+            SELECT 
+                bd.*,
+                p.IdPersonal,
+                CONCAT(p.PrimerNombre, ' ', IFNULL(p.SegundoNombre, ''), ' ', IFNULL(p.TercerNombre, ''), ' ', p.PrimerApellido, ' ', IFNULL(p.SegundoApellido, '')) AS NombreCompleto,
+                puestos.Nombre AS NombrePuesto,
+                d.NombreDepartamento,
+                CASE 
+                    WHEN fp.Foto IS NOT NULL THEN CONCAT('data:image/jpeg;base64,', TO_BASE64(fp.Foto))
+                    ELSE NULL 
+                END AS FotoBase64,
+                CASE 
+                    WHEN p.IdSucuDepa = ? THEN 0 
+                    ELSE 1 
+                END AS EsExterno
+            FROM BonificacionDetalle bd
+            LEFT JOIN personal p ON bd.IdPersonal = p.IdPersonal
+            LEFT JOIN Puestos puestos ON p.IdPuesto = puestos.IdPuesto
+            LEFT JOIN departamentos d ON p.IdSucuDepa = d.IdDepartamento
+            LEFT JOIN FotosPersonal fp ON p.IdPersonal = fp.IdPersonal
+            WHERE bd.IdBonificacion = ?
+            ORDER BY bd.NombrePersonal
+        `, [userData.IdSucuDepa, currentBonificacionId]);
         
         await connection.close();
         
@@ -872,21 +900,20 @@ async function checkAndLoadExistingData() {
         }
         
         let loadedCount = 0;
+        let externalAddedCount = 0;
         
-        // Aplicar datos existentes a employeesData descifrados
+        // Procesar cada registro de bonificación detalle
         result.forEach(detalle => {
             const employeeIndex = employeesData.findIndex(emp => emp.IdPersonal === detalle.IdPersonal);
+            
             if (employeeIndex !== -1) {
-                // Descifrar los montos
+                // EMPLEADO YA EXISTE EN LA LISTA - Actualizar datos
                 const bonusRegular = decryptAmount(detalle.MontoBonificacion);
                 const bonusExtra = decryptAmount(detalle.MontoBonificionExtra);
                 const descCreditos = decryptAmount(detalle.DescuentoCredito);
                 const descVales = decryptAmount(detalle.DescuentoVale);
-                
-                // Calcular total
                 const totalNeto = bonusRegular + bonusExtra - descCreditos - descVales;
                 
-                // Actualizar datos del empleado
                 employeesData[employeeIndex] = {
                     ...employeesData[employeeIndex],
                     bonificacionRegular: bonusRegular,
@@ -906,8 +933,78 @@ async function checkAndLoadExistingData() {
                 
                 loadedCount++;
                 
+            } else if (detalle.IdPersonal && detalle.EsExterno === 1) {
+                // EMPLEADO EXTERNO - Agregarlo a la lista
+                console.log(`📋 Agregando colaborador externo: ${detalle.NombrePersonal} (ID: ${detalle.IdPersonal})`);
+                
+                const bonusRegular = decryptAmount(detalle.MontoBonificacion);
+                const bonusExtra = decryptAmount(detalle.MontoBonificionExtra);
+                const descCreditos = decryptAmount(detalle.DescuentoCredito);
+                const descVales = decryptAmount(detalle.DescuentoVale);
+                const totalNeto = bonusRegular + bonusExtra - descCreditos - descVales;
+                
+                const externalEmployee = {
+                    IdPersonal: detalle.IdPersonal,
+                    NombreCompleto: detalle.NombreCompleto || detalle.NombrePersonal,
+                    NombrePuesto: detalle.NombrePuesto || 'Puesto no disponible',
+                    NombreDepartamento: detalle.NombreDepartamento || 'Departamento externo',
+                    FotoBase64: detalle.FotoBase64 || null,
+                    bonificacionRegular: bonusRegular,
+                    bonificacionExtra: bonusExtra,
+                    descuentoVales: descVales,
+                    descuentoCreditos: descCreditos,
+                    referenciaVales: detalle.NoDocumentoVale || '',
+                    referenciaCreditos: detalle.NoDocumentoCredito || '',
+                    observacionesVales: detalle.ObservacionDescuentoVale || '',
+                    observacionesCreditos: detalle.ObservacionDescuentoCredito || '',
+                    observacionesBonificacionExtra: detalle.ObaservacionBonificacionExtra || '',
+                    totalNeto: totalNeto,
+                    isSaved: true,
+                    isLoaded: true,
+                    isModified: false,
+                    isExternal: true
+                };
+                
+                employeesData.push(externalEmployee);
+                externalAddedCount++;
+                loadedCount++;
+                
             } else {
-                console.warn(`⚠️ Empleado con ID ${detalle.IdPersonal} no encontrado en la lista actual`);
+                // EMPLEADO NO ENCONTRADO Y NO ES EXTERNO VÁLIDO
+                console.warn(`⚠️ Empleado con ID ${detalle.IdPersonal} no encontrado en personal activo`);
+                
+                // CREAR REGISTRO PLACEHOLDER PARA EMPLEADOS INACTIVOS/ELIMINADOS
+                const bonusRegular = decryptAmount(detalle.MontoBonificacion);
+                const bonusExtra = decryptAmount(detalle.MontoBonificionExtra);
+                const descCreditos = decryptAmount(detalle.DescuentoCredito);
+                const descVales = decryptAmount(detalle.DescuentoVale);
+                const totalNeto = bonusRegular + bonusExtra - descCreditos - descVales;
+                
+                const inactiveEmployee = {
+                    IdPersonal: detalle.IdPersonal,
+                    NombreCompleto: detalle.NombrePersonal + ' (INACTIVO)',
+                    NombrePuesto: 'Colaborador inactivo',
+                    NombreDepartamento: 'No disponible',
+                    FotoBase64: null,
+                    bonificacionRegular: bonusRegular,
+                    bonificacionExtra: bonusExtra,
+                    descuentoVales: descVales,
+                    descuentoCreditos: descCreditos,
+                    referenciaVales: detalle.NoDocumentoVale || '',
+                    referenciaCreditos: detalle.NoDocumentoCredito || '',
+                    observacionesVales: detalle.ObservacionDescuentoVale || '',
+                    observacionesCreditos: detalle.ObservacionDescuentoCredito || '',
+                    observacionesBonificacionExtra: detalle.ObaservacionBonificacionExtra || '',
+                    totalNeto: totalNeto,
+                    isSaved: true,
+                    isLoaded: true,
+                    isModified: false,
+                    isExternal: true,
+                    isInactive: true
+                };
+                
+                employeesData.push(inactiveEmployee);
+                loadedCount++;
             }
         });
         
@@ -917,9 +1014,18 @@ async function checkAndLoadExistingData() {
         // Actualizar estado de bonificación
         updateBonificacionInfo(currentBonificacionId, 'cargado');
         
+        // Mostrar información detallada de la carga
+        console.log(`📊 Resumen de carga de datos existentes:
+        - Total registros en BD: ${result.length}
+        - Colaboradores del departamento actualizados: ${loadedCount - externalAddedCount}
+        - Colaboradores externos agregados: ${externalAddedCount}
+        - Total cargados: ${loadedCount}`);
+        
         return {
             count: loadedCount,
-            total: result.length
+            total: result.length,
+            external: externalAddedCount,
+            local: loadedCount - externalAddedCount
         };
         
     } catch (error) {
@@ -1489,6 +1595,8 @@ function createEmployeeRow(employee, index) {
     if (employee.isSaved) rowClasses += ' saved';
     if (!employee.isSaved) rowClasses += ' unsaved';
     if (employee.isModified) rowClasses += ' modified';
+    if (employee.isExternal) rowClasses += ' external';
+    if (employee.isInactive) rowClasses += ' inactive';
     
     // Indicar si tiene datos significativos
     const hasData = employee.bonificacionRegular > 0 || employee.bonificacionExtra > 0 || 
@@ -1521,6 +1629,8 @@ function createEmployeeRow(employee, index) {
                 <div style="min-width: 0;">
                     <div class="employee-name" title="${employee.NombreCompleto}">${employee.NombreCompleto}</div>
                     ${hasData ? '<div class="employee-status-badge">Con datos</div>' : ''}
+                    ${employee.isExternal && !employee.isInactive ? '<span class="external-badge">Externo</span>' : ''}
+                    ${employee.isInactive ? '<span class="inactive-badge">Inactivo</span>' : ''}
                 </div>
             </div>
         </td>
@@ -2110,7 +2220,47 @@ async function finalizeBonificacion() {
         await finalizeBonificacionWithEmployees(savedEmployees);
     }
 }
-
+function getGuatemalaDateTimeIntl() {
+    const now = new Date();
+    
+    // Crear formatter para Guatemala
+    const guatemalaFormatter = new Intl.DateTimeFormat('en-CA', {
+        timeZone: 'America/Guatemala',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit'
+    });
+    
+    const timeFormatter = new Intl.DateTimeFormat('en-GB', {
+        timeZone: 'America/Guatemala',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        hour12: false
+    });
+    
+    const displayFormatter = new Intl.DateTimeFormat('es-GT', {
+        timeZone: 'America/Guatemala',
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: true
+    });
+    
+    const fechaFinalizo = guatemalaFormatter.format(now); // YYYY-MM-DD
+    const horaGuatemala = timeFormatter.format(now); // HH:mm:ss
+    const fechaHoraFinalizo = `${fechaFinalizo} ${horaGuatemala}`;
+    const fechaFormateada = displayFormatter.format(now);
+    
+    return {
+        fecha: fechaFinalizo,
+        fechaHora: fechaHoraFinalizo,
+        fechaFormateada: fechaFormateada,
+        timestamp: now
+    };
+}
 // Función para finalizar con empleados específicos
 async function finalizeBonificacionWithEmployees(employees) {
     // Confirmar finalización
@@ -2162,15 +2312,19 @@ async function finalizeBonificacionWithEmployees(employees) {
                 Swal.showLoading();
             }
         });
-
+        const guatemalaDateTime = getGuatemalaDateTimeIntl();
+        const fechaFinalizo = guatemalaDateTime.fecha;
+        const fechaHoraFinalizo = guatemalaDateTime.fechaHora;
         // Actualizar estado a finalizado
         const connection = await connectionString();
         
-        await connection.query(`
+        const updateResult = await connection.query(`
             UPDATE Bonificaciones 
-            SET Estado = 1 
+            SET Estado = 1, 
+                FechaFinalizo = ?, 
+                FechaHoraFinalizo = ?
             WHERE IdBonificacion = ?
-        `, [currentBonificacionId]);
+        `, [fechaFinalizo, fechaHoraFinalizo, currentBonificacionId]);
 
         await connection.close();
 
@@ -2236,15 +2390,19 @@ async function finalizeEmptyBonificacion() {
                 Swal.showLoading();
             }
         });
-
+        const guatemalaDateTime = getGuatemalaDateTimeIntl();
+        const fechaFinalizo = guatemalaDateTime.fecha;
+        const fechaHoraFinalizo = guatemalaDateTime.fechaHora;
         // Actualizar estado a finalizado
         const connection = await connectionString();
         
-        await connection.query(`
+        const updateResult = await connection.query(`
             UPDATE Bonificaciones 
-            SET Estado = 1 
+            SET Estado = 1, 
+                FechaFinalizo = ?, 
+                FechaHoraFinalizo = ?
             WHERE IdBonificacion = ?
-        `, [currentBonificacionId]);
+        `, [fechaFinalizo, fechaHoraFinalizo, currentBonificacionId]);
 
         await connection.close();
 
@@ -2358,39 +2516,41 @@ async function generateBonificacionesPDFImproved(employees) {
             compress: true
         });
         
-        // Configuración optimizada para 4 comprobantes por página
+        // Configuración optimizada para 4 comprobantes pegados por página
         const pageWidth = 297;
         const pageHeight = 210;
-        const margin = 8;
-        const blockWidth = (pageWidth - (margin * 3)) / 2;
-        const blockHeight = (pageHeight - (margin * 3)) / 2;
+        const margin = 0; // SIN MÁRGENES para que estén completamente pegadas
+        const blockWidth = pageWidth / 2; // Dos columnas sin espacio
+        const blockHeight = pageHeight / 2; // Dos filas sin espacio
         
-        let currentX = margin;
-        let currentY = margin;
+        let currentX = 0;
+        let currentY = 0;
         let blocksInPage = 0;
         
-        // Generar comprobantes individuales
+        // Generar comprobantes individuales PEGADOS
         for (let i = 0; i < employees.length; i++) {
             const employee = employees[i];
             
-            // Control de páginas - 4 bloques por página
+            // Control de páginas - 4 bloques pegados por página
             if (blocksInPage >= 4) {
                 doc.addPage('l');
-                currentX = margin;
-                currentY = margin;
+                currentX = 0;
+                currentY = 0;
                 blocksInPage = 0;
             }
             
-            // Dibujar comprobante
+            // Dibujar comprobante SIN ESPACIOS
             await drawImprovedEmployeeBonusBlock(doc, employee, currentX, currentY, blockWidth, blockHeight, i + 1);
             
-            // Calcular siguiente posición
+            // Calcular siguiente posición SIN MÁRGENES
             blocksInPage++;
             if (blocksInPage % 2 === 0) {
-                currentX = margin;
-                currentY += blockHeight + margin;
+                // Ir a la siguiente fila
+                currentX = 0;
+                currentY += blockHeight;
             } else {
-                currentX += blockWidth + margin;
+                // Ir a la siguiente columna
+                currentX += blockWidth;
             }
         }
         
@@ -2413,6 +2573,49 @@ async function generateBonificacionesPDFImproved(employees) {
     } catch (error) {
         console.error('❌ Error al generar PDF:', error);
         throw error;
+    }
+}
+
+// Función alternativa más simple
+function formatDateTimeSimple(dateTimeString) {
+    try {
+        if (!dateTimeString || dateTimeString === null || dateTimeString === '') {
+            return 'No disponible';
+        }
+        
+        // Si es un objeto Date, convertir a string primero
+        if (dateTimeString instanceof Date) {
+            dateTimeString = dateTimeString.toISOString().slice(0, 19).replace('T', ' ');
+        }
+        
+        // Extraer partes de la fecha (YYYY-MM-DD HH:mm:ss)
+        const parts = dateTimeString.toString().split(' ');
+        if (parts.length < 2) {
+            return 'Formato inválido';
+        }
+        
+        const [datePart, timePart] = parts;
+        const dateParts = datePart.split('-');
+        const timeParts = timePart.split(':');
+        
+        if (dateParts.length < 3 || timeParts.length < 2) {
+            return 'Formato inválido';
+        }
+        
+        const [year, month, day] = dateParts;
+        const [hour, minute] = timeParts;
+        
+        // Convertir a formato 12 horas
+        let hour12 = parseInt(hour) || 0;
+        const ampm = hour12 >= 12 ? 'p.m.' : 'a.m.';
+        hour12 = hour12 % 12;
+        hour12 = hour12 ? hour12 : 12; // 0 debería ser 12
+        
+        return `${day}/${month}/${year} ${hour12}:${minute} ${ampm}`;
+        
+    } catch (error) {
+        console.error('Error al formatear fecha simple:', error);
+        return 'Fecha inválida';
     }
 }
 
@@ -2445,38 +2648,125 @@ async function addImprovedPDFSummaryPage(doc, employees) {
         doc.text('DEPARTAMENTO DE RECURSOS HUMANOS', pageWidth/2, currentY + 12, { align: 'center' });
         currentY += 22;
         
-        // ===== INFORMACIÓN GENERAL COMPACTA =====
+        // ===== OBTENER INFORMACIÓN DE LA BONIFICACIÓN =====
+        let bonificacionInfo = null;
+        try {
+            const connection = await connectionString();
+            const result = await connection.query(`
+                SELECT 
+                    IdBonificacion,
+                    MesAnio,
+                    NombreUsuario,
+                    MontoTotal,
+                    Estado,
+                    FechaHoraRegistro,
+                    FechaHoraFinalizo
+                FROM Bonificaciones 
+                WHERE IdBonificacion = ?
+            `, [currentBonificacionId]);
+            
+            await connection.close();
+            
+            if (result.length > 0) {
+                bonificacionInfo = result[0];
+                
+                // VALIDAR Y CONVERTIR TIPOS DE DATOS
+                bonificacionInfo.MontoTotal = parseFloat(bonificacionInfo.MontoTotal) || 0;
+                bonificacionInfo.Estado = parseInt(bonificacionInfo.Estado) || 0;
+                bonificacionInfo.IdBonificacion = parseInt(bonificacionInfo.IdBonificacion) || 0;
+                
+                // Validar fechas
+                if (bonificacionInfo.FechaHoraRegistro === null || bonificacionInfo.FechaHoraRegistro === '') {
+                    bonificacionInfo.FechaHoraRegistro = null;
+                }
+                if (bonificacionInfo.FechaHoraFinalizo === null || bonificacionInfo.FechaHoraFinalizo === '') {
+                    bonificacionInfo.FechaHoraFinalizo = null;
+                }
+                
+                console.log('Información de bonificación para PDF (validada):', bonificacionInfo);
+            }
+        } catch (error) {
+            console.error('Error al obtener información de bonificación para PDF:', error);
+            // Crear objeto por defecto en caso de error
+            bonificacionInfo = {
+                IdBonificacion: currentBonificacionId || 0,
+                MesAnio: currentPeriodMesAnio || '',
+                NombreUsuario: userData?.NombreCompleto || 'Usuario desconocido',
+                MontoTotal: 0,
+                Estado: 0,
+                FechaHoraRegistro: null,
+                FechaHoraFinalizo: null
+            };
+        }
+        
+        // ===== INFORMACIÓN GENERAL AMPLIADA =====
         doc.setTextColor(51, 51, 51);
         doc.setFontSize(8);
         
-        // Fondo para info general
+        // Fondo para info general (más alto para más información)
         doc.setFillColor(248, 249, 250);
-        doc.rect(margin, currentY, pageWidth - (margin * 2), 12, 'F');
+        doc.rect(margin, currentY, pageWidth - (margin * 2), 20, 'F');
         doc.setDrawColor(200, 200, 200);
-        doc.rect(margin, currentY, pageWidth - (margin * 2), 12);
+        doc.rect(margin, currentY, pageWidth - (margin * 2), 20);
         
-        // Información en una sola línea compacta
+        // PRIMERA LÍNEA: Información básica
         doc.setFont('helvetica', 'bold');
-        doc.text(`Departamento: `, margin + 5, currentY + 4);
+        doc.text(`Departamento: `, margin + 5, currentY + 5);
         doc.setFont('helvetica', 'normal');
-        doc.text(`${userData.NombreDepartamento}`, margin + 30, currentY + 4);
-        
-        doc.setFont('helvetica', 'bold');
-        doc.text(`Período: `, margin + 80, currentY + 4);
-        doc.setFont('helvetica', 'normal');
-        doc.text(`${getMonthName(selectedMonth)} ${selectedYear}`, margin + 98, currentY + 4);
+        doc.text(`${userData.NombreDepartamento}`, margin + 30, currentY + 5);
         
         doc.setFont('helvetica', 'bold');
-        doc.text(`ID Bonificación: `, margin + 140, currentY + 4);
+        doc.text(`Período: `, margin + 80, currentY + 5);
         doc.setFont('helvetica', 'normal');
-        doc.text(`${currentBonificacionId}`, margin + 168, currentY + 4);
+        doc.text(`${getMonthName(selectedMonth)} ${selectedYear}`, margin + 98, currentY + 5);
         
         doc.setFont('helvetica', 'bold');
-        doc.text(`Generado: `, margin + 200, currentY + 4);
+        doc.text(`ID Bonificación: `, margin + 140, currentY + 5);
         doc.setFont('helvetica', 'normal');
-        doc.text(`${new Date().toLocaleDateString()}`, margin + 220, currentY + 4);
+        doc.text(`${currentBonificacionId}`, margin + 168, currentY + 5);
         
-        currentY += 18;
+        // SEGUNDA LÍNEA: Usuario que creó
+        if (bonificacionInfo && bonificacionInfo.NombreUsuario) {
+            doc.setFont('helvetica', 'bold');
+            doc.text(`Creado por: `, margin + 5, currentY + 9);
+            doc.setFont('helvetica', 'normal');
+            doc.text(`${bonificacionInfo.NombreUsuario}`, margin + 25, currentY + 9);
+        }
+        
+        // TERCERA LÍNEA: Fechas
+        if (bonificacionInfo) {
+            // Fecha de registro
+            if (bonificacionInfo.FechaHoraRegistro) {
+                try {
+                    const fechaRegistro = formatDateTimeSimple(bonificacionInfo.FechaHoraRegistro);
+                    if (fechaRegistro !== 'No disponible' && fechaRegistro !== 'Fecha inválida') {
+                        doc.setFont('helvetica', 'bold');
+                        doc.text(`Registrado: `, margin + 5, currentY + 13);
+                        doc.setFont('helvetica', 'normal');
+                        doc.text(`${fechaRegistro}`, margin + 25, currentY + 13);
+                    }
+                } catch (error) {
+                    console.error('Error al formatear fecha de registro:', error);
+                }
+            }
+            
+            // Fecha de finalización
+            if (bonificacionInfo.FechaHoraFinalizo) {
+                try {
+                    const fechaFinalizo = formatDateTimeSimple(bonificacionInfo.FechaHoraFinalizo);
+                    if (fechaFinalizo !== 'No disponible' && fechaFinalizo !== 'Fecha inválida') {
+                        doc.setFont('helvetica', 'bold');
+                        doc.text(`Finalizado: `, margin + 90, currentY + 13);
+                        doc.setFont('helvetica', 'normal');
+                        doc.text(`${fechaFinalizo}`, margin + 110, currentY + 13);
+                    }
+                } catch (error) {
+                    console.error('Error al formatear fecha de finalización:', error);
+                }
+            }
+        }
+        
+        currentY += 26;
         
         // ===== ESTADÍSTICAS EN CAJAS =====
         let totalBonificaciones = 0;
@@ -2718,29 +3008,40 @@ async function addImprovedPDFSummaryPage(doc, employees) {
         doc.setTextColor(101, 67, 33);
         
         const savedCount = employees.filter(emp => emp.isSaved).length;
-        const avgBonus = employees.length > 0 ? totalBonificaciones / employees.length : 0;
         
-        currentY += 5;
-        
-        doc.setFont('helvetica', 'normal');
-        doc.setFontSize(6);
-        doc.setTextColor(51, 51, 51);
-
-        doc.text(`• Promedio de bonificación por colaborador: Q${avgBonus.toFixed(2)}`, margin + 5, currentY + 12);
-        
-        // ===== FOOTER =====
-        const footerY = pageHeight - 12;
+        // ===== FOOTER ACTUALIZADO =====
+        const footerY = pageHeight - 15;
         doc.setDrawColor(255, 152, 0);
         doc.setLineWidth(0.5);
         doc.line(margin, footerY, pageWidth - margin, footerY);
         
+        // Información de generación con datos reales
         doc.setFontSize(6);
         doc.setTextColor(120, 120, 120);
-        doc.text('Sistema de Recursos Humanos - Generado automáticamente', 
-                 pageWidth/2, footerY + 4, { align: 'center' });
+        
+        let footerText = 'Sistema de Recursos Humanos - Generado automáticamente';
+        if (bonificacionInfo && bonificacionInfo.NombreUsuario) {
+            footerText = `Sistema de Recursos Humanos - Creado por: ${bonificacionInfo.NombreUsuario}`;
+        }
+        
+        doc.text(footerText, pageWidth/2, footerY + 4, { align: 'center' });
+        
         doc.setFontSize(5);
-        doc.text(`${userData.NombreDepartamento} | ${new Date().toLocaleString('es-GT')} | Página de resumen`,
-                 pageWidth/2, footerY + 8, { align: 'center' });
+        let footerDate = `${userData.NombreDepartamento} | ${new Date().toLocaleString('es-GT')} | Página de resumen`;
+        
+        // Si hay información de finalización, mostrarla
+        if (bonificacionInfo && bonificacionInfo.FechaHoraFinalizo) {
+            try {
+                const fechaEntrega = formatDateTimeSimple(bonificacionInfo.FechaHoraFinalizo);
+                if (fechaEntrega !== 'No disponible' && fechaEntrega !== 'Fecha inválida') {
+                    footerDate = `${userData.NombreDepartamento} | Entregado: ${fechaEntrega} | Página de resumen`;
+                }
+            } catch (error) {
+                console.error('Error al formatear fecha para footer:', error);
+            }
+        }
+        
+        doc.text(footerDate, pageWidth/2, footerY + 8, { align: 'center' });
         
     } catch (error) {
         console.error('❌ Error al crear página de resumen mejorada:', error);
@@ -2941,97 +3242,9 @@ function checkBrowserCompatibility() {
     return compatibility;
 }
 
-// Función para mostrar información sobre las capacidades del navegador
-function showBrowserCapabilities() {
-    const compat = checkBrowserCompatibility();
-    
-    let message = '';
-    let icon = 'info';
-    
-    switch (compat.supportLevel) {
-        case 'advanced':
-            message = `
-                <div style="text-align: left; padding: 10px;">
-                    <p><strong>✅ Navegador totalmente compatible</strong></p>
-                    <p>Características disponibles:</p>
-                    <ul style="margin: 10px 0; padding-left: 20px;">
-                        <li>✅ Selección de ubicación de guardado</li>
-                        <li>✅ Nombres de archivo personalizados</li>
-                        <li>✅ Descarga automática</li>
-                        <li>✅ Todas las funciones avanzadas</li>
-                    </ul>
-                </div>
-            `;
-            icon = 'success';
-            break;
-            
-        case 'standard':
-            message = `
-                <div style="text-align: left; padding: 10px;">
-                    <p><strong>⚠️ Navegador parcialmente compatible</strong></p>
-                    <p>Características disponibles:</p>
-                    <ul style="margin: 10px 0; padding-left: 20px;">
-                        <li>❌ Selección de ubicación de guardado</li>
-                        <li>✅ Nombres de archivo personalizados</li>
-                        <li>✅ Descarga automática</li>
-                    </ul>
-                    <p><small>💡 Para todas las funciones, actualiza a la última versión del navegador.</small></p>
-                </div>
-            `;
-            icon = 'warning';
-            break;
-            
-        default:
-            message = `
-                <div style="text-align: left; padding: 10px;">
-                    <p><strong>⚠️ Navegador con soporte básico</strong></p>
-                    <p>Características disponibles:</p>
-                    <ul style="margin: 10px 0; padding-left: 20px;">
-                        <li>❌ Selección de ubicación de guardado</li>
-                        <li>✅ Descarga automática básica</li>
-                    </ul>
-                    <p><small>💡 Recomendamos usar Chrome, Firefox o Edge actualizados.</small></p>
-                </div>
-            `;
-            icon = 'info';
-            break;
-    }
-    
-    Swal.fire({
-        icon: icon,
-        title: 'Capacidades del navegador',
-        html: message,
-        confirmButtonColor: '#2196F3',
-        confirmButtonText: 'Entendido'
-    });
-}
+// ===== FUNCIÓN MEJORADA PARA COMPROBANTES INDIVIDUALES =====
 
-// Función para agregar información de compatibilidad al menú de ayuda
-function addCompatibilityInfo() {
-    // Crear botón de información en el header si no existe
-    const headerActions = document.querySelector('.header-actions-compact');
-    if (headerActions && !document.getElementById('compatibilityBtn')) {
-        const compatBtn = document.createElement('button');
-        compatBtn.id = 'compatibilityBtn';
-        compatBtn.className = 'btn-action-small btn-info';
-        compatBtn.innerHTML = '<i class="fas fa-info-circle"></i>';
-        compatBtn.title = 'Información de compatibilidad del navegador';
-        compatBtn.style.backgroundColor = '#17a2b8';
-        compatBtn.style.color = 'white';
-        
-        compatBtn.addEventListener('click', showBrowserCapabilities);
-        
-        // Insertar antes del botón de exportar
-        const exportBtn = document.getElementById('exportBtn');
-        if (exportBtn) {
-            headerActions.insertBefore(compatBtn, exportBtn);
-        } else {
-            headerActions.appendChild(compatBtn);
-        }
-    }
-}
-
-// ===== FUNCIONES DE COMPROBANTES INDIVIDUALES MEJORADAS =====
+// ===== FUNCIÓN MEJORADA PARA COMPROBANTES INDIVIDUALES =====
 
 async function drawImprovedEmployeeBonusBlock(doc, employee, x, y, width, height, employeeNumber) {
     try {
@@ -3043,16 +3256,38 @@ async function drawImprovedEmployeeBonusBlock(doc, employee, x, y, width, height
         const mediumGray = [230, 230, 230];
         const textColor = [51, 51, 51];
         
-        // ===== FONDO Y BORDE =====
+        // ===== FONDO COMPLETO SIN BORDES =====
         doc.setFillColor(255, 255, 255);
         doc.rect(x, y, width, height, 'F');
-        doc.setDrawColor(230, 230, 230); // Usar números separados
-        doc.setLineWidth(0.8);
-        doc.rect(x, y, width, height);
         
-        // ===== HEADER COMPACTO MEJORADO =====
-        doc.setFillColor(101, 67, 33); // Usar números separados
-        doc.rect(x, y, width, 12, 'F');
+        // ===== BORDES PARA LÍNEAS DE CORTE =====
+        // Solo agregar líneas de corte sutiles en los bordes que se van a cortar
+        doc.setDrawColor(200, 200, 200);
+        doc.setLineWidth(0.1);
+        
+        // Líneas de corte verticales (solo en los extremos de la página)
+        if (x === 0) {
+            // Línea izquierda de la página (no se corta)
+        } else {
+            // Línea vertical para separar columnas (línea de corte)
+            doc.line(x, y, x, y + height);
+        }
+        
+        if (x + width >= 297) {
+            // Línea derecha de la página (no se corta)
+        }
+        
+        // Líneas de corte horizontales
+        if (y === 0) {
+            // Línea superior de la página (no se corta)
+        } else {
+            // Línea horizontal para separar filas (línea de corte)
+            doc.line(x, y, x + width, y);
+        }
+        
+        // ===== HEADER COMPACTO CON MÁS ESPACIO =====
+        doc.setFillColor(101, 67, 33);
+        doc.rect(x + 2, y + 2, width - 4, 14, 'F');
         
         // Lado izquierdo: IDs importantes
         doc.setTextColor(255, 255, 255);
@@ -3060,92 +3295,92 @@ async function drawImprovedEmployeeBonusBlock(doc, employee, x, y, width, height
         doc.setFont('helvetica', 'bold');
         
         const idDetalle = await getBonificacionDetalleId(employee.IdPersonal);
-        doc.text(`ID BONIF: ${currentBonificacionId}`, x + 3, y + 5);
-        doc.text(`ID DETALLE: ${idDetalle}`, x + 3, y + 9);
+        doc.text(`ID BONIF: ${currentBonificacionId}`, x + 5, y + 7);
+        doc.text(`ID DETALLE: ${idDetalle}`, x + 5, y + 12);
         
         // Centro: Título
-        doc.setFontSize(9);
-        doc.text('COMPROBANTE DE BONIFICACION', x + width/2, y + 5, { align: 'center' });
-        doc.setFontSize(6);
-        doc.text('DEPTO. RECURSOS HUMANOS', x + width/2, y + 8.5, { align: 'center' });
-        
-        // Lado derecho: Número y Período reorganizados
+        doc.setFontSize(10);
+        doc.text('COMPROBANTE DE BONIFICACION', x + width/2, y + 7, { align: 'center' });
         doc.setFontSize(7);
-        doc.text(`No. ${employeeNumber.toString().padStart(3, '0')}`, x + width - 3, y + 4, { align: 'right' });
-        doc.setFontSize(6);
-        doc.text(`${getMonthName(selectedMonth)} ${selectedYear}`, x + width - 3, y + 8, { align: 'right' });
+        doc.text('DEPTO. RECURSOS HUMANOS', x + width/2, y + 12, { align: 'center' });
         
-        // ===== INFORMACIÓN DEL EMPLEADO ULTRA COMPACTA =====
-        let currentY = y + 16;
-        
-        // Fondo gris para empleado
-        doc.setFillColor(248, 249, 250); // Usar números separados
-        doc.rect(x + 2, currentY, width - 4, 10, 'F');
-        doc.setDrawColor(230, 230, 230); // Usar números separados
-        doc.setLineWidth(0.3);
-        doc.rect(x + 2, currentY, width - 4, 10);
-        
-        // Línea 1: Nombre (SIN "EMPLEADO:") + Total a Recibir
-        doc.setTextColor(51, 51, 51); // Usar números separados
+        // Lado derecho: Número y Período
         doc.setFontSize(8);
+        doc.text(`No. ${employeeNumber.toString().padStart(3, '0')}`, x + width - 5, y + 6, { align: 'right' });
+        doc.setFontSize(6);
+        doc.text(`${getMonthName(selectedMonth)} ${selectedYear}`, x + width - 5, y + 10, { align: 'right' });
+        
+        // ===== INFORMACIÓN DEL EMPLEADO MEJORADA =====
+        let currentY = y + 18;
+        
+        // Fondo gris para empleado con más espacio
+        doc.setFillColor(248, 249, 250);
+        doc.rect(x + 2, currentY, width - 4, 12, 'F');
+        doc.setDrawColor(230, 230, 230);
+        doc.setLineWidth(0.3);
+        doc.rect(x + 2, currentY, width - 4, 12);
+        
+        // Línea 1: Nombre completo
+        doc.setTextColor(51, 51, 51);
+        doc.setFontSize(9);
         doc.setFont('helvetica', 'bold');
         
-        // Nombre más largo sin prefijo "EMPLEADO:"
-        const employeeName = employee.NombreCompleto.length > 32 ? 
-            employee.NombreCompleto.substring(0, 29) + '...' : 
+        // Nombre más largo
+        const employeeName = employee.NombreCompleto.length > 35 ? 
+            employee.NombreCompleto.substring(0, 32) + '...' : 
             employee.NombreCompleto;
         
-        doc.text(employeeName.toUpperCase(), x + 4, currentY + 4);
+        doc.text(employeeName.toUpperCase(), x + 5, currentY + 5);
         
-        // TOTAL A RECIBIR en la misma línea (lado derecho) - más pequeño
+        // ===== TOTAL A RECIBIR - SOLO MONTO, CENTRADO Y MÁS GRANDE =====
         const totalFinal = (employee.bonificacionRegular + employee.bonificacionExtra) - 
                           (employee.descuentoVales + employee.descuentoCreditos);
-        
-        // Caja más pequeña para el total
-        const totalBoxX = x + width - 38;
-        const totalBoxWidth = 33;
-        
-        // CORRECCIÓN: usar números separados para el color
+
+        // Color del monto según valor - MÁS DESTACADO
         if (totalFinal >= 0) {
-            doc.setFillColor(76, 175, 80); // Verde para positivo
+            doc.setTextColor(0, 120, 0); // Verde más intenso
         } else {
-            doc.setFillColor(220, 53, 69); // Rojo para negativo
+            doc.setTextColor(200, 0, 0); // Rojo más intenso
         }
-        
-        doc.rect(totalBoxX, currentY + 1, totalBoxWidth, 5, 'F');
-        doc.setTextColor(255, 255, 255);
-        doc.setFontSize(7);
+
+        // Monto principal - MUY GRANDE y centrado en el área derecha
+        doc.setFontSize(14); // Aumentado a 14 para que se vea mucho más grande
         doc.setFont('helvetica', 'bold');
-        doc.text(`Q${totalFinal.toFixed(2)}`, totalBoxX + totalBoxWidth/2, currentY + 4, { align: 'center' });
+
+        // Centrado en la parte derecha del comprobante
+        const montoX = x + width - 60; // Más hacia la izquierda para centrarlo mejor
+        const montoWidth = 55; // Área más amplia para centrar
+        doc.text(`Q${totalFinal.toFixed(2)}`, montoX + (montoWidth/2), currentY + 6, { align: 'center' });
         
-        // Línea 2: ID y Puesto - más compacto
-        doc.setTextColor(51, 51, 51); // Usar números separados
-        doc.setFontSize(6);
+        // ===== LÍNEA 2: ID Y PUESTO COMPLETO (MEJORADO) =====
+        doc.setTextColor(51, 51, 51);
+        doc.setFontSize(7);
         doc.setFont('helvetica', 'normal');
         
-        const puestoText = employee.NombrePuesto.length > 25 ? 
-            employee.NombrePuesto.substring(0, 22) + '...' : 
+        // Permitir más caracteres en el puesto (de 28 a 45)
+        const puestoText = employee.NombrePuesto.length > 45 ? 
+            employee.NombrePuesto.substring(0, 42) + '...' : 
             employee.NombrePuesto;
         
-        doc.text(`ID: ${employee.IdPersonal} | ${puestoText}`, x + 4, currentY + 7.5);
+        doc.text(`ID: ${employee.IdPersonal} | ${puestoText}`, x + 5, currentY + 9);
         
-        currentY += 13;
+        currentY += 15;
         
         // ===== LÍNEA SEPARADORA =====
-        doc.setDrawColor(255, 152, 0); // Usar números separados
-        doc.setLineWidth(0.8);
-        doc.line(x + 4, currentY, x + width - 4, currentY);
-        currentY += 4;
+        doc.setDrawColor(255, 152, 0);
+        doc.setLineWidth(1);
+        doc.line(x + 5, currentY, x + width - 5, currentY);
+        currentY += 5;
         
-        // ===== DISEÑO DE 2 COLUMNAS PARA DETALLE =====
+        // ===== DISEÑO DE 2 COLUMNAS PARA DETALLE CON MÁS ESPACIO =====
         const hasDiscounts = employee.descuentoVales > 0 || employee.descuentoCreditos > 0;
         const hasBonuses = employee.bonificacionRegular > 0 || employee.bonificacionExtra > 0;
         
-        // Definir columnas
-        const col1X = x + 4;
-        const col1Width = hasDiscounts ? (width - 12) / 2 : width - 8;
-        const col2X = x + 6 + col1Width;
-        const col2Width = (width - 12) / 2;
+        // Definir columnas con más espacio
+        const col1X = x + 5;
+        const col1Width = hasDiscounts ? (width - 15) / 2 : width - 10;
+        const col2X = x + 8 + col1Width;
+        const col2Width = (width - 15) / 2;
         
         let maxColumnY = currentY;
         
@@ -3155,15 +3390,15 @@ async function drawImprovedEmployeeBonusBlock(doc, employee, x, y, width, height
             
             // Header de bonificaciones
             doc.setFont('helvetica', 'bold');
-            doc.setFontSize(7);
+            doc.setFontSize(8);
             doc.setTextColor(...primaryColor);
             doc.text('BONIFICACIONES', col1X, col1Y);
-            col1Y += 4;
+            col1Y += 5;
             
             // Fondo para tabla de bonificaciones
-            const bonusTableHeight = (employee.bonificacionRegular > 0 ? 4 : 0) + 
-                                    (employee.bonificacionExtra > 0 ? 4 : 0) + 
-                                    (employee.observacionesBonificacionExtra && employee.bonificacionExtra > 0 ? 3 : 0) + 5;
+            const bonusTableHeight = (employee.bonificacionRegular > 0 ? 5 : 0) + 
+                                    (employee.bonificacionExtra > 0 ? 5 : 0) + 
+                                    (employee.observacionesBonificacionExtra && employee.bonificacionExtra > 0 ? 4 : 0) + 6;
             
             doc.setFillColor(245, 255, 245);
             doc.rect(col1X, col1Y - 1, col1Width, bonusTableHeight, 'F');
@@ -3171,45 +3406,45 @@ async function drawImprovedEmployeeBonusBlock(doc, employee, x, y, width, height
             doc.setLineWidth(0.3);
             doc.rect(col1X, col1Y - 1, col1Width, bonusTableHeight);
             
-            // Headers compactos
+            // Headers
             doc.setTextColor(...textColor);
-            doc.setFontSize(5);
+            doc.setFontSize(6);
             doc.setFont('helvetica', 'bold');
-            doc.text('CONCEPTO', col1X + 2, col1Y + 2);
-            doc.text('MONTO', col1X + col1Width - 2, col1Y + 2, { align: 'right' });
-            col1Y += 4;
+            doc.text('CONCEPTO', col1X + 2, col1Y + 3);
+            doc.text('MONTO', col1X + col1Width - 2, col1Y + 3, { align: 'right' });
+            col1Y += 5;
             
             // Bonificaciones
             doc.setFont('helvetica', 'normal');
-            doc.setFontSize(6);
+            doc.setFontSize(7);
             
             if (employee.bonificacionRegular > 0) {
                 doc.setTextColor(...textColor);
-                doc.text('• Bonif. Regular', col1X + 2, col1Y);
+                doc.text('• Bonif. Regular', col1X + 3, col1Y);
                 doc.setFont('helvetica', 'bold');
                 doc.text(`Q${employee.bonificacionRegular.toFixed(2)}`, col1X + col1Width - 2, col1Y, { align: 'right' });
                 doc.setFont('helvetica', 'normal');
-                col1Y += 4;
+                col1Y += 5;
             }
             
             if (employee.bonificacionExtra > 0) {
                 doc.setTextColor(...textColor);
-                doc.text('• Bonif. Extra', col1X + 2, col1Y);
+                doc.text('• Bonif. Extra', col1X + 3, col1Y);
                 doc.setFont('helvetica', 'bold');
                 doc.text(`Q${employee.bonificacionExtra.toFixed(2)}`, col1X + col1Width - 2, col1Y, { align: 'right' });
                 doc.setFont('helvetica', 'normal');
-                col1Y += 4;
+                col1Y += 5;
                 
-                // Observaciones ultra compactas
+                // Observaciones compactas
                 if (employee.observacionesBonificacionExtra && employee.observacionesBonificacionExtra.trim()) {
-                    doc.setFontSize(4);
+                    doc.setFontSize(5);
                     doc.setTextColor(120, 120, 120);
-                    const obsText = employee.observacionesBonificacionExtra.length > 30 ? 
-                        employee.observacionesBonificacionExtra.substring(0, 27) + '...' : 
+                    const obsText = employee.observacionesBonificacionExtra.length > 32 ? 
+                        employee.observacionesBonificacionExtra.substring(0, 29) + '...' : 
                         employee.observacionesBonificacionExtra;
-                    doc.text(`Obs: ${obsText}`, col1X + 4, col1Y);
-                    col1Y += 3;
-                    doc.setFontSize(6);
+                    doc.text(`Obs: ${obsText}`, col1X + 5, col1Y);
+                    col1Y += 4;
+                    doc.setFontSize(7);
                     doc.setTextColor(...textColor);
                 }
             }
@@ -3223,16 +3458,16 @@ async function drawImprovedEmployeeBonusBlock(doc, employee, x, y, width, height
             
             // Header de descuentos
             doc.setFont('helvetica', 'bold');
-            doc.setFontSize(7);
+            doc.setFontSize(8);
             doc.setTextColor(...primaryColor);
             doc.text('DESCUENTOS', col2X, col2Y);
-            col2Y += 4;
+            col2Y += 5;
             
             // Fondo para tabla de descuentos
-            const discountTableHeight = (employee.descuentoVales > 0 ? 4 : 0) + 
-                                       (employee.descuentoCreditos > 0 ? 4 : 0) + 
-                                       (employee.referenciaVales && employee.descuentoVales > 0 ? 3 : 0) +
-                                       (employee.referenciaCreditos && employee.descuentoCreditos > 0 ? 3 : 0) + 5;
+            const discountTableHeight = (employee.descuentoVales > 0 ? 5 : 0) + 
+                                       (employee.descuentoCreditos > 0 ? 5 : 0) + 
+                                       (employee.referenciaVales && employee.descuentoVales > 0 ? 4 : 0) +
+                                       (employee.referenciaCreditos && employee.descuentoCreditos > 0 ? 4 : 0) + 6;
             
             doc.setFillColor(255, 245, 245);
             doc.rect(col2X, col2Y - 1, col2Width, discountTableHeight, 'F');
@@ -3240,59 +3475,59 @@ async function drawImprovedEmployeeBonusBlock(doc, employee, x, y, width, height
             doc.setLineWidth(0.3);
             doc.rect(col2X, col2Y - 1, col2Width, discountTableHeight);
             
-            // Headers compactos
+            // Headers
             doc.setTextColor(...textColor);
-            doc.setFontSize(5);
+            doc.setFontSize(6);
             doc.setFont('helvetica', 'bold');
-            doc.text('CONCEPTO', col2X + 2, col2Y + 2);
-            doc.text('MONTO', col2X + col2Width - 2, col2Y + 2, { align: 'right' });
-            col2Y += 4;
+            doc.text('CONCEPTO', col2X + 2, col2Y + 3);
+            doc.text('MONTO', col2X + col2Width - 2, col2Y + 3, { align: 'right' });
+            col2Y += 5;
             
             doc.setFont('helvetica', 'normal');
-            doc.setFontSize(6);
+            doc.setFontSize(7);
             
             if (employee.descuentoVales > 0) {
                 doc.setTextColor(...textColor);
-                doc.text('• Desc. Vales', col2X + 2, col2Y);
+                doc.text('• Desc. Vales', col2X + 3, col2Y);
                 doc.setFont('helvetica', 'bold');
                 doc.setTextColor(200, 50, 50);
                 doc.text(`-Q${employee.descuentoVales.toFixed(2)}`, col2X + col2Width - 2, col2Y, { align: 'right' });
                 doc.setFont('helvetica', 'normal');
                 doc.setTextColor(...textColor);
-                col2Y += 4;
+                col2Y += 5;
                 
                 if (employee.referenciaVales && employee.referenciaVales.trim()) {
-                    doc.setFontSize(4);
+                    doc.setFontSize(5);
                     doc.setTextColor(120, 120, 120);
-                    const refText = employee.referenciaVales.length > 20 ? 
-                        employee.referenciaVales.substring(0, 17) + '...' : 
+                    const refText = employee.referenciaVales.length > 22 ? 
+                        employee.referenciaVales.substring(0, 19) + '...' : 
                         employee.referenciaVales;
-                    doc.text(`Doc: ${refText}`, col2X + 4, col2Y);
-                    col2Y += 3;
-                    doc.setFontSize(6);
+                    doc.text(`Doc: ${refText}`, col2X + 5, col2Y);
+                    col2Y += 4;
+                    doc.setFontSize(7);
                     doc.setTextColor(...textColor);
                 }
             }
             
             if (employee.descuentoCreditos > 0) {
                 doc.setTextColor(...textColor);
-                doc.text('• Desc. Créditos', col2X + 2, col2Y);
+                doc.text('• Desc. Créditos', col2X + 3, col2Y);
                 doc.setFont('helvetica', 'bold');
                 doc.setTextColor(200, 50, 50);
                 doc.text(`-Q${employee.descuentoCreditos.toFixed(2)}`, col2X + col2Width - 2, col2Y, { align: 'right' });
                 doc.setFont('helvetica', 'normal');
                 doc.setTextColor(...textColor);
-                col2Y += 4;
+                col2Y += 5;
                 
                 if (employee.referenciaCreditos && employee.referenciaCreditos.trim()) {
-                    doc.setFontSize(4);
+                    doc.setFontSize(5);
                     doc.setTextColor(120, 120, 120);
-                    const refText = employee.referenciaCreditos.length > 20 ? 
-                        employee.referenciaCreditos.substring(0, 17) + '...' : 
+                    const refText = employee.referenciaCreditos.length > 22 ? 
+                        employee.referenciaCreditos.substring(0, 19) + '...' : 
                         employee.referenciaCreditos;
-                    doc.text(`Doc: ${refText}`, col2X + 4, col2Y);
-                    col2Y += 3;
-                    doc.setFontSize(6);
+                    doc.text(`Doc: ${refText}`, col2X + 5, col2Y);
+                    col2Y += 4;
+                    doc.setFontSize(7);
                     doc.setTextColor(...textColor);
                 }
             }
@@ -3300,64 +3535,64 @@ async function drawImprovedEmployeeBonusBlock(doc, employee, x, y, width, height
             maxColumnY = Math.max(maxColumnY, col2Y);
         }
         
-        currentY = maxColumnY + 3;
+        currentY = maxColumnY + 4;
         
-        // ===== ESPACIOS PARA FIRMAS MÁS AMPLIOS =====
-        const signatureY = y + height - 20; // Más espacio garantizado
+        // ===== ESPACIOS PARA FIRMAS CON MÁS ESPACIO =====
+        const signatureY = y + height - 25; // Más espacio para firmas
         doc.setTextColor(...textColor);
         doc.setFont('helvetica', 'normal');
-        doc.setFontSize(5);
+        doc.setFontSize(6);
         
         // Asegurar que las firmas no se superpongan con el contenido
-        const minSignatureY = currentY + 5;
+        const minSignatureY = currentY + 6;
         const finalSignatureY = Math.max(signatureY, minSignatureY);
         
-        // Calcular ancho de cada columna de firma
-        const signatureWidth = (width - 16) / 3;
-        const signatureSpacing = 4;
+        // Calcular ancho de cada columna de firma con más espacio
+        const signatureWidth = (width - 20) / 3;
+        const signatureSpacing = 5;
         
         // Líneas para firmas
         doc.setDrawColor(...textColor);
         doc.setLineWidth(0.5);
         
         // Firma del colaborador
-        const col1X_sig = x + 6;
+        const col1X_sig = x + 8;
         doc.line(col1X_sig, finalSignatureY, col1X_sig + signatureWidth, finalSignatureY);
         doc.setFont('helvetica', 'bold');
-        doc.setFontSize(5);
-        doc.text('FIRMA DEL COLABORADOR', col1X_sig, finalSignatureY + 3);
+        doc.setFontSize(6);
+        doc.text('FIRMA DEL COLABORADOR', col1X_sig, finalSignatureY + 4);
         doc.setFont('helvetica', 'normal');
-        doc.setFontSize(4);
-        doc.text('Fecha: ___/___/_____', col1X_sig, finalSignatureY + 6);
+        doc.setFontSize(5);
+        doc.text('Fecha: _____/_____/_______', col1X_sig, finalSignatureY + 8);
         
         // Firma de quien entregó
-        const col2X_sig = x + 6 + signatureWidth + signatureSpacing;
-        doc.setFontSize(5);
+        const col2X_sig = x + 8 + signatureWidth + signatureSpacing;
         doc.line(col2X_sig, finalSignatureY, col2X_sig + signatureWidth, finalSignatureY);
         doc.setFont('helvetica', 'bold');
-        doc.text('ENTREGADO POR', col2X_sig, finalSignatureY + 3);
+        doc.setFontSize(6);
+        doc.text('ENTREGADO POR', col2X_sig, finalSignatureY + 4);
         doc.setFont('helvetica', 'normal');
-        doc.setFontSize(4);
-        doc.text('Fecha: ___/___/_____', col2X_sig, finalSignatureY + 6);
+        doc.setFontSize(5);
+        doc.text('Fecha: _____/_____/_______', col2X_sig, finalSignatureY + 8);
         
         // Firma del jefe/regional
-        const col3X_sig = x + 6 + (signatureWidth * 2) + (signatureSpacing * 2);
-        doc.setFontSize(5);
+        const col3X_sig = x + 8 + (signatureWidth * 2) + (signatureSpacing * 2);
         doc.line(col3X_sig, finalSignatureY, col3X_sig + signatureWidth, finalSignatureY);
         doc.setFont('helvetica', 'bold');
-        doc.text('AUTORIZADO POR', col3X_sig, finalSignatureY + 3);
+        doc.setFontSize(6);
+        doc.text('AUTORIZADO POR', col3X_sig, finalSignatureY + 4);
         doc.setFont('helvetica', 'normal');
-        doc.setFontSize(4);
-        doc.text('JEFE/REGIONAL', col3X_sig, finalSignatureY + 6);
+        doc.setFontSize(5);
+        doc.text('JEFE/REGIONAL', col3X_sig, finalSignatureY + 8);
         
         // ===== PIE DE PÁGINA MÍNIMO =====
         const now = new Date();
-        doc.setFontSize(3);
+        doc.setFontSize(4);
         doc.setTextColor(180, 180, 180);
-        doc.text(`Gen: ${now.toLocaleDateString()}`, x + width - 2, y + height - 1, { align: 'right' });
+        doc.text(`Gen: ${now.toLocaleDateString()}`, x + width - 5, y + height - 2, { align: 'right' });
         
     } catch (error) {
-        console.error(`❌ Error al dibujar comprobante optimizado:`, error);
+        console.error(`❌ Error al dibujar comprobante pegado:`, error);
         throw error;
     }
 }
@@ -4286,7 +4521,6 @@ async function loadEmployeesFromDepartment(departmentId) {
     const validationStatus = document.getElementById('validationStatus');
     
     try {
-        console.log('Cargando empleados del departamento:', departmentId);
         
         if (!departmentId) return;
         
@@ -4333,8 +4567,6 @@ async function loadEmployeesFromDepartment(departmentId) {
         
         await connection.close();
         
-        console.log('Empleados encontrados:', result.length);
-        
         // OCULTAR LOADING
         if (employeeLoading) {
             employeeLoading.style.display = 'none';
@@ -4352,7 +4584,6 @@ async function loadEmployeesFromDepartment(departmentId) {
             if (result.length > 0) {
                 // Agregar colaboradores
                 result.forEach((emp, index) => {
-                    console.log(`Procesando empleado ${index + 1}:`, emp);
                     
                     const option = document.createElement('option');
                     option.value = emp.IdPersonal;
@@ -4450,7 +4681,6 @@ function showValidationStatus(type, message) {
     }
 }
 function showEmployeePreview(employeeData) {
-    console.log('showEmployeePreview llamada con:', employeeData); // Debug
     
     if (!employeeData) {
         console.error('No se recibieron datos del empleado');
@@ -4475,15 +4705,12 @@ function showEmployeePreview(employeeData) {
         
         // IMPORTANTE: Guardar la referencia
         selectedExternalEmployee = { ...employeeData }; // Hacer una copia
-        console.log('selectedExternalEmployee asignado:', selectedExternalEmployee); // Debug
     } else {
         console.error('No se encontraron los elementos DOM necesarios');
     }
 }
 async function addExternalEmployeeToList() {
     try {
-        console.log('addExternalEmployeeToList llamada'); // Debug
-        console.log('selectedExternalEmployee actual:', selectedExternalEmployee); // Debug
         
         if (!selectedExternalEmployee) {
             console.error('No hay colaborador seleccionado');
@@ -4542,8 +4769,6 @@ async function addExternalEmployeeToList() {
             isModified: false,
             isExternal: true // Marcar como externo
         };
-        
-        console.log('Nuevo empleado a agregar:', newEmployee); // Debug
         
         // Agregar a la lista local
         employeesData.push(newEmployee);
@@ -4641,17 +4866,13 @@ function setupExternalEmployeeModalListeners() {
     
     if (employeeSelect) {
         employeeSelect.addEventListener('change', async function() {
-            console.log('Empleado seleccionado, valor:', this.value); // Debug
             
             const selectedEmployeeId = this.value;
             if (selectedEmployeeId) {
                 const option = this.options[this.selectedIndex];
-                console.log('Opción seleccionada:', option); // Debug
-                console.log('Dataset:', option.dataset.employeeData); // Debug
                 
                 try {
                     const employeeData = JSON.parse(option.dataset.employeeData);
-                    console.log('Datos parseados del empleado:', employeeData); // Debug
                     
                     showEmployeePreview(employeeData);
                     await validateExternalEmployee(selectedEmployeeId);

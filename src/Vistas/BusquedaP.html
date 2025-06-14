@@ -143,6 +143,8 @@
                                     <th>Tipo</th>
                                     <th>Planilla</th>
                                     <th>Estado</th>
+                                    <th>Registrado por</th>
+                                    <th>Fecha Registro</th>
                                     <th>Acciones</th>
                                 </tr>
                             </thead>
@@ -250,6 +252,9 @@
                         </button>
                         <button class="tab-btn" data-tab="pma">
                             <i class="fas fa-brain"></i> <span>Evaluación PMA</span>
+                        </button>
+                        <button class="tab-btn" data-tab="registro">
+                            <i class="fas fa-user-plus"></i> <span>Info. Registro</span>
                         </button>
                     </div>
                     
@@ -570,6 +575,36 @@
                                             </tr>
                                         </tbody>
                                     </table>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="tab-pane" id="tab-registro">
+                            <div class="details-section">
+                                <h4><i class="fas fa-user-plus"></i> Información de Registro</h4>
+                                <div class="details-grid registro-grid">
+                                    <div class="detail-item">
+                                        <label>Registrado por:</label>
+                                        <span id="modalUsuarioRegistro">No registrado</span>
+                                    </div>
+                                    <div class="detail-item">
+                                        <label>Fecha y Hora de Registro:</label>
+                                        <span id="modalFechaHoraRegistro">No registrado</span>
+                                    </div>
+                                    <div class="detail-item">
+                                        <label>ID Usuario:</label>
+                                        <span id="modalIdUsuarioRegistro">No registrado</span>
+                                    </div>
+                                </div>
+                                
+                                <!-- Información adicional del registro -->
+                                <div class="registro-info-card">
+                                    <div class="registro-info-header">
+                                        <i class="fas fa-info-circle"></i>
+                                        <span>Detalles del Registro</span>
+                                    </div>
+                                    <div class="registro-info-content">
+                                        <p>Esta información muestra quién registró este colaborador en el sistema y cuándo se realizó el registro inicial.</p>
+                                    </div>
                                 </div>
                             </div>
                         </div>

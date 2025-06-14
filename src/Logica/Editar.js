@@ -2508,9 +2508,13 @@ async function cargarPlanillas() {
     try {
         const connection = await getConnection();
         const query = `
-            SELECT IdPlanilla, Nombre_Planilla
-            FROM planillas
-            ORDER BY Nombre_Planilla
+            SELECT 
+                p.IdPlanilla, 
+                p.Nombre_Planilla,
+                CONCAT(IFNULL(d.Nombre, ''), ' - ', p.Nombre_Planilla) AS PlanillaCompleta
+            FROM planillas p
+            LEFT JOIN divisiones d ON p.Division = d.IdDivision
+            ORDER BY d.Nombre, p.Nombre_Planilla
         `;
         
         const result = await connection.query(query);
@@ -2523,7 +2527,7 @@ async function cargarPlanillas() {
         result.forEach(item => {
             const option = document.createElement('option');
             option.value = item.IdPlanilla;
-            option.textContent = item.Nombre_Planilla;
+            option.textContent = item.PlanillaCompleta;
             planilla.appendChild(option);
         });
         
@@ -2763,16 +2767,19 @@ async function guardarCambiosLaboral() {
         }
         
         // Obtener nombre de planilla
-        if (datosOriginalesLaboral.planilla) {
+        if (datosActualizados.IdPlanilla) {
             const planillaQuery = `
-                SELECT Nombre_Planilla FROM planillas 
-                WHERE IdPlanilla = ?
+                SELECT 
+                    CONCAT(IFNULL(d.Nombre, ''), ' - ', p.Nombre_Planilla) AS PlanillaCompleta
+                FROM planillas p
+                LEFT JOIN divisiones d ON p.Division = d.Id
+                WHERE p.IdPlanilla = ?
             `;
-            const planillaResult = await connection.query(planillaQuery, [datosOriginalesLaboral.planilla]);
-            nombresOriginales.planilla = planillaResult.length > 0 ? 
-                planillaResult[0].Nombre_Planilla : 'No registrado';
+            const planillaResult = await connection.query(planillaQuery, [datosActualizados.IdPlanilla]);
+            nombresActualizados.planilla = planillaResult.length > 0 ? 
+                planillaResult[0].PlanillaCompleta : 'No registrado';
         } else {
-            nombresOriginales.planilla = 'No registrado';
+            nombresActualizados.planilla = 'No registrado';
         }
         
         if (datosActualizados.IdPlanilla) {
