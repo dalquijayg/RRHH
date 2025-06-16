@@ -2593,7 +2593,6 @@ function verificarCambioEnCampoLaboral(idCampo) {
     btnSaveWork.disabled = Object.keys(camposModificadosLaboral).length === 0;
 }
 // Guardar cambios en información laboral
-// Guardar cambios en información laboral
 async function guardarCambiosLaboral() {
     try {
         // Verificar si hay cambios
@@ -2772,24 +2771,12 @@ async function guardarCambiosLaboral() {
                 SELECT 
                     CONCAT(IFNULL(d.Nombre, ''), ' - ', p.Nombre_Planilla) AS PlanillaCompleta
                 FROM planillas p
-                LEFT JOIN divisiones d ON p.Division = d.Id
+                LEFT JOIN divisiones d ON p.Division = d.IdDivision
                 WHERE p.IdPlanilla = ?
             `;
             const planillaResult = await connection.query(planillaQuery, [datosActualizados.IdPlanilla]);
             nombresActualizados.planilla = planillaResult.length > 0 ? 
                 planillaResult[0].PlanillaCompleta : 'No registrado';
-        } else {
-            nombresActualizados.planilla = 'No registrado';
-        }
-        
-        if (datosActualizados.IdPlanilla) {
-            const planillaQuery = `
-                SELECT Nombre_Planilla FROM planillas 
-                WHERE IdPlanilla = ?
-            `;
-            const planillaResult = await connection.query(planillaQuery, [datosActualizados.IdPlanilla]);
-            nombresActualizados.planilla = planillaResult.length > 0 ? 
-                planillaResult[0].Nombre_Planilla : 'No registrado';
         } else {
             nombresActualizados.planilla = 'No registrado';
         }
