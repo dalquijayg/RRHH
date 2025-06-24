@@ -151,14 +151,54 @@
                             </div>
                         </div>
                     </div>
+                    
+                    <!-- SECCIÓN MEJORADA DE SUBIDA DE ARCHIVOS -->
                     <div class="form-row">
                         <div class="input-container">
-                            <label for="fileScaner">Documento escaneado (PDF o imagen, máx. 14MB)</label>
-                            <input type="file" id="fileScaner" accept=".pdf,.jpg,.jpeg,.png" class="file-input">
-                            <span class="input-focus-effect"></span>
-                            <div class="file-preview" id="filePreview"></div>
+                            <div class="file-upload-container">
+                                <label class="file-upload-label">
+                                    Documento escaneado (PDF o imagen, máx. 14MB)
+                                </label>
+                                
+                                <div class="file-upload-area" id="fileUploadArea">
+                                    <input type="file" 
+                                           id="fileScaner" 
+                                           class="file-input-hidden" 
+                                           accept=".pdf,.jpg,.jpeg,.png"
+                                           data-max-size="14">
+                                    
+                                    <div class="file-upload-icon">
+                                        <i class="fas fa-cloud-upload-alt"></i>
+                                    </div>
+                                    
+                                    <div class="file-upload-text">
+                                        Arrastra tu archivo aquí o haz clic para seleccionar
+                                    </div>
+                                    
+                                    <div class="file-upload-hint">
+                                        Formatos admitidos: PDF, JPG, PNG (máx. 14MB)
+                                    </div>
+                                    
+                                    <button type="button" class="file-upload-button">
+                                        <i class="fas fa-folder-open"></i>
+                                        Seleccionar archivo
+                                    </button>
+                                </div>
+                                
+                                <div class="upload-progress" id="uploadProgress">
+                                    <div class="progress-bar">
+                                        <div class="progress-fill" id="progressFill"></div>
+                                    </div>
+                                    <div class="progress-text" id="progressText">Subiendo... 0%</div>
+                                </div>
+                                
+                                <div class="file-preview" id="filePreview">
+                                    <!-- El preview se generará aquí -->
+                                </div>
+                            </div>
                         </div>
                     </div>
+                    
                     <div class="form-actions">
                         <button type="button" id="cancelButton" class="cancel-button">
                             <i class="fas fa-times"></i> Cancelar

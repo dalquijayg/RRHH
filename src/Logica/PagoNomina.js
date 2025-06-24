@@ -783,7 +783,7 @@ function renderizarTabla(datos) {
 // Función para formatear moneda a quetzales (Q)
 function formatearMoneda(valor) {
     if (valor === null || valor === undefined) return 'Q0.00';
-    
+    const valorFormateado = parseFloat(valor).toFixed(2);
     return new Intl.NumberFormat('es-GT', {
         style: 'currency',
         currency: 'GTQ',
@@ -3877,7 +3877,6 @@ async function obtenerDatosPlanillasParaReporte() {
         const connection = await connectionString();
         
         // 1. Obtener todas las planillas guardadas para el período
-        // Modificamos la consulta para obtener directamente la información de Division
         const queryPlanillas = `
             SELECT 
                 PP.IdPagoPlanilla,
@@ -3937,7 +3936,7 @@ async function obtenerDatosPlanillasParaReporte() {
                 }
             }
             
-            // 3. Obtener los detalles de cada empleado en la planilla, incluyendo el NoCuenta y NoAutorizacion (MODIFICADO)
+            // 3. Obtener los detalles de cada empleado en la planilla, INCLUYENDO EL CAMPO SEXO
             const queryDetalles = `
                 SELECT 
                     PPD.IdPersonal,
@@ -3995,8 +3994,8 @@ function obtenerUltimoDiaMes(mes, anio) {
 
 // Función para formatear números con separador de miles y dos decimales
 function formatearNumero(valor) {
-    if (valor === null || valor === undefined) return '0.0000';
-    
+    if (valor === null || valor === undefined) return '0.00';
+    const numeroFormateado = parseFloat(valor).toFixed(2);
     return parseFloat(valor).toLocaleString('es-GT', {
         minimumFractionDigits: 2,
         maximumFractionDigits: 2
@@ -4755,7 +4754,8 @@ async function generarExcel() {
         
         for (let i = 0; i < datosPlanillas.length; i++) {
             const planilla = datosPlanillas[i];
-            
+            let masculinos = 0;
+            let femeninos = 0;
             try {
                 // Crear el libro de Excel para esta planilla
                 const workbook = XLSX.utils.book_new();
@@ -4939,11 +4939,11 @@ async function crearHojaPlanilla(planilla, formValues, nombresMeses) {
     const tituloCompleto = planilla.NombreDivision 
         ? `${planilla.NombreDivision} - ${planilla.NombrePlanilla}`
         : planilla.NombrePlanilla;
-    data[filaActual++] = [tituloCompleto, '', '', '', '', '', '', '', '', '', '', ''];
+    data[filaActual++] = [tituloCompleto, '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', ''];
     
     // Información de la planilla
     const tipoTexto = esFinDeMes ? 'Planilla Fin de Mes' : 'Planilla Quincenal';
-    data[filaActual++] = [`Tipo de Quincena: ${tipoTexto}`, '', '', '', '', '', '', '', '', '', '', ''];
+    data[filaActual++] = [`Tipo de Quincena: ${tipoTexto}`, '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', ''];
     
     // Período
     const mesNombre = nombresMeses[planilla.Mes - 1];
@@ -4954,29 +4954,48 @@ async function crearHojaPlanilla(planilla, formValues, nombresMeses) {
     } else {
         periodo = `Del 1 al 15 de ${mesNombre} ${planilla.Anyo}`;
     }
-    data[filaActual++] = [`Período: ${periodo}`, '', '', '', '', '', '', '', '', '', '', ''];
+    data[filaActual++] = [`Período: ${periodo}`, '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', ''];
     
-    data[filaActual++] = [`No. Centro de Trabajo: ${planilla.NoCentroTrabajo || 'No especificado'}`, '', '', '', '', '', '', '', '', '', '', ''];
-    data[filaActual++] = [`Cantidad de Colaboradores: ${planilla.CantColaboradores}`, '', '', '', '', '', '', '', '', '', '', ''];
+    data[filaActual++] = [`No. Centro de Trabajo: ${planilla.NoCentroTrabajo || 'No especificado'}`, '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', ''];
+    
+    // CONTAR GÉNERO CON FORMATO COMPLETO
+    let masculinos = 0;
+    let femeninos = 0;
+    
+    if (planilla.detalles && planilla.detalles.length > 0) {
+        planilla.detalles.forEach(empleado => {
+            if (empleado.Sexo === 'M') {
+                masculinos++;
+            } else if (empleado.Sexo === 'F') {
+                femeninos++;
+            }
+        });
+    }
+    
+    data[filaActual++] = [`Cantidad de Colaboradores: ${planilla.CantColaboradores} (Masculino: ${masculinos}, Femenino: ${femeninos})`, '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', ''];
     
     // Encabezados de la tabla
     if (esFinDeMes) {
-        // Encabezados para FIN DE MES
         data[filaActual++] = [
             'No.', 
-            'Nombre Completo', 
-            'Salario Diario', 
-            'Días Laborados', 
+            'Nombre Completo',
+            'Salario Diario',
+            'Días Quincena',
+            'Desc. Judicial Quincena', 
+            'Total Pagado Quincena',
+            'Días Fin de Mes',
+            'Total Pagado Fin de Mes',
+            'Total Días',
+            'Total Pagado Mes',
             'Bonificación',
+            'Sueldo Total',
             'IGSS',
-            'Descuento Judicial', 
-            'SubTotal',
-            'Total a Pagar',
-            'No. de Cuenta', 
+            'Desc. Judicial Fin de Mes',
+            'Total Pagado Fin de Mes Final',
+            'No. de Cuenta',
             'Observaciones'
         ];
     } else {
-        // Encabezados para QUINCENAL
         data[filaActual++] = [
             'No.', 
             'Nombre Completo', 
@@ -4989,12 +5008,23 @@ async function crearHojaPlanilla(planilla, formValues, nombresMeses) {
         ];
     }
     
+    // FUNCIÓN AUXILIAR PARA FORMATEAR A 2 DECIMALES
+    const formatearDecimales = (valor) => {
+        return parseFloat(parseFloat(valor || 0).toFixed(2));
+    };
+    
     // Datos de empleados
     let totalPlanilla = 0;
     let totalBonificaciones = 0;
     let totalIGSS = 0;
-    let totalDescuentos = 0;
-    let totalSubTotal = 0;
+    let totalDescuentosQ1 = 0;
+    let totalDescuentosQ2 = 0;
+    let totalDiasQ1 = 0;
+    let totalDiasQ2 = 0;
+    let totalPagadoQ1 = 0;
+    let totalPagadoQ2 = 0;
+    let totalSueldoTotal = 0;
+    let totalPagadoFinalQ2 = 0;
     
     if (planilla.detalles && planilla.detalles.length > 0) {
         for (let j = 0; j < planilla.detalles.length; j++) {
@@ -5010,53 +5040,78 @@ async function crearHojaPlanilla(planilla, formValues, nombresMeses) {
             );
             
             if (esFinDeMes) {
-                // DATOS PARA FIN DE MES - CÁLCULO CORREGIDO
-                const bonificacion = parseFloat(empleado.Bonificacion) || 0;
-                const igss = parseFloat(empleado.PagoIGSS) || 0;
-                const montoPagado = parseFloat(empleado.MontoPagado) || 0;
+                // DATOS REORDENADOS PARA FIN DE MES
                 
-                // CALCULAR SUBTOTAL = SalarioDiario * Días + Bonificación - IGSS
-                const salarioCalculado = parseFloat(empleado.SalarioDiario) * parseInt(empleado.DiasLaborados);
-                const subTotal = salarioCalculado + bonificacion - igss;
+                const datosQ1 = await obtenerDatosQuincenaAnterior(empleado.IdPersonal, planilla.Mes, planilla.Anyo);
                 
-                // CALCULAR DESCUENTO = SubTotal - MontoPagado
-                const descuentoJudicial = Math.max(0, subTotal - montoPagado);
+                const diasQ2 = parseInt(empleado.DiasLaborados);
+                const bonificacion = formatearDecimales(empleado.Bonificacion);
+                const igss = formatearDecimales(empleado.PagoIGSS);
+                const montoPagadoQ2Inicial = formatearDecimales(empleado.MontoPagado);
                 
-                // Acumular totales
+                const salarioCalculadoQ2 = formatearDecimales(parseFloat(empleado.SalarioDiario) * diasQ2);
+                const sueldoTotal = formatearDecimales(salarioCalculadoQ2 + bonificacion);
+                
+                let descuentoJudicialQ2 = 0;
+                if (empleado.DescuentoJudicial && parseFloat(empleado.DescuentoJudicial) > 0) {
+                    descuentoJudicialQ2 = formatearDecimales(empleado.DescuentoJudicial);
+                } else {
+                    const calculado = Math.max(0, sueldoTotal - igss - montoPagadoQ2Inicial);
+                    descuentoJudicialQ2 = formatearDecimales(calculado > 0.01 ? calculado : 0);
+                }
+                
+                const totalPagadoFinalQ2Empleado = formatearDecimales(Math.max(0, sueldoTotal - igss - descuentoJudicialQ2));
+                const totalPagadoMes = formatearDecimales(datosQ1.montoPagado + salarioCalculadoQ2);
+                const totalDiasMes = datosQ1.diasLaborados + diasQ2;
+                
+                // Acumular totales (también formateados)
+                totalDiasQ1 += datosQ1.diasLaborados;
+                totalDiasQ2 += diasQ2;
                 totalBonificaciones += bonificacion;
                 totalIGSS += igss;
-                totalDescuentos += descuentoJudicial;
-                totalSubTotal += subTotal;
-                totalPlanilla += montoPagado;
+                totalDescuentosQ1 += formatearDecimales(datosQ1.descuentoJudicial);
+                totalDescuentosQ2 += descuentoJudicialQ2;
+                totalPagadoQ1 += formatearDecimales(datosQ1.montoPagado);
+                totalPagadoQ2 += salarioCalculadoQ2;
+                totalSueldoTotal += sueldoTotal;
+                totalPagadoFinalQ2 += totalPagadoFinalQ2Empleado;
+                totalPlanilla += totalPagadoMes;
                 
+                // Crear fila con datos FORMATEADOS A 2 DECIMALES
                 data[filaActual++] = [
-                    numeroConsecutivo,
-                    empleado.NombrePersonal,
-                    parseFloat(empleado.SalarioDiario),
-                    empleado.DiasLaborados,
-                    bonificacion,
-                    igss,
-                    descuentoJudicial,
-                    subTotal,                       // SUBTOTAL CALCULADO CORRECTAMENTE
-                    montoPagado,
-                    empleado.NoCuenta || 'Sin cuenta',
-                    observaciones
+                    numeroConsecutivo,                              // No.
+                    empleado.NombrePersonal,                        // Nombre Completo
+                    formatearDecimales(empleado.SalarioDiario),    // Salario Diario
+                    datosQ1.diasLaborados,                         // Días Quincena
+                    formatearDecimales(datosQ1.descuentoJudicial), // Desc. Judicial Quincena
+                    formatearDecimales(datosQ1.montoPagado),       // Total Pagado Quincena
+                    diasQ2,                                        // Días Fin de Mes
+                    salarioCalculadoQ2,                            // Total Pagado Fin de Mes
+                    totalDiasMes,                                  // Total Días
+                    totalPagadoMes,                                // Total Pagado Mes
+                    bonificacion,                                  // Bonificación
+                    sueldoTotal,                                   // Sueldo Total
+                    igss,                                          // IGSS
+                    descuentoJudicialQ2,                          // Desc. Judicial Fin de Mes
+                    totalPagadoFinalQ2Empleado,                   // Total Pagado Fin de Mes Final
+                    empleado.NoCuenta || 'Sin cuenta',            // No. de Cuenta
+                    observaciones                                  // Observaciones
                 ];
             } else {
-                // DATOS PARA QUINCENAL (lógica original)
-                const salarioProporcional = (empleado.SalarioQuincenal / 15) * empleado.DiasLaborados;
-                const descuentoJudicial = Math.max(0, salarioProporcional - empleado.MontoPagado);
+                // DATOS PARA QUINCENAL (FORMATEADOS A 2 DECIMALES)
+                const salarioProporcional = formatearDecimales((empleado.SalarioQuincenal / 15) * empleado.DiasLaborados);
+                const descuentoJudicial = formatearDecimales(Math.max(0, salarioProporcional - empleado.MontoPagado));
                 
-                totalDescuentos += descuentoJudicial;
-                totalPlanilla += parseFloat(empleado.MontoPagado);
+                totalDescuentosQ1 += descuentoJudicial;
+                totalPlanilla += formatearDecimales(empleado.MontoPagado);
                 
                 data[filaActual++] = [
                     numeroConsecutivo,
                     empleado.NombrePersonal,
-                    parseFloat(empleado.SalarioDiario),
+                    formatearDecimales(empleado.SalarioDiario),
                     empleado.DiasLaborados,
                     descuentoJudicial,
-                    parseFloat(empleado.MontoPagado),
+                    formatearDecimales(empleado.MontoPagado),
                     empleado.NoCuenta || 'Sin cuenta',
                     observaciones
                 ];
@@ -5064,101 +5119,60 @@ async function crearHojaPlanilla(planilla, formValues, nombresMeses) {
         }
     }
     
+    // FORMATEAR TODOS LOS TOTALES A 2 DECIMALES
+    totalBonificaciones = formatearDecimales(totalBonificaciones);
+    totalIGSS = formatearDecimales(totalIGSS);
+    totalDescuentosQ1 = formatearDecimales(totalDescuentosQ1);
+    totalDescuentosQ2 = formatearDecimales(totalDescuentosQ2);
+    totalPagadoQ1 = formatearDecimales(totalPagadoQ1);
+    totalPagadoQ2 = formatearDecimales(totalPagadoQ2);
+    totalSueldoTotal = formatearDecimales(totalSueldoTotal);
+    totalPagadoFinalQ2 = formatearDecimales(totalPagadoFinalQ2);
+    totalPlanilla = formatearDecimales(totalPlanilla);
+    
     // Filas de totales
     if (esFinDeMes) {
-        // TOTALES PARA FIN DE MES
+        data[filaActual++] = ['', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', ''];
+        
         data[filaActual++] = [
-            '', 
-            '', 
-            '', 
-            '', 
-            'TOTAL BONIFICACIONES:', 
-            parseFloat(totalBonificaciones),
-            '', 
-            '', 
-            '', 
-            '', 
-            ''
+            '', '', '',
+            'TOTAL DÍAS Q1:', totalDiasQ1,
+            'TOTAL DESC. Q1:', totalDescuentosQ1,
+            'TOTAL PAGADO Q1:', totalPagadoQ1,
+            'TOTAL DÍAS Q2:', totalDiasQ2,
+            'TOTAL PAGADO Q2:', totalPagadoQ2,
+            'TOTAL DÍAS MES:', totalDiasQ1 + totalDiasQ2,
+            'TOTAL PAG. MES:', totalPlanilla,
+            'TOTAL BONIF.:', totalBonificaciones,
+            'TOTAL SUELDO:', totalSueldoTotal,
+            'TOTAL IGSS:', totalIGSS,
+            'TOTAL DESC. Q2:', totalDescuentosQ2,
+            'TOTAL FINAL Q2:', totalPagadoFinalQ2,
+            '', ''
         ];
+        
         data[filaActual++] = [
+            '', '', '', '', '', '', '', '', '',
+            '', '', '', '', '',
             '', 
-            '', 
-            '', 
-            '', 
-            'TOTAL IGSS:', 
-            parseFloat(totalIGSS),
-            '', 
-            '', 
-            '', 
-            '', 
-            ''
-        ];
-        data[filaActual++] = [
-            '', 
-            '', 
-            '', 
-            '', 
-            'TOTAL DESCUENTOS:', 
-            '', 
-            parseFloat(totalDescuentos),
-            '', 
-            '', 
-            '', 
-            ''
-        ];
-        data[filaActual++] = [
-            '', 
-            '', 
-            '', 
-            '', 
-            '', 
-            '', 
-            '', 
-            'TOTAL SUBTOTAL:', 
-            parseFloat(totalSubTotal),
-            '', 
-            ''
-        ];
-        data[filaActual++] = [
-            '', 
-            '', 
-            '', 
-            '', 
-            '', 
-            '', 
-            '', 
-            'TOTAL A PAGAR:', 
-            parseFloat(totalPlanilla),
-            '', 
+            `Masculino: ${masculinos}, Femenino: ${femeninos}`,
             ''
         ];
     } else {
-        // TOTALES PARA QUINCENAL
         data[filaActual++] = [
-            '', 
-            '', 
-            '', 
-            '', 
-            'TOTAL DESCUENTOS:', 
-            parseFloat(totalDescuentos),
-            '', 
-            ''
+            '', '', '', '', 
+            'TOTAL DESCUENTOS:', totalDescuentosQ1,
+            '', ''
         ];
         data[filaActual++] = [
-            '', 
-            '', 
-            '', 
-            '', 
-            '', 
-            'TOTAL A PAGAR:', 
-            parseFloat(totalPlanilla),
-            ''
+            '', '', '', '', '', 
+            'TOTAL A PAGAR:', totalPlanilla,
+            `Masculino: ${masculinos}, Femenino: ${femeninos}`
         ];
     }
     
     return data;
 }
-
 // Función actualizada para aplicar estilos al Excel (con nuevas columnas)
 function aplicarEstilosExcel(worksheet, planilla) {
     const range = XLSX.utils.decode_range(worksheet['!ref']);
@@ -5168,22 +5182,31 @@ function aplicarEstilosExcel(worksheet, planilla) {
     
     // Configurar anchos de columna según el tipo
     if (esFinDeMes) {
-        // Anchos para FIN DE MES (11 columnas)
+        // Anchos para FIN DE MES REORDENADO (17 columnas)
         worksheet['!cols'] = [
-            { wch: 8 },   // No.
-            { wch: 35 },  // Nombre Completo
-            { wch: 12 },  // Salario Diario
-            { wch: 12 },  // Días Laborados
-            { wch: 15 },  // Bonificación
-            { wch: 12 },  // IGSS
-            { wch: 18 },  // Descuento Judicial
-            { wch: 15 },  // SubTotal
-            { wch: 15 },  // Total a Pagar
-            { wch: 18 },  // No. de Cuenta
-            { wch: 25 }   // Observaciones
+            { wch: 6 },   // No.
+            { wch: 25 },  // Nombre Completo
+            { wch: 10 },  // Salario Diario
+            // QUINCENA 1 (1-15)
+            { wch: 8 },   // Días Quincena
+            { wch: 12 },  // Desc. Judicial Quincena
+            { wch: 12 },  // Total Pagado Quincena
+            // FIN DE MES (16-fin)
+            { wch: 8 },   // Días Fin de Mes
+            { wch: 12 },  // Total Pagado Fin de Mes
+            // TOTALES
+            { wch: 8 },   // Total Días
+            { wch: 12 },  // Total Pagado Mes
+            { wch: 12 },  // Bonificación
+            { wch: 12 },  // Sueldo Total
+            { wch: 10 },  // IGSS
+            { wch: 12 },  // Desc. Judicial Fin de Mes
+            { wch: 14 },  // Total Pagado Fin de Mes Final
+            { wch: 15 },  // No. de Cuenta
+            { wch: 20 }   // Observaciones
         ];
     } else {
-        // Anchos para QUINCENAL (8 columnas)
+        // Anchos para QUINCENAL (8 columnas) - sin cambios
         worksheet['!cols'] = [
             { wch: 8 },   // No.
             { wch: 40 },  // Nombre Completo
@@ -5251,10 +5274,25 @@ function aplicarEstilosExcel(worksheet, planilla) {
             }
             // ENCABEZADOS (fila 5)
             else if (R === 5) {
+                // Determinar color según la sección para fin de mes
+                let headerColor = "D18A47"; // Color por defecto
+                
+                if (esFinDeMes) {
+                    if (C >= 3 && C <= 5) {
+                        headerColor = "4CAF50"; // Verde para Quincena 1
+                    } else if (C >= 6 && C <= 7) {
+                        headerColor = "2196F3"; // Azul para Fin de Mes
+                    } else if (C >= 8 && C <= 14) {
+                        headerColor = "FF5722"; // Naranja para Totales y cálculos
+                    } else if (C >= 15 && C <= 16) {
+                        headerColor = "9C27B0"; // Púrpura para datos finales
+                    }
+                }
+                
                 cell.s = {
                     font: {
                         name: "Calibri",
-                        sz: 11,
+                        sz: 10,
                         bold: 1,
                         color: { rgb: "FFFFFF" }
                     },
@@ -5269,7 +5307,7 @@ function aplicarEstilosExcel(worksheet, planilla) {
                         right: { style: "thin", color: { rgb: "000000" } }
                     },
                     fill: {
-                        fgColor: { rgb: "D18A47" }
+                        fgColor: { rgb: headerColor }
                     }
                 };
             }
@@ -5309,15 +5347,28 @@ function aplicarEstilosExcel(worksheet, planilla) {
                     };
                 } else {
                     // Estilo para datos normales
+                    let alignment = "center";
+                    
+                    // Alineación específica para ciertas columnas
+                    if (esFinDeMes) {
+                        if (C === 1 || C === 15 || C === 16) {
+                            alignment = "left"; // Nombre, No. Cuenta, Observaciones
+                        }
+                    } else {
+                        if (C === 1 || C === 6 || C === 7) {
+                            alignment = "left"; // Nombre, No. Cuenta, Observaciones
+                        }
+                    }
+                    
                     cell.s = {
                         font: {
                             name: "Calibri",
-                            sz: 10,
+                            sz: 9,
                             bold: 0,
                             color: { rgb: "000000" }
                         },
                         alignment: {
-                            horizontal: (C === 1 || C === (esFinDeMes ? 9 : 6) || C === (esFinDeMes ? 10 : 7)) ? "left" : "center",
+                            horizontal: alignment,
                             vertical: "center"
                         },
                         border: {
@@ -5331,13 +5382,15 @@ function aplicarEstilosExcel(worksheet, planilla) {
                         }
                     };
                     
-                    // Formato numérico para columnas monetarias
+                    // Formato numérico para columnas monetarias y numéricas
                     if (esFinDeMes) {
-                        if (C === 2 || C === 4 || C === 5 || C === 6 || C === 7 || C === 8) {
+                        // Columnas numéricas en formato reordenado
+                        if ([2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14].includes(C)) {
                             cell.s.numFmt = "#,##0.00";
                         }
                     } else {
-                        if (C === 2 || C === 4 || C === 5) {
+                        // Columnas numéricas en formato normal
+                        if ([2, 3, 4, 5].includes(C)) {
                             cell.s.numFmt = "#,##0.00";
                         }
                     }
@@ -5347,7 +5400,7 @@ function aplicarEstilosExcel(worksheet, planilla) {
     }
     
     // Combinar celdas para títulos (ajustar según número de columnas)
-    const maxCol = esFinDeMes ? 10 : 7;
+    const maxCol = esFinDeMes ? 16 : 7;
     worksheet['!merges'] = [
         { s: { r: 0, c: 0 }, e: { r: 0, c: maxCol } }, // Título
         { s: { r: 1, c: 0 }, e: { r: 1, c: maxCol } }, // Tipo de Quincena
@@ -5513,7 +5566,15 @@ async function obtenerDatosQuincenaAnterior(idPersonal, mes, anio) {
         const query = `
             SELECT 
                 ppd.DiasLaborados,
-                ppd.SubTotalPagar
+                ppd.SubTotalPagar,
+                ppd.MontoPagado,
+                COALESCE((
+                    SELECT SUM(djd.Descuento)
+                    FROM DescuentosJudicialesDetalle djd
+                    INNER JOIN DescuentosJudiciales dj ON djd.IdDescuentoJudicial = dj.IdDescuentoJudicial
+                    WHERE dj.IdPersonal = ppd.IdPersonal 
+                    AND djd.IdPagoPlanilla = ppd.IdPagoPlanilla
+                ), 0) AS DescuentoJudicial
             FROM 
                 PagoPlanillaDetalle ppd
                 INNER JOIN PagoPlanilla pp ON ppd.IdPagoPlanilla = pp.IdPagoPlanilla
@@ -5530,226 +5591,27 @@ async function obtenerDatosQuincenaAnterior(idPersonal, mes, anio) {
         if (resultado.length > 0) {
             return {
                 diasLaborados: parseInt(resultado[0].DiasLaborados) || 0,
-                subTotalPagar: parseFloat(resultado[0].SubTotalPagar) || 0
+                subTotalPagar: parseFloat(resultado[0].SubTotalPagar) || 0,
+                montoPagado: parseFloat(resultado[0].MontoPagado) || 0,
+                descuentoJudicial: parseFloat(resultado[0].DescuentoJudicial) || 0
             };
         }
         
         return {
             diasLaborados: 0,
-            subTotalPagar: 0
+            subTotalPagar: 0,
+            montoPagado: 0,
+            descuentoJudicial: 0
         };
         
     } catch (error) {
         console.error('Error al obtener datos de quincena anterior:', error);
         return {
             diasLaborados: 0,
-            subTotalPagar: 0
+            subTotalPagar: 0,
+            montoPagado: 0,
+            descuentoJudicial: 0
         };
-    }
-}
-// Función para aplicar estilos al Excel (corrección específica para centrar y negrita)
-function aplicarEstilosExcel(worksheet, planilla) {
-    const range = XLSX.utils.decode_range(worksheet['!ref']);
-    
-    // Configurar anchos de columna (con nuevas columnas)
-    worksheet['!cols'] = [
-        { wch: 8 },   // No.
-        { wch: 40 },  // Nombre Completo
-        { wch: 15 },  // Salario Diario
-        { wch: 15 },  // Días Laborados
-        { wch: 18 },  // Descuento Judicial
-        { wch: 15 },  // Total a Pagar
-        { wch: 18 },  // No. de Cuenta (nueva)
-        { wch: 25 }   // Observaciones (nueva)
-    ];
-    
-    // Aplicar estilos (similar al anterior pero con más columnas)
-    for (let R = range.s.r; R <= range.e.r; ++R) {
-        for (let C = range.s.c; C <= range.e.c; ++C) {
-            const cellAddress = XLSX.utils.encode_cell({ r: R, c: C });
-            
-            if (!worksheet[cellAddress]) {
-                worksheet[cellAddress] = { t: 's', v: '' };
-            }
-            
-            const cell = worksheet[cellAddress];
-            
-            // INFORMACIÓN DE LA PLANILLA (filas 1-4) - CENTRADO Y NEGRITA
-            if (R >= 1 && R <= 4) {
-                cell.s = {
-                    font: {
-                        name: "Calibri",
-                        sz: 12,
-                        bold: 1,
-                        color: { rgb: "000000" }
-                    },
-                    alignment: {
-                        horizontal: "center",
-                        vertical: "center"
-                    },
-                    border: {
-                        top: { style: "thin", color: { rgb: "000000" } },
-                        bottom: { style: "thin", color: { rgb: "000000" } },
-                        left: { style: "thin", color: { rgb: "000000" } },
-                        right: { style: "thin", color: { rgb: "000000" } }
-                    }
-                };
-            }
-            // TÍTULO PRINCIPAL (fila 0)
-            else if (R === 0) {
-                cell.s = {
-                    font: {
-                        name: "Calibri",
-                        sz: 14,
-                        bold: 1,
-                        color: { rgb: "000000" }
-                    },
-                    alignment: {
-                        horizontal: "center",
-                        vertical: "center"
-                    },
-                    border: {
-                        top: { style: "medium", color: { rgb: "000000" } },
-                        bottom: { style: "medium", color: { rgb: "000000" } },
-                        left: { style: "medium", color: { rgb: "000000" } },
-                        right: { style: "medium", color: { rgb: "000000" } }
-                    }
-                };
-            }
-            // ENCABEZADOS (fila 5)
-            else if (R === 5) {
-                cell.s = {
-                    font: {
-                        name: "Calibri",
-                        sz: 11,
-                        bold: 1,
-                        color: { rgb: "FFFFFF" }
-                    },
-                    alignment: {
-                        horizontal: "center",
-                        vertical: "center"
-                    },
-                    border: {
-                        top: { style: "thin", color: { rgb: "000000" } },
-                        bottom: { style: "thin", color: { rgb: "000000" } },
-                        left: { style: "thin", color: { rgb: "000000" } },
-                        right: { style: "thin", color: { rgb: "000000" } }
-                    },
-                    fill: {
-                        fgColor: { rgb: "D18A47" }
-                    }
-                };
-            }
-            // DATOS DE EMPLEADOS
-            else if (R > 5) {
-                const esFilaPar = (R - 6) % 2 === 0;
-                const fillColor = esFilaPar ? "FFFFFF" : "FDF2E9";
-                
-                const esTotalRow = cell.v === 'TOTAL:' || (R > 5 && worksheet[XLSX.utils.encode_cell({ r: R, c: 5 })]?.v === 'TOTAL:');
-                
-                if (esTotalRow && cell.v === 'TOTAL:') {
-                    cell.s = {
-                        font: {
-                            name: "Calibri",
-                            sz: 11,
-                            bold: 1,
-                            color: { rgb: "000000" }
-                        },
-                        alignment: {
-                            horizontal: "center",
-                            vertical: "center"
-                        },
-                        border: {
-                            top: { style: "thin", color: { rgb: "000000" } },
-                            bottom: { style: "thin", color: { rgb: "000000" } },
-                            left: { style: "thin", color: { rgb: "000000" } },
-                            right: { style: "thin", color: { rgb: "000000" } }
-                        }
-                    };
-                } else if (esTotalRow && C === 6 && typeof cell.v === 'number') {
-                    cell.s = {
-                        font: {
-                            name: "Calibri",
-                            sz: 11,
-                            bold: 1,
-                            color: { rgb: "00B050" }
-                        },
-                        alignment: {
-                            horizontal: "center",
-                            vertical: "center"
-                        },
-                        border: {
-                            top: { style: "thin", color: { rgb: "000000" } },
-                            bottom: { style: "thin", color: { rgb: "000000" } },
-                            left: { style: "thin", color: { rgb: "000000" } },
-                            right: { style: "thin", color: { rgb: "000000" } }
-                        },
-                        numFmt: "#,##0"
-                    };
-                } else if (!esTotalRow) {
-                    cell.s = {
-                        font: {
-                            name: "Calibri",
-                            sz: 10,
-                            bold: 0,
-                            color: { rgb: "000000" }
-                        },
-                        alignment: {
-                            horizontal: (C === 1 || C === 6 || C === 7) ? "left" : "center", // Nombre, No. Cuenta y Observaciones a la izquierda
-                            vertical: "center"
-                        },
-                        border: {
-                            top: { style: "thin", color: { rgb: "000000" } },
-                            bottom: { style: "thin", color: { rgb: "000000" } },
-                            left: { style: "thin", color: { rgb: "000000" } },
-                            right: { style: "thin", color: { rgb: "000000" } }
-                        },
-                        fill: {
-                            fgColor: { rgb: fillColor }
-                        }
-                    };
-                    
-                    if (C === 2 || C === 4 || C === 5) {
-                        cell.s.numFmt = "#,##0.0";
-                    }
-                } else {
-                    // Celdas vacías en fila de total
-                    cell.s = {
-                        border: {
-                            top: { style: "thin", color: { rgb: "000000" } },
-                            bottom: { style: "thin", color: { rgb: "000000" } },
-                            left: { style: "thin", color: { rgb: "000000" } },
-                            right: { style: "thin", color: { rgb: "000000" } }
-                        }
-                    };
-                }
-            }
-        }
-    }
-    
-    // Combinar celdas (ahora con 8 columnas)
-    worksheet['!merges'] = [
-        { s: { r: 0, c: 0 }, e: { r: 0, c: 7 } }, // Título
-        { s: { r: 1, c: 0 }, e: { r: 1, c: 7 } }, // Tipo de Quincena
-        { s: { r: 2, c: 0 }, e: { r: 2, c: 7 } }, // Período
-        { s: { r: 3, c: 0 }, e: { r: 3, c: 7 } }, // Centro de Trabajo
-        { s: { r: 4, c: 0 }, e: { r: 4, c: 7 } }  // Cantidad de Colaboradores
-    ];
-    
-    // Altura de filas
-    worksheet['!rows'] = [
-        { hpt: 25 }, // 0: Título
-        { hpt: 22 }, // 1: Tipo de quincena
-        { hpt: 22 }, // 2: Período
-        { hpt: 22 }, // 3: Centro de trabajo
-        { hpt: 22 }, // 4: Cantidad de colaboradores
-        { hpt: 25 }  // 5: Encabezados
-    ];
-    
-    for (let i = 6; i <= range.e.r; i++) {
-        if (!worksheet['!rows'][i]) {
-            worksheet['!rows'][i] = { hpt: 20 };
-        }
     }
 }
 // Eventos al cargar la página

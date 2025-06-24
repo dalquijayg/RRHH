@@ -35,46 +35,118 @@ async function connectionString() {
 async function buscarColaboradores(termino) {
     try {
         const connection = await connectionString();
+        
+        // Limpiar y preparar el término de búsqueda
+        const terminoLimpio = termino.trim().toLowerCase();
+        
+        // Query más robusta con múltiples formas de búsqueda
         const query = `
             SELECT 
                 personal.IdPersonal, 
-                CONCAT(personal.PrimerNombre, ' ', IFNULL(personal.SegundoNombre, ''), ' ', 
-                       IFNULL(personal.TercerNombre, ''), ' ', personal.PrimerApellido, ' ', 
-                       IFNULL(personal.SegundoApellido, '')) AS NombreCompleto,
-                departamentos.NombreDepartamento,
+                TRIM(CONCAT(
+                    COALESCE(personal.PrimerNombre, ''), ' ', 
+                    COALESCE(personal.SegundoNombre, ''), ' ', 
+                    COALESCE(personal.TercerNombre, ''), ' ', 
+                    COALESCE(personal.PrimerApellido, ''), ' ', 
+                    COALESCE(personal.SegundoApellido, '')
+                )) AS NombreCompleto,
+                COALESCE(departamentos.NombreDepartamento, 'Sin Departamento') AS NombreDepartamento,
                 CASE 
                     WHEN FotosPersonal.Foto IS NOT NULL THEN CONCAT('data:image/jpeg;base64,', TO_BASE64(FotosPersonal.Foto))
                     ELSE NULL 
                 END AS FotoBase64,
                 CASE
-                    WHEN planillas.EsCapital = 1 THEN salariosbase.SalarioBaseGuate
-                    ELSE salariosbase.SalarioBase
-                END AS SalarioBase
+                    WHEN planillas.EsCapital = 1 THEN COALESCE(salariosbase.SalarioBaseGuate, 0)
+                    ELSE COALESCE(salariosbase.SalarioBase, 0)
+                END AS SalarioBase,
+                personal.DPI,
+                personal.Estado,
+                personal.PrimerNombre,
+                personal.PrimerApellido
             FROM
                 personal
-                INNER JOIN planillas ON personal.IdPlanilla = planillas.IdPlanilla
-                INNER JOIN departamentos ON personal.IdSucuDepa = departamentos.IdDepartamento
+                LEFT JOIN planillas ON personal.IdPlanilla = planillas.IdPlanilla
+                LEFT JOIN departamentos ON personal.IdSucuDepa = departamentos.IdDepartamento
                 LEFT JOIN FotosPersonal ON personal.IdPersonal = FotosPersonal.IdPersonal
                 LEFT JOIN salariosbase ON salariosbase.Anyo = YEAR(CURDATE())
             WHERE
                 personal.Estado IN (1, 5) AND
                 (
-                    personal.DPI LIKE ? OR
-                    CONCAT(personal.PrimerNombre, ' ', IFNULL(personal.SegundoNombre, ''), ' ', 
-                           IFNULL(personal.TercerNombre, ''), ' ', personal.PrimerApellido, ' ', 
-                           IFNULL(personal.SegundoApellido, '')) LIKE ?
+                    -- Búsqueda por DPI (exacta y parcial)
+                    REPLACE(COALESCE(personal.DPI, ''), ' ', '') LIKE ? OR
+                    REPLACE(COALESCE(personal.DPI, ''), '-', '') LIKE ? OR
+                    
+                    -- Búsqueda por nombre completo
+                    LOWER(TRIM(CONCAT(
+                        COALESCE(personal.PrimerNombre, ''), ' ', 
+                        COALESCE(personal.SegundoNombre, ''), ' ', 
+                        COALESCE(personal.TercerNombre, ''), ' ', 
+                        COALESCE(personal.PrimerApellido, ''), ' ', 
+                        COALESCE(personal.SegundoApellido, '')
+                    ))) LIKE ? OR
+                    
+                    -- Búsqueda por primer nombre
+                    LOWER(COALESCE(personal.PrimerNombre, '')) LIKE ? OR
+                    
+                    -- Búsqueda por primer apellido
+                    LOWER(COALESCE(personal.PrimerApellido, '')) LIKE ? OR
+                    
+                    -- Búsqueda por cualquier parte del nombre
+                    LOWER(COALESCE(personal.PrimerNombre, '')) LIKE ? OR
+                    LOWER(COALESCE(personal.SegundoNombre, '')) LIKE ? OR
+                    LOWER(COALESCE(personal.TercerNombre, '')) LIKE ? OR
+                    LOWER(COALESCE(personal.PrimerApellido, '')) LIKE ? OR
+                    LOWER(COALESCE(personal.SegundoApellido, '')) LIKE ?
                 )
-            LIMIT 10
+            ORDER BY 
+                -- Priorizar coincidencias exactas
+                CASE 
+                    WHEN LOWER(COALESCE(personal.PrimerNombre, '')) = ? THEN 1
+                    WHEN LOWER(COALESCE(personal.PrimerApellido, '')) = ? THEN 2
+                    WHEN REPLACE(COALESCE(personal.DPI, ''), ' ', '') = ? THEN 3
+                    ELSE 4
+                END,
+                personal.PrimerNombre, 
+                personal.PrimerApellido
+            LIMIT 15
         `;
         
-        const searchTerm = `%${termino}%`;
-        const result = await connection.query(query, [searchTerm, searchTerm]);
+        // Preparar los términos de búsqueda
+        const searchTermDPI = `%${terminoLimpio.replace(/\s+/g, '').replace(/-/g, '')}%`;
+        const searchTermName = `%${terminoLimpio}%`;
+        const searchTermExact = terminoLimpio;
+        const searchTermDPIExact = terminoLimpio.replace(/\s+/g, '').replace(/-/g, '');
+        
+        console.log('Término de búsqueda:', terminoLimpio);
+        console.log('Query ejecutándose...');
+        
+        const result = await connection.query(query, [
+            searchTermDPI,      // DPI con espacios
+            searchTermDPI,      // DPI con guiones
+            searchTermName,     // Nombre completo
+            searchTermName,     // Primer nombre
+            searchTermName,     // Primer apellido
+            searchTermName,     // Primer nombre (repetido para LIKE)
+            searchTermName,     // Segundo nombre
+            searchTermName,     // Tercer nombre
+            searchTermName,     // Primer apellido (repetido para LIKE)
+            searchTermName,     // Segundo apellido
+            searchTermExact,    // Para ORDER BY - primer nombre exacto
+            searchTermExact,    // Para ORDER BY - primer apellido exacto
+            searchTermDPIExact  // Para ORDER BY - DPI exacto
+        ]);
+        
         await connection.close();
+        
+        console.log(`Resultados encontrados: ${result.length}`);
+        if (result.length > 0) {
+            console.log('Primer resultado:', result[0]);
+        }
         
         return result;
     } catch (error) {
-        console.error('Error al buscar colaboradores:', error);
-        mostrarError('Error al buscar colaboradores', 'No se pudo realizar la búsqueda. Por favor intente nuevamente.');
+        console.error('Error detallado en búsqueda:', error);
+        mostrarError('Error al buscar colaboradores', `Error: ${error.message}`);
         return [];
     }
 }

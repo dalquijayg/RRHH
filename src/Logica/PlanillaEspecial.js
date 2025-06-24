@@ -98,7 +98,6 @@ async function getConnection() {
         await connection.query('SET NAMES utf8mb4');
         return connection;
     } catch (error) {
-        console.error('Error de conexión:', error);
         mostrarNotificacion('Error de conexión a la base de datos', 'error');
         throw error;
     }
@@ -262,7 +261,6 @@ async function cargarDepartamentos() {
         
         return result;
     } catch (error) {
-        console.error('Error al cargar departamentos:', error);
         mostrarNotificacion('Error al cargar los departamentos', 'error');
         throw error;
     }
@@ -309,7 +307,6 @@ async function cargarTiposPersonal() {
         
         return result;
     } catch (error) {
-        console.error('Error al cargar tipos de personal:', error);
         mostrarNotificacion('Error al cargar los tipos de personal', 'error');
         throw error;
     }
@@ -340,8 +337,6 @@ async function verificarDiaEspecial(fecha, idDepartamento) {
         const dia = fechaObj.getDate(); // Día del mes (1-31)
         const mes = fechaObj.getMonth() + 1; // Mes (1-12)
         
-        console.log(`Verificando día especial exacto: ${dia}/${mes} para departamento: ${idDepartamento}`);
-        
         // Primero buscar registros específicos para este departamento
         const queryDepartamento = `
             SELECT Dia, Mes, Descripcion, IdDepartamento 
@@ -357,7 +352,6 @@ async function verificarDiaEspecial(fecha, idDepartamento) {
         
         // Si encontramos un registro específico para este departamento
         if (resultDepartamento && resultDepartamento.length > 0) {
-            console.log("Encontrado día especial específico para este departamento", resultDepartamento[0]);
             await connection.close();
             return {
                 esDiaEspecial: true,
@@ -382,7 +376,6 @@ async function verificarDiaEspecial(fecha, idDepartamento) {
         
         // Si encontramos un día especial global
         if (resultGlobal && resultGlobal.length > 0) {
-            console.log("Encontrado día especial global", resultGlobal[0]);
             return {
                 esDiaEspecial: true,
                 descripcion: resultGlobal[0].Descripcion,
@@ -391,7 +384,6 @@ async function verificarDiaEspecial(fecha, idDepartamento) {
         }
         
         // Si no encontramos ningún día especial
-        console.log("No se encontró ningún día especial");
         return {
             esDiaEspecial: false,
             descripcion: '',
@@ -399,7 +391,6 @@ async function verificarDiaEspecial(fecha, idDepartamento) {
         };
         
     } catch (error) {
-        console.error('Error al verificar día especial:', error);
         mostrarNotificacion('Error al verificar si es día especial', 'error');
         return {
             esDiaEspecial: false,
@@ -411,7 +402,6 @@ async function verificarDiaEspecial(fecha, idDepartamento) {
 
 // Función para determinar el tipo de fecha y el pago aplicable
 async function determinarTipoFecha(fecha, idDepartamento) {
-    // Verificar si la fecha ya está en formato adecuado
     const fechaNormalizada = fecha.includes('T') ? fecha : `${fecha}T00:00:00`;
     
     // Verificar si es domingo
@@ -426,33 +416,64 @@ async function determinarTipoFecha(fecha, idDepartamento) {
     esDomingo = domingo;
     esDiaEspecial = diaEspecial;
     
-    // Determinar el pago aplicable
+    // 🆕 DETERMINAR TIPO DE PLANILLA NUMÉRICO
+    let tipoPlanillaNumerico = 0;
+    let tituloPDF = "";
+    let tipoPago = "";
+    
     if (diaEspecial) {
-        pagoAplicable = 'especial';
+        if (resultadoDiaEspecial.esGlobal === true) {
+            // 🌍 Día global (asueto) = 2
+            tipoPlanillaNumerico = 2;
+            pagoAplicable = 'especial';
+            tituloPDF = "PLANILLA POR ASUETO";
+            tipoPago = `Pago por Asueto (${descripcionDiaEspecial})`;
+        } else {
+            // 🎯 Día específico del departamento (feriado) = 3
+            tipoPlanillaNumerico = 3;
+            pagoAplicable = 'especial';
+            tituloPDF = "PLANILLA POR FERIADO";
+            tipoPago = `Pago por Feriado (${descripcionDiaEspecial})`;
+        }
+        
         return {
             tipo: 'especial',
             icono: 'calendar-check',
-            mensaje: `${descripcionDiaEspecial}`,
+            mensaje: descripcionDiaEspecial,
             iconoColor: 'var(--color-info)',
-            tipoPago: `Pago Día Especial (${descripcionDiaEspecial})`
+            tipoPago: tipoPago,
+            tituloPDF: tituloPDF,
+            tipoPlanillaNumerico: tipoPlanillaNumerico  // 🆕 NUEVO CAMPO
         };
     } else if (domingo) {
+        // 📅 Domingo = 1
+        tipoPlanillaNumerico = 1;
         pagoAplicable = 'dominical';
+        tituloPDF = "PLANILLA DOMINICAL";
+        tipoPago = 'Pago Dominical';
+        
         return {
             tipo: 'dominical',
             icono: 'calendar-day',
             mensaje: 'Domingo',
             iconoColor: 'var(--color-warning)',
-            tipoPago: 'Pago Dominical'
+            tipoPago: tipoPago,
+            tituloPDF: tituloPDF,
+            tipoPlanillaNumerico: tipoPlanillaNumerico  // 🆕 NUEVO CAMPO
         };
     } else {
+        // ❌ Día regular = 0 (no aplica)
+        tipoPlanillaNumerico = 0;
         pagoAplicable = null;
+        
         return {
             tipo: 'regular',
             icono: 'calendar-times',
             mensaje: 'Día Regular (No Aplica)',
             iconoColor: 'var(--color-danger)',
-            tipoPago: 'No Aplica'
+            tipoPago: 'No Aplica',
+            tituloPDF: '',
+            tipoPlanillaNumerico: tipoPlanillaNumerico  // 🆕 NUEVO CAMPO
         };
     }
 }
@@ -502,7 +523,6 @@ async function cargarPersonalDepartamento(idDepartamento, idTipoPersonal) {
         
         return personalData;
     } catch (error) {
-        console.error('Error al cargar personal:', error);
         mostrarNotificacion('Error al cargar el personal del departamento', 'error');
         return [];
     }
@@ -1074,7 +1094,6 @@ async function aplicarFiltros(e) {
         mostrarNotificacion(`Personal cargado para: ${nombreDepartamento}`, 'success');
         
     } catch (error) {
-        console.error('Error al aplicar filtros:', error);
         mostrarNotificacion('Error al cargar los datos. Intente nuevamente.', 'error');
         
         // Mostrar mensaje de error en la tabla
@@ -1248,7 +1267,7 @@ function mostrarConfirmacionPlanilla() {
         // Actualizar información en el modal
         document.getElementById('confirmDepartamento').textContent = nombreDepartamento;
         document.getElementById('confirmTipoPersonal').textContent = tipoPersonalTexto;
-        document.getElementById('confirmFecha').textContent = fechaSeleccionada;
+        document.getElementById('confirmFecha').textContent = fechaFormateada;
         document.getElementById('confirmTipoPago').textContent = pagoAplicable === 'dominical' ? 'Pago Dominical' : 'Pago Día Especial';
         document.getElementById('confirmTotalPersonal').textContent = totalColaboradores;
         document.getElementById('confirmTotalPago').textContent = `Q ${totalMonto.toFixed(2)}`;
@@ -1268,7 +1287,7 @@ function cargarLogo() {
         logoImg.style.display = 'none';
         document.body.appendChild(logoImg);
     } catch (error) {
-        console.warn('No se pudo precargar el logo:', error);
+        mostrarNotificacion('Error al cargar el logo', 'error');
     }
 }
 
@@ -1306,6 +1325,10 @@ async function generarPlanilla() {
         const nombreDepartamento = departamentoSelect.options[departamentoSelect.selectedIndex].text;
         const fecha = fechaInput.value;
         
+        // 🆕 OBTENER INFORMACIÓN COMPLETA DEL TIPO DE FECHA
+        const infoTipoFecha = await determinarTipoFecha(fecha, idDepartamento);
+        const tipoPlanillaNumerico = infoTipoFecha.tipoPlanillaNumerico;
+        
         // Verificar si es día especial o dominical
         if (!esDiaEspecial && !esDomingo) {
             throw new Error('La fecha seleccionada no es válida para generar planilla especial');
@@ -1337,6 +1360,10 @@ async function generarPlanilla() {
             return total + (tipoPlanilla === 'dominical' ? persona.PagosDominicales : persona.PagosDiasEspeciales);
         }, 0);
         
+        // 🆕 GENERAR CORRELATIVO ANTES DE INSERTAR
+        updateProgress(40, 'Generando número de correlativo...');
+        const correlativo = await generarCorrelativo(tipoPlanillaNumerico, fecha);
+        
         // Preparar datos para la base de datos
         updateProgress(50, 'Guardando planilla...');
         
@@ -1353,16 +1380,14 @@ async function generarPlanilla() {
         let connection;
         try {
             connection = await getConnection();
-            console.log('Conexión a la base de datos establecida correctamente');
         } catch (connectionError) {
-            console.error('Error al establecer conexión a la base de datos:', connectionError);
             throw new Error('No se pudo establecer conexión a la base de datos');
         }
         
         // Intentar la inserción de la planilla paso a paso
         let idPlanilla;
         try {
-            // 1. Probemos primero con una consulta simplificada con menos campos
+            // 🔄 CONSULTA ACTUALIZADA CON CORRELATIVO Y TIPO DE PLANILLA
             const insertPlanillaQuery = `
                 INSERT INTO PlanillasEspeciales (
                     IdUsuario, 
@@ -1373,8 +1398,10 @@ async function generarPlanilla() {
                     MontoTotalGasto,
                     FechaLaboral, 
                     DescripcionLaboral,
-                    ContieneExternos
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ContieneExternos,
+                    TipoPlanilla,
+                    Correlativo
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             `;
             
             const queryParams = [
@@ -1386,45 +1413,40 @@ async function generarPlanilla() {
                 montoTotal,
                 fecha, // Usar fecha directamente sin formatear
                 descripcionLaboral,
-                contieneExternos
+                contieneExternos,
+                tipoPlanillaNumerico,  // 🆕 NUEVO PARÁMETRO
+                correlativo            // 🆕 NUEVO PARÁMETRO
             ];
             
             // Ejecutar la inserción
             const resultInsert = await connection.query(insertPlanillaQuery, queryParams);
+            
             // 2. Obtener el ID insertado con LAST_INSERT_ID()
-            console.log('Intentando obtener ID con LAST_INSERT_ID()');
             const lastIdQuery = `SELECT LAST_INSERT_ID() as ultimoId`;
             const idResult = await connection.query(lastIdQuery);
-            console.log('Resultado de LAST_INSERT_ID():', idResult);
             
             if (idResult && idResult.length > 0 && idResult[0].ultimoId) {
                 idPlanilla = idResult[0].ultimoId;
-                console.log('ID obtenido con LAST_INSERT_ID():', idPlanilla);
             } else {
-                // 3. Método alternativo - buscar por departamento y fecha
-                console.log('LAST_INSERT_ID() no devolvió resultado, usando método alternativo');
+                // 3. Método alternativo - buscar por correlativo
                 const busquedaQuery = `
                     SELECT IdPlanillaEspecial 
                     FROM PlanillasEspeciales 
-                    WHERE IdDepartamento = ? 
-                    AND FechaLaboral = ?
+                    WHERE Correlativo = ?
                     ORDER BY IdPlanillaEspecial DESC
                     LIMIT 1
                 `;
                 
-                const busquedaResult = await connection.query(busquedaQuery, [idDepartamento, fecha]);
-                console.log('Resultado de búsqueda por departamento y fecha:', busquedaResult);
+                const busquedaResult = await connection.query(busquedaQuery, [correlativo]);
                 
                 if (busquedaResult && busquedaResult.length > 0) {
                     idPlanilla = busquedaResult[0].IdPlanillaEspecial;
-                    console.log('ID obtenido con método alternativo:', idPlanilla);
                 } else {
                     throw new Error('No se pudo obtener el ID de la planilla insertada');
                 }
             }
             
         } catch (insertError) {
-            console.error('Error específico al insertar planilla:', insertError);
             throw new Error(`Error al insertar planilla: ${insertError.message}`);
         }
         
@@ -1469,12 +1491,6 @@ async function generarPlanilla() {
                     esExterno,
                     departamentoOrigen
                 ];
-                
-                console.log(`Insertando detalle para colaborador ${i+1}/${personalSeleccionado.length}:`, {
-                    idPersonal: persona.IdPersonal,
-                    nombre: persona.NombreCompleto
-                });
-                
                 await connection.query(insertDetalleQuery, detalleParams);
                 
                 // Actualizar progreso
@@ -1482,30 +1498,25 @@ async function generarPlanilla() {
                 updateProgress(progreso, `Registrando personal (${i + 1} de ${personalSeleccionado.length})...`);
                 
             } catch (detalleError) {
-                console.error(`Error al insertar detalle para colaborador ${i+1}:`, detalleError);
-                // Continuamos con el siguiente colaborador en lugar de abortar
             }
         }
         
         // Cerrar conexión
         try {
             await connection.close();
-            console.log('Conexión a la base de datos cerrada correctamente');
         } catch (closeError) {
-            console.error('Error al cerrar conexión:', closeError);
         }
         
-        // Finalizar el proceso de guardado
-        updateProgress(92, 'Planilla guardada con éxito. Generando documento oficial...');
+        // 🔄 ACTUALIZAR PROGRESO CON CORRELATIVO
+        updateProgress(92, `Planilla ${correlativo} guardada con éxito. Generando documento oficial...`);
         
-        // Generar PDF oficial con el ID de la planilla
-        await generarPDFOficial(idPlanilla);
+        // 🔄 GENERAR PDF OFICIAL CON EL CORRELATIVO
+        await generarPDFOficial(idPlanilla, correlativo);
         
         // Resetear la ventana después de completar todo el proceso
         resetearVentana();
         
     } catch (error) {
-        console.error('Error al generar planilla:', error);
         
         // Actualizar modal de proceso
         updateProgress(100, `Error al generar planilla: ${error.message}`);
@@ -1524,7 +1535,7 @@ async function generarPlanilla() {
         }, 1000);
     }
 }
-async function generarPDFOficial(idPlanilla) {
+async function generarPDFOficial(idPlanilla, correlativo = null) {
     try {
         // Mostrar modal de proceso
         mostrarModal(processModal);
@@ -1534,6 +1545,24 @@ async function generarPDFOficial(idPlanilla) {
         document.getElementById('progressText').textContent = '0%';
         
         updateProgress(20, 'Configurando documento PDF...');
+        
+        // 🆕 SI NO SE PROPORCIONA CORRELATIVO, BUSCARLO EN LA BD
+        let numeroMostrar = correlativo;
+        let tipoPlanillaNumerico = 0;
+        
+        if (!numeroMostrar) {
+            const connection = await getConnection();
+            const queryCorrelativo = `
+                SELECT Correlativo, TipoPlanilla 
+                FROM PlanillasEspeciales 
+                WHERE IdPlanillaEspecial = ?
+            `;
+            const resultCorrelativo = await connection.query(queryCorrelativo, [idPlanilla]);
+            await connection.close();
+            
+            numeroMostrar = resultCorrelativo[0]?.Correlativo || idPlanilla;
+            tipoPlanillaNumerico = resultCorrelativo[0]?.TipoPlanilla || 0;
+        }
         
         // Obtener información para el PDF
         const idDepartamento = departamentoSelect.value;
@@ -1565,30 +1594,33 @@ async function generarPDFOficial(idPlanilla) {
         // Crear la fecha formateada con el día de la semana
         const fechaFormateada = `${diasSemana[diaSemana]}, ${dia} de ${meses[mes-1]} de ${anio}`;
         
-        // Determinar el título del documento según el tipo de día especial
+        // 🔄 DETERMINAR EL TÍTULO BASADO EN TIPO DE PLANILLA O INFORMACIÓN ACTUAL
         let tituloPDF = "PLANILLA ESPECIAL - OFICIAL"; // Título por defecto
         
-        // Verificar si es domingo o día especial y ajustar el título
-        if (esDomingo) {
-            tituloPDF = "PLANILLA DOMINICAL";
-            console.log("Estableciendo título: PLANILLA DOMINICAL");
-        } else if (esDiaEspecial) {
-            // Obtener la información del día especial nuevamente para confirmar si es global o específico
-            const resultadoDiaEspecial = await verificarDiaEspecial(fechaSeleccionada, idDepartamento);
-            
-            console.log('Resultado día especial para título:', JSON.stringify(resultadoDiaEspecial, null, 2));
-            
-            // Verificación explícita y detallada para depuración
-            if (resultadoDiaEspecial.esGlobal === true) {
-                tituloPDF = "PLANILLA POR ASUETO";
-                console.log("Es un día global (IdDepartamento=0). Estableciendo título: PLANILLA POR ASUETO");
-            } else {
-                tituloPDF = "PLANILLA POR FERIADO";
-                console.log("Es un día específico para este departamento. Estableciendo título: PLANILLA POR FERIADO");
+        if (tipoPlanillaNumerico > 0) {
+            // Si tenemos el tipo de planilla de la BD, usarlo
+            const titulos = {
+                1: "PLANILLA DOMINICAL",
+                2: "PLANILLA POR ASUETO", 
+                3: "PLANILLA POR FERIADO"
+            };
+            tituloPDF = titulos[tipoPlanillaNumerico] || tituloPDF;
+        } else {
+            // Fallback: usar la lógica original
+            if (esDomingo) {
+                tituloPDF = "PLANILLA DOMINICAL";
+            } else if (esDiaEspecial) {
+                // Obtener la información del día especial nuevamente para confirmar si es global o específico
+                const resultadoDiaEspecial = await verificarDiaEspecial(fechaSeleccionada, idDepartamento);
+                
+                // Verificación explícita y detallada para depuración
+                if (resultadoDiaEspecial.esGlobal === true) {
+                    tituloPDF = "PLANILLA POR ASUETO";
+                } else {
+                    tituloPDF = "PLANILLA POR FERIADO";
+                }
             }
         }
-        
-        console.log("Título final del PDF:", tituloPDF);
         
         // Determinar tipo de pago
         const tipoPago = pagoAplicable === 'dominical' ? 'Pago Dominical' : 'Pago Día Especial';
@@ -1656,16 +1688,16 @@ async function generarPDFOficial(idPlanilla) {
         const colMonto = margenIzquierdo + anchoUtil * 0.60; // Ajustar monto (60% en lugar de 65%)
         const colFirma = margenIzquierdo + anchoUtil * 0.75; // Iniciar firma antes (75% en lugar de 80%)
         
-        // Configurar encabezado con más espacio - ahora con número de planilla
+        // 🔄 CONFIGURAR ENCABEZADO CON CORRELATIVO
         doc.setFontSize(18); 
         doc.setFont('helvetica', 'bold');
         doc.text(tituloPDF, 105, 25, { align: 'center' });
         
-        // Dibujar una caja de énfasis para el número de planilla
+        // 🔄 MOSTRAR CORRELATIVO EN LUGAR DE ID
         doc.setFillColor(230, 230, 250); // Color lavanda claro
         doc.rect(65, 30, 80, 10, 'F');
         doc.setFontSize(12);
-        doc.text(`Número de Planilla: ${idPlanilla}`, 105, 37, { align: 'center' });
+        doc.text(`Número de Planilla: ${numeroMostrar}`, 105, 37, { align: 'center' });
         
         // Agregar logo con mejor tamaño
         try {
@@ -1674,7 +1706,6 @@ async function generarPDFOficial(idPlanilla) {
             if (logoDivisionActual) {
                 // Si tenemos un logo de la división, usamos ese
                 logoSrc = logoDivisionActual;
-                console.log('Usando logo de la división en el PDF');
             } else {
                 // Si no, intentamos usar el logo predeterminado
                 const logoImg = document.getElementById('logoImage') || document.querySelector('.sidebar-logo');
@@ -1685,7 +1716,6 @@ async function generarPDFOficial(idPlanilla) {
                     canvas.height = logoImg.height;
                     context.drawImage(logoImg, 0, 0, logoImg.width, logoImg.height);
                     logoSrc = canvas.toDataURL('image/png');
-                    console.log('Usando logo predeterminado en el PDF');
                 }
             }
             
@@ -1706,12 +1736,9 @@ async function generarPDFOficial(idPlanilla) {
                 
                 // Agregar la imagen con las dimensiones corregidas
                 doc.addImage(logoSrc, 'PNG', 25, 10, imgWidth, imgHeight);
-                console.log('Logo agregado al PDF con proporción correcta', { width: imgWidth, height: imgHeight });
             } else {
-                console.warn('No se pudo obtener ningún logo para el PDF');
             }
         } catch (e) {
-            console.error('Error al agregar logo al PDF:', e);
         }
         
         // Información del departamento y fecha con mejor espaciado
@@ -1744,7 +1771,7 @@ async function generarPDFOficial(idPlanilla) {
             doc.setFontSize(10);
             doc.setFont('helvetica', 'italic');
             doc.setTextColor(100, 100, 100);
-            doc.text(`${tituloPDF} #${idPlanilla} - Página ${paginaActual}`, 210 - margenDerecho, 10, { align: 'right' });
+            doc.text(`${tituloPDF} #${numeroMostrar} - Página ${paginaActual}`, 210 - margenDerecho, 10, { align: 'right' });
             doc.setTextColor(0, 0, 0);
             doc.setFont('helvetica', 'normal');
         };
@@ -1849,191 +1876,191 @@ async function generarPDFOficial(idPlanilla) {
             // Líneas horizontales
             doc.line(margenIzquierdo, yPosition - 6, margenIzquierdo + anchoUtil, yPosition - 6);
             doc.line(margenIzquierdo, yPosition + 9, margenIzquierdo + anchoUtil, yPosition + 9); // +9 en lugar de +4
-            
-            // Líneas verticales
-            doc.line(margenIzquierdo, yPosition - 6, margenIzquierdo, yPosition + 9);
-            doc.line(colNombre - 5, yPosition - 6, colNombre - 5, yPosition + 9);
-            doc.line(colPuesto - 5, yPosition - 6, colPuesto - 5, yPosition + 9);
-            doc.line(colMonto - 5, yPosition - 6, colMonto - 5, yPosition + 9);
-            doc.line(colFirma - 5, yPosition - 6, colFirma - 5, yPosition + 9);
-            doc.line(margenIzquierdo + anchoUtil, yPosition - 6, margenIzquierdo + anchoUtil, yPosition + 9);
-            
-            // Agregar el número secuencial (índice + 1)
-            doc.setFont('helvetica', 'bold');
-            doc.text((index + 1).toString(), colNum, yPosition + 1, { align: 'center' });
-            
-            // Dividir el nombre completo en apellidos y nombres
-            // Asumiendo formato: "Apellido1 Apellido2, Nombre1 Nombre2"
-            let apellidos = '';
-            let nombres = '';
-            
-            if (persona.NombreCompleto.includes(',')) {
-                // Si ya está en formato "Apellidos, Nombres"
-                const partes = persona.NombreCompleto.split(',');
-                apellidos = partes[0].trim();
-                nombres = partes.length > 1 ? partes[1].trim() : '';
-            } else {
-                // Si está en otro formato, intentar dividirlo
-                const nombreCompleto = persona.NombreCompleto;
-                const palabras = nombreCompleto.split(' ');
-                
-                if (palabras.length >= 3) {
-                    // Asumimos que los dos primeros son apellidos
-                    apellidos = palabras.slice(0, 2).join(' ');
-                    nombres = palabras.slice(2).join(' ');
-                } else if (palabras.length === 2) {
-                    // Un apellido y un nombre
-                    apellidos = palabras[0];
-                    nombres = palabras[1];
-                } else {
-                    // Solo hay una palabra, la usamos como apellido
-                    apellidos = nombreCompleto;
-                    nombres = '';
-                }
-            }
-            
-            // Acortar si son muy largos
-            if (apellidos.length > 35) {
-                apellidos = apellidos.substring(0, 32) + '...';
-            }
-            
-            if (nombres.length > 35) {
-                nombres = nombres.substring(0, 32) + '...';
-            }
-            
-            // Escribir apellidos en la primera línea
-            doc.setFont('helvetica', 'bold');
-            doc.text(apellidos, colNombre, yPosition - 1);
-            
-            // Escribir nombres en la segunda línea
-            doc.setFont('helvetica', 'normal');
-            doc.text(nombres, colNombre, yPosition + 4);
-            
-            // Cortar puesto si es muy largo
-            let puestoMostrar = persona.NombrePuesto;
-            if (puestoMostrar.length > 25) {
-                puestoMostrar = puestoMostrar.substring(0, 22) + '...';
-            }
-            doc.text(puestoMostrar, colPuesto, yPosition + 1); // Centrado verticalmente
-            
-            // Alinear monto a la derecha
-            doc.text(`Q ${montoAplicable.toFixed(2)}`, colMonto + 15, yPosition + 1, { align: 'right' });
+           
+           // Líneas verticales
+           doc.line(margenIzquierdo, yPosition - 6, margenIzquierdo, yPosition + 9);
+           doc.line(colNombre - 5, yPosition - 6, colNombre - 5, yPosition + 9);
+           doc.line(colPuesto - 5, yPosition - 6, colPuesto - 5, yPosition + 9);
+           doc.line(colMonto - 5, yPosition - 6, colMonto - 5, yPosition + 9);
+           doc.line(colFirma - 5, yPosition - 6, colFirma - 5, yPosition + 9);
+           doc.line(margenIzquierdo + anchoUtil, yPosition - 6, margenIzquierdo + anchoUtil, yPosition + 9);
+           
+           // Agregar el número secuencial (índice + 1)
+           doc.setFont('helvetica', 'bold');
+           doc.text((index + 1).toString(), colNum, yPosition + 1, { align: 'center' });
+           
+           // Dividir el nombre completo en apellidos y nombres
+           // Asumiendo formato: "Apellido1 Apellido2, Nombre1 Nombre2"
+           let apellidos = '';
+           let nombres = '';
+           
+           if (persona.NombreCompleto.includes(',')) {
+               // Si ya está en formato "Apellidos, Nombres"
+               const partes = persona.NombreCompleto.split(',');
+               apellidos = partes[0].trim();
+               nombres = partes.length > 1 ? partes[1].trim() : '';
+           } else {
+               // Si está en otro formato, intentar dividirlo
+               const nombreCompleto = persona.NombreCompleto;
+               const palabras = nombreCompleto.split(' ');
+               
+               if (palabras.length >= 3) {
+                   // Asumimos que los dos primeros son apellidos
+                   apellidos = palabras.slice(0, 2).join(' ');
+                   nombres = palabras.slice(2).join(' ');
+               } else if (palabras.length === 2) {
+                   // Un apellido y un nombre
+                   apellidos = palabras[0];
+                   nombres = palabras[1];
+               } else {
+                   // Solo hay una palabra, la usamos como apellido
+                   apellidos = nombreCompleto;
+                   nombres = '';
+               }
+           }
+           
+           // Acortar si son muy largos
+           if (apellidos.length > 35) {
+               apellidos = apellidos.substring(0, 32) + '...';
+           }
+           
+           if (nombres.length > 35) {
+               nombres = nombres.substring(0, 32) + '...';
+           }
+           
+           // Escribir apellidos en la primera línea
+           doc.setFont('helvetica', 'bold');
+           doc.text(apellidos, colNombre, yPosition - 1);
+           
+           // Escribir nombres en la segunda línea
+           doc.setFont('helvetica', 'normal');
+           doc.text(nombres, colNombre, yPosition + 4);
+           
+           // Cortar puesto si es muy largo
+           let puestoMostrar = persona.NombrePuesto;
+           if (puestoMostrar.length > 25) {
+               puestoMostrar = puestoMostrar.substring(0, 22) + '...';
+           }
+           doc.text(puestoMostrar, colPuesto, yPosition + 1); // Centrado verticalmente
+           
+           // Alinear monto a la derecha
+           doc.text(`Q ${montoAplicable.toFixed(2)}`, colMonto + 15, yPosition + 1, { align: 'right' });
 
-            // Aumentamos el incremento de posición Y para cada fila (15px en lugar de 10px)
-            yPosition += 15;
-        });
+           // Aumentamos el incremento de posición Y para cada fila (15px en lugar de 10px)
+           yPosition += 15;
+       });
 
-        // No mostramos subtotales por tipo, solo el total general
-        yPosition += 5;
+       // No mostramos subtotales por tipo, solo el total general
+       yPosition += 5;
 
-        // Línea separadora
-        doc.setDrawColor(100, 100, 100);
-        doc.setLineWidth(0.5);
-        doc.line(margenIzquierdo, yPosition, margenIzquierdo + anchoUtil, yPosition);
+       // Línea separadora
+       doc.setDrawColor(100, 100, 100);
+       doc.setLineWidth(0.5);
+       doc.line(margenIzquierdo, yPosition, margenIzquierdo + anchoUtil, yPosition);
 
-        // Mostrar total general
-        yPosition += 10;
-        doc.setFont('helvetica', 'bold');
-        doc.setFontSize(11);
-        doc.text(`Total de Colaboradores: ${totalColaboradores}`, margenIzquierdo + 5, yPosition);
-        doc.text(`Total a Pagar: Q ${totalMonto.toFixed(2)}`, colMonto - 25, yPosition);
-        
-        // Agregar pie de página con información del usuario que genera y sellos oficiales
-        const userData = JSON.parse(localStorage.getItem('userData'));
-        const nombreUsuario = userData?.NombreCompleto || 'Usuario Sistema';
-        
-        // Verificar si estamos en la última página, si no, agregar página
-        if (yPosition > 230) {
-            doc.addPage();
-            paginaActual++;
-            yPosition = 20;
-            agregarEncabezado();
-        }
-        
-        // Espacio para firmas de autorización - AUMENTADO
-        yPosition += 20;
-        doc.setFont('helvetica', 'normal');
-        doc.setFontSize(10);
-        
-        // Firmas de autorización - Aumentamos altura y ancho del espacio para firma
-        const anchoFirma = anchoUtil / 3;
-        
-        // Primera firma (Generado por)
-        doc.setDrawColor(100, 100, 100);
-        // Línea de firma más ancha (10 unidades más a cada lado)
-        doc.line(margenIzquierdo + 5, yPosition + 35, margenIzquierdo + anchoFirma - 5, yPosition + 35);
-        doc.text('Generado por:', margenIzquierdo + anchoFirma/2, yPosition + 5, {align: 'center'});
-        doc.text(nombreUsuario, margenIzquierdo + anchoFirma/2, yPosition + 45, {align: 'center'});
-        
-        // Segunda firma (Revisado por)
-        // Línea de firma más ancha
-        doc.line(margenIzquierdo + anchoFirma + 5, yPosition + 35, margenIzquierdo + anchoFirma*2 - 5, yPosition + 35);
-        doc.text('Entregado por:', margenIzquierdo + anchoFirma*1.5, yPosition + 5, {align: 'center'});
-        
-        // Tercera firma (Autorizado por)
-        // Línea de firma más ancha
-        doc.line(margenIzquierdo + anchoFirma*2 + 5, yPosition + 35, margenIzquierdo + anchoFirma*3 - 5, yPosition + 35);
-        doc.text('Autorizado por:', margenIzquierdo + anchoFirma*2.5, yPosition + 5, {align: 'center'});
-        
-        // Línea separadora para el pie
-        yPosition += 60; // Aumentamos este valor para dar más espacio después de las firmas
-        doc.setDrawColor(0, 123, 255);
-        doc.setLineWidth(0.7);
-        doc.line(margenIzquierdo, yPosition, 210 - margenDerecho, yPosition);
-        
-        // Información de generación
-        yPosition += 10;
-        doc.setFontSize(9);
-        doc.setFont('helvetica', 'italic');
-        doc.text(`Documento oficial generado por el Sistema de Recursos Humanos`, margenIzquierdo, yPosition);
-        doc.text(`Fecha de generación: ${new Date().toLocaleString()}`, margenIzquierdo, yPosition + 5);
-        doc.text(`${tituloPDF} No. ${idPlanilla}`, 210 - margenDerecho, yPosition, {align: 'right'});
-        
-        updateProgress(100, '¡Documento oficial generado con éxito!');
-        
-        // Esperar un momento antes de cerrar el modal de proceso y mostrar el PDF
-        setTimeout(() => {
-            ocultarModal(processModal);
-            
-            // Abrir PDF en nueva ventana e imprimir automáticamente
-            const pdfBlob = doc.output('blob');
-            const pdfUrl = URL.createObjectURL(pdfBlob);
-            const newWindow = window.open(pdfUrl, '_blank');
-            
-            // Intentar imprimir automáticamente
-            if (newWindow) {
-                newWindow.addEventListener('load', function() {
-                    newWindow.print();
-                });
-            }
-            
-            // Mostrar notificación de éxito
-            mostrarNotificacion('Planilla generada con éxito. Se ha creado un documento oficial.', 'success');
-            
-        }, 1000);
-        
-        return true;
-        
-    } catch (error) {
-        console.error('Error al generar PDF oficial:', error);
-        
-        // Actualizar modal de proceso
-        updateProgress(100, 'Error al generar documento oficial');
-        
-        // Mostrar mensaje de error
-        setTimeout(() => {
-            ocultarModal(processModal);
-            
-            Swal.fire({
-                icon: 'error',
-                title: 'Error',
-                text: `No se pudo generar el documento oficial: ${error.message}`,
-                confirmButtonColor: 'var(--color-primary)'
-            });
-        }, 1000);
-        
-        return false;
-    }
+       // Mostrar total general
+       yPosition += 10;
+       doc.setFont('helvetica', 'bold');
+       doc.setFontSize(11);
+       doc.text(`Total de Colaboradores: ${totalColaboradores}`, margenIzquierdo + 5, yPosition);
+       doc.text(`Total a Pagar: Q ${totalMonto.toFixed(2)}`, colMonto - 25, yPosition);
+       
+       // Agregar pie de página con información del usuario que genera y sellos oficiales
+       const userData = JSON.parse(localStorage.getItem('userData'));
+       const nombreUsuario = userData?.NombreCompleto || 'Usuario Sistema';
+       
+       // Verificar si estamos en la última página, si no, agregar página
+       if (yPosition > 230) {
+           doc.addPage();
+           paginaActual++;
+           yPosition = 20;
+           agregarEncabezado();
+       }
+       
+       // Espacio para firmas de autorización - AUMENTADO
+       yPosition += 20;
+       doc.setFont('helvetica', 'normal');
+       doc.setFontSize(10);
+       
+       // Firmas de autorización - Aumentamos altura y ancho del espacio para firma
+       const anchoFirma = anchoUtil / 3;
+       
+       // Primera firma (Generado por)
+       doc.setDrawColor(100, 100, 100);
+       // Línea de firma más ancha (10 unidades más a cada lado)
+       doc.line(margenIzquierdo + 5, yPosition + 35, margenIzquierdo + anchoFirma - 5, yPosition + 35);
+       doc.text('Generado por:', margenIzquierdo + anchoFirma/2, yPosition + 5, {align: 'center'});
+       doc.text(nombreUsuario, margenIzquierdo + anchoFirma/2, yPosition + 45, {align: 'center'});
+       
+       // Segunda firma (Revisado por)
+       // Línea de firma más ancha
+       doc.line(margenIzquierdo + anchoFirma + 5, yPosition + 35, margenIzquierdo + anchoFirma*2 - 5, yPosition + 35);
+       doc.text('Entregado por:', margenIzquierdo + anchoFirma*1.5, yPosition + 5, {align: 'center'});
+       
+       // Tercera firma (Autorizado por)
+       // Línea de firma más ancha
+       doc.line(margenIzquierdo + anchoFirma*2 + 5, yPosition + 35, margenIzquierdo + anchoFirma*3 - 5, yPosition + 35);
+       doc.text('Autorizado por:', margenIzquierdo + anchoFirma*2.5, yPosition + 5, {align: 'center'});
+       
+       // Línea separadora para el pie
+       yPosition += 60; // Aumentamos este valor para dar más espacio después de las firmas
+       doc.setDrawColor(0, 123, 255);
+       doc.setLineWidth(0.7);
+       doc.line(margenIzquierdo, yPosition, 210 - margenDerecho, yPosition);
+       
+       // Información de generación
+       yPosition += 10;
+       doc.setFontSize(9);
+       doc.setFont('helvetica', 'italic');
+       doc.text(`Documento oficial generado por el Sistema de Recursos Humanos`, margenIzquierdo, yPosition);
+       doc.text(`Fecha de generación: ${new Date().toLocaleString()}`, margenIzquierdo, yPosition + 5);
+       // 🔄 USAR CORRELATIVO EN PIE DE PÁGINA
+       doc.text(`${tituloPDF} No. ${numeroMostrar}`, 210 - margenDerecho, yPosition, {align: 'right'});
+       
+       updateProgress(100, '¡Documento oficial generado con éxito!');
+       
+       // Esperar un momento antes de cerrar el modal de proceso y mostrar el PDF
+       setTimeout(() => {
+           ocultarModal(processModal);
+           
+           // Abrir PDF en nueva ventana e imprimir automáticamente
+           const pdfBlob = doc.output('blob');
+           const pdfUrl = URL.createObjectURL(pdfBlob);
+           const newWindow = window.open(pdfUrl, '_blank');
+           
+           // Intentar imprimir automáticamente
+           if (newWindow) {
+               newWindow.addEventListener('load', function() {
+                   newWindow.print();
+               });
+           }
+           
+           // 🔄 MOSTRAR NOTIFICACIÓN CON CORRELATIVO
+           mostrarNotificacion(`Planilla ${numeroMostrar} generada con éxito. Se ha creado un documento oficial.`, 'success');
+           
+       }, 1000);
+       
+       return true;
+       
+   } catch (error) {
+       
+       // Actualizar modal de proceso
+       updateProgress(100, 'Error al generar documento oficial');
+       
+       // Mostrar mensaje de error
+       setTimeout(() => {
+           ocultarModal(processModal);
+           
+           Swal.fire({
+               icon: 'error',
+               title: 'Error',
+               text: `No se pudo generar el documento oficial: ${error.message}`,
+               confirmButtonColor: 'var(--color-primary)'
+           });
+       }, 1000);
+       
+       return false;
+   }
 }
 // Función para actualizar el progreso en el modal de proceso
 function updateProgress(percentage, message) {
@@ -2173,7 +2200,6 @@ async function cargarLimitesDepartamento(idDepartamento) {
                 planVacacionista: result[0].PlanVacacionista || 0
             };
         } else {
-            console.warn(`No se encontraron límites para el departamento ID: ${idDepartamento}`);
             return {
                 planFijo: 0,
                 planParcial: 0,
@@ -2181,7 +2207,6 @@ async function cargarLimitesDepartamento(idDepartamento) {
             };
         }
     } catch (error) {
-        console.error(`Error al cargar límites del departamento:`, error);
         mostrarNotificacion('Error al verificar límites de personal', 'error');
         return {
             planFijo: 0,
@@ -2309,7 +2334,6 @@ async function verificarPlanillaExistente(idDepartamento, fecha) {
             };
         }
     } catch (error) {
-        console.error(`Error al verificar planilla existente:`, error);
         mostrarNotificacion('Error al verificar si ya existe una planilla', 'error');
         return {
             existe: false,
@@ -2459,11 +2483,9 @@ async function obtenerLogoDivision(idDivision) {
             // El logo ya está en formato base64 o es una URL?
             return result[0].Logos;
         } else {
-            console.warn(`No se encontró logo para la división ID: ${idDivision}`);
             return null;
         }
     } catch (error) {
-        console.error('Error al obtener logo de división:', error);
         mostrarNotificacion('Error al obtener el logo de la división', 'error');
         return null;
     }
@@ -2514,7 +2536,6 @@ function initExternalCollaborators() {
                 // Limpiar tabla y selecciones previas
                 limpiarSeleccionExterna();
             } catch (error) {
-                console.error('Error al inicializar modal de colaboradores externos:', error);
                 mostrarNotificacion('Error al cargar información de colaboradores externos', 'error');
             }
         });
@@ -2621,7 +2642,6 @@ async function cargarDepartamentosExternos(idDepartamentoActual) {
         
         return result;
     } catch (error) {
-        console.error('Error al cargar departamentos externos:', error);
         mostrarNotificacion('Error al cargar los departamentos disponibles', 'error');
         throw error;
     }
@@ -2680,8 +2700,6 @@ async function cargarDepartamentos() {
             if (departamentoLabel) {
                 departamentoLabel.innerHTML += ' <i class="fas fa-shield-alt" style="font-size: 0.7rem; color: var(--color-info);" title="Acceso administrativo"></i>';
             }
-            
-            console.log('Usuario con acceso administrativo: Selector de departamento habilitado');
         } 
         // Si no es administrador, bloquear el departamento del usuario
         else if (idDepartamentoUsuario) {
@@ -2697,13 +2715,10 @@ async function cargarDepartamentos() {
             if (departamentoLabel) {
                 departamentoLabel.innerHTML += ' <i class="fas fa-lock" style="font-size: 0.7rem; color: var(--color-primary);" title="Departamento asignado"></i>';
             }
-            
-            console.log(`Departamento del usuario preseleccionado: ${idDepartamentoUsuario}`);
         }
         
         return result;
     } catch (error) {
-        console.error('Error al cargar departamentos:', error);
         mostrarNotificacion('Error al cargar los departamentos', 'error');
         throw error;
     }
@@ -2750,8 +2765,6 @@ async function cargarPersonalDepartamentoExterno(idDepartamento) {
         const result = await connection.query(query, [idDepartamento]);
         await connection.close();
         
-        console.log(`Se encontraron ${result.length} colaboradores externos en el departamento ${idDepartamento}`);
-        
         // Guardar datos en variable global
         externalPersonalData = result.map(persona => ({
             ...persona,
@@ -2765,7 +2778,6 @@ async function cargarPersonalDepartamentoExterno(idDepartamento) {
         
         return externalPersonalData;
     } catch (error) {
-        console.error('Error al cargar personal externo:', error);
         mostrarNotificacion('Error al cargar el personal del departamento externo', 'error');
         
         // Mostrar mensaje de error en la tabla
@@ -2981,7 +2993,6 @@ async function agregarColaboradoresExternos() {
         mostrarNotificacion(`Se agregaron ${seleccionados.length} colaborador(es) externos a la planilla`, 'success');
         
     } catch (error) {
-        console.error('Error al agregar colaboradores externos:', error);
         mostrarNotificacion('Error al agregar colaboradores externos', 'error');
     }
 }
@@ -3131,7 +3142,6 @@ async function manejarSeleccionPersonalExterno(e) {
             }
             
         } catch (error) {
-            console.error('Error al verificar disponibilidad del colaborador:', error);
             checkbox.checked = false;
             checkbox.disabled = false;
             mostrarNotificacion('Error al verificar disponibilidad del colaborador', 'error');
@@ -3304,7 +3314,6 @@ async function seleccionarTodosRespetandoLimites() {
         }
         
     } catch (error) {
-        console.error('Error al verificar colaboradores:', error);
         mostrarNotificacion('Error al verificar disponibilidad de colaboradores', 'error');
     } finally {
         // Restaurar el texto original del label
@@ -3416,9 +3425,6 @@ function obtenerTipoPersonalNormalizado(persona) {
     if (tipoNombre.includes('fijo')) return 'fijo';
     if (tipoNombre.includes('parcial')) return 'parcial';
     if (tipoNombre.includes('vacacionista')) return 'vacacionista';
-    
-    // Si no se puede determinar, asumir fijo como fallback
-    console.warn('No se pudo determinar el tipo de personal para:', persona);
     return 'fijo';
 }
 
@@ -3550,7 +3556,6 @@ async function verificarPermiso(codigoTransaccion) {
         const idUsuario = userData?.IdPersonal || 0;
         
         if (!idUsuario) {
-            console.error('No se pudo obtener el ID del usuario');
             return false;
         }
         
@@ -3571,7 +3576,6 @@ async function verificarPermiso(codigoTransaccion) {
         return result && result.length > 0 && result[0].tiene_permiso > 0;
         
     } catch (error) {
-        console.error('Error al verificar permisos:', error);
         mostrarNotificacion('Error al verificar permisos de usuario', 'error');
         return false;
     }
@@ -3890,7 +3894,6 @@ async function cargarInfoPlanilla(idPlanilla) {
             `;
         }
     } catch (error) {
-        console.error('Error al cargar información de la planilla:', error);
         
         // Mostrar error en el contenido
         const infoContent = document.getElementById('planillaInfoContent');
@@ -4052,7 +4055,6 @@ async function subirDocumentoPlanilla(idPlanilla) {
                }, 1500);
                
            } catch (dbError) {
-               console.error('Error al guardar en la base de datos:', dbError);
                
                updateProgress(100, 'Error al guardar documento');
                
@@ -4080,7 +4082,6 @@ async function subirDocumentoPlanilla(idPlanilla) {
        reader.readAsArrayBuffer(file);
        
    } catch (error) {
-       console.error('Error al subir documento:', error);
        
        // Cerrar modal de proceso si está abierto
        ocultarModal(processModal);
@@ -4110,7 +4111,6 @@ function formatearFechaSinZonaHoraria(fechaString, incluirHora = false) {
         
         // Verificar si la fecha es válida
         if (isNaN(fecha.getTime())) {
-            console.error('Fecha inválida:', fechaString);
             return 'Fecha inválida';
         }
         
@@ -4132,7 +4132,6 @@ function formatearFechaSinZonaHoraria(fechaString, incluirHora = false) {
             });
         }
     } catch (error) {
-        console.error('Error al formatear fecha:', error, fechaString);
         return 'Error en fecha';
     }
 }
@@ -4160,7 +4159,6 @@ function formatearFechaBD(fechaBD, incluirHora = false) {
         
         return formatearFechaSinZonaHoraria(fechaString, incluirHora);
     } catch (error) {
-        console.error('Error al formatear fecha de BD:', error, fechaBD);
         return 'Error en fecha';
     }
 }
@@ -4205,7 +4203,6 @@ async function verificarColaboradorEnPlanilla(idPersonal, fecha) {
             };
         }
     } catch (error) {
-        console.error('Error al verificar colaborador en planilla:', error);
         mostrarNotificacion('Error al verificar disponibilidad del colaborador', 'error');
         return {
             yaExiste: false,
@@ -4214,12 +4211,79 @@ async function verificarColaboradorEnPlanilla(idPersonal, fecha) {
         };
     }
 }
+async function generarCorrelativo(tipoPlanilla, fecha) {
+    try {
+        const connection = await getConnection();
+        
+        // Obtener el año de la fecha
+        const anio = new Date(fecha).getFullYear();
+        
+        // Mapear tipo de planilla a sufijo
+        const sufijos = {
+            1: 'D', // Dominical
+            2: 'A', // Asueto
+            3: 'F'  // Feriado
+        };
+        
+        const sufijo = sufijos[tipoPlanilla];
+        
+        if (!sufijo) {
+            throw new Error(`Tipo de planilla inválido: ${tipoPlanilla}`);
+        }
+        
+        // 🔄 CONSULTA SIMPLIFICADA PARA EVITAR PROBLEMAS CON BIGINT
+        const query = `
+            SELECT 
+                Correlativo
+            FROM 
+                PlanillasEspeciales 
+            WHERE 
+                TipoPlanilla = ? 
+                AND YEAR(FechaLaboral) = ?
+                AND Correlativo IS NOT NULL
+                AND Correlativo REGEXP ?
+            ORDER BY 
+                Correlativo DESC
+            LIMIT 1
+        `;
+        
+        // Patrón regex para el formato YYYY-NNN-X
+        const patronRegex = `^${anio}-[0-9]{3}-${sufijo}$`;
+        
+        const result = await connection.query(query, [tipoPlanilla, anio, patronRegex]);
+        await connection.close();
+        
+        let siguienteNumero = 1; // Empezar desde 1 si no hay registros
+        
+        if (result && result.length > 0) {
+            // Extraer el número del correlativo encontrado
+            const ultimoCorrelativo = result[0].Correlativo;
+            
+            // Extraer el número del medio (posiciones 5-7: "YYYY-NNN-X")
+            const numeroStr = ultimoCorrelativo.substring(5, 8); // "001", "002", etc.
+            const ultimoNumero = parseInt(numeroStr, 10);
+            
+            // 🔄 CONVERSIÓN EXPLÍCITA PARA EVITAR BIGINT
+            siguienteNumero = Number(ultimoNumero) + 1;
+        }
+        
+        // Formatear con ceros a la izquierda (3 dígitos)
+        const numeroFormateado = siguienteNumero.toString().padStart(3, '0');
+        
+        // Generar el correlativo completo
+        const correlativo = `${anio}-${numeroFormateado}-${sufijo}`;
+        
+        return correlativo;
+        
+    } catch (error) {
+        throw new Error(`Error al generar correlativo: ${error.message}`);
+    }
+}
 // Agregar estilos adicionales para elementos externos
 document.addEventListener('DOMContentLoaded', async() => {
     try {
         window.esUsuarioAdministrador = await verificarPermiso(100);
     } catch (error) {
-        console.error('Error al verificar permisos de administrador:', error);
         window.esUsuarioAdministrador = false;
     }
     // Agregar CSS para la insignia de colaborador externo
@@ -4290,7 +4354,6 @@ document.addEventListener('DOMContentLoaded', async() => {
             }, 500);
         }
     }).catch(error => {
-        console.error('Error al cargar datos iniciales:', error);
         mostrarNotificacion('Error al cargar los datos iniciales', 'error');
     });
     
