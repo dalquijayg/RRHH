@@ -320,21 +320,36 @@ function calcularTiempoLaborado(fechaPlanilla, estadoSalida = null) {
 // Función para formatear fecha (corregida para zona horaria)
 function formatearFecha(fecha) {
     if (!fecha) return 'No disponible';
+
+    const fechaString = fecha.split('T')[0]; // Formato: "2022-02-01"
+    const [año, mes, dia] = fechaString.split('-').map(Number);
     
-    // Crear fecha sin problemas de zona horaria
-    const fechaString = fecha.split('T')[0]; // Tomar solo la parte de fecha
-    const [año, mes, dia] = fechaString.split('-');
-    const fechaObj = new Date(parseInt(año), parseInt(mes) - 1, parseInt(dia));
+    const fechaObj = new Date(año, mes - 1, dia); // mes - 1 porque JavaScript cuenta los meses desde 0
     
     const opciones = { 
         year: 'numeric', 
         month: 'long', 
-        day: 'numeric' 
+        day: 'numeric',
+        timeZone: 'America/Guatemala' // Especificar zona horaria de Guatemala
     };
     
     return fechaObj.toLocaleDateString('es-ES', opciones);
 }
-
+function formatearFechaPDF(fecha) {
+    if (!fecha) return 'No disponible';
+    
+    const fechaString = fecha.split('T')[0]; // Formato: "2022-02-01"
+    const [año, mes, dia] = fechaString.split('-').map(Number);
+    
+    // Crear fecha usando componentes individuales
+    const fechaObj = new Date(año, mes - 1, dia);
+    
+    return fechaObj.toLocaleDateString('es-ES', {
+        year: 'numeric', 
+        month: '2-digit', 
+        day: '2-digit'
+    });
+}
 // Función auxiliar para obtener nombre del mes
 function obtenerNombreMes(numeroMes) {
     const meses = [
@@ -615,19 +630,47 @@ function calcularDiasBono14(fechaPlanilla, estadoSalida = null) {
     };
 }
 
-// Función para formatear moneda
+function redondearDosDecimales(numero) {
+    return Math.round((numero + Number.EPSILON) * 100) / 100;
+}
+
+// Función para formatear moneda (ACTUALIZADA)
 function formatearMoneda(valor) {
     if (!valor || isNaN(valor)) return 'Q 0.00';
+    
+    // Redondear a 2 decimales antes de formatear
+    const valorRedondeado = redondearDosDecimales(valor);
     
     return new Intl.NumberFormat('es-GT', {
         style: 'currency',
         currency: 'GTQ',
         minimumFractionDigits: 2,
         maximumFractionDigits: 2
-    }).format(valor);
+    }).format(valorRedondeado);
 }
 
 // Función para calcular la liquidación completa
+// Función auxiliar para redondear correctamente a 2 decimales
+function redondearDosDecimales(numero) {
+    return Math.round((numero + Number.EPSILON) * 100) / 100;
+}
+
+// Función para formatear moneda (ACTUALIZADA)
+function formatearMoneda(valor) {
+    if (!valor || isNaN(valor)) return 'Q 0.00';
+    
+    // Redondear a 2 decimales antes de formatear
+    const valorRedondeado = redondearDosDecimales(valor);
+    
+    return new Intl.NumberFormat('es-GT', {
+        style: 'currency',
+        currency: 'GTQ',
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2
+    }).format(valorRedondeado);
+}
+
+// Función para calcular la liquidación completa (CORREGIDA)
 function calcularLiquidacion(colaborador) {
     const salarioBase = parseFloat(colaborador.SalarioBase) || 0;
     const estadoSalida = colaborador.EstadoSalida;
@@ -643,7 +686,7 @@ function calcularLiquidacion(colaborador) {
     const diasLaboradosTotales = diasLaboradosText ? parseInt(diasLaboradosText[1]) : 0;
     
     let liquidacion = {
-        salarioBase: salarioBase,
+        salarioBase: redondearDosDecimales(salarioBase),
         indemnizacion: 0,
         aguinaldo: 0,
         vacaciones: 0,
@@ -662,23 +705,28 @@ function calcularLiquidacion(colaborador) {
         // Despido: ((SalarioBase / 6) + SalarioBase) / 360 * días laborados
         const salarioBaseSexta = salarioBase / 6;
         const sumaSalarios = salarioBaseSexta + salarioBase;
-        liquidacion.indemnizacion = (sumaSalarios / 360) * diasLaboradosTotales;
+        liquidacion.indemnizacion = redondearDosDecimales((sumaSalarios / 360) * diasLaboradosTotales);
     } else {
         // Renuncia o cualquier otro caso: SalarioBase / 360 * días laborados
-        liquidacion.indemnizacion = (salarioBase / 360) * diasLaboradosTotales;
+        liquidacion.indemnizacion = redondearDosDecimales((salarioBase / 360) * diasLaboradosTotales);
     }
     
     // Calcular aguinaldo = SalarioBase / 360 * días de aguinaldo
-    liquidacion.aguinaldo = (salarioBase / 360) * aguinaldoInfo.dias;
+    liquidacion.aguinaldo = redondearDosDecimales((salarioBase / 360) * aguinaldoInfo.dias);
     
     // Calcular vacaciones = (SalarioBase / 360 * días de vacaciones) / 2
-    liquidacion.vacaciones = ((salarioBase / 360) * vacacionesInfo.dias) / 2;
+    liquidacion.vacaciones = redondearDosDecimales(((salarioBase / 360) * vacacionesInfo.dias) / 2);
     
     // Calcular Bono 14 = SalarioBase / 360 * días de Bono 14
-    liquidacion.bono14 = (salarioBase / 360) * bono14Info.dias;
+    liquidacion.bono14 = redondearDosDecimales((salarioBase / 360) * bono14Info.dias);
     
-    // Calcular total
-    liquidacion.total = liquidacion.indemnizacion + liquidacion.aguinaldo + liquidacion.vacaciones + liquidacion.bono14;
+    // Calcular total (redondeando también el total)
+    liquidacion.total = redondearDosDecimales(
+        liquidacion.indemnizacion + 
+        liquidacion.aguinaldo + 
+        liquidacion.vacaciones + 
+        liquidacion.bono14
+    );
     
     return liquidacion;
 }
@@ -709,10 +757,10 @@ async function guardarLiquidacion(colaborador, liquidacion) {
             colaborador.IdPersonal,
             colaborador.NombreCompleto,
             colaborador.FechaPlanilla,
-            liquidacion.indemnizacion,
-            liquidacion.aguinaldo,
-            liquidacion.vacaciones,
-            liquidacion.bono14,
+            redondearDosDecimales(liquidacion.indemnizacion),
+            redondearDosDecimales(liquidacion.aguinaldo),
+            redondearDosDecimales(liquidacion.vacaciones),
+            redondearDosDecimales(liquidacion.bono14),
             idUsuario,
             nombreUsuario
         ]);
@@ -832,10 +880,14 @@ async function generarPDFLiquidacion(colaborador, liquidacion, infoCompleta) {
         yPosition += 18; // Reducido de 25 a 18
         
         // === INFORMACIÓN DEL COLABORADOR ===
-        const fechaInicio = new Date(colaborador.FechaPlanilla).toLocaleDateString('es-ES');
+        const fechaInicio = formatearFechaPDF(colaborador.FechaPlanilla);
         const fechaFin = colaborador.EstadoSalida.tieneRegistro ? 
-            new Date(colaborador.EstadoSalida.fechaFin).toLocaleDateString('es-ES') : 
-            new Date().toLocaleDateString('es-ES');
+            formatearFechaPDF(colaborador.EstadoSalida.fechaFin) : 
+            new Date().toLocaleDateString('es-ES', {
+                year: 'numeric', 
+                month: '2-digit', 
+                day: '2-digit'
+            });
         
         const tiempoLaboradoTexto = calcularTiempoLaborado(colaborador.FechaPlanilla, colaborador.EstadoSalida);
         const diasLaboradosMatch = tiempoLaboradoTexto.match(/\((\d+) días laborales\)/);
@@ -1035,38 +1087,53 @@ async function generarPDFLiquidacion(colaborador, liquidacion, infoCompleta) {
             let linea = '';
             let yActual = y;
             
+            // Configurar el tamaño de fuente antes de medir
+            doc.setFontSize(tamanoFuente);
+            
             for (let i = 0; i < palabras.length; i++) {
-                const testLinea = linea + palabras[i] + ' ';
+                const palabraActual = palabras[i];
+                const testLinea = linea === '' ? palabraActual : linea + ' ' + palabraActual;
                 const anchoTest = doc.getTextWidth(testLinea);
                 
-                if (anchoTest > anchoLinea && i > 0) {
-                    // Justificar la línea actual (excepto la última)
-                    if (linea.trim().split(' ').length > 1) {
-                        const palabrasLinea = linea.trim().split(' ');
+                // Verificar si la línea de prueba cabe en el ancho disponible
+                if (anchoTest > anchoLinea && linea !== '') {
+                    // La línea actual está completa, imprimirla justificada
+                    const palabrasLinea = linea.trim().split(' ');
+                    
+                    if (palabrasLinea.length > 1) {
+                        // Justificar la línea (distribuyendo el espacio extra)
                         const espaciosNecesarios = palabrasLinea.length - 1;
-                        const anchoTexto = palabrasLinea.reduce((sum, palabra) => sum + doc.getTextWidth(palabra), 0);
-                        const espacioExtra = (anchoLinea - anchoTexto) / espaciosNecesarios;
+                        const anchoTextoSinEspacios = palabrasLinea.reduce((sum, palabra) => {
+                            return sum + doc.getTextWidth(palabra);
+                        }, 0);
+                        const espacioTotalDisponible = anchoLinea - anchoTextoSinEspacios;
+                        const espacioEntrePalabras = espacioTotalDisponible / espaciosNecesarios;
                         
                         let xActual = x;
                         for (let j = 0; j < palabrasLinea.length; j++) {
                             textoIzq(palabrasLinea[j], xActual, yActual, tamanoFuente, grisTexto);
-                            xActual += doc.getTextWidth(palabrasLinea[j]) + espacioExtra;
+                            if (j < palabrasLinea.length - 1) { // No agregar espacio después de la última palabra
+                                xActual += doc.getTextWidth(palabrasLinea[j]) + espacioEntrePalabras;
+                            }
                         }
                     } else {
+                        // Solo una palabra, no justificar
                         textoIzq(linea.trim(), x, yActual, tamanoFuente, grisTexto);
                     }
                     
-                    linea = palabras[i] + ' ';
-                    yActual += 3.6; // Aumentado de 3.2 a 3.6 para texto más grande
+                    // Pasar a la siguiente línea
+                    linea = palabraActual + ' ';
+                    yActual += 3.6;
                 } else {
-                    linea = testLinea;
+                    // La palabra cabe, agregarla a la línea actual
+                    linea = testLinea + ' ';
                 }
             }
             
-            // Última línea (no justificada, solo alineada a la izquierda)
+            // Imprimir la última línea (no justificada, solo alineada a la izquierda)
             if (linea.trim()) {
                 textoIzq(linea.trim(), x, yActual, tamanoFuente, grisTexto);
-                yActual += 3.6; // Aumentado de 3.2 a 3.6
+                yActual += 3.6;
             }
             
             return yActual;

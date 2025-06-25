@@ -5130,44 +5130,46 @@ async function crearHojaPlanilla(planilla, formValues, nombresMeses) {
     totalPagadoFinalQ2 = formatearDecimales(totalPagadoFinalQ2);
     totalPlanilla = formatearDecimales(totalPlanilla);
     
-    // Filas de totales
+    // =========== FILAS DE TOTALES CORREGIDAS ===========
     if (esFinDeMes) {
+        // Fila vacía de separación
         data[filaActual++] = ['', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', ''];
         
+        // FILA DE TOTALES ALINEADA CORRECTAMENTE PARA FIN DE MES
         data[filaActual++] = [
-            '', '', '',
-            'TOTAL DÍAS Q1:', totalDiasQ1,
-            'TOTAL DESC. Q1:', totalDescuentosQ1,
-            'TOTAL PAGADO Q1:', totalPagadoQ1,
-            'TOTAL DÍAS Q2:', totalDiasQ2,
-            'TOTAL PAGADO Q2:', totalPagadoQ2,
-            'TOTAL DÍAS MES:', totalDiasQ1 + totalDiasQ2,
-            'TOTAL PAG. MES:', totalPlanilla,
-            'TOTAL BONIF.:', totalBonificaciones,
-            'TOTAL SUELDO:', totalSueldoTotal,
-            'TOTAL IGSS:', totalIGSS,
-            'TOTAL DESC. Q2:', totalDescuentosQ2,
-            'TOTAL FINAL Q2:', totalPagadoFinalQ2,
-            '', ''
+            '',                          // No. (vacío)
+            'TOTALES:',                  // Nombre Completo
+            '',                          // Salario Diario (vacío)
+            totalDiasQ1,                 // Días Quincena
+            totalDescuentosQ1,           // Desc. Judicial Quincena
+            totalPagadoQ1,               // Total Pagado Quincena
+            totalDiasQ2,                 // Días Fin de Mes
+            totalPagadoQ2,               // Total Pagado Fin de Mes
+            totalDiasQ1 + totalDiasQ2,   // Total Días
+            totalPlanilla,               // Total Pagado Mes
+            totalBonificaciones,         // Bonificación
+            totalSueldoTotal,            // Sueldo Total
+            totalIGSS,                   // IGSS
+            totalDescuentosQ2,           // Desc. Judicial Fin de Mes
+            totalPagadoFinalQ2,          // Total Pagado Fin de Mes Final
+            '',                          // No. de Cuenta (vacío)
+            `Masculino: ${masculinos}, Femenino: ${femeninos}` // Observaciones
         ];
         
-        data[filaActual++] = [
-            '', '', '', '', '', '', '', '', '',
-            '', '', '', '', '',
-            '', 
-            `Masculino: ${masculinos}, Femenino: ${femeninos}`,
-            ''
-        ];
     } else {
+        // Fila vacía de separación
+        data[filaActual++] = ['', '', '', '', '', '', '', ''];
+        
+        // FILA DE TOTALES ALINEADA CORRECTAMENTE PARA QUINCENAL
         data[filaActual++] = [
-            '', '', '', '', 
-            'TOTAL DESCUENTOS:', totalDescuentosQ1,
-            '', ''
-        ];
-        data[filaActual++] = [
-            '', '', '', '', '', 
-            'TOTAL A PAGAR:', totalPlanilla,
-            `Masculino: ${masculinos}, Femenino: ${femeninos}`
+            '',                          // No. (vacío)
+            'TOTALES:',                  // Nombre Completo
+            '',                          // Salario Diario (vacío)
+            '',                          // Días Laborados (vacío)
+            totalDescuentosQ1,           // Descuento Judicial
+            totalPlanilla,               // Total a Pagar
+            '',                          // No. de Cuenta (vacío)
+            `Masculino: ${masculinos}, Femenino: ${femeninos}` // Observaciones
         ];
     }
     

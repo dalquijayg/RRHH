@@ -1,4 +1,5 @@
 // Variables globales
+const { connectionString } = require('../Conexion/Conexion');
 const { ipcRenderer } = require('electron');
 const odbc = require('odbc');
 const conexion = 'DSN=recursos2';
@@ -2592,7 +2593,7 @@ function verificarCambioEnCampoLaboral(idCampo) {
     // Habilitar o deshabilitar botón guardar
     btnSaveWork.disabled = Object.keys(camposModificadosLaboral).length === 0;
 }
-// Guardar cambios en información laboral
+// Guardar cambios en información laboral (versión con debug)
 async function guardarCambiosLaboral() {
     try {
         // Verificar si hay cambios
@@ -2765,8 +2766,10 @@ async function guardarCambiosLaboral() {
             nombresActualizados.tipoPersonal = 'No registrado';
         }
         
-        // Obtener nombre de planilla
-        if (datosActualizados.IdPlanilla) {
+        // DEBUG: Obtener y mostrar nombre de planilla
+        console.log('=== DEBUG PLANILLA ===');
+        if (datosOriginalesLaboral.planilla) {
+            console.log('Buscando planilla original con ID:', datosOriginalesLaboral.planilla);
             const planillaQuery = `
                 SELECT 
                     CONCAT(IFNULL(d.Nombre, ''), ' - ', p.Nombre_Planilla) AS PlanillaCompleta
@@ -2774,9 +2777,37 @@ async function guardarCambiosLaboral() {
                 LEFT JOIN divisiones d ON p.Division = d.IdDivision
                 WHERE p.IdPlanilla = ?
             `;
-            const planillaResult = await connection.query(planillaQuery, [datosActualizados.IdPlanilla]);
-            nombresActualizados.planilla = planillaResult.length > 0 ? 
-                planillaResult[0].PlanillaCompleta : 'No registrado';
+            try {
+                const planillaResult = await connection.query(planillaQuery, [datosOriginalesLaboral.planilla]);
+                console.log('Resultado query planilla original:', planillaResult);
+                nombresOriginales.planilla = planillaResult.length > 0 ? 
+                    planillaResult[0].PlanillaCompleta : 'No registrado';
+            } catch (error) {
+                console.error('Error al buscar planilla original:', error);
+                nombresOriginales.planilla = 'Error al obtener';
+            }
+        } else {
+            nombresOriginales.planilla = 'No registrado';
+        }
+        
+        if (datosActualizados.IdPlanilla) {
+            console.log('Buscando planilla nueva con ID:', datosActualizados.IdPlanilla);
+            const planillaQuery = `
+                SELECT 
+                    CONCAT(IFNULL(d.Nombre, ''), ' - ', p.Nombre_Planilla) AS PlanillaCompleta
+                FROM planillas p
+                LEFT JOIN divisiones d ON p.Division = d.IdDivision
+                WHERE p.IdPlanilla = ?
+            `;
+            try {
+                const planillaResult = await connection.query(planillaQuery, [datosActualizados.IdPlanilla]);
+                console.log('Resultado query planilla nueva:', planillaResult);
+                nombresActualizados.planilla = planillaResult.length > 0 ? 
+                    planillaResult[0].PlanillaCompleta : 'No registrado';
+            } catch (error) {
+                console.error('Error al buscar planilla nueva:', error);
+                nombresActualizados.planilla = 'Error al obtener';
+            }
         } else {
             nombresActualizados.planilla = 'No registrado';
         }
@@ -2810,7 +2841,8 @@ async function guardarCambiosLaboral() {
         await connection.beginTransaction();
         
         try {
-            // 1. Actualizar tabla personal
+            // DEBUG: Mostrar query y parámetros antes de ejecutar
+            console.log('=== DEBUG QUERY UPDATE ===');
             let updateQuery = `
                 UPDATE personal SET
                     IdSucuDepa = ?,
@@ -2832,7 +2864,7 @@ async function guardarCambiosLaboral() {
                 WHERE IdPersonal = ?
             `;
             
-            await connection.query(updateQuery, [
+            const updateParams = [
                 datosActualizados.IdSucuDepa,
                 datosActualizados.IdPuesto,
                 datosActualizados.TipoPersonal,
@@ -2850,7 +2882,13 @@ async function guardarCambiosLaboral() {
                 datosActualizados.SalarioBase,
                 datosActualizados.Bonificacion,
                 empleadoActual.IdPersonal
-            ]);
+            ];
+            updateParams.forEach((param, index) => {
+                console.log(`  [${index}]: ${param} (${typeof param}) ${param === null ? '- ES NULL' : ''}`);
+            });
+            
+            // 1. Actualizar tabla personal
+            await connection.query(updateQuery, updateParams);
 
             // 2. NUEVA FUNCIONALIDAD: Verificar reactivación de colaborador
             const esReactivacion = (estadoOriginal === 2 || estadoOriginal === 3) && parseInt(datosActualizados.Estado) === 1;
@@ -2923,8 +2961,6 @@ async function guardarCambiosLaboral() {
                     userData.NombreCompleto
                 ]);
             }
-            
-            // 4. Registrar cambios en historial
             for (const campo in camposModificadosLaboral) {
                 let nombreCampo, valorAnterior, valorNuevo, tipoCambio = 4; // TipoCambio 4 = Información Laboral
                 
@@ -3012,6 +3048,12 @@ async function guardarCambiosLaboral() {
                         break;
                 }
                 
+                console.log(`Registrando cambio para ${campo}:`, {
+                    nombreCampo,
+                    valorAnterior,
+                    valorNuevo
+                });
+                
                 // Insertar en historial
                 const historialQuery = `
                     INSERT INTO CambiosPersonal 
@@ -3019,7 +3061,7 @@ async function guardarCambiosLaboral() {
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                 `;
                 
-                await connection.query(historialQuery, [
+                const historialParams = [
                     empleadoActual.IdPersonal,
                     nombreCompleto,
                     tipoCambio,
@@ -3028,7 +3070,8 @@ async function guardarCambiosLaboral() {
                     valorNuevo,
                     userData.IdPersonal,
                     userData.NombreCompleto
-                ]);
+                ];
+                await connection.query(historialQuery, historialParams);
             }
             
             // Confirmar transacción
@@ -3105,6 +3148,7 @@ async function guardarCambiosLaboral() {
             camposModificadosLaboral = {};
             
         } catch (error) {
+            console.error('Error en la transacción:', error);
             // Revertir transacción en caso de error
             await connection.rollback();
             throw error;
