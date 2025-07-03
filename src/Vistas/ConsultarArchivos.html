@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Consultar Archivos - Análisis Temporal</title>
+    
+    <!-- CSS Files -->
+    <link rel="stylesheet" href="../Disenos/Archivos/ConsultarArchivos.css">
+    
+    <!-- External Libraries -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link rel="stylesheet" href="https://cdn.datatables.net/1.13.7/css/jquery.dataTables.min.css">
+    <link rel="stylesheet" href="https://cdn.datatables.net/responsive/2.5.0/css/responsive.dataTables.min.css">
+</head>
+<body>
+    <!-- Header -->
+    <header class="main-header">
+        <div class="header-content">
+            <div class="header-title">
+                <i class="fas fa-chart-line"></i>
+                <span>Análisis Temporal de Documentos</span>
+            </div>
+            <div class="user-info" id="userInfo">
+                <!-- Se llenará dinámicamente -->
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Container -->
+    <div class="main-container">
+        
+        <!-- Panel de Filtros -->
+        <aside class="filters-panel">
+            <div class="panel-header">
+                <h3>
+                    <i class="fas fa-filter"></i>
+                    Filtros de Análisis
+                </h3>
+            </div>
+            
+            <div class="panel-content">
+                <!-- Rango de Fechas -->
+                <div class="filter-group">
+                    <label class="filter-label">
+                        <i class="fas fa-calendar-alt"></i>
+                        Período de Análisis
+                    </label>
+                    <div class="date-range">
+                        <div class="date-field">
+                            <label>Desde</label>
+                            <input type="date" id="fechaDesde" class="date-input">
+                        </div>
+                        <div class="date-field">
+                            <label>Hasta</label>
+                            <input type="date" id="fechaHasta" class="date-input">
+                        </div>
+                    </div>
+                    <div class="quick-dates">
+                        <button class="quick-date-btn" data-period="3">Últimos 3 meses</button>
+                        <button class="quick-date-btn" data-period="6">Últimos 6 meses</button>
+                        <button class="quick-date-btn" data-period="12">Último año</button>
+                    </div>
+                </div>
+
+                <!-- Filtro por Departamento -->
+                <div class="filter-group">
+                    <label class="filter-label">
+                        <i class="fas fa-building"></i>
+                        Departamento
+                    </label>
+                    <select id="filtrodepartamento" class="filter-select">
+                        <option value="">Todos los departamentos</option>
+                    </select>
+                </div>
+
+                <!-- Filtro por Región -->
+                <div class="filter-group">
+                    <label class="filter-label">
+                        <i class="fas fa-map-marker-alt"></i>
+                        Región
+                    </label>
+                    <select id="filtroregion" class="filter-select">
+                        <option value="">Todas las regiones</option>
+                    </select>
+                </div>
+
+                <!-- Filtro por Tipo de Documento -->
+                <div class="filter-group">
+                    <label class="filter-label">
+                        <i class="fas fa-file-alt"></i>
+                        Tipo de Documento
+                    </label>
+                    <div class="document-filters">
+                        <div class="doc-filter-item">
+                            <input type="checkbox" id="filtroIGSS" value="IGSS" checked>
+                            <label for="filtroIGSS">IGSS</label>
+                        </div>
+                        <div class="doc-filter-item">
+                            <input type="checkbox" id="filtroIRTRA" value="IRTRA" checked>
+                            <label for="filtroIRTRA">IRTRA</label>
+                        </div>
+                        <div class="doc-filter-item">
+                            <input type="checkbox" id="filtroContrato" value="Contrato" checked>
+                            <label for="filtroContrato">Contrato</label>
+                        </div>
+                        <div class="doc-filter-item">
+                            <input type="checkbox" id="filtroNIT" value="NIT" checked>
+                            <label for="filtroNIT">NIT</label>
+                        </div>
+                        <div class="doc-filter-item">
+                            <input type="checkbox" id="filtroTS" value="TarjetaSalud" checked>
+                            <label for="filtroTS">Tarjeta Salud</label>
+                        </div>
+                        <div class="doc-filter-item">
+                            <input type="checkbox" id="filtroTM" value="TarjetaManipulacion" checked>
+                            <label for="filtroTM">Tarjeta Manipulación</label>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Botón Analizar -->
+                <div class="filter-group">
+                    <button id="btnAnalizar" class="btn-analyze">
+                        <i class="fas fa-search"></i>
+                        Generar Análisis
+                    </button>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Área de Contenido -->
+        <main class="content-area">
+            
+            <!-- KPIs Principales -->
+            <section class="kpis-section" id="kpisSection" style="display: none;">
+                <div class="section-header">
+                    <h2>
+                        <i class="fas fa-tachometer-alt"></i>
+                        Indicadores Clave de Rendimiento
+                        <span class="period-info" id="periodInfo"></span>
+                    </h2>
+                </div>
+                
+                <div class="kpis-grid">
+                    <div class="kpi-card kpi-primary">
+                        <div class="kpi-icon">
+                            <i class="fas fa-percentage"></i>
+                        </div>
+                        <div class="kpi-content">
+                            <div class="kpi-value" id="kpiCompletitud">0%</div>
+                            <div class="kpi-label">Completitud General</div>
+                            <div class="kpi-trend" id="kpiTrendCompletitud">
+                                <i class="fas fa-arrow-up"></i>
+                                <span>+0%</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="kpi-card kpi-success">
+                        <div class="kpi-icon">
+                            <i class="fas fa-edit"></i>
+                        </div>
+                        <div class="kpi-content">
+                            <div class="kpi-value" id="kpiActualizaciones">0</div>
+                            <div class="kpi-label">Documentos Actualizados</div>
+                            <div class="kpi-trend" id="kpiTrendActualizaciones">
+                                <i class="fas fa-arrow-up"></i>
+                                <span>+0</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="kpi-card kpi-warning">
+                        <div class="kpi-icon">
+                            <i class="fas fa-clock"></i>
+                        </div>
+                        <div class="kpi-content">
+                            <div class="kpi-value" id="kpiTiempoPromedio">0 días</div>
+                            <div class="kpi-label">Tiempo Prom. Actualización</div>
+                            <div class="kpi-trend" id="kpiTrendTiempo">
+                                <i class="fas fa-arrow-down"></i>
+                                <span>-0 días</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="kpi-card kpi-danger">
+                        <div class="kpi-icon">
+                            <i class="fas fa-exclamation-triangle"></i>
+                        </div>
+                        <div class="kpi-content">
+                            <div class="kpi-value" id="kpiCriticos">0</div>
+                            <div class="kpi-label">Casos Críticos</div>
+                            <div class="kpi-trend" id="kpiTrendCriticos">
+                                <i class="fas fa-arrow-down"></i>
+                                <span>-0</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Sección de Gráficos -->
+            <section class="charts-section" id="chartsSection" style="display: none;">
+                <div class="charts-grid">
+                    
+                    <!-- Gráfico de Evolución -->
+                    <div class="chart-container">
+                        <div class="chart-header">
+                            <h3>
+                                <i class="fas fa-chart-line"></i>
+                                Evolución de Completitud por Mes
+                            </h3>
+                            <div class="chart-actions">
+                                <button class="btn-chart-action" id="exportEvolucion">
+                                    <i class="fas fa-download"></i>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="chart-content">
+                            <canvas id="chartEvolucion"></canvas>
+                        </div>
+                    </div>
+
+                    <!-- Gráfico de Actualizaciones -->
+                    <div class="chart-container">
+                        <div class="chart-header">
+                            <h3>
+                                <i class="fas fa-chart-bar"></i>
+                                Documentos Actualizados por Mes
+                            </h3>
+                            <div class="chart-actions">
+                                <button class="btn-chart-action" id="exportActualizaciones">
+                                    <i class="fas fa-download"></i>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="chart-content">
+                            <canvas id="chartActualizaciones"></canvas>
+                        </div>
+                    </div>
+
+                    <!-- Gráfico de Distribución -->
+                    <div class="chart-container">
+                        <div class="chart-header">
+                            <h3>
+                                <i class="fas fa-chart-area"></i>
+                                Distribución de Estados
+                            </h3>
+                            <div class="chart-actions">
+                                <button class="btn-chart-action" id="exportDistribucion">
+                                    <i class="fas fa-download"></i>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="chart-content">
+                            <canvas id="chartDistribucion"></canvas>
+                        </div>
+                    </div>
+
+                    <!-- Heatmap de Departamentos -->
+                    <div class="chart-container">
+                        <div class="chart-header">
+                            <h3>
+                                <i class="fas fa-th"></i>
+                                Performance por Departamento
+                            </h3>
+                            <div class="chart-actions">
+                                <button class="btn-chart-action" id="exportHeatmap">
+                                    <i class="fas fa-download"></i>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="chart-content">
+                            <div id="heatmapContainer"></div>
+                        </div>
+                    </div>
+
+                </div>
+            </section>
+
+            <!-- Tabla de Tendencias -->
+            <section class="trends-section" id="trendsSection" style="display: none;">
+                <div class="section-header">
+                    <h2>
+                        <i class="fas fa-table"></i>
+                        Análisis de Tendencias por Departamento
+                    </h2>
+                    <div class="section-actions">
+                        <button class="btn btn-export" id="exportTendencias">
+                            <i class="fas fa-file-excel"></i>
+                            Exportar
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="table-container">
+                    <table id="tablaTendencias" class="display responsive nowrap" style="width:100%">
+                        <thead>
+                            <tr>
+                                <th>Departamento</th>
+                                <th>Mes Actual</th>
+                                <th>Mes Anterior</th>
+                                <th>Variación</th>
+                                <th>Tendencia</th>
+                                <th>Docs. Actualizados</th>
+                                <th>Críticos</th>
+                                <th>Calificación</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <!-- Se llenará dinámicamente -->
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <!-- Ranking de Departamentos -->
+            <section class="ranking-section" id="rankingSection" style="display: none;">
+                <div class="section-header">
+                    <h2>
+                        <i class="fas fa-trophy"></i>
+                        Ranking de Departamentos
+                    </h2>
+                </div>
+                
+                <div class="ranking-grid">
+                    <div class="ranking-container">
+                        <h3>Top Performers</h3>
+                        <div id="topPerformers" class="ranking-list">
+                            <!-- Se llenará dinámicamente -->
+                        </div>
+                    </div>
+                    
+                    <div class="ranking-container">
+                        <h3>Necesitan Atención</h3>
+                        <div id="bottomPerformers" class="ranking-list">
+                            <!-- Se llenará dinámicamente -->
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Estado Vacío -->
+            <section class="empty-state" id="emptyState">
+                <div class="empty-content">
+                    <div class="empty-icon">
+                        <i class="fas fa-chart-line"></i>
+                    </div>
+                    <h3>Análisis Temporal de Documentos</h3>
+                    <p>Configura los filtros y el período de análisis para generar reportes detallados sobre la gestión documental.</p>
+                    <div class="empty-features">
+                        <div class="feature-item">
+                            <i class="fas fa-calendar-alt"></i>
+                            <span>Análisis por períodos personalizables</span>
+                        </div>
+                        <div class="feature-item">
+                            <i class="fas fa-chart-bar"></i>
+                            <span>Gráficos interactivos de tendencias</span>
+                        </div>
+                        <div class="feature-item">
+                            <i class="fas fa-trophy"></i>
+                            <span>Rankings de performance</span>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+        </main>
+    </div>
+
+    <!-- Modal de Carga -->
+    <div class="loading-modal" id="loadingModal">
+        <div class="loading-content">
+            <div class="spinner"></div>
+            <p>Generando análisis...</p>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.7.1/jquery.min.js"></script>
+    <script src="https://cdn.datatables.net/1.13.7/js/jquery.dataTables.min.js"></script>
+    <script src="https://cdn.datatables.net/responsive/2.5.0/js/dataTables.responsive.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+    <script src="../Logica/sweetalert2.min.js"></script>
+    
+    <!-- Script principal -->
+    <script src="../Logica/Archivos/ConsultarArchivos.js"></script>
+</body>
+</html>

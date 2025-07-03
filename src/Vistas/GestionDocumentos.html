@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gestión de Documentos - Recursos Humanos</title>
+    
+    <!-- CSS Files -->
+    <link rel="stylesheet" href="../Disenos/Archivos/GestionDocumentos.css">
+    
+    <!-- External Libraries -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link rel="stylesheet" href="https://cdn.datatables.net/1.13.7/css/jquery.dataTables.min.css">
+    <link rel="stylesheet" href="https://cdn.datatables.net/responsive/2.5.0/css/responsive.dataTables.min.css">
+</head>
+<body>
+    <!-- Header Compacto -->
+    <header class="compact-header">
+        <div class="header-content">
+            <div class="header-title">
+                <i class="fas fa-file-medical"></i>
+                <span>Gestión de Documentos</span>
+            </div>
+            <div class="user-info" id="userInfo">
+                <!-- Se llenará dinámicamente -->
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Container -->
+    <div class="main-container">
+        
+        <!-- Sidebar de Filtros -->
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <h3>
+                    <i class="fas fa-filter"></i>
+                    Filtros
+                </h3>
+                <button class="sidebar-toggle" id="sidebarToggle">
+                    <i class="fas fa-bars"></i>
+                </button>
+            </div>
+            
+            <div class="sidebar-content">
+                <!-- Selector de Departamento -->
+                <div class="filter-section">
+                    <label for="departamentoSelect" class="filter-label">
+                        <i class="fas fa-building"></i>
+                        Departamento
+                    </label>
+                    <select id="departamentoSelect" class="filter-select">
+                        <option value="">Seleccione un departamento...</option>
+                    </select>
+                </div>
+
+                <!-- Botón de Búsqueda -->
+                <div class="filter-section">
+                    <button id="btnBuscar" class="btn btn-search" disabled>
+                        <i class="fas fa-search"></i>
+                        Buscar Documentos
+                    </button>
+                </div>
+
+                <!-- Cards de Resumen en Sidebar -->
+                <div class="filter-section" id="sidebarStats" style="display: none;">
+                    <label class="filter-label">
+                        <i class="fas fa-chart-bar"></i>
+                        <span id="departamentoNombreSidebar">Estadísticas</span>
+                    </label>
+                    <div class="sidebar-cards">
+                        <!-- Card Total -->
+                        <div class="sidebar-card card-total">
+                            <div class="sidebar-card-content">
+                                <i class="fas fa-users"></i>
+                                <div class="sidebar-card-info">
+                                    <span class="sidebar-card-number" id="totalEmpleadosSidebar">0</span>
+                                    <span class="sidebar-card-label">Total</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Card Completos -->
+                        <div class="sidebar-card card-success">
+                            <div class="sidebar-card-content">
+                                <i class="fas fa-check-circle"></i>
+                                <div class="sidebar-card-info">
+                                    <span class="sidebar-card-number" id="documentosCompletosSidebar">0</span>
+                                    <span class="sidebar-card-label">Completos</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Card Sin Contrato -->
+                        <div class="sidebar-card card-danger">
+                            <div class="sidebar-card-content">
+                                <i class="fas fa-file-contract"></i>
+                                <div class="sidebar-card-info">
+                                    <span class="sidebar-card-number" id="sinContratoSidebar">0</span>
+                                    <span class="sidebar-card-label">Sin Contrato</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Card Vencidos -->
+                        <div class="sidebar-card card-danger">
+                            <div class="sidebar-card-content">
+                                <i class="fas fa-exclamation-triangle"></i>
+                                <div class="sidebar-card-info">
+                                    <span class="sidebar-card-number" id="tarjetasVencidasSidebar">0</span>
+                                    <span class="sidebar-card-label">Vencidos</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Card Faltantes -->
+                        <div class="sidebar-card card-warning">
+                            <div class="sidebar-card-content">
+                                <i class="fas fa-times-circle"></i>
+                                <div class="sidebar-card-info">
+                                    <span class="sidebar-card-number" id="documentosFaltantesSidebar">0</span>
+                                    <span class="sidebar-card-label">Faltantes</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Content Area -->
+        <main class="content-area">
+            
+            <!-- Sección de Tabla -->
+            <section class="table-section" id="tableSection" style="display: none;">
+                <div class="table-header">
+                    <h2>
+                        <i class="fas fa-table"></i>
+                        Detalle de Empleados - <span id="departamentoNombreTabla">Departamento</span>
+                    </h2>
+                    <div class="table-actions">
+                        <button class="btn btn-export" id="btnExportar">
+                            <i class="fas fa-download"></i>
+                            <span>Exportar</span>
+                        </button>
+                        <button class="btn btn-refresh" id="btnRefrescar">
+                            <i class="fas fa-sync-alt"></i>
+                            <span>Actualizar</span>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="table-container">
+                    <table id="tablaEmpleados" class="display responsive nowrap" style="width:100%">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Empleado</th>
+                                <th>IGSS</th>
+                                <th>IRTRA</th>
+                                <th>Contrato</th>
+                                <th>NIT</th>
+                                <th>T. Salud</th>
+                                <th>T. Manipulación</th>
+                                <th>Estado General</th>
+                                <th>Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <!-- Se llenará dinámicamente -->
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <!-- Estado Vacío -->
+            <section class="empty-state" id="emptyState">
+                <div class="empty-content">
+                    <div class="empty-icon">
+                        <i class="fas fa-search"></i>
+                    </div>
+                    <h3>Buscar Documentos</h3>
+                    <p>Selecciona un departamento y haz clic en "Buscar Documentos" para ver el estado de los documentos del personal.</p>
+                </div>
+            </section>
+
+        </main>
+    </div>
+
+    <!-- Modal de Carga -->
+    <div class="loading-modal" id="loadingModal">
+        <div class="loading-content">
+            <div class="spinner"></div>
+            <p>Cargando información...</p>
+        </div>
+    </div>
+
+    <!-- Overlay para móvil -->
+    <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+    <!-- Panel Lateral de Edición -->
+    <div class="edit-panel" id="editPanel">
+        <div class="edit-panel-header">
+            <h3>
+                <i class="fas fa-user-edit"></i>
+                Editar Empleado
+            </h3>
+            <button class="edit-panel-close" id="closeEditPanel">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+        
+        <div class="edit-panel-content">
+            <form id="editForm">
+                <!-- Información del empleado -->
+                <div class="edit-section">
+                    <h4><i class="fas fa-user"></i> Información Personal</h4>
+                    <div class="edit-grid">
+                        <div class="edit-field">
+                            <label>Primer Nombre</label>
+                            <input type="text" id="editPrimerNombre" name="PrimerNombre" required>
+                        </div>
+                        <div class="edit-field">
+                            <label>Segundo Nombre</label>
+                            <input type="text" id="editSegundoNombre" name="SegundoNombre">
+                        </div>
+                        <div class="edit-field">
+                            <label>Tercer Nombre</label>
+                            <input type="text" id="editTercerNombre" name="TercerNombre">
+                        </div>
+                        <div class="edit-field">
+                            <label>Primer Apellido</label>
+                            <input type="text" id="editPrimerApellido" name="PrimerApellido" required>
+                        </div>
+                        <div class="edit-field">
+                            <label>Segundo Apellido</label>
+                            <input type="text" id="editSegundoApellido" name="SegundoApellido">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Documentos -->
+                <div class="edit-section">
+                    <h4><i class="fas fa-file-alt"></i> Documentos</h4>
+                    <div class="edit-grid">
+                        <div class="edit-field">
+                            <label>IGSS</label>
+                            <input type="number" id="editIGSS" name="IGSS" min="0">
+                            <small>Ingrese 0 si no tiene</small>
+                        </div>
+                        <div class="edit-field">
+                            <label>IRTRA</label>
+                            <input type="number" id="editIRTRA" name="IRTRA" min="0">
+                            <small>Ingrese 0 si no tiene</small>
+                        </div>
+                        <div class="edit-field">
+                            <label>NIT</label>
+                            <input type="text" id="editNIT" name="NIT">
+                            <small>Dejar vacío si no tiene</small>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Fechas -->
+                <div class="edit-section">
+                    <h4><i class="fas fa-calendar-alt"></i> Fechas de Vencimiento</h4>
+                    <div class="edit-grid">
+                        <div class="edit-field">
+                            <label>Fecha de Contrato</label>
+                            <input type="date" id="editFechaContrato" name="FechaContrato">
+                        </div>
+                        <div class="edit-field">
+                            <label>Vencimiento Tarjeta Salud</label>
+                            <input type="date" id="editFechaVencimientoTS" name="FechaVencimientoTS">
+                        </div>
+                        <div class="edit-field">
+                            <label>Vencimiento Tarjeta Manipulación</label>
+                            <input type="date" id="editFechaVencimientoTM" name="FechaVencimientoTM">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Botones -->
+                <div class="edit-actions">
+                    <button type="button" class="btn btn-secondary" id="cancelEdit">
+                        <i class="fas fa-times"></i>
+                        Cancelar
+                    </button>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="fas fa-save"></i>
+                        Guardar Cambios
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Overlay para el panel -->
+    <div class="edit-panel-overlay" id="editPanelOverlay"></div>
+
+    <!-- Scripts -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.7.1/jquery.min.js"></script>
+    <script src="https://cdn.datatables.net/1.13.7/js/jquery.dataTables.min.js"></script>
+    <script src="https://cdn.datatables.net/responsive/2.5.0/js/dataTables.responsive.min.js"></script>
+    <script src="../Logica/sweetalert2.min.js"></script>
+    
+    <!-- Script principal -->
+    <script src="../Logica/Archivos/GestionDocumentos.js"></script>
+</body>
+</html>

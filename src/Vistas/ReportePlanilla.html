@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Reporte de Planilla - Recursos Humanos</title>
+    <link rel="stylesheet" href="../Disenos/Reportes/ReportePlanilla.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+</head>
+<body>
+    <!-- Header -->
+    <header class="header">
+        <div class="header-content">
+            <img src="../Imagenes/LogoDennis.png" alt="New Technology Logo" class="brand-logo">
+            <div class="header-title">
+                <h1><i class="fas fa-file-invoice-dollar"></i> Reporte de Planilla</h1>
+                <p>Sistema de Recursos Humanos</p>
+            </div>
+            <div class="user-info" id="userInfo">
+                <!-- Se llenará dinámicamente -->
+            </div>
+        </div>
+    </header>
+
+    <!-- Elementos decorativos -->
+    <div class="bg-decoration bubble bubble1"></div>
+    <div class="bg-decoration bubble bubble2"></div>
+    <div class="bg-decoration bubble bubble3"></div>
+
+    <!-- Contenido principal -->
+    <main class="main-content">
+        <!-- Toolbar compacto -->
+        <section class="compact-toolbar">
+            <!-- Filtros en línea -->
+            <div class="filters-inline">
+                <div class="filter-compact">
+                    <label><i class="fas fa-map-marker-alt"></i> Ubicación:</label>
+                    <select id="tipoUbicacion" class="form-select-compact">
+                        <option value="">Todas</option>
+                        <option value="1">Capital</option>
+                        <option value="0">Regional</option>
+                    </select>
+                </div>
+                
+                <div class="filter-compact">
+                    <label><i class="fas fa-list-alt"></i> Planilla:</label>
+                    <select id="planillaSelect" class="form-select-compact" disabled>
+                        <option value="">Seleccione ubicación</option>
+                    </select>
+                </div>
+                
+                <button id="generarReporte" class="btn-generate-compact" disabled>
+                    <i class="fas fa-chart-bar"></i> Generar
+                </button>
+                <button id="exportarExcel" class="btn-export-compact" disabled style="display: none;">
+                    <i class="fas fa-file-excel"></i> Exportar Excel
+                </button>
+            </div>
+
+            <!-- Info y controles de tabla -->
+            <div class="table-controls" id="tableControls" style="display: none;">
+                <div class="planilla-info-compact" id="planillaInfoCompact">
+                    <!-- Se llenará dinámicamente -->
+                </div>
+                
+                <div class="search-controls">
+                    <div class="search-box-compact">
+                        <i class="fas fa-search"></i>
+                        <input type="text" id="searchInput" placeholder="Buscar empleado...">
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Panel principal de datos -->
+        <section class="data-panel" id="dataPanel" style="display: none;">
+            <div class="table-container">
+                <div class="table-responsive">
+                    <table class="employees-table" id="employeesTable">
+                        <thead>
+                            <tr>
+                                <th class="sortable" data-sort="numero">
+                                    #
+                                    <i class="fas fa-sort sort-icon"></i>
+                                </th>
+                                <th class="sortable" data-sort="nombre">
+                                    Nombre Completo
+                                    <i class="fas fa-sort sort-icon"></i>
+                                </th>
+                                <th class="sortable" data-sort="cuenta">
+                                    Cuenta Bancaria
+                                    <i class="fas fa-sort sort-icon"></i>
+                                </th>
+                                <th class="sortable" data-sort="departamento">
+                                    Departamento
+                                    <i class="fas fa-sort sort-icon"></i>
+                                </th>
+                                <th class="sortable" data-sort="puesto">
+                                    Puesto
+                                    <i class="fas fa-sort sort-icon"></i>
+                                </th>
+                                <th class="sortable" data-sort="fecha">
+                                    Fecha Planilla
+                                    <i class="fas fa-sort sort-icon"></i>
+                                </th>
+                                <th class="sortable" data-sort="salario">
+                                    Salario Base
+                                    <i class="fas fa-sort sort-icon"></i>
+                                </th>
+                                <th class="sortable" data-sort="bonificacion">
+                                    Bonificación
+                                    <i class="fas fa-sort sort-icon"></i>
+                                </th>
+                                <th class="no-sort">
+                                    Acciones
+                                </th>
+                            </tr>
+                        </thead>
+                        <tbody id="employeesTableBody">
+                            <!-- Se llenará dinámicamente -->
+                        </tbody>
+                    </table>
+                </div>
+                
+                <!-- Paginación fija en la parte inferior -->
+                <div class="pagination-fixed" id="paginationContainer">
+                    <!-- Se llenará dinámicamente -->
+                </div>
+            </div>
+        </section>
+
+        <!-- Panel de carga -->
+        <section class="loading-panel" id="loadingPanel" style="display: none;">
+            <div class="loading-content">
+                <div class="spinner"></div>
+                <p>Cargando datos...</p>
+            </div>
+        </section>
+    </main>
+
+    <!-- Modal de detalles del empleado -->
+    <div class="modal" id="employeeModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3><i class="fas fa-user"></i> Detalles del Empleado</h3>
+                <button class="modal-close" id="modalClose">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body" id="modalBody">
+                <!-- Se llenará dinámicamente -->
+            </div>
+        </div>
+    </div>
+
+    <script src="../Logica/Reportes/ReportePlanilla.js"></script>
+</body>
+</html>

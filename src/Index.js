@@ -24,6 +24,10 @@ let EstadoPagosVacacionesWindow = null;
 let PagosBonisWindow = null;
 let BajasWindow = null;
 let LiquidaciónWindow = null;
+let ReportePlanillaContableWindow = null;
+let GestionDocumentosPersonalesWindow = null;
+let ConsultarArchivosWindow = null;
+let PagoPlanillaTiempoParcialWindow = null;
 
 if(process.env.NODE_ENV !=='production'){
     require('electron-reload')(__dirname,{
@@ -586,6 +590,122 @@ function createLiquidacionWindow() {
         LiquidaciónWindow = null;
     });
 }
+function createReportePlanillaContableWindow() {
+    // Verifica si la ventana ya está abierta
+    if (ReportePlanillaContableWindow) {
+        // Si ya está abierta, simplemente enfócala
+        if (ReportePlanillaContableWindow.isMinimized()) ReportePlanillaContableWindow.restore();
+        ReportePlanillaContableWindow.focus();
+        return;
+    }
+    
+    // Crea una nueva ventana si no existe
+    ReportePlanillaContableWindow = new BrowserWindow({
+        width: 1200,
+        height: 800,
+        webPreferences: {
+            nodeIntegration: true,
+            contextIsolation: false,
+        },
+        icon: path.join(__dirname, 'LogoRecursos.ico'),
+        title: 'Permisos',
+        autoHideMenuBar: true
+    });
+
+    ReportePlanillaContableWindow.loadURL(`file://${__dirname}/Vistas/ReportePlanilla.html`);
+    
+    // Elimina la referencia a la ventana cuando se cierre
+    ReportePlanillaContableWindow.on('closed', () => {
+        ReportePlanillaContableWindow = null;
+    });
+}
+function createGestionDocPersonalesWindow() {
+    // Verifica si la ventana ya está abierta
+    if (GestionDocumentosPersonalesWindow) {
+        // Si ya está abierta, simplemente enfócala
+        if (GestionDocumentosPersonalesWindow.isMinimized()) GestionDocumentosPersonalesWindow.restore();
+        GestionDocumentosPersonalesWindow.focus();
+        return;
+    }
+    
+    // Crea una nueva ventana si no existe
+    GestionDocumentosPersonalesWindow = new BrowserWindow({
+        width: 1200,
+        height: 800,
+        webPreferences: {
+            nodeIntegration: true,
+            contextIsolation: false,
+        },
+        icon: path.join(__dirname, 'LogoRecursos.ico'),
+        title: 'Permisos',
+        autoHideMenuBar: true
+    });
+
+    GestionDocumentosPersonalesWindow.loadURL(`file://${__dirname}/Vistas/GestionDocumentos.html`);
+    
+    // Elimina la referencia a la ventana cuando se cierre
+    GestionDocumentosPersonalesWindow.on('closed', () => {
+        GestionDocumentosPersonalesWindow = null;
+    });
+}
+function createConsultarDocPersonalesWindow() {
+    // Verifica si la ventana ya está abierta
+    if (ConsultarArchivosWindow) {
+        // Si ya está abierta, simplemente enfócala
+        if (ConsultarArchivosWindow.isMinimized()) ConsultarArchivosWindow.restore();
+        ConsultarArchivosWindow.focus();
+        return;
+    }
+    
+    // Crea una nueva ventana si no existe
+    ConsultarArchivosWindow = new BrowserWindow({
+        width: 1200,
+        height: 800,
+        webPreferences: {
+            nodeIntegration: true,
+            contextIsolation: false,
+        },
+        icon: path.join(__dirname, 'LogoRecursos.ico'),
+        title: 'Permisos',
+        autoHideMenuBar: true
+    });
+
+    ConsultarArchivosWindow.loadURL(`file://${__dirname}/Vistas/ConsultarArchivos.html`);
+    
+    // Elimina la referencia a la ventana cuando se cierre
+    ConsultarArchivosWindow.on('closed', () => {
+        ConsultarArchivosWindow = null;
+    });
+}
+function createPagoPlanillaTiempoParcialWindow() {
+    // Verifica si la ventana ya está abierta
+    if (PagoPlanillaTiempoParcialWindow) {
+        // Si ya está abierta, simplemente enfócala
+        if (PagoPlanillaTiempoParcialWindow.isMinimized()) PagoPlanillaTiempoParcialWindow.restore();
+        PagoPlanillaTiempoParcialWindow.focus();
+        return;
+    }
+    
+    // Crea una nueva ventana si no existe
+    PagoPlanillaTiempoParcialWindow = new BrowserWindow({
+        width: 1200,
+        height: 800,
+        webPreferences: {
+            nodeIntegration: true,
+            contextIsolation: false,
+        },
+        icon: path.join(__dirname, 'LogoRecursos.ico'),
+        title: 'Permisos',
+        autoHideMenuBar: true
+    });
+
+    PagoPlanillaTiempoParcialWindow.loadURL(`file://${__dirname}/Vistas/PagoPlanillaTiempoParcial.html`);
+    
+    // Elimina la referencia a la ventana cuando se cierre
+    PagoPlanillaTiempoParcialWindow.on('closed', () => {
+        PagoPlanillaTiempoParcialWindow = null;
+    });
+}
 // Añade este receptor para abrir la ventana de pago nómina
 ipcMain.on('open_pago_nomina', () => {
     createPagoNominaWindow();
@@ -644,6 +764,18 @@ ipcMain.on('open_Ventana_Bajas', () => {
 });
 ipcMain.on('open_Ventana_PagoLiquidacion', () => {
     createLiquidacionWindow();
+});
+ipcMain.on('open_Ventana_ReportePlanillaContable', () => {
+    createReportePlanillaContableWindow();
+});
+ipcMain.on('open_Ventana_GestionDocPersonales', () => {
+    createGestionDocPersonalesWindow();
+});
+ipcMain.on('open_Ventana_ConsultarDocPersonales', () => {
+    createConsultarDocPersonalesWindow();
+});
+ipcMain.on('open_Ventana_PagoPlanillaParciales', () => {
+    createPagoPlanillaTiempoParcialWindow();
 });
 ipcMain.handle('show-save-dialog', async (event, options) => {
     const result = await dialog.showOpenDialog(options);
