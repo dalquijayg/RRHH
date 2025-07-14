@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Planilla Tiempo Parcial - Recursos Humanos</title>
     <link rel="stylesheet" href="../Disenos/Planilla/PlanillaTiempoParcial.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
@@ -12,13 +12,28 @@
     <!-- Header Principal -->
     <header class="main-header">
         <div class="header-container">
+            <!-- Columna izquierda: Logo y título -->
             <div class="header-brand">
                 <img src="../Imagenes/Logo Recursos Humanos new.png" alt="Logo RRHH" class="header-logo">
                 <div class="header-info">
-                    <h1>Planilla Tiempo Parcial</h1>
+                    <div class="title-container">
+                        <h1>Planilla Tiempo Parcial</h1>
+                        <div class="planilla-info" id="planillaInfo" style="display: none;">
+                            <span class="planilla-badge clickeable" id="planillaBadge" onclick="cambiarConfiguracionDesdeHeader()" title="Click para cambiar configuración">
+                                Información de Planilla
+                            </span>
+                        </div>
+                    </div>
                     <p>Gestión de pagos para colaboradores</p>
                 </div>
             </div>
+            
+            <!-- Columna central: Información del departamento (se genera dinámicamente) -->
+            <div class="header-center">
+                <!-- Se llena automáticamente con JavaScript -->
+            </div>
+            
+            <!-- Columna derecha: Fecha actual -->
             <div class="header-actions">
                 <div class="current-date">
                     <i class="fas fa-calendar-day"></i>
@@ -28,46 +43,81 @@
         </div>
     </header>
 
-    <!-- Contenedor Principal -->
-    <main class="main-container">
-        <!-- Panel Izquierdo: Controles y Colaboradores -->
-        <section class="left-panel">
-            <!-- Selección de Departamento -->
-            <div class="control-section">
-                <div class="section-header" id="departmentHeader">
-                    <h3><i class="fas fa-building"></i> Departamento</h3>
-                    <button type="button" id="toggleDepartment" class="toggle-btn" style="display: none;">
-                        <i class="fas fa-chevron-up"></i>
-                    </button>
-                </div>
-                
-                <!-- Vista expandida (formulario completo) -->
-                <div class="form-content" id="departmentForm">
+    <!-- Nuevo: Selección de Tipo de Planilla -->
+    <section class="payroll-type-section">
+        <div class="payroll-type-container">
+            <div class="payroll-type-header">
+                <h2><i class="fas fa-calendar-check"></i> Configuración de Planilla</h2>
+                <p>Seleccione el tipo y período de la planilla a generar</p>
+            </div>
+            
+            <div class="payroll-type-form" id="payrollTypeForm">
+                <div class="form-row">
                     <div class="form-group">
-                        <select id="departamento" class="form-control">
-                            <option value="">Seleccione departamento...</option>
+                        <label for="tipoQuincena">Tipo de Planilla</label>
+                        <select id="tipoQuincena" class="form-control">
+                            <option value="">Seleccione tipo...</option>
+                            <option value="quincenal">Planilla Quincenal</option>
+                            <option value="fin_mes">Planilla Fin de Mes</option>
                         </select>
-                        <div class="department-badge" id="departmentBadge" style="display: none;"></div>
                     </div>
-                    <button type="button" id="buscarColaboradores" class="btn btn-primary full-width" disabled>
-                        <i class="fas fa-search"></i>
-                        <span>Buscar Colaboradores</span>
-                    </button>
+                    
+                    <div class="form-group">
+                        <label for="mesPlanilla">Mes</label>
+                        <select id="mesPlanilla" class="form-control">
+                            <option value="">Seleccione mes...</option>
+                            <option value="1">Enero</option>
+                            <option value="2">Febrero</option>
+                            <option value="3">Marzo</option>
+                            <option value="4">Abril</option>
+                            <option value="5">Mayo</option>
+                            <option value="6">Junio</option>
+                            <option value="7">Julio</option>
+                            <option value="8">Agosto</option>
+                            <option value="9">Septiembre</option>
+                            <option value="10">Octubre</option>
+                            <option value="11">Noviembre</option>
+                            <option value="12">Diciembre</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="anioPlanilla">Año</label>
+                        <select id="anioPlanilla" class="form-control">
+                            <option value="">Seleccione año...</option>
+                            <!-- Se llena dinámicamente -->
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <button type="button" id="confirmarPlanilla" class="btn btn-primary" disabled>
+                            <i class="fas fa-check"></i>
+                            Confirmar Selección
+                        </button>
+                    </div>
                 </div>
-                
-                <!-- Vista colapsada (solo departamento seleccionado) -->
-                <div class="selected-department" id="selectedDepartment" style="display: none;">
-                    <div class="selected-info">
-                        <div class="selected-name" id="selectedDepartmentName"></div>
-                        <div class="selected-badge" id="selectedDepartmentBadge"></div>
+            </div>
+            
+            <!-- Vista confirmada (oculta inicialmente) -->
+            <div class="payroll-confirmed" id="payrollConfirmed" style="display: none;">
+                <div class="confirmed-info">
+                    <div class="confirmed-details">
+                        <span class="confirmed-type" id="confirmedType">Tipo de Planilla</span>
+                        <span class="confirmed-period" id="confirmedPeriod">Período</span>
                     </div>
-                    <button type="button" id="changeDepartment" class="btn-change">
+                    <button type="button" id="changePlanilla" class="btn-change">
                         <i class="fas fa-edit"></i>
                         Cambiar
                     </button>
                 </div>
             </div>
+        </div>
+    </section>
 
+    <!-- Contenedor Principal -->
+    <main class="main-container">
+        <!-- Panel Izquierdo: Lista de Colaboradores -->
+        <section class="left-panel">
             <!-- Lista de Colaboradores -->
             <div class="collaborators-section" id="collaboratorsSection" style="display: none;">
                 <div class="section-header">
@@ -87,60 +137,9 @@
             </div>
         </section>
 
-        <!-- Panel Derecho: Información del Empleado y Lista de Planilla -->
+        <!-- Panel Derecho: Planilla Principal -->
         <section class="right-panel">
-            <!-- Resumen de Turnos Actuales (Temporal para el empleado seleccionado) -->
-            <div class="current-shifts-section" id="currentShiftsSection" style="display: none;">
-                <div class="section-header">
-                    <h3><i class="fas fa-clock"></i> Turnos Actuales</h3>
-                    <div class="summary-actions">
-                        <button type="button" id="openCalendarFromSummary" class="btn-calendar-mini" title="Gestionar turnos">
-                            <i class="fas fa-calendar-plus"></i>
-                        </button>
-                    </div>
-                </div>
-                
-                <!-- Estadísticas de turnos -->
-                <div class="stats-grid">
-                    <div class="stat-card morning">
-                        <div class="stat-icon">
-                            <i class="fas fa-sun"></i>
-                        </div>
-                        <div class="stat-info">
-                            <span class="stat-number" id="currentMorningCount">0</span>
-                            <span class="stat-label">Turnos Mañana</span>
-                        </div>
-                    </div>
-                    <div class="stat-card mixed">
-                        <div class="stat-icon">
-                            <i class="fas fa-moon"></i>
-                        </div>
-                        <div class="stat-info">
-                            <span class="stat-number" id="currentMixedCount">0</span>
-                            <span class="stat-label">Turnos Mixtos</span>
-                        </div>
-                    </div>
-                    <div class="stat-card total">
-                        <div class="stat-icon">
-                            <i class="fas fa-clock"></i>
-                        </div>
-                        <div class="stat-info">
-                            <span class="stat-number" id="currentTotalCount">0</span>
-                            <span class="stat-label">Total Turnos</span>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Botones de acción para empleado actual -->
-                <div class="action-buttons">
-                    <button type="button" id="clearCurrentShifts" class="btn btn-secondary">
-                        <i class="fas fa-eraser"></i>
-                        <span>Limpiar Turnos</span>
-                    </button>
-                </div>
-            </div>
-
-            <!-- Lista de Planilla (NUEVA SECCIÓN PRINCIPAL) -->
+            <!-- Sección Principal de Planilla (MAXIMIZADA) -->
             <div class="payroll-section" id="payrollSection">
                 <div class="section-header">
                     <h3><i class="fas fa-file-invoice-dollar"></i> Planilla de Colaboradores</h3>
@@ -150,58 +149,61 @@
                     </div>
                 </div>
 
-                <!-- Tabla de colaboradores en planilla -->
+                <!-- Tabla de colaboradores (MAXIMIZADA CON SCROLL) -->
                 <div class="payroll-table-container" id="payrollTableContainer">
                     <table class="payroll-table" id="payrollTable">
                         <thead>
                             <tr>
                                 <th>Colaborador</th>
-                                <th>T. Mañana</th>
-                                <th>T. Mixtos</th>
-                                <th>Total Turnos</th>
-                                <th>Total a Pagar</th>
-                                <th>Acciones</th>
+                                <th style="text-align: center;">T. Mañana</th>
+                                <th style="text-align: center;">T. Mixtos</th>
+                                <th style="text-align: center;">T. 4 Horas</th>
+                                <th style="text-align: center;">Total Turnos</th>
+                                <th style="text-align: right;">Total a Pagar</th>
+                                <th style="text-align: center;">Acciones</th>
                             </tr>
                         </thead>
                         <tbody id="payrollTableBody">
-                            <!-- Filas de colaboradores se cargan dinámicamente -->
+                            <!-- Filas dinámicas -->
                         </tbody>
                     </table>
                     
                     <!-- Estado vacío -->
                     <div class="empty-payroll-state" id="emptyPayrollState">
                         <div class="empty-state">
-                            <i class="fas fa-users"></i>
+                            <i class="fas fa-users-slash"></i>
                             <h4>No hay colaboradores en la planilla</h4>
                             <p>Selecciona un colaborador, asigna turnos y agrégalo a la planilla para comenzar.</p>
                         </div>
                     </div>
                 </div>
 
-                <!-- Total General de la Planilla -->
-                <div class="payroll-total" id="payrollTotal" style="display: none;">
-                    <div class="total-summary">
-                        <div class="total-info">
-                            <div class="total-label">Total General de la Planilla</div>
-                            <div class="total-details">
+                <!-- Estructura de acciones optimizada -->
+                <div class="payroll-actions-container" id="payrollActionsContainer" style="display: none;">
+                    <!-- Botones de acción a la izquierda -->
+                    <div class="left-actions">
+                        <button type="button" id="clearAllPayroll" class="btn btn-danger">
+                            <i class="fas fa-trash-alt"></i>
+                            <span>Limpiar Planilla</span>
+                        </button>
+                        
+                        <button type="button" id="generateFinalPayroll" class="btn btn-success">
+                            <i class="fas fa-file-export"></i>
+                            <span>Solicitar Autorización</span>
+                        </button>
+                    </div>
+                    
+                    <!-- Resumen total a la derecha -->
+                    <div class="right-summary">
+                        <div class="compact-total">
+                            <div class="compact-total-label">Total General</div>
+                            <div class="compact-total-amount" id="totalAmount">Q 0.00</div>
+                            <div class="compact-total-details">
                                 <span id="totalCollaborators">0</span> colaboradores • 
                                 <span id="totalShifts">0</span> turnos
                             </div>
                         </div>
-                        <div class="total-amount" id="totalAmount">Q 0.00</div>
                     </div>
-                </div>
-
-                <!-- Acciones finales -->
-                <div class="final-actions" id="finalActions" style="display: none;">
-                    <button type="button" id="clearAllPayroll" class="btn btn-secondary">
-                        <i class="fas fa-trash"></i>
-                        <span>Limpiar Toda la Planilla</span>
-                    </button>
-                    <button type="button" id="generateFinalPayroll" class="btn btn-success">
-                        <i class="fas fa-file-export"></i>
-                        <span>Generar Planilla Final</span>
-                    </button>
                 </div>
             </div>
 
@@ -212,11 +214,11 @@
                         <i class="fas fa-user-clock"></i>
                     </div>
                     <h3>Gestión de Planillas</h3>
-                    <p>Selecciona un departamento y luego un colaborador para comenzar a gestionar los turnos y generar la planilla de pago.</p>
+                    <p>Configure el tipo de planilla y luego seleccione un colaborador para comenzar a gestionar los turnos y generar la planilla de pago.</p>
                     <div class="welcome-steps">
                         <div class="step">
                             <div class="step-number">1</div>
-                            <span>Seleccionar departamento</span>
+                            <span>Configurar planilla</span>
                         </div>
                         <div class="step">
                             <div class="step-number">2</div>
@@ -277,57 +279,90 @@
                             <!-- Días del calendario se generan dinámicamente -->
                         </div>
                     </div>
+                </div>
+
+                <!-- Panel lateral con resumen y leyendas -->
+                <div class="sidebar-section">
+                    <!-- Resumen rápido en el modal -->
+                    <div class="modal-summary">
+                        <h5><i class="fas fa-chart-bar"></i> Resumen Actual</h5>
+                        <div class="modal-stats">
+                            <div class="modal-stat">
+                                <span class="stat-label">Mañana</span>
+                                <span class="stat-value" id="modalMorningCount">0</span>
+                            </div>
+                            <div class="modal-stat">
+                                <span class="stat-label">Mixto</span>
+                                <span class="stat-value" id="modalMixedCount">0</span>
+                            </div>
+                            <div class="modal-stat total">
+                                <span class="stat-label">Total</span>
+                                <span class="stat-value" id="modalTotalCount">0</span>
+                            </div>
+                        </div>
+                    </div>
 
                     <!-- Leyenda del calendario -->
                     <div class="calendar-legend">
-                        <div class="legend-item">
-                            <div class="legend-color morning"></div>
-                            <span>Turno Mañana</span>
+                        <div class="legend-section">
+                            <h6>Turnos Asignados</h6>
+                            <div class="legend-items">
+                                <div class="legend-item">
+                                    <div style="width: 12px; height: 12px; background: linear-gradient(135deg, #fff7e6, #ffedd5); border: 1px solid #fb923c; border-radius: 3px;"></div>
+                                    <span>☀️ Turno Mañana</span>
+                                </div>
+                                <div class="legend-item">
+                                    <div style="width: 12px; height: 12px; background: linear-gradient(135deg, #f3f4f6, #e5e7eb); border: 1px solid #6b7280; border-radius: 3px;"></div>
+                                    <span>🌙 Turno Mixto</span>
+                                </div>
+                                <div class="legend-item">
+                                    <div style="width: 12px; height: 12px; background: linear-gradient(135deg, #f0fdf4, #dcfce7); border: 1px solid #22c55e; border-radius: 3px;"></div>
+                                    <span>🕐 Turno 4 Horas</span>
+                                </div>
+                            </div>
                         </div>
-                        <div class="legend-item">
-                            <div class="legend-color mixed"></div>
-                            <span>Turno Mixto</span>
+                        
+                        <div class="legend-section">
+                            <h6>Disponibilidad</h6>
+                            <div class="legend-items">
+                                <div class="legend-item">
+                                    <div style="width: 12px; height: 12px; background: white; border: 1px solid #d1d5db; border-radius: 3px;"></div>
+                                    <span>Disponible</span>
+                                </div>
+                                <div class="legend-item">
+                                    <div style="width: 12px; height: 12px; background: white; border: 1px solid #fbbf24; border-radius: 3px; position: relative;">
+                                        <div style="position: absolute; top: 1px; left: 1px; width: 4px; height: 4px; background: #fbbf24; border-radius: 50%;"></div>
+                                    </div>
+                                    <span>⚠️ Último día disponible</span>
+                                </div>
+                                <div class="legend-item">
+                                    <div style="width: 12px; height: 12px; background: #fef2f2; border: 1px solid #fca5a5; border-radius: 3px; text-decoration: line-through;"></div>
+                                    <span>🚫 Semana completa</span>
+                                </div>
+                            </div>
                         </div>
-                        <div class="legend-item holiday-national">
-                            <span>🇬🇹 Feriado Nacional</span>
+                        
+                        <div class="legend-section">
+                            <h6>Restricciones</h6>
+                            <div class="legend-items">
+                                <div class="legend-item sunday-blocked">
+                                    <span>🚫 Domingos</span>
+                                </div>
+                                <div class="legend-item holiday-national">
+                                    <span>🇬🇹 Feriados Nacionales</span>
+                                </div>
+                                <div class="legend-item holiday-departmental">
+                                    <span>🏢 Feriados Departamentales</span>
+                                </div>
+                                <div class="legend-item easter-week">
+                                    <span>✝️ Semana Santa</span>
+                                </div>
+                            </div>
                         </div>
-                        <div class="legend-item holiday-departmental">
-                            <span>🏢 Feriado Departamental</span>
-                        </div>
-                        <div class="legend-item easter-week">
-                            <span>✝️ Semana Santa</span>
-                        </div>
-                        <div class="legend-item week-warning">
-                            <span>⚠️ 3/4 días usados</span>
-                        </div>
-                        <div class="legend-item week-full">
-                            <span>🚫 Semana completa</span>
-                        </div>
-                        <div class="legend-item sunday-blocked">
-                            <span>🚫 Domingos bloqueados</span>
-                        </div>
+                        
                         <div class="legend-info">
                             <i class="fas fa-info-circle"></i>
-                            <span>Máximo 4 días laborables por semana</span>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Resumen rápido en el modal -->
-                <div class="modal-summary">
-                    <h5><i class="fas fa-chart-bar"></i> Resumen Actual</h5>
-                    <div class="modal-stats">
-                        <div class="modal-stat">
-                            <span class="stat-value" id="modalMorningCount">0</span>
-                            <span class="stat-label">Mañana</span>
-                        </div>
-                        <div class="modal-stat">
-                            <span class="stat-value" id="modalMixedCount">0</span>
-                            <span class="stat-label">Mixto</span>
-                        </div>
-                        <div class="modal-stat total">
-                            <span class="stat-value" id="modalTotalCount">0</span>
-                            <span class="stat-label">Total</span>
+                            <span>Máximo 4 días por semana</span>
                         </div>
                     </div>
                 </div>
@@ -347,19 +382,19 @@
 
     <!-- Modal para selección de turno -->
     <div class="modal-overlay" id="shiftModal">
-        <div class="modal-container">
+        <div class="modal-container modal-shift">
             <div class="modal-header">
                 <h3>Seleccionar Tipo de Turno</h3>
                 <button type="button" class="modal-close" id="closeModal">
                     <i class="fas fa-times"></i>
                 </button>
             </div>
-            <div class="modal-body">
+            <div class="modal-body modal-shift-body">
                 <p class="selected-date-text">
                     <i class="fas fa-calendar-day"></i>
                     <span id="selectedDate">Fecha seleccionada</span>
                 </p>
-                <div class="shift-options">
+                <div class="shift-options-grid">
                     <button type="button" class="shift-option morning-option" data-shift="1">
                         <div class="option-icon">
                             <i class="fas fa-sun"></i>
@@ -376,6 +411,19 @@
                         <div class="option-content">
                             <h4>Turno Mixto</h4>
                             <p>Tarde - Noche</p>
+                        </div>
+                    </button>
+                </div>
+                
+                <!-- Botón de 4 horas -->
+                <div class="shift-option-full">
+                    <button type="button" class="shift-option hours-option" data-shift="3">
+                        <div class="option-icon">
+                            <i class="fas fa-clock"></i>
+                        </div>
+                        <div class="option-content">
+                            <h4>Turno de 4 Horas</h4>
+                            <p>Jornada parcial flexible</p>
                         </div>
                     </button>
                 </div>

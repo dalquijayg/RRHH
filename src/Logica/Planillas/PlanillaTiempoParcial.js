@@ -13,28 +13,55 @@ let currentShifts = [];
 let diasEspeciales = [];
 let currentDepartamentoId = null;
 let fechasSemanaSanta = [];
-// Inicialización
+let planillaConfig = {
+    tipo: null,
+    mes: null,
+    anio: null,
+    confirmada: false
+};
+// Inicialización principal - ACTUALIZADA
 document.addEventListener('DOMContentLoaded', async () => {
     console.log('Iniciando aplicación...');
     
     try {
         mostrarFechaActual();
-        await cargarDepartamentos();
+        cargarAnios();
         await cargarTarifasSalarios();
         generarFechasSemanaSanta();
+        await cargarInformacionDepartamento();
         inicializarEventos();
-        inicializarPlanilla(); // ⭐ AGREGAR ESTA LÍNEA
+        inicializarPlanilla(); 
+        actualizarVisibilidadAcciones();
         console.log('Aplicación inicializada correctamente');
     } catch (error) {
         console.error('Error al inicializar la aplicación:', error);
         mostrarError('Error al inicializar la aplicación');
     }
 });
+function cargarAnios() {
+    const select = document.getElementById('anioPlanilla');
+    const currentYear = new Date().getFullYear();
+    
+    select.innerHTML = '<option value="">Seleccione año...</option>';
+    
+    // Cargar desde año anterior hasta 2 años después
+    for (let year = currentYear - 1; year <= currentYear + 2; year++) {
+        const option = document.createElement('option');
+        option.value = year;
+        option.textContent = year;
+        if (year === currentYear) {
+            option.selected = true;
+        }
+        select.appendChild(option);
+    }
+}
+
 function inicializarPlanilla() {
     // Mostrar siempre la sección de planilla
     document.getElementById('payrollSection').style.display = 'block';
     actualizarVistaPlanilla();
 }
+
 // Mostrar fecha actual en el header
 function mostrarFechaActual() {
     const now = new Date();
@@ -46,8 +73,101 @@ function mostrarFechaActual() {
     };
     document.getElementById('currentDate').textContent = now.toLocaleDateString('es-GT', options);
 }
+async function cargarInformacionDepartamento() {
+    try {
+        // Obtener datos del usuario logueado
+        const userData = JSON.parse(localStorage.getItem('userData'));
+        if (!userData) {
+            Swal.fire({
+                icon: 'error',
+                title: 'Sesión expirada',
+                text: 'Su sesión ha expirado. Por favor, inicie sesión nuevamente.',
+                confirmButtonColor: '#1e40af'
+            }).then(() => {
+                window.location.href = '../Login.html';
+            });
+            return;
+        }
 
-// Cargar tarifas de salarios del año actual
+        // Obtener información del departamento del usuario
+        const connection = await connectionString();
+        const result = await connection.query(`
+            SELECT
+                departamentos.IdDepartamento, 
+                departamentos.NombreDepartamento, 
+                Regiones.IdRegion, 
+                Regiones.NombreRegion
+            FROM
+                departamentos
+                INNER JOIN
+                Regiones
+                ON 
+                    departamentos.IdRegion = Regiones.IdRegion
+            WHERE
+                departamentos.IdDepartamento = ?
+        `, [userData.IdSucuDepa]);
+        await connection.close();
+
+        if (result.length === 0) {
+            throw new Error('No se encontró información del departamento del usuario');
+        }
+
+        const departamentoInfo = result[0];
+        
+        // Configurar variables globales
+        currentDepartamentoId = departamentoInfo.IdDepartamento;
+        isCapitalino = departamentoInfo.IdRegion === 3;
+
+        // Cargar días especiales del departamento
+        await cargarDiasEspeciales(currentDepartamentoId);
+
+        // Mostrar información del departamento en la interfaz
+        mostrarInformacionDepartamento(departamentoInfo, userData);
+
+        console.log('Información del departamento cargada:', departamentoInfo);
+
+    } catch (error) {
+        console.error('Error al cargar información del departamento:', error);
+        
+        Swal.fire({
+            icon: 'error',
+            title: 'Error de configuración',
+            text: 'No se pudo cargar la información del departamento. Contacte al administrador.',
+            confirmButtonColor: '#1e40af'
+        });
+    }
+}
+function mostrarInformacionDepartamento(departamentoInfo, userData) {
+    // Buscar o crear el contenedor central del header
+    let headerCenter = document.querySelector('.header-center');
+    if (!headerCenter) {
+        // Crear el contenedor central si no existe
+        headerCenter = document.createElement('div');
+        headerCenter.className = 'header-center';
+        
+        // Insertar en el header-container después del header-brand
+        const headerContainer = document.querySelector('.header-container');
+        const headerBrand = document.querySelector('.header-brand');
+        headerContainer.insertBefore(headerCenter, headerBrand.nextSibling);
+    }
+
+    const regionTexto = isCapitalino ? 'Región Capitalina' : `Región ${departamentoInfo.NombreRegion}`;
+    const regionClass = isCapitalino ? 'capitalino' : 'regional';
+
+    headerCenter.innerHTML = `
+        <div class="department-info-container">
+            <div class="department-main-info">
+                <i class="fas fa-building" style="color: rgba(255, 255, 255, 0.8); font-size: 1.1rem;"></i>
+                <span class="department-name">${departamentoInfo.NombreDepartamento}</span>
+                <span class="department-badge-header ${regionClass}">${regionTexto}</span>
+            </div>
+            <div class="user-info">
+                <i class="fas fa-user"></i>
+                <span>${userData.NombreCompleto}</span>
+            </div>
+        </div>
+    `;
+}
 async function cargarTarifasSalarios() {
     try {
         const connection = await connectionString();
@@ -89,45 +209,49 @@ async function cargarTarifasSalarios() {
         mostrarError('Error al cargar las tarifas de salarios');
     }
 }
-
-// Cargar departamentos
-async function cargarDepartamentos() {
+async function buscarColaboradoresAutomatico() {
+    if (!currentDepartamentoId) {
+        throw new Error('No se ha configurado el departamento');
+    }
+    
     try {
         const connection = await connectionString();
         const result = await connection.query(`
             SELECT
-                departamentos.IdDepartamento, 
-                departamentos.NombreDepartamento, 
-                Regiones.IdRegion, 
-                Regiones.NombreRegion
+                personal.IdPersonal, 
+                personal.PrimerApellido, 
+                personal.SegundoApellido, 
+                personal.PrimerNombre, 
+                personal.SegundoNombre, 
+                personal.TercerNombre, 
+                Puestos.Nombre
             FROM
-                departamentos
+                personal
                 INNER JOIN
-                Regiones
+                Puestos
                 ON 
-                    departamentos.IdRegion = Regiones.IdRegion
-            ORDER BY departamentos.NombreDepartamento
-        `);
+                    personal.IdPuesto = Puestos.IdPuesto
+            WHERE
+                personal.TipoPersonal = 2 AND
+                personal.Estado = 1 AND
+                personal.IdSucuDepa = ?
+            ORDER BY personal.PrimerApellido, personal.PrimerNombre
+        `, [currentDepartamentoId]);
+        
         await connection.close();
         
-        const select = document.getElementById('departamento');
-        select.innerHTML = '<option value="">Seleccione departamento...</option>';
+        allCollaborators = result.map(collab => ({
+            ...collab,
+            nombreCompleto: `${collab.PrimerNombre} ${collab.SegundoNombre || ''} ${collab.TercerNombre || ''} ${collab.PrimerApellido} ${collab.SegundoApellido || ''}`.trim().replace(/\s+/g, ' ')
+        }));
         
-        result.forEach(dept => {
-            const option = document.createElement('option');
-            option.value = dept.IdDepartamento;
-            option.textContent = dept.NombreDepartamento;
-            option.dataset.regionId = dept.IdRegion;
-            option.dataset.regionName = dept.NombreRegion;
-            select.appendChild(option);
-        });
+        mostrarColaboradores(allCollaborators);
+        
     } catch (error) {
-        console.error('Error al cargar departamentos:', error);
-        mostrarError('Error al cargar los departamentos');
+        console.error('Error al buscar colaboradores:', error);
+        throw error;
     }
 }
-
-// Inicializar eventos
 function inicializarEventos() {
     // Función auxiliar para agregar event listener seguro
     const addSafeEventListener = (id, event, handler) => {
@@ -139,76 +263,17 @@ function inicializarEventos() {
         }
     };
 
-    // ⭐ SELECCIÓN DE DEPARTAMENTO - VERSIÓN ACTUALIZADA CON CARGA DE FERIADOS
-    addSafeEventListener('departamento', 'change', async (e) => {
-        const selectedOption = e.target.selectedOptions[0];
-        const departmentBadge = document.getElementById('departmentBadge');
-        const buscarBtn = document.getElementById('buscarColaboradores');
-        
-        if (selectedOption.value) {
-            const regionId = parseInt(selectedOption.dataset.regionId);
-            const departamentoId = parseInt(selectedOption.value);
-            
-            // Actualizar variables globales
-            isCapitalino = regionId === 3;
-            currentDepartamentoId = departamentoId;
-            
-            // Mostrar indicador de carga
-            departmentBadge.textContent = 'Cargando días especiales...';
-            departmentBadge.className = 'department-badge';
-            departmentBadge.style.display = 'inline-block';
-            buscarBtn.disabled = true;
-            
-            try {
-                // Cargar días especiales del departamento
-                await cargarDiasEspeciales(departamentoId);
-                
-                // Actualizar badge del departamento
-                departmentBadge.textContent = isCapitalino ? 
-                    `Región Capitalina` : 
-                    `Región ${selectedOption.dataset.regionName}`;
-                departmentBadge.className = `department-badge ${isCapitalino ? 'capitalino' : 'regional'}`;
-                
-                buscarBtn.disabled = false;
-                
-            } catch (error) {
-                console.error('Error al configurar departamento:', error);
-                departmentBadge.textContent = 'Error al cargar configuración';
-                departmentBadge.className = 'department-badge';
-            }
-        } else {
-            departmentBadge.style.display = 'none';
-            buscarBtn.disabled = true;
-            diasEspeciales = [];
-            currentDepartamentoId = null;
-        }
-        
-        limpiarSelecciones();
-    });
-    
-    // Buscar colaboradores y colapsar formulario
-    addSafeEventListener('buscarColaboradores', 'click', () => {
-        buscarColaboradores();
-        colapsarFormularioDepartamento();
-    });
-    
-    // Toggle acordeón departamento
-    addSafeEventListener('toggleDepartment', 'click', toggleDepartmentForm);
-    
-    const departmentHeader = document.getElementById('departmentHeader');
-    if (departmentHeader) {
-        departmentHeader.addEventListener('click', toggleDepartmentForm);
-    }
-    
-    // Cambiar departamento (expandir formulario)
-    addSafeEventListener('changeDepartment', 'click', expandirFormularioDepartamento);
-    
-    // Búsqueda en tiempo real
-    addSafeEventListener('searchCollaborator', 'input', filtrarColaboradores);
+    addSafeEventListener('tipoQuincena', 'change', validarFormularioPlanilla);
+    addSafeEventListener('mesPlanilla', 'change', validarFormularioPlanilla);
+    addSafeEventListener('anioPlanilla', 'change', validarFormularioPlanilla);
+    addSafeEventListener('confirmarPlanilla', 'click', confirmarSeleccionPlanilla);
+    addSafeEventListener('changePlanilla', 'click', cambiarConfiguracionPlanilla);
 
-    addSafeEventListener('openCalendarFromSummary', 'click', abrirCalendario);
+    addSafeEventListener('searchCollaborator', 'input', filtrarColaboradores);
     
-    // Modal del calendario
+    addSafeEventListener('clearAllPayroll', 'click', limpiarTodaLaPlanilla);
+    addSafeEventListener('generateFinalPayroll', 'click', solicitarAutorizacionPlanilla);
+    
     addSafeEventListener('closeCalendarModal', 'click', cerrarCalendario);
     
     const calendarModal = document.getElementById('calendarModal');
@@ -233,9 +298,43 @@ function inicializarEventos() {
     
     // Botones del modal del calendario
     addSafeEventListener('saveAndCloseCalendar', 'click', guardarYCerrarCalendario);
-    addSafeEventListener('clearShiftsFromModal', 'click', limpiarTurnosActuales);
+    addSafeEventListener('clearShiftsFromModal', 'click', () => {
+        if (currentShifts.length === 0) {
+            Swal.fire({
+                icon: 'info',
+                title: 'Sin turnos',
+                text: 'No hay turnos para limpiar.',
+                confirmButtonColor: '#4f46e5'
+            });
+            return;
+        }
+        
+        Swal.fire({
+            title: '¿Limpiar todos los turnos?',
+            text: `Se eliminarán todos los ${currentShifts.length} turnos registrados.`,
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonText: 'Sí, limpiar',
+            cancelButtonText: 'Cancelar',
+            confirmButtonColor: '#f43f5e'
+        }).then((result) => {
+            if (result.isConfirmed) {
+                currentShifts = [];
+                actualizarCalendario();
+                actualizarResumenModal();
+                
+                Swal.fire({
+                    icon: 'success',
+                    title: 'Turnos limpiados',
+                    text: 'Todos los turnos han sido eliminados.',
+                    timer: 1500,
+                    showConfirmButton: false
+                });
+            }
+        });
+    });
     
-    // Modal de selección de turno
+    // ⭐ EVENTOS DEL MODAL DE SELECCIÓN DE TURNO
     addSafeEventListener('closeModal', 'click', cerrarModal);
     
     document.addEventListener('click', (e) => {
@@ -255,664 +354,389 @@ function inicializarEventos() {
         });
     }
     
-    // EVENT LISTENERS PARA TURNOS ACTUALES
-    addSafeEventListener('clearCurrentShifts', 'click', limpiarTurnosActuales);
-    
-    // EVENT LISTENERS PARA PLANILLA FINAL
-    addSafeEventListener('clearAllPayroll', 'click', limpiarTodaLaPlanilla);
-    addSafeEventListener('generateFinalPayroll', 'click', generarPlanillaFinal);
-    
     console.log('Event listeners inicializados correctamente');
 }
-function limpiarTurnosActuales() {
-    if (currentShifts.length === 0) {
-        Swal.fire({
-            icon: 'info',
-            title: 'No hay turnos',
-            text: 'No hay turnos registrados para limpiar.',
-            confirmButtonColor: '#1e40af'
-        });
-        return;
-    }
+async function confirmarSeleccionPlanilla() {
+    const tipo = document.getElementById('tipoQuincena').value;
+    const mes = document.getElementById('mesPlanilla').value;
+    const anio = document.getElementById('anioPlanilla').value;
     
-    Swal.fire({
-        title: '¿Limpiar turnos actuales?',
-        text: 'Esta acción eliminará todos los turnos del colaborador actual.',
-        icon: 'warning',
-        showCancelButton: true,
-        confirmButtonText: 'Sí, limpiar',
-        cancelButtonText: 'Cancelar',
-        confirmButtonColor: '#ef4444'
-    }).then((result) => {
-        if (result.isConfirmed) {
-            currentShifts = [];
-            actualizarCalendario();
-            actualizarResumenModal();
-            actualizarResumenTurnosActuales();
-            
-            Swal.fire({
-                icon: 'success',
-                title: 'Turnos limpiados',
-                text: 'Los turnos han sido eliminados.',
-                timer: 1500,
-                showConfirmButton: false
-            });
-        }
-    });
-}
-function generarPlanillaFinal() {
-    if (payrollCollaborators.length === 0) {
+    // Validaciones básicas
+    if (!tipo || !mes || !anio) {
         Swal.fire({
             icon: 'warning',
-            title: 'Planilla vacía',
-            text: 'Debe agregar al menos un colaborador a la planilla.',
+            title: 'Campos incompletos',
+            text: 'Por favor complete todos los campos antes de continuar.',
             confirmButtonColor: '#1e40af'
         });
         return;
     }
     
-    const totalPago = payrollCollaborators.reduce((sum, c) => sum + c.totalPago, 0);
-    const region = isCapitalino ? 'Capitalina' : 'Regional';
-    
-    Swal.fire({
-        title: 'Planilla Final Generada',
-        html: generarResumenPlanillaHTML(),
-        icon: 'success',
-        confirmButtonText: 'Imprimir/Guardar',
-        showCancelButton: true,
-        cancelButtonText: 'Cerrar',
-        confirmButtonColor: '#10b981',
-        width: '700px'
-    }).then((result) => {
-        if (result.isConfirmed) {
-            imprimirPlanillaFinal();
-        }
-    });
-}
-function imprimirPlanillaFinal() {
-    const totalColaboradores = payrollCollaborators.length;
-    const totalTurnos = payrollCollaborators.reduce((sum, c) => sum + c.totalTurnos, 0);
-    const totalPago = payrollCollaborators.reduce((sum, c) => sum + c.totalPago, 0);
-    const region = isCapitalino ? 'Capitalina' : 'Regional';
-    
-    // Crear contenido de impresión
-    const printContent = `
-        <!DOCTYPE html>
-        <html>
-        <head>
-            <title>Planilla Final de Tiempo Parcial - ${new Date().toLocaleDateString('es-GT')}</title>
-            <style>
-                body { 
-                    font-family: 'Inter', Arial, sans-serif; 
-                    margin: 20px; 
-                    color: #1f2937; 
-                    line-height: 1.5;
-                }
-                .header { 
-                    text-align: center; 
-                    margin-bottom: 30px; 
-                    border-bottom: 3px solid #1e40af; 
-                    padding-bottom: 20px; 
-                }
-                .header h1 { 
-                    color: #1e40af; 
-                    margin-bottom: 5px; 
-                    font-size: 2rem;
-                    font-weight: 700;
-                }
-                .info-grid { 
-                    display: grid; 
-                    grid-template-columns: 1fr 1fr; 
-                    gap: 15px; 
-                    margin-bottom: 25px; 
-                }
-                .info-item { 
-                    background: #f9fafb; 
-                    padding: 15px; 
-                    border-radius: 8px; 
-                    border: 1px solid #e5e7eb; 
-                }
-                .planilla-table { 
-                    width: 100%; 
-                    border-collapse: collapse; 
-                    margin-bottom: 25px; 
-                    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-                }
-                .planilla-table th, .planilla-table td { 
-                    border: 1px solid #d1d5db; 
-                    padding: 12px; 
-                    text-align: left; 
-                }
-                .planilla-table th { 
-                    background-color: #1e40af; 
-                    color: white; 
-                    font-weight: 600; 
-                }
-                .planilla-table tr:nth-child(even) { 
-                    background-color: #f9fafb; 
-                }
-                .total-section {
-                    background: linear-gradient(135deg, #10b981, #059669);
-                    color: white;
-                    padding: 25px;
-                    text-align: center;
-                    font-size: 1.4rem;
-                    font-weight: 700;
-                    border-radius: 8px;
-                    margin: 25px 0;
-                }
-                @media print { 
-                    .no-print { display: none; }
-                }
-            </style>
-        </head>
-        <body>
-            <div class="header">
-                <h1>PLANILLA FINAL DE TIEMPO PARCIAL</h1>
-                <p>Sistema de Recursos Humanos - New Technology</p>
-            </div>
-            
-            <div class="info-grid">
-                <div class="info-item">
-                    <strong>Región:</strong> ${region}
-                </div>
-                <div class="info-item">
-                    <strong>Fecha de Generación:</strong> ${new Date().toLocaleDateString('es-GT')}
-                </div>
-                <div class="info-item">
-                    <strong>Total Colaboradores:</strong> ${totalColaboradores}
-                </div>
-                <div class="info-item">
-                    <strong>Total Turnos:</strong> ${totalTurnos}
-                </div>
-            </div>
-            
-            <table class="planilla-table">
-                <thead>
-                    <tr>
-                        <th>Colaborador</th>
-                        <th>ID</th>
-                        <th>Puesto</th>
-                        <th>T. Mañana</th>
-                        <th>T. Mixtos</th>
-                        <th>Total Turnos</th>
-                        <th>Total a Pagar</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    ${payrollCollaborators.map(c => `
-                        <tr>
-                            <td>${c.nombre}</td>
-                            <td>${c.id}</td>
-                            <td>${c.puesto}</td>
-                            <td style="text-align: center;">${c.turnosMañana}</td>
-                            <td style="text-align: center;">${c.turnosMixtos}</td>
-                            <td style="text-align: center; font-weight: 600;">${c.totalTurnos}</td>
-                            <td style="text-align: right; font-weight: 600; color: #10b981;">Q ${c.totalPago.toFixed(2)}</td>
-                        </tr>
-                    `).join('')}
-                </tbody>
-            </table>
-            
-            <div class="total-section">
-                <div>TOTAL GENERAL A PAGAR</div>
-                <div style="font-size: 2.5rem; margin-top: 10px;">Q ${totalPago.toFixed(2)}</div>
-            </div>
-            
-            <div style="margin-top: 40px; text-align: center; border-top: 1px solid #e5e7eb; padding-top: 20px;">
-                <p><strong>Planilla generada automáticamente por el Sistema de Recursos Humanos</strong></p>
-                <p>© New Technology ${new Date().getFullYear()}</p>
-            </div>
-            
-            <div class="no-print" style="margin-top: 30px; text-align: center;">
-                <button onclick="window.print()" style="background: #1e40af; color: white; border: none; padding: 12px 24px; border-radius: 6px; margin-right: 10px; cursor: pointer;">
-                    📄 Imprimir Planilla
-                </button>
-                <button onclick="window.close()" style="background: #6b7280; color: white; border: none; padding: 12px 24px; border-radius: 6px; cursor: pointer;">
-                    ✖️ Cerrar
-                </button>
-            </div>
-        </body>
-        </html>
-    `;
-    
-    // Abrir ventana de impresión
-    const printWindow = window.open('', '_blank');
-    printWindow.document.write(printContent);
-    printWindow.document.close();
-}
-function generarResumenPlanillaHTML() {
-    const totalColaboradores = payrollCollaborators.length;
-    const totalTurnos = payrollCollaborators.reduce((sum, c) => sum + c.totalTurnos, 0);
-    const totalPago = payrollCollaborators.reduce((sum, c) => sum + c.totalPago, 0);
-    const region = isCapitalino ? 'Capitalina' : 'Regional';
-    
-    return `
-        <div style="text-align: left; max-width: 600px; margin: 0 auto;">
-            <h4 style="color: #1e40af; margin-bottom: 20px; text-align: center; display: flex; align-items: center; justify-content: center; gap: 8px;">
-                <i class="fas fa-file-invoice-dollar" style="font-size: 1.2rem;"></i>
-                Resumen de Planilla General
-            </h4>
-            
-            <div style="background: #f8f9fa; padding: 15px; border-radius: 8px; margin-bottom: 15px;">
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; font-size: 0.9rem;">
-                    <div><strong>Región:</strong><br>${region}</div>
-                    <div><strong>Fecha:</strong><br>${new Date().toLocaleDateString('es-GT')}</div>
-                    <div><strong>Total Colaboradores:</strong><br>${totalColaboradores}</div>
-                    <div><strong>Total Turnos:</strong><br>${totalTurnos}</div>
-                </div>
-            </div>
-            
-            <div style="max-height: 300px; overflow-y: auto; border: 1px solid #e5e7eb; border-radius: 8px; margin-bottom: 15px;">
-                <table style="width: 100%; border-collapse: collapse; font-size: 0.8rem;">
-                    <thead style="background: #f3f4f6; position: sticky; top: 0;">
-                        <tr>
-                            <th style="padding: 8px; text-align: left; border-bottom: 1px solid #d1d5db;">Colaborador</th>
-                            <th style="padding: 8px; text-align: center; border-bottom: 1px solid #d1d5db;">Turnos</th>
-                            <th style="padding: 8px; text-align: right; border-bottom: 1px solid #d1d5db;">Pago</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        ${payrollCollaborators.map(c => `
-                            <tr style="border-bottom: 1px solid #f3f4f6;">
-                                <td style="padding: 8px;">${c.nombre}</td>
-                                <td style="padding: 8px; text-align: center;">${c.totalTurnos}</td>
-                                <td style="padding: 8px; text-align: right; font-weight: 600; color: #10b981;">Q ${c.totalPago.toFixed(2)}</td>
-                            </tr>
-                        `).join('')}
-                    </tbody>
-                </table>
-            </div>
-            
-            <div style="background: linear-gradient(135deg, #10b981, #059669); color: white; padding: 20px; border-radius: 8px; text-align: center; margin-bottom: 15px;">
-                <div style="font-size: 0.9rem; opacity: 0.9; margin-bottom: 5px;">Total General a Pagar</div>
-                <div style="font-size: 2rem; font-weight: bold;">Q ${totalPago.toFixed(2)}</div>
-            </div>
-            
-            <div style="background: #e0f2fe; padding: 10px; border-radius: 8px; border-left: 4px solid #1e40af;">
-                <small style="color: #1e40af; font-weight: 500;">
-                    <i class="fas fa-info-circle"></i>
-                    Planilla generada el ${new Date().toLocaleDateString('es-GT')} con ${totalColaboradores} colaboradores
-                </small>
-            </div>
-        </div>
-    `;
-}
-function agregarColaboradorAPlanilla() {
-    if (!selectedEmployee || currentShifts.length === 0) {
+    // Validar que el departamento esté cargado
+    if (!currentDepartamentoId) {
         Swal.fire({
-            icon: 'warning',
-            title: 'Datos incompletos',
-            text: 'Debe tener turnos registrados para agregar a la planilla.',
+            icon: 'error',
+            title: 'Error de configuración',
+            text: 'No se ha podido cargar la información del departamento. Por favor, recargue la página.',
             confirmButtonColor: '#1e40af'
         });
         return;
     }
     
-    // Verificar si el colaborador ya está en la planilla
-    const existingIndex = payrollCollaborators.findIndex(c => c.id === selectedEmployee.id);
-    
-    if (existingIndex !== -1) {
-        // Actualizar colaborador existente
-        Swal.fire({
-            title: 'Colaborador ya existe',
-            text: '¿Desea actualizar los turnos de este colaborador?',
-            icon: 'question',
-            showCancelButton: true,
-            confirmButtonText: 'Sí, actualizar',
-            cancelButtonText: 'Cancelar',
-            confirmButtonColor: '#1e40af'
-        }).then((result) => {
-            if (result.isConfirmed) {
-                actualizarColaboradorEnPlanilla(existingIndex);
-            }
-        });
-    } else {
-        // Agregar nuevo colaborador
-        agregarNuevoColaboradorAPlanilla();
-    }
-}
-function actualizarColaboradorEnPlanilla(index) {
-    payrollCollaborators[index] = {
-        ...payrollCollaborators[index],
-        shifts: [...currentShifts],
-        turnosMañana: currentShifts.filter(s => s.turno === 1).length,
-        turnosMixtos: currentShifts.filter(s => s.turno === 2).length,
-        totalTurnos: currentShifts.length,
-        totalPago: calcularSalarioColaborador(currentShifts),
-        fechaActualizado: new Date().toISOString()
-    };
-    
-    // Limpiar selección actual
-    currentShifts = [];
-    actualizarResumenTurnosActuales();
-    
-    // Actualizar vista de planilla
-    actualizarVistaPlanilla();
-    
-    Swal.fire({
-        icon: 'success',
-        title: 'Colaborador actualizado',
-        text: 'Los turnos han sido actualizados exitosamente.',
-        timer: 2000,
-        showConfirmButton: false
-    });
-}
-function actualizarVistaPlanilla() {
-    const tableBody = document.getElementById('payrollTableBody');
-    const emptyState = document.getElementById('emptyPayrollState');
-    const payrollTotal = document.getElementById('payrollTotal');
-    const finalActions = document.getElementById('finalActions');
-    const payrollCount = document.getElementById('payrollCount');
-    
-    // Actualizar contador
-    payrollCount.textContent = payrollCollaborators.length;
-    
-    if (payrollCollaborators.length === 0) {
-        // Mostrar estado vacío
-        tableBody.innerHTML = '';
-        emptyState.style.display = 'flex';
-        payrollTotal.style.display = 'none';
-        finalActions.style.display = 'none';
-    } else {
-        // Mostrar tabla con colaboradores
-        emptyState.style.display = 'none';
-        payrollTotal.style.display = 'block';
-        finalActions.style.display = 'flex';
-        
-        // Generar filas de la tabla
-        tableBody.innerHTML = payrollCollaborators.map((colaborador, index) => `
-            <tr>
-                <td>
-                    <div class="collaborator-name-cell">${colaborador.nombre}</div>
-                    <div class="collaborator-id-cell">ID: ${colaborador.id}</div>
-                </td>
-                <td>
-                    <span class="shift-count morning">${colaborador.turnosMañana}</span>
-                </td>
-                <td>
-                    <span class="shift-count mixed">${colaborador.turnosMixtos}</span>
-                </td>
-                <td>
-                    <span class="shift-count total">${colaborador.totalTurnos}</span>
-                </td>
-                <td>
-                    <span class="payment-amount">Q ${colaborador.totalPago.toFixed(2)}</span>
-                </td>
-                <td>
-                    <div class="table-actions">
-                        <button class="btn-table-action btn-edit" onclick="editarColaborador(${index})" title="Editar turnos">
-                            <i class="fas fa-edit"></i>
-                        </button>
-                        <button class="btn-table-action btn-remove" onclick="eliminarColaboradorDePlanilla(${index})" title="Eliminar de planilla">
-                            <i class="fas fa-trash"></i>
-                        </button>
-                    </div>
-                </td>
-            </tr>
-        `).join('');
-        
-        // Actualizar totales generales
-        actualizarTotalesGenerales();
-    }
-}
-function editarColaborador(index) {
-    const colaborador = payrollCollaborators[index];
-    
-    Swal.fire({
-        title: 'Editar colaborador',
-        text: `¿Desea cargar los turnos de ${colaborador.nombre} para editarlos?`,
-        icon: 'question',
-        showCancelButton: true,
-        confirmButtonText: 'Sí, editar',
-        cancelButtonText: 'Cancelar',
-        confirmButtonColor: '#1e40af'
-    }).then((result) => {
-        if (result.isConfirmed) {
-            // Buscar y seleccionar el colaborador en la lista
-            const collaboratorItem = document.querySelector(`[data-employee-id="${colaborador.id}"]`);
-            if (collaboratorItem) {
-                // Simular selección del colaborador
-                const colaboradorData = allCollaborators.find(c => c.IdPersonal === colaborador.id);
-                if (colaboradorData) {
-                    seleccionarColaborador(colaboradorData, collaboratorItem);
-                    // Cargar los turnos existentes
-                    currentShifts = [...colaborador.shifts];
-                    actualizarResumenTurnosActuales();
-                    
-                    Swal.fire({
-                        icon: 'info',
-                        title: 'Turnos cargados',
-                        text: 'Los turnos han sido cargados. Puede editarlos y guardar los cambios.',
-                        confirmButtonColor: '#1e40af'
-                    });
-                }
-            }
-        }
-    });
-}
-function eliminarColaboradorDePlanilla(index) {
-    const colaborador = payrollCollaborators[index];
-    
-    Swal.fire({
-        title: '¿Eliminar colaborador?',
-        text: `Se eliminará a ${colaborador.nombre} de la planilla.`,
-        icon: 'warning',
-        showCancelButton: true,
-        confirmButtonText: 'Sí, eliminar',
-        cancelButtonText: 'Cancelar',
-        confirmButtonColor: '#ef4444'
-    }).then((result) => {
-        if (result.isConfirmed) {
-            payrollCollaborators.splice(index, 1);
-            actualizarVistaPlanilla();
-            
-            Swal.fire({
-                icon: 'success',
-                title: 'Colaborador eliminado',
-                text: 'El colaborador ha sido eliminado de la planilla.',
-                timer: 1500,
-                showConfirmButton: false
-            });
-        }
-    });
-}
-function limpiarTodaLaPlanilla() {
-    if (payrollCollaborators.length === 0) {
-        Swal.fire({
-            icon: 'info',
-            title: 'Planilla vacía',
-            text: 'No hay colaboradores en la planilla para limpiar.',
-            confirmButtonColor: '#1e40af'
-        });
-        return;
-    }
-    
-    Swal.fire({
-        title: '¿Limpiar toda la planilla?',
-        text: `Se eliminarán todos los ${payrollCollaborators.length} colaboradores de la planilla.`,
-        icon: 'warning',
-        showCancelButton: true,
-        confirmButtonText: 'Sí, limpiar todo',
-        cancelButtonText: 'Cancelar',
-        confirmButtonColor: '#ef4444'
-    }).then((result) => {
-        if (result.isConfirmed) {
-            payrollCollaborators = [];
-            actualizarVistaPlanilla();
-            
-            Swal.fire({
-                icon: 'success',
-                title: 'Planilla limpiada',
-                text: 'Todos los colaboradores han sido eliminados.',
-                timer: 2000,
-                showConfirmButton: false
-            });
-        }
-    });
-}
-function actualizarTotalesGenerales() {
-    const totalColaboradores = payrollCollaborators.length;
-    const totalTurnos = payrollCollaborators.reduce((sum, c) => sum + c.totalTurnos, 0);
-    const totalPago = payrollCollaborators.reduce((sum, c) => sum + c.totalPago, 0);
-    
-    document.getElementById('totalCollaborators').textContent = totalColaboradores;
-    document.getElementById('totalShifts').textContent = totalTurnos;
-    document.getElementById('totalAmount').textContent = `Q ${totalPago.toFixed(2)}`;
-}
-function calcularSalarioColaborador(shifts) {
-    const region = isCapitalino ? 'capitalino' : 'regional';
-    if (!salaryRates[region] || shifts.length === 0) return 0;
-    
-    let total = 0;
-    const turnosMañana = shifts.filter(s => s.turno === 1).length;
-    const turnosMixtos = shifts.filter(s => s.turno === 2).length;
-    
-    if (turnosMañana > 0 && salaryRates[region][1]) {
-        total += turnosMañana * salaryRates[region][1].salarioXturno;
-    }
-    
-    if (turnosMixtos > 0 && salaryRates[region][2]) {
-        total += turnosMixtos * salaryRates[region][2].salarioXturno;
-    }
-    
-    return total;
-}
-
-function agregarNuevoColaboradorAPlanilla() {
-    const colaboradorData = {
-        id: selectedEmployee.id,
-        nombre: selectedEmployee.nombre,
-        puesto: selectedEmployee.puesto,
-        shifts: [...currentShifts], // Copia de los turnos
-        turnosMañana: currentShifts.filter(s => s.turno === 1).length,
-        turnosMixtos: currentShifts.filter(s => s.turno === 2).length,
-        totalTurnos: currentShifts.length,
-        totalPago: calcularSalarioColaborador(currentShifts),
-        fechaAgregado: new Date().toISOString()
-    };
-    
-    payrollCollaborators.push(colaboradorData);
-    
-    // Limpiar selección actual
-    currentShifts = [];
-    actualizarResumenTurnosActuales();
-    
-    // Actualizar vista de planilla
-    actualizarVistaPlanilla();
-    
-    Swal.fire({
-        icon: 'success',
-        title: 'Colaborador agregado',
-        text: `${selectedEmployee.nombre} ha sido agregado a la planilla.`,
-        timer: 2000,
-        showConfirmButton: false
-    });
-}
-// Colapsar formulario de departamento después de buscar
-function colapsarFormularioDepartamento() {
-    const selectedOption = document.getElementById('departamento').selectedOptions[0];
-    if (!selectedOption.value) return;
-    
-    const departmentForm = document.getElementById('departmentForm');
-    const selectedDepartment = document.getElementById('selectedDepartment');
-    const toggleBtn = document.getElementById('toggleDepartment');
-    const selectedName = document.getElementById('selectedDepartmentName');
-    const selectedBadge = document.getElementById('selectedDepartmentBadge');
-    
-    // Ocultar formulario
-    departmentForm.classList.add('collapsed');
-    setTimeout(() => {
-        departmentForm.style.display = 'none';
-    }, 300);
-    
-    // Mostrar vista colapsada
-    selectedName.textContent = selectedOption.textContent;
-    selectedBadge.textContent = isCapitalino ? 'Capitalina' : `Región ${selectedOption.dataset.regionName}`;
-    selectedBadge.className = `selected-badge ${isCapitalino ? 'capitalino' : 'regional'}`;
-    
-    selectedDepartment.style.display = 'flex';
-    toggleBtn.style.display = 'block';
-    toggleBtn.classList.add('collapsed');
-}
-
-// Expandir formulario de departamento
-function expandirFormularioDepartamento() {
-    const departmentForm = document.getElementById('departmentForm');
-    const selectedDepartment = document.getElementById('selectedDepartment');
-    const toggleBtn = document.getElementById('toggleDepartment');
-    
-    // Mostrar formulario
-    selectedDepartment.style.display = 'none';
-    departmentForm.style.display = 'block';
-    departmentForm.classList.remove('collapsed');
-    
-    toggleBtn.classList.remove('collapsed');
-}
-
-// Toggle del acordeón
-function toggleDepartmentForm() {
-    const departmentForm = document.getElementById('departmentForm');
-    const selectedOption = document.getElementById('departamento').selectedOptions[0];
-    if (!selectedOption.value) return;
-    
-    if (departmentForm.style.display === 'none') {
-        expandirFormularioDepartamento();
-    } else {
-        colapsarFormularioDepartamento();
-    }
-}
-
-// Buscar colaboradores del departamento seleccionado
-async function buscarColaboradores() {
-    const departamentoId = document.getElementById('departamento').value;
-    if (!departamentoId) return;
-    
-    mostrarCargando('Buscando colaboradores...');
+    // Mostrar loading mientras verifica
+    const loadingSwal = mostrarCargando('Verificando disponibilidad...');
     
     try {
-        const connection = await connectionString();
-        const result = await connection.query(`
-            SELECT
-                personal.IdPersonal, 
-                personal.PrimerApellido, 
-                personal.SegundoApellido, 
-                personal.PrimerNombre, 
-                personal.SegundoNombre, 
-                personal.TercerNombre, 
-                Puestos.Nombre
-            FROM
-                personal
-                INNER JOIN
-                Puestos
-                ON 
-                    personal.IdPuesto = Puestos.IdPuesto
-            WHERE
-                personal.TipoPersonal = 2 AND
-                personal.Estado = 1 AND
-                personal.IdSucuDepa = ?
-            ORDER BY personal.PrimerApellido, personal.PrimerNombre
-        `, [departamentoId]);
+        // ⭐ VERIFICACIÓN CON ESTADOS REALES
+        const planillaExistente = await verificarPlanillaExistente(tipo, mes, anio, currentDepartamentoId);
         
-        await connection.close();
-        
+        // Cerrar loading
         Swal.close();
-        allCollaborators = result.map(collab => ({
-            ...collab,
-            nombreCompleto: `${collab.PrimerNombre} ${collab.SegundoNombre || ''} ${collab.TercerNombre || ''} ${collab.PrimerApellido} ${collab.SegundoApellido || ''}`.trim().replace(/\s+/g, ' ')
-        }));
         
-        mostrarColaboradores(allCollaborators);
+        if (planillaExistente) {
+            // Si existe, mostrar información detallada con estado real
+            const tipoTexto = tipo === 'quincenal' ? 'Quincenal' : 'Fin de Mes';
+            const mesNombre = new Date(anio, mes - 1).toLocaleDateString('es-GT', { month: 'long' });
+            const fechaRegistro = new Date(planillaExistente.FechaRegistro).toLocaleDateString('es-GT');
+            
+            // ⭐ OBTENER COLOR Y ESTILO SEGÚN EL ESTADO
+            const estadoInfo = obtenerEstiloEstado(planillaExistente.IdEstado, planillaExistente.NombreEstado);
+            
+            await Swal.fire({
+                icon: 'warning',
+                title: 'Planilla ya existe',
+                html: `
+                    <div style="text-align: left; margin: 20px 0;">
+                        <div style="background: #fef3c7; padding: 20px; border-radius: 8px; border-left: 4px solid #f59e0b; margin-bottom: 20px;">
+                            <h4 style="color: #92400e; margin-bottom: 15px; text-align: center;">⚠️ Planilla Duplicada Detectada</h4>
+                            
+                            <div style="margin-bottom: 15px;">
+                                <strong style="color: #92400e;">📋 Tipo:</strong> Planilla ${tipoTexto}<br>
+                                <strong style="color: #92400e;">📅 Período:</strong> ${mesNombre} ${anio}<br>
+                                <strong style="color: #92400e;">💰 Monto:</strong> Q ${parseFloat(planillaExistente.MontoPlanillaParcial).toFixed(2)}<br>
+                                <strong style="color: #92400e;">👥 Colaboradores:</strong> ${planillaExistente.CantidadColaboradores}<br>
+                                <strong style="color: #92400e;">👤 Creada por:</strong> ${planillaExistente.NombreUsuario}<br>
+                                <strong style="color: #92400e;">📆 Fecha registro:</strong> ${fechaRegistro}
+                            </div>
+                            
+                            <div style="text-align: center; padding: 12px; background: ${estadoInfo.fondo}; border-radius: 8px; border: 2px solid ${estadoInfo.borde};">
+                                <div style="display: flex; align-items: center; justify-content: center; gap: 8px;">
+                                    <span style="font-size: 1.2rem;">${estadoInfo.icono}</span>
+                                    <strong style="color: ${estadoInfo.texto}; font-size: 1.1rem;">Estado: ${planillaExistente.NombreEstado}</strong>
+                                </div>
+                                <div style="font-size: 0.85rem; color: ${estadoInfo.texto}; opacity: 0.8; margin-top: 4px;">
+                                    ${estadoInfo.descripcion}
+                                </div>
+                            </div>
+                        </div>
+
+                        <div style="background: #fee2e2; padding: 15px; border-radius: 8px; border-left: 4px solid #ef4444;">
+                            <p style="margin: 0; color: #991b1b;">
+                                <strong>🚫 No se puede crear:</strong> Ya existe una planilla ${tipoTexto.toLowerCase()} para ${mesNombre} ${anio} en este departamento.
+                            </p>
+                        </div>
+                        
+                        <div style="background: #e0f2fe; padding: 15px; border-radius: 8px; margin-top: 15px; border-left: 4px solid #0891b2;">
+                            <p style="margin: 0; color: #0891b2; font-size: 0.9rem;">
+                                <strong>💡 Opciones disponibles:</strong><br>
+                                • Seleccione un período diferente<br>
+                                • Cambie el tipo de planilla<br>
+                                • Consulte con el administrador sobre la planilla existente
+                            </p>
+                        </div>
+                    </div>
+                `,
+                confirmButtonText: 'Entendido',
+                confirmButtonColor: '#1e40af',
+                width: '650px'
+            });
+            
+            return; // No continuar si ya existe
+        }
+        
+        // Si no existe, continuar con el proceso normal
+        // Guardar configuración
+        planillaConfig = {
+            tipo: tipo,
+            mes: parseInt(mes),
+            anio: parseInt(anio),
+            confirmada: true
+        };
+        
+        // Actualizar interfaz
+        actualizarVistaPlanillaConfirmada();
+        mostrarInformacionEnHeader();
+        
+        // Ocultar toda la sección de configuración
+        const payrollTypeSection = document.querySelector('.payroll-type-section');
+        setTimeout(() => {
+            payrollTypeSection.classList.add('hidden');
+        }, 300);
+        
+        // Cargar colaboradores
+        cargarColaboradoresDespuesDeConfirmar();
+        
+        Swal.fire({
+            icon: 'success',
+            title: 'Configuración confirmada',
+            text: 'Cargando colaboradores del departamento...',
+            timer: 2000,
+            showConfirmButton: false
+        });
         
     } catch (error) {
-        console.error('Error al buscar colaboradores:', error);
+        console.error('Error al verificar planilla:', error);
+        
+        // Cerrar loading en caso de error
         Swal.close();
-        mostrarError('Error al buscar colaboradores');
+        
+        Swal.fire({
+            icon: 'error',
+            title: 'Error de verificación',
+            html: `
+                <div style="text-align: left; margin: 20px 0;">
+                    <div style="background: #fee2e2; padding: 15px; border-radius: 8px; border-left: 4px solid #ef4444;">
+                        <p style="margin-bottom: 10px; color: #991b1b;">
+                            <strong>❌ Error técnico:</strong> No se pudo verificar si existe una planilla duplicada.
+                        </p>
+                        <p style="margin: 0; color: #991b1b; font-size: 0.9rem;">
+                            <strong>Detalles:</strong> ${error.message || 'Error de conexión con la base de datos'}
+                        </p>
+                    </div>
+                    
+                    <div style="background: #fef3c7; padding: 15px; border-radius: 8px; margin-top: 15px; border-left: 4px solid #f59e0b;">
+                        <p style="margin: 0; color: #92400e;">
+                            <strong>💡 Sugerencia:</strong> Verifique la conexión a la base de datos y vuelva a intentarlo.
+                        </p>
+                    </div>
+                </div>
+            `,
+            confirmButtonText: 'Entendido',
+            confirmButtonColor: '#ef4444',
+            width: '500px'
+        });
     }
 }
+function obtenerEstiloEstado(idEstado, nombreEstado) {
+    // Mapear TUS estados reales a estilos apropiados
+    const estilosEstados = {
+        0: { // En espera por Autorización
+            icono: '⏳',
+            fondo: '#fef3c7',
+            borde: '#f59e0b',
+            texto: '#92400e',
+            descripcion: 'Esperando autorización para procesar'
+        },
+        1: { // Autorizado
+            icono: '✅',
+            fondo: '#dcfce7',
+            borde: '#16a34a',
+            texto: '#15803d',
+            descripcion: 'Planilla autorizada y lista para procesar'
+        },
+        2: { // Documento Descargado
+            icono: '📥',
+            fondo: '#dbeafe',
+            borde: '#3b82f6',
+            texto: '#1e40af',
+            descripcion: 'Documento generado y descargado'
+        },
+        3: { // Pendiente por Subir Comprobante
+            icono: '📎',
+            fondo: '#f3e8ff',
+            borde: '#8b5cf6',
+            texto: '#6b21a8',
+            descripcion: 'Esperando subir comprobante de pago'
+        },
+        4: { // Documento cargado
+            icono: '📄',
+            fondo: '#e0f2fe',
+            borde: '#0891b2',
+            texto: '#0c5460',
+            descripcion: 'Comprobante de pago cargado'
+        },
+        5: { // Completado
+            icono: '🎉',
+            fondo: '#ecfdf5',
+            borde: '#10b981',
+            texto: '#059669',
+            descripcion: 'Proceso completado exitosamente'
+        },
+        6: { // Anulado
+            icono: '🚫',
+            fondo: '#fee2e2',
+            borde: '#ef4444',
+            texto: '#dc2626',
+            descripcion: 'Planilla anulada o cancelada'
+        }
+    };
+    
+    // Retornar estilo específico o uno por defecto
+    return estilosEstados[idEstado] || {
+        icono: '📋',
+        fondo: '#f3f4f6',
+        borde: '#9ca3af',
+        texto: '#6b7280',
+        descripcion: `Estado: ${nombreEstado}`
+    };
+}
+async function cargarColaboradoresDespuesDeConfirmar() {
+    try {
+        // Mostrar loading
+        const loadingSwal = mostrarCargando('Cargando colaboradores...');
+        
+        // Buscar colaboradores
+        await buscarColaboradoresAutomatico();
+        
+        // Cerrar loading
+        Swal.close();
+        
+        // Mostrar notificación de éxito
+        setTimeout(() => {
+            Swal.fire({
+                icon: 'success',
+                title: 'Colaboradores cargados',
+                text: `Se encontraron ${allCollaborators.length} colaboradores en su departamento.`,
+                timer: 2500,
+                showConfirmButton: false,
+                toast: true,
+                position: 'top-end'
+            });
+        }, 500);
+        
+    } catch (error) {
+        console.error('Error al cargar colaboradores:', error);
+        Swal.close();
+        
+        Swal.fire({
+            icon: 'error',
+            title: 'Error al cargar colaboradores',
+            text: 'No se pudieron cargar los colaboradores del departamento.',
+            confirmButtonColor: '#1e40af'
+        });
+    }
+}
+function cambiarConfiguracionPlanilla() {
+    const form = document.getElementById('payrollTypeForm');
+    const confirmed = document.getElementById('payrollConfirmed');
+    const planillaInfo = document.getElementById('planillaInfo');
+    const payrollTypeSection = document.querySelector('.payroll-type-section');
+    
+    // Mostrar la sección de configuración
+    payrollTypeSection.classList.remove('hidden');
+    
+    // Mostrar formulario, ocultar vista confirmada
+    form.style.display = 'block';
+    confirmed.style.display = 'none';
+    planillaInfo.style.display = 'none';
+    
+    // Resetear configuración
+    planillaConfig.confirmada = false;
+    
+    // ⭐ NUEVO: Ocultar colaboradores cuando se cambia la configuración
+    ocultarColaboradores();
+    
+    // Limpiar selecciones de colaboradores
+    limpiarSelecciones();
+}
 
-// Mostrar colaboradores en la interfaz
+function cambiarConfiguracionDesdeHeader() {
+    const payrollTypeSection = document.querySelector('.payroll-type-section');
+    const planillaInfo = document.getElementById('planillaInfo');
+    
+    // Mostrar la sección de configuración
+    payrollTypeSection.classList.remove('hidden');
+    
+    // Hacer scroll hacia la sección de configuración
+    payrollTypeSection.scrollIntoView({ 
+        behavior: 'smooth', 
+        block: 'start' 
+    });
+    
+    // Ocultar la información del header temporalmente
+    planillaInfo.style.display = 'none';
+    
+    // Resetear configuración
+    planillaConfig.confirmada = false;
+    
+    // ⭐ NUEVO: Ocultar colaboradores cuando se cambia la configuración
+    ocultarColaboradores();
+    
+    // Limpiar selecciones
+    limpiarSelecciones();
+}
+function ocultarColaboradores() {
+    const collaboratorsSection = document.getElementById('collaboratorsSection');
+    
+    // Ocultar sección de colaboradores
+    collaboratorsSection.style.display = 'none';
+    
+    // Limpiar datos
+    allCollaborators = [];
+    
+    // Limpiar lista visual
+    const collaboratorsList = document.getElementById('collaboratorsList');
+    const collaboratorCount = document.getElementById('collaboratorCount');
+    
+    collaboratorsList.innerHTML = '';
+    collaboratorCount.textContent = '0';
+    
+    // Limpiar búsqueda
+    document.getElementById('searchCollaborator').value = '';
+    
+    console.log('Colaboradores ocultados - esperando confirmación de planilla');
+}
+function mostrarInformacionEnHeader() {
+    const planillaInfo = document.getElementById('planillaInfo');
+    const planillaBadge = document.getElementById('planillaBadge');
+    
+    const tipoTexto = planillaConfig.tipo === 'quincenal' ? 'Quincenal' : 'Fin de Mes';
+    const mesNombre = new Date(planillaConfig.anio, planillaConfig.mes - 1).toLocaleDateString('es-GT', { month: 'short' });
+    
+    planillaBadge.textContent = `${tipoTexto} • ${mesNombre} ${planillaConfig.anio}`;
+    planillaInfo.style.display = 'flex';
+}
+
+function actualizarVistaPlanillaConfirmada() {
+    const form = document.getElementById('payrollTypeForm');
+    const confirmed = document.getElementById('payrollConfirmed');
+    const confirmedType = document.getElementById('confirmedType');
+    const confirmedPeriod = document.getElementById('confirmedPeriod');
+    
+    // Ocultar formulario, mostrar vista confirmada
+    form.style.display = 'none';
+    confirmed.style.display = 'block';
+    
+    // Actualizar textos
+    const tipoTexto = planillaConfig.tipo === 'quincenal' ? 'Planilla Quincenal' : 'Planilla Fin de Mes';
+    const mesNombre = new Date(planillaConfig.anio, planillaConfig.mes - 1).toLocaleDateString('es-GT', { month: 'long' });
+    
+    confirmedType.textContent = tipoTexto;
+    confirmedPeriod.textContent = `${mesNombre} ${planillaConfig.anio}`;
+}
+
+function validarFormularioPlanilla() {
+    const tipo = document.getElementById('tipoQuincena').value;
+    const mes = document.getElementById('mesPlanilla').value;
+    const anio = document.getElementById('anioPlanilla').value;
+    const confirmarBtn = document.getElementById('confirmarPlanilla');
+    
+    const todosCompletos = tipo && mes && anio;
+    confirmarBtn.disabled = !todosCompletos;
+    
+    if (todosCompletos) {
+        confirmarBtn.classList.add('btn-ready');
+    } else {
+        confirmarBtn.classList.remove('btn-ready');
+    }
+}
 function mostrarColaboradores(colaboradores) {
+    // ⭐ NUEVA VALIDACIÓN: Solo mostrar si la planilla está confirmada
+    if (!planillaConfig.confirmada) {
+        console.log('Planilla no confirmada - no se muestran colaboradores');
+        return;
+    }
+    
     const section = document.getElementById('collaboratorsSection');
     const list = document.getElementById('collaboratorsList');
     const count = document.getElementById('collaboratorCount');
@@ -943,6 +767,7 @@ function mostrarColaboradores(colaboradores) {
         });
     }
     
+    // ⭐ MOSTRAR la sección solo después de confirmar planilla
     section.style.display = 'block';
     
     // Limpiar búsqueda
@@ -950,7 +775,6 @@ function mostrarColaboradores(colaboradores) {
     setTimeout(ajustarAlturaLista, 100);
 }
 
-// Filtrar colaboradores en tiempo real
 function filtrarColaboradores() {
     const searchTerm = document.getElementById('searchCollaborator').value.toLowerCase();
     const colaboradoresFiltrados = allCollaborators.filter(collab => 
@@ -995,8 +819,6 @@ function filtrarColaboradores() {
     }
     setTimeout(ajustarAlturaLista, 100);
 }
-
-// Seleccionar colaborador
 function seleccionarColaborador(colaborador, itemElement) {
     // Remover selección anterior
     document.querySelectorAll('.collaborator-item').forEach(item => {
@@ -1011,28 +833,66 @@ function seleccionarColaborador(colaborador, itemElement) {
         puesto: colaborador.Nombre
     };
     
-    // Limpiar turnos actuales (CAMBIO: era selectedShifts)
-    currentShifts = [];
+    // Verificar si el colaborador ya está en la planilla
+    const colaboradorEnPlanilla = payrollCollaborators.find(c => c.id === colaborador.IdPersonal);
+    
+    if (colaboradorEnPlanilla) {
+        // Cargar sus turnos existentes
+        currentShifts = [...colaboradorEnPlanilla.shifts];
+        
+        Swal.fire({
+            icon: 'info',
+            title: 'Colaborador encontrado en planilla',
+            html: `
+                <div style="text-align: left; margin: 15px 0;">
+                    <p><strong>👤 Colaborador:</strong> ${colaborador.nombreCompleto}</p>
+                    <p><strong>💼 Puesto:</strong> ${colaborador.Nombre}</p>
+                    <p><strong>📊 Turnos actuales:</strong> ${colaboradorEnPlanilla.totalTurnos}</p>
+                    <p><strong>💰 Total a pagar:</strong> Q ${colaboradorEnPlanilla.totalPago.toFixed(2)}</p>
+                    <br>
+                    <div style="background: #e0f2fe; padding: 12px; border-radius: 8px; border-left: 4px solid #0891b2;">
+                        <p style="margin: 0; color: #0891b2; font-size: 0.9rem;">
+                            <strong>ℹ️ Este colaborador ya tiene turnos configurados.</strong> Puedes editarlos o simplemente revisar la información.
+                        </p>
+                    </div>
+                </div>
+            `,
+            showCancelButton: true,
+            confirmButtonText: '📅 Editar turnos',
+            cancelButtonText: '👀 Solo revisar',
+            confirmButtonColor: '#4f46e5',
+            cancelButtonColor: '#6b7280',
+            width: '500px'
+        }).then((result) => {
+            if (result.isConfirmed) {
+                setTimeout(() => {
+                    abrirCalendario();
+                }, 200);
+            }
+        });
+    } else {
+        // Colaborador nuevo
+        currentShifts = [];
+        
+        setTimeout(() => {
+            abrirCalendario();
+        }, 300);
+    }
     
     // Ocultar estado de bienvenida
     document.getElementById('welcomeState').style.display = 'none';
     
-    document.getElementById('currentShiftsSection').style.display = 'block';
+    // La sección de planilla siempre debe estar visible
+    document.getElementById('payrollSection').style.display = 'block';
     
-    // Actualizar resumen de turnos actuales
-    actualizarResumenTurnosActuales();
+    // Actualizar visibilidad de acciones
+    actualizarVisibilidadAcciones();
 }
-function actualizarResumenTurnosActuales() {
-    const turnosMañana = currentShifts.filter(s => s.turno === 1).length;
-    const turnosMixtos = currentShifts.filter(s => s.turno === 2).length;
-    const totalTurnos = currentShifts.length;
-    
-    document.getElementById('currentMorningCount').textContent = turnosMañana;
-    document.getElementById('currentMixedCount').textContent = turnosMixtos;
-    document.getElementById('currentTotalCount').textContent = totalTurnos;
+function limpiarSelecciones() {
+    limpiarSeleccionEmpleado();
+    document.getElementById('searchCollaborator').value = '';
 }
 
-// Limpiar selección de empleado
 function limpiarSeleccionEmpleado() {
     // Remover selección visual
     document.querySelectorAll('.collaborator-item').forEach(item => {
@@ -1041,34 +901,16 @@ function limpiarSeleccionEmpleado() {
     
     // Limpiar variables
     selectedEmployee = null;
-    currentShifts = []; // CAMBIO: era selectedShifts
-
-    document.getElementById('currentShiftsSection').style.display = 'none';
+    currentShifts = [];
     
     // Mantener la planilla visible pero mostrar bienvenida si no hay colaboradores
     if (payrollCollaborators.length === 0) {
         document.getElementById('welcomeState').style.display = 'flex';
     }
-}
-
-// Limpiar todas las selecciones
-function limpiarSelecciones() {
-    limpiarSeleccionEmpleado();
-    document.getElementById('collaboratorsSection').style.display = 'none';
-    document.getElementById('searchCollaborator').value = '';
-    allCollaborators = [];
     
-    // Restaurar formulario de departamento si está colapsado
-    const departmentForm = document.getElementById('departmentForm');
-    const selectedDepartment = document.getElementById('selectedDepartment');
-    const toggleBtn = document.getElementById('toggleDepartment');
-    
-    if (departmentForm.style.display === 'none') {
-        expandirFormularioDepartamento();
-        toggleBtn.style.display = 'none';
-    }
+    // Actualizar visibilidad de acciones
+    actualizarVisibilidadAcciones();
 }
-
 // Abrir modal del calendario
 function abrirCalendario() {
     if (!selectedEmployee) {
@@ -1095,7 +937,6 @@ function abrirCalendario() {
 function cerrarCalendario() {
     document.getElementById('calendarModal').style.display = 'none';
     document.body.style.overflow = 'auto';
-    actualizarResumenTurnosActuales();
 }
 
 // Guardar y cerrar calendario
@@ -1187,46 +1028,78 @@ function actualizarCalendario() {
         if (dayDate.getMonth() !== currentDate.getMonth()) {
             dayElement.classList.add('other-month');
         } else {
-            // Verificar si es domingo
-            if (esDomingo(dayDate)) {
-                dayElement.classList.add('sunday-blocked');
-                dayElement.title = 'Los domingos no son días laborables';
+            // ⭐ VALIDACIÓN 1: Verificar que sea del mes actual
+            const validacionMesActual = validarMesActual(dayDate);
+            if (!validacionMesActual.valida) {
+                dayElement.classList.add('month-restricted');
+                const mesActual = new Date();
+                if (validacionMesActual.motivo === 'mes_pasado' || validacionMesActual.motivo === 'anio_pasado') {
+                    dayElement.title = `Día ${dayDate.getDate()} - Mes/año anterior no permitido`;
+                } else {
+                    dayElement.title = `Día ${dayDate.getDate()} - Mes/año futuro no permitido`;
+                }
                 dayElement.addEventListener('click', () => seleccionarFecha(dayDate));
             }
-            // ⭐ NUEVA VALIDACIÓN: Verificar si es Semana Santa
+            // ⭐ VALIDACIÓN 2: Verificar restricciones por tipo de planilla
             else {
-                const diaSemanaSanta = esSemanaSanta(dayDate);
-                if (diaSemanaSanta) {
-                    dayElement.classList.add('easter-week');
-                    dayElement.title = `${diaSemanaSanta.nombre} - Semana Santa`;
+                const validacionPlanilla = validarFechaPorTipoPlanilla(dayDate);
+                if (!validacionPlanilla.valida && validacionPlanilla.motivo !== 'no_configurada') {
+                    dayElement.classList.add('planilla-restricted');
+                    if (validacionPlanilla.motivo === 'fuera_quincenal') {
+                        dayElement.title = `Día ${dayDate.getDate()} - Fuera del período quincenal (1-15)`;
+                    } else if (validacionPlanilla.motivo === 'fuera_fin_mes') {
+                        dayElement.title = `Día ${dayDate.getDate()} - Fuera del período fin de mes (${validacionPlanilla.rango})`;
+                    }
                     dayElement.addEventListener('click', () => seleccionarFecha(dayDate));
                 }
-                // Verificar si es día especial/feriado
+                // ⭐ VALIDACIÓN 3: Verificar si es domingo
+                else if (esDomingo(dayDate)) {
+                    dayElement.classList.add('sunday-blocked');
+                    dayElement.title = 'Los domingos no son días laborables';
+                    dayElement.addEventListener('click', () => seleccionarFecha(dayDate));
+                }
+                // ⭐ VALIDACIÓN 4: Verificar si es Semana Santa
                 else {
-                    const diaEspecial = esDiaEspecial(dayDate);
-                    if (diaEspecial) {
-                        if (diaEspecial.esNacional) {
-                            dayElement.classList.add('holiday-national');
-                        } else {
-                            dayElement.classList.add('holiday-departmental');
-                        }
-                        dayElement.title = `${diaEspecial.descripcion} (${diaEspecial.esNacional ? 'Feriado Nacional' : 'Feriado Departamental'})`;
+                    const diaSemanaSanta = esSemanaSanta(dayDate);
+                    if (diaSemanaSanta) {
+                        dayElement.classList.add('easter-week');
+                        dayElement.title = `${diaSemanaSanta.nombre} - Semana Santa`;
                         dayElement.addEventListener('click', () => seleccionarFecha(dayDate));
-                    } else {
-                        // Día laborable normal - verificar turnos asignados
-                        const dateString = formatDate(dayDate);
-                        const shift = currentShifts.find(s => s.fecha === dateString);
-                        
-                        if (shift) {
-                            if (shift.turno === 1) {
-                                dayElement.classList.add('morning-shift');
-                            } else if (shift.turno === 2) {
-                                dayElement.classList.add('mixed-shift');
+                    }
+                    // ⭐ VALIDACIÓN 5: Verificar si es día especial/feriado
+                    else {
+                        const diaEspecial = esDiaEspecial(dayDate);
+                        if (diaEspecial) {
+                            if (diaEspecial.esNacional) {
+                                dayElement.classList.add('holiday-national');
+                            } else {
+                                dayElement.classList.add('holiday-departmental');
                             }
+                            dayElement.title = `${diaEspecial.descripcion} (${diaEspecial.esNacional ? 'Feriado Nacional' : 'Feriado Departamental'})`;
+                            dayElement.addEventListener('click', () => seleccionarFecha(dayDate));
+                        } else {
+                            // ⭐ VALIDACIÓN 6: Día laborable normal - verificar turnos asignados
+                            const dateString = formatDate(dayDate);
+                            const shift = currentShifts.find(s => s.fecha === dateString);
+                            
+                            if (shift) {
+                                if (shift.turno === 1) {
+                                    dayElement.classList.add('morning-shift');
+                                    dayElement.title = 'Turno de Mañana asignado';
+                                } else if (shift.turno === 2) {
+                                    dayElement.classList.add('mixed-shift');
+                                    dayElement.title = 'Turno Mixto asignado';
+                                } else if (shift.turno === 3) {
+                                    dayElement.classList.add('hours-shift');
+                                    const subTipoTexto = shift.subTurno === 1 ? 'Mañana' : 'Mixto';
+                                    dayElement.title = `Turno de 4 Horas (${subTipoTexto}) asignado`;
+                                }
+                            } else {
+                                dayElement.title = `Día ${dayDate.getDate()} - Disponible para asignar turno`;
+                            }
+                            
+                            dayElement.addEventListener('click', () => seleccionarFecha(dayDate));
                         }
-                        
-                        // Agregar evento de clic para días laborables
-                        dayElement.addEventListener('click', () => seleccionarFecha(dayDate));
                     }
                 }
             }
@@ -1238,14 +1111,110 @@ function actualizarCalendario() {
     // Actualizar indicadores de semana
     actualizarIndicadoresSemana();
 }
+function validarMesActual(fecha) {
+    const fechaActual = new Date();
+    const mesActual = fechaActual.getMonth();
+    const anioActual = fechaActual.getFullYear();
+    
+    const mesFecha = fecha.getMonth();
+    const anioFecha = fecha.getFullYear();
+    
+    if (anioFecha < anioActual) {
+        return {
+            valida: false,
+            motivo: 'anio_pasado',
+            mesActual: mesActual,
+            anioActual: anioActual,
+            mesFecha: mesFecha,
+            anioFecha: anioFecha
+        };
+    } else if (anioFecha > anioActual) {
+        return {
+            valida: false,
+            motivo: 'anio_futuro',
+            mesActual: mesActual,
+            anioActual: anioActual,
+            mesFecha: mesFecha,
+            anioFecha: anioFecha
+        };
+    } else if (mesFecha < mesActual) {
+        return {
+            valida: false,
+            motivo: 'mes_pasado',
+            mesActual: mesActual,
+            anioActual: anioActual,
+            mesFecha: mesFecha,
+            anioFecha: anioFecha
+        };
+    } else if (mesFecha > mesActual) {
+        return {
+            valida: false,
+            motivo: 'mes_futuro',
+            mesActual: mesActual,
+            anioActual: anioActual,
+            mesFecha: mesFecha,
+            anioFecha: anioFecha
+        };
+    }
+    
+    return { valida: true };
+}
+
+function validarFechaPorTipoPlanilla(fecha) {
+    if (!planillaConfig.confirmada) {
+        return { valida: false, motivo: 'no_configurada' };
+    }
+    
+    const dia = fecha.getDate();
+    const ultimoDiaDelMes = new Date(fecha.getFullYear(), fecha.getMonth() + 1, 0).getDate();
+    
+    if (planillaConfig.tipo === 'quincenal') {
+        // Planilla Quincenal: Solo días 1-15
+        if (dia >= 1 && dia <= 15) {
+            return { valida: true };
+        } else {
+            return { 
+                valida: false, 
+                motivo: 'fuera_quincenal',
+                rango: '1-15',
+                diaSeleccionado: dia
+            };
+        }
+    } else if (planillaConfig.tipo === 'fin_mes') {
+        // Planilla Fin de Mes: Solo días 16-último día
+        if (dia >= 16 && dia <= ultimoDiaDelMes) {
+            return { valida: true };
+        } else {
+            return { 
+                valida: false, 
+                motivo: 'fuera_fin_mes',
+                rango: `16-${ultimoDiaDelMes}`,
+                diaSeleccionado: dia
+            };
+        }
+    }
+    
+    return { valida: false, motivo: 'tipo_desconocido' };
+}
+
 function esDomingo(fecha) {
     const date = new Date(fecha);
     return date.getDay() === 0; // 0 = domingo
 }
-
-// Seleccionar fecha en el calendario
 function seleccionarFecha(fecha) {
     const dateString = formatDate(fecha);
+    const validacionPlanilla = validarFechaPorTipoPlanilla(fecha);
+    const validacionMesActual = validarMesActual(fecha);
+    
+    if (!validacionMesActual.valida) {
+        mostrarErrorMesActual(fecha, validacionMesActual);
+        return;
+    }
+    
+    if (!validacionPlanilla.valida) {
+        mostrarErrorTipoPlanilla(fecha, validacionPlanilla);
+        return;
+    }
     
     // Validación 1: Verificar si es domingo
     if (esDomingo(fecha)) {
@@ -1318,7 +1287,7 @@ function seleccionarFecha(fecha) {
                     <br>
                     <div style="background: ${colorFondo}; padding: 15px; border-radius: 8px; border-left: 4px solid ${colorBorde};">
                         <p style="margin: 0; color: ${colorTexto};">
-                            <strong>🎊 Información:</strong> Este día está designado como feriado/asueto y no es laborable para los colaboradores.
+                            <strong>🎊 Información:</strong> Este día está designado como feriado/asueto
                         </p>
                     </div>
                 </div>
@@ -1334,9 +1303,12 @@ function seleccionarFecha(fecha) {
     
     if (existingShift) {
         // Si ya tiene turno, preguntar si desea eliminarlo
+        const tipoTurnoTexto = existingShift.turno === 1 ? 'de mañana' : 
+                               existingShift.turno === 2 ? 'mixto' : 'de 4 horas';
+        
         Swal.fire({
             title: '¿Eliminar turno?',
-            text: `Esta fecha ya tiene un turno ${existingShift.turno === 1 ? 'de mañana' : 'mixto'} asignado. ¿Desea eliminarlo?`,
+            text: `Esta fecha ya tiene un turno ${tipoTurnoTexto} asignado. ¿Desea eliminarlo?`,
             icon: 'question',
             showCancelButton: true,
             confirmButtonText: 'Eliminar',
@@ -1388,36 +1360,38 @@ function seleccionarFecha(fecha) {
         window.tempSelectedDate = dateString;
     }
 }
-function actualizarIndicadoresSemana() {
-    const calendarDays = document.querySelectorAll('.calendar-day:not(.other-month)');
-    
-    calendarDays.forEach(dayElement => {
-        // Remover indicadores anteriores
-        dayElement.classList.remove('week-full', 'week-almost-full');
-        
-        if (!dayElement.classList.contains('other-month')) {
-            const dayNumber = parseInt(dayElement.textContent);
-            const fecha = new Date(currentDate.getFullYear(), currentDate.getMonth(), dayNumber);
-            const turnosEnSemana = contarTurnosEnSemana(fecha);
-            
-            // Agregar clases CSS según la cantidad de turnos en la semana
-            if (turnosEnSemana >= 4) {
-                dayElement.classList.add('week-full');
-            } else if (turnosEnSemana === 3) {
-                dayElement.classList.add('week-almost-full');
-            }
-        }
-    });
-}
+
 // Seleccionar tipo de turno
 function seleccionarTipoTurno(tipoTurno) {
     const fecha = window.tempSelectedDate;
     const turno = parseInt(tipoTurno);
     
-    currentShifts.push({ // CAMBIO: era selectedShifts
+    // Si es turno de 4 horas, mostrar submenu para elegir horario
+    if (turno === 3) {
+        mostrarSubmenuTurno4Horas(fecha);
+        return;
+    }
+    
+    // Para turnos normales (1 y 2), continuar como antes
+    let tipoNombre = '';
+    switch(turno) {
+        case 1:
+            tipoNombre = 'Turno Mañana';
+            break;
+        case 2:
+            tipoNombre = 'Turno Mixto';
+            break;
+        default:
+            console.error('Tipo de turno no válido:', turno);
+            return;
+    }
+    
+    currentShifts.push({
         fecha: fecha,
         turno: turno,
-        fechaDisplay: document.getElementById('selectedDate').textContent
+        subTurno: null, // Para turnos normales no hay subtipo
+        fechaDisplay: document.getElementById('selectedDate').textContent,
+        tipoNombre: tipoNombre
     });
     
     actualizarCalendario();
@@ -1426,13 +1400,170 @@ function seleccionarTipoTurno(tipoTurno) {
     
     delete window.tempSelectedDate;
 }
+function mostrarSubmenuTurno4Horas(fecha) {
+    const fechaDisplay = document.getElementById('selectedDate').textContent;
+    
+    Swal.fire({
+        title: 'Turno de 4 Horas',
+        html: `
+            <div style="text-align: center; margin: 20px 0;">
+                <p style="margin-bottom: 20px; color: #6b7280; font-size: 0.9rem;">
+                    <i class="fas fa-calendar-day" style="color: #4f46e5;"></i>
+                    <strong>${fechaDisplay}</strong>
+                </p>
+                
+                <div style="background: #f0f9ff; padding: 15px; border-radius: 8px; margin-bottom: 20px; border-left: 4px solid #0891b2;">
+                    <p style="margin: 0; color: #0c5460; font-size: 0.85rem;">
+                        <strong>ℹ️ Seleccione el horario base:</strong><br>
+                        Esto determinará la tarifa por hora que se aplicará (4 horas × tarifa correspondiente)
+                    </p>
+                </div>
+                
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-top: 20px;">
+                    <button type="button" class="turno-4h-option morning-4h" data-sub-turno="1" style="
+                        background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+                        border: 2px solid #f59e0b;
+                        border-radius: 12px;
+                        padding: 20px;
+                        cursor: pointer;
+                        transition: all 0.3s ease;
+                        display: flex;
+                        flex-direction: column;
+                        align-items: center;
+                        gap: 10px;
+                        min-height: 120px;
+                        justify-content: center;
+                    ">
+                        <div style="
+                            width: 50px;
+                            height: 50px;
+                            background: linear-gradient(135deg, #fbbf24, #f59e0b);
+                            border-radius: 50%;
+                            display: flex;
+                            align-items: center;
+                            justify-content: center;
+                            color: white;
+                            font-size: 1.5rem;
+                            box-shadow: 0 4px 15px rgba(245, 158, 11, 0.3);
+                        ">
+                            ☀️
+                        </div>
+                        <div style="text-align: center;">
+                            <h4 style="margin: 0; color: #92400e; font-size: 1rem; font-weight: 600;">Horario Mañana</h4>
+                            <p style="margin: 5px 0 0 0; color: #92400e; font-size: 0.75rem;">4 horas × tarifa mañana</p>
+                        </div>
+                    </button>
+                    
+                    <button type="button" class="turno-4h-option mixed-4h" data-sub-turno="2" style="
+                        background: linear-gradient(135deg, #ddd6fe 0%, #c4b5fd 100%);
+                        border: 2px solid #8b5cf6;
+                        border-radius: 12px;
+                        padding: 20px;
+                        cursor: pointer;
+                        transition: all 0.3s ease;
+                        display: flex;
+                        flex-direction: column;
+                        align-items: center;
+                        gap: 10px;
+                        min-height: 120px;
+                        justify-content: center;
+                    ">
+                        <div style="
+                            width: 50px;
+                            height: 50px;
+                            background: linear-gradient(135deg, #a78bfa, #8b5cf6);
+                            border-radius: 50%;
+                            display: flex;
+                            align-items: center;
+                            justify-content: center;
+                            color: white;
+                            font-size: 1.5rem;
+                            box-shadow: 0 4px 15px rgba(139, 92, 246, 0.3);
+                        ">
+                            🌙
+                        </div>
+                        <div style="text-align: center;">
+                            <h4 style="margin: 0; color: #5b21b6; font-size: 1rem; font-weight: 600;">Horario Mixto</h4>
+                            <p style="margin: 5px 0 0 0; color: #5b21b6; font-size: 0.75rem;">4 horas × tarifa mixta</p>
+                        </div>
+                    </button>
+                </div>
+            </div>
+        `,
+        showCancelButton: true,
+        showConfirmButton: false,
+        cancelButtonText: '← Regresar',
+        cancelButtonColor: '#6b7280',
+        width: '500px',
+        customClass: {
+            popup: 'turno-4h-modal'
+        },
+        didOpen: () => {
+            // Agregar event listeners a los botones del submenu
+            document.querySelectorAll('.turno-4h-option').forEach(button => {
+                button.addEventListener('click', () => {
+                    const subTurno = parseInt(button.dataset.subTurno);
+                    confirmarTurno4Horas(fecha, subTurno);
+                });
+                
+                // Efectos hover
+                button.addEventListener('mouseenter', () => {
+                    button.style.transform = 'translateY(-4px)';
+                    button.style.boxShadow = '0 8px 25px rgba(0, 0, 0, 0.15)';
+                });
+                
+                button.addEventListener('mouseleave', () => {
+                    button.style.transform = 'translateY(0)';
+                    button.style.boxShadow = 'none';
+                });
+            });
+        }
+    }).then((result) => {
+        if (result.dismiss === Swal.DismissReason.cancel) {
+            // Si cancela, volver al modal principal
+            document.getElementById('shiftModal').style.display = 'block';
+        }
+    });
+}
 
-// Eliminar turno
-function eliminarTurno(fecha) {
-    currentShifts = currentShifts.filter(s => s.fecha !== fecha); // CAMBIO: era selectedShifts
+// 3. NUEVA FUNCIÓN: Confirmar turno de 4 horas con subtipo
+function confirmarTurno4Horas(fecha, subTurno) {
+    const subTipoNombre = subTurno === 1 ? 'Mañana' : 'Mixto';
+    const tipoNombre = `Turno 4 Horas (${subTipoNombre})`;
+    
+    currentShifts.push({
+        fecha: fecha,
+        turno: 3, // Siempre es tipo 3 para 4 horas
+        subTurno: subTurno, // 1 para mañana, 2 para mixto
+        fechaDisplay: document.getElementById('selectedDate').textContent,
+        tipoNombre: tipoNombre
+    });
+    
     actualizarCalendario();
     actualizarResumenModal();
-    actualizarResumenTurnosActuales(); // CAMBIO: era actualizarResumenTurnos
+    cerrarModal();
+    
+    // Cerrar el submenu también
+    Swal.close();
+    
+    delete window.tempSelectedDate;
+    
+    // Mostrar confirmación
+    Swal.fire({
+        icon: 'success',
+        title: 'Turno agregado',
+        text: `${tipoNombre} asignado correctamente.`,
+        timer: 1500,
+        showConfirmButton: false,
+        toast: true,
+        position: 'top-end'
+    });
+}
+// Eliminar turno
+function eliminarTurno(fecha) {
+    currentShifts = currentShifts.filter(s => s.fecha !== fecha);
+    actualizarCalendario();
+    actualizarResumenModal();
 }
 
 // Cerrar modal de selección de turno
@@ -1443,351 +1574,1044 @@ function cerrarModal() {
 
 // Actualizar resumen en el modal
 function actualizarResumenModal() {
-    const turnosMañana = currentShifts.filter(s => s.turno === 1).length; // CAMBIO
-    const turnosMixtos = currentShifts.filter(s => s.turno === 2).length; // CAMBIO
-    const totalTurnos = currentShifts.length; // CAMBIO
+    const turnosMañana = currentShifts.filter(s => s.turno === 1).length;
+    const turnosMixtos = currentShifts.filter(s => s.turno === 2).length;
+    const turnos4Horas = currentShifts.filter(s => s.turno === 3).length;
+    const totalTurnos = currentShifts.length;
     
     document.getElementById('modalMorningCount').textContent = turnosMañana;
     document.getElementById('modalMixedCount').textContent = turnosMixtos;
+    
+    // Actualizar contador de 4 horas si existe el elemento
+    const modal4HoursElement = document.getElementById('modal4HoursCount');
+    if (modal4HoursElement) {
+        modal4HoursElement.textContent = turnos4Horas;
+    }
+    
     document.getElementById('modalTotalCount').textContent = totalTurnos;
 }
-// Imprimir planilla
-function imprimirPlanilla() {
-    const region = isCapitalino ? 'Capitalina' : 'Regional';
-    const totalSalario = document.getElementById('totalPayment').textContent;
+
+function actualizarIndicadoresSemana() {
+    const calendarDays = document.querySelectorAll('.calendar-day:not(.other-month)');
     
-    // Crear contenido de impresión
-    const printContent = `
-        <!DOCTYPE html>
-        <html>
-        <head>
-            <title>Planilla Tiempo Parcial - ${selectedEmployee.nombre}</title>
-            <style>
-                body { 
-                    font-family: 'Inter', Arial, sans-serif; 
-                    margin: 20px; 
-                    color: #1f2937; 
-                    line-height: 1.5;
-                }
-                .header { 
-                    text-align: center; 
-                    margin-bottom: 30px; 
-                    border-bottom: 3px solid #1e40af; 
-                    padding-bottom: 20px; 
-                }
-                .header h1 { 
-                    color: #1e40af; 
-                    margin-bottom: 5px; 
-                    font-size: 1.8rem;
-                    font-weight: 700;
-                }
-                .header p {
-                    color: #6b7280;
-                    margin: 5px 0;
-                }
-                .company-info {
-                    background: #f8f9fa;
-                    padding: 15px;
-                    border-radius: 8px;
-                    margin-bottom: 20px;
-                    border: 1px solid #e5e7eb;
-                }
-                .info-grid { 
-                    display: grid; 
-                    grid-template-columns: 1fr 1fr; 
-                    gap: 15px; 
-                    margin-bottom: 25px; 
-                }
-                .info-item { 
-                    background: #f9fafb; 
-                    padding: 15px; 
-                    border-radius: 8px; 
-                    border: 1px solid #e5e7eb; 
-                }
-                .info-item strong { 
-                    color: #1e40af; 
-                    font-weight: 600;
-                    display: block;
-                    margin-bottom: 5px;
-                }
-                .section-title {
-                    color: #1e40af;
-                    font-size: 1.2rem;
-                    font-weight: 600;
-                    margin: 25px 0 15px 0;
-                    padding-bottom: 8px;
-                    border-bottom: 2px solid #e5e7eb;
-                }
-                .shifts-table { 
-                    width: 100%; 
-                    border-collapse: collapse; 
-                    margin-bottom: 25px; 
-                    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-                }
-                .shifts-table th, .shifts-table td { 
-                    border: 1px solid #d1d5db; 
-                    padding: 12px; 
-                    text-align: left; 
-                }
-                .shifts-table th { 
-                    background-color: #1e40af; 
-                    color: white; 
-                    font-weight: 600; 
-                    font-size: 0.9rem;
-                    text-transform: uppercase;
-                    letter-spacing: 0.5px;
-                }
-                .shifts-table tr:nth-child(even) { 
-                    background-color: #f9fafb; 
-                }
-                .shifts-table tr:hover {
-                    background-color: #f3f4f6;
-                }
-                .total-section {
-                    background: linear-gradient(135deg, #10b981, #059669);
-                    color: white;
-                    padding: 25px;
-                    text-align: center;
-                    font-size: 1.4rem;
-                    font-weight: 700;
-                    border-radius: 8px;
-                    margin: 25px 0;
-                    box-shadow: 0 4px 6px rgba(16, 185, 129, 0.2);
-                }
-                .total-label {
-                    font-size: 1rem;
-                    opacity: 0.9;
-                    margin-bottom: 8px;
-                    font-weight: 500;
-                }
-                .breakdown-section {
-                    background: #f8f9fa;
-                    padding: 20px;
-                    border-radius: 8px;
-                    margin-bottom: 20px;
-                    border: 1px solid #e5e7eb;
-                }
-                .breakdown-item {
-                    display: flex;
-                    justify-content: space-between;
-                    padding: 8px 0;
-                    border-bottom: 1px solid #e5e7eb;
-                }
-                .breakdown-item:last-child {
-                    border-bottom: none;
-                    font-weight: 600;
-                    color: #1e40af;
-                }
-                .footer { 
-                    margin-top: 40px; 
-                    text-align: center; 
-                    color: #6b7280; 
-                    font-size: 0.9rem; 
-                    border-top: 1px solid #e5e7eb; 
-                    padding-top: 20px; 
-                }
-                .signature-section {
-                    margin-top: 40px;
-                    display: grid;
-                    grid-template-columns: 1fr 1fr;
-                    gap: 40px;
-                }
-                .signature-box {
-                    text-align: center;
-                    padding-top: 30px;
-                    border-top: 1px solid #374151;
-                }
-                @media print { 
-                    .no-print { display: none; }
-                    body { margin: 15px; }
-                    .header { page-break-after: avoid; }
-                }
-            </style>
-        </head>
-        <body>
-            <div class="header">
-                <h1>PLANILLA DE TIEMPO PARCIAL</h1>
-                <p>Sistema de Recursos Humanos</p>
-                <p><strong>New Technology ${new Date().getFullYear()}</strong></p>
-            </div>
+    calendarDays.forEach(dayElement => {
+        // Remover todos los indicadores anteriores
+        dayElement.classList.remove('week-full', 'week-almost-full', 'can-select');
+        
+        if (!dayElement.classList.contains('other-month') && 
+            !dayElement.classList.contains('sunday-blocked') &&
+            !dayElement.classList.contains('holiday-national') &&
+            !dayElement.classList.contains('holiday-departmental') &&
+            !dayElement.classList.contains('easter-week') &&
+            !dayElement.classList.contains('planilla-restricted') &&
+            !dayElement.classList.contains('month-restricted')) {
             
-            <div class="company-info">
-                <strong>Información de la Empresa:</strong> New Technology - Sistema de Gestión de Recursos Humanos
-            </div>
+            const dayNumber = parseInt(dayElement.textContent);
+            const fecha = new Date(currentDate.getFullYear(), currentDate.getMonth(), dayNumber);
+            const turnosEnSemana = contarTurnosEnSemana(fecha);
+            const dateString = formatDate(fecha);
+            const tieneAsignado = currentShifts.find(s => s.fecha === dateString);
             
-            <div class="info-grid">
-                <div class="info-item">
-                    <strong>Colaborador</strong>
-                    ${selectedEmployee.nombre}
-                </div>
-                <div class="info-item">
-                    <strong>ID Personal</strong>
-                    ${selectedEmployee.id}
-                </div>
-                <div class="info-item">
-                    <strong>Puesto de Trabajo</strong>
-                    ${selectedEmployee.puesto}
-                </div>
-                <div class="info-item">
-                    <strong>Región</strong>
-                    ${region}
-                </div>
-                <div class="info-item">
-                    <strong>Período Trabajado</strong>
-                    ${obtenerPeriodoTurnos()}
-                </div>
-                <div class="info-item">
-                    <strong>Fecha de Generación</strong>
-                    ${new Date().toLocaleDateString('es-GT')}
-                </div>
-            </div>
+            // Si ya tiene turno asignado, no cambiar nada
+            if (tieneAsignado) {
+                return;
+            }
             
-            <h3 class="section-title">Detalle de Turnos Trabajados</h3>
-            <table class="shifts-table">
-                <thead>
-                    <tr>
-                        <th>Fecha</th>
-                        <th>Día de la Semana</th>
-                        <th>Tipo de Turno</th>
-                        <th>Tarifa por Turno</th>
-                        <th>Subtotal</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    ${generarFilasTurnos()}
-                </tbody>
-            </table>
-            
-            <h3 class="section-title">Desglose de Pagos</h3>
-            <div class="breakdown-section">
-                ${generarDesglosePagos()}
-            </div>
-            
-            <div class="total-section">
-                <div class="total-label">TOTAL A PAGAR</div>
-                <div>${totalSalario}</div>
-            </div>
-            
-            <div class="signature-section">
-                <div class="signature-box">
-                    <strong>Firma del Empleado</strong><br>
-                    ${selectedEmployee.nombre}
-                </div>
-                <div class="signature-box">
-                    <strong>Firma Recursos Humanos</strong><br>
-                    New Technology
-                </div>
-            </div>
-            
-            <div class="footer">
-                <p><strong>Planilla generada automáticamente por el Sistema de Recursos Humanos</strong></p>
-                <p>Este documento es válido únicamente con las firmas correspondientes</p>
-                <p>© New Technology ${new Date().getFullYear()} - Todos los derechos reservados</p>
-            </div>
-            
-            <div class="no-print" style="margin-top: 30px; text-align: center;">
-                <button onclick="window.print()" style="background: #1e40af; color: white; border: none; padding: 12px 24px; border-radius: 6px; margin-right: 10px; cursor: pointer; font-weight: 600;">
-                    📄 Imprimir Planilla
-                </button>
-                <button onclick="window.close()" style="background: #6b7280; color: white; border: none; padding: 12px 24px; border-radius: 6px; cursor: pointer; font-weight: 600;">
-                    ✖️ Cerrar Ventana
-                </button>
-            </div>
-        </body>
-        </html>
-    `;
+            // Agregar clases según la cantidad de turnos en la semana
+            if (turnosEnSemana >= 4) {
+                dayElement.classList.add('week-full');
+                dayElement.title = `Semana completa - ${turnosEnSemana}/4 días usados`;
+            } else if (turnosEnSemana === 3) {
+                dayElement.classList.add('week-almost-full');
+                dayElement.title = `Último día disponible - ${turnosEnSemana}/4 días usados`;
+            } else {
+                dayElement.classList.add('can-select');
+                dayElement.title = `Disponible - ${turnosEnSemana}/4 días usados esta semana`;
+            }
+        }
+    });
+}
+function actualizarVisibilidadAcciones() {
+    const payrollActionsContainer = document.getElementById('payrollActionsContainer');
+    const hasCollaborators = payrollCollaborators.length > 0;
+    const hasCurrentEmployee = selectedEmployee !== null;
     
-    // Abrir ventana de impresión
-    const printWindow = window.open('', '_blank');
-    printWindow.document.write(printContent);
-    printWindow.document.close();
+    // Mostrar contenedor de acciones si hay colaboradores en planilla O empleado actual seleccionado
+    if (hasCollaborators || hasCurrentEmployee) {
+        payrollActionsContainer.style.display = 'flex';
+        
+        // Habilitar/deshabilitar botones específicos
+        const clearCurrentBtn = document.getElementById('clearCurrentShifts');
+        const clearAllBtn = document.getElementById('clearAllPayroll');
+        
+        if (clearCurrentBtn) {
+            clearCurrentBtn.disabled = !hasCurrentEmployee || currentShifts.length === 0;
+        }
+        
+        if (clearAllBtn) {
+            clearAllBtn.disabled = !hasCollaborators;
+        }
+    } else {
+        payrollActionsContainer.style.display = 'none';
+    }
 }
 
-// Generar filas de turnos para impresión
-function generarFilasTurnos() {
-    const region = isCapitalino ? 'capitalino' : 'regional';
-    let filas = '';
+function actualizarColaboradorEnPlanilla(index) {
+    payrollCollaborators[index] = {
+        ...payrollCollaborators[index],
+        shifts: [...currentShifts],
+        turnosMañana: currentShifts.filter(s => s.turno === 1).length,
+        turnosMixtos: currentShifts.filter(s => s.turno === 2).length,
+        turnos4Horas: currentShifts.filter(s => s.turno === 3).length,
+        totalTurnos: currentShifts.length,
+        totalPago: calcularSalarioColaborador(currentShifts), // ⭐ YA INCLUYE REDONDEO
+        fechaActualizado: new Date().toISOString()
+    };
     
-    currentShifts // ⚠️ CAMBIAR selectedShifts por currentShifts
-        .sort((a, b) => new Date(a.fecha) - new Date(b.fecha))
-        .forEach(shift => {
-            const fecha = new Date(shift.fecha);
-            const diaSemana = fecha.toLocaleDateString('es-GT', { weekday: 'long' });
-            const fechaFormateada = shift.fechaDisplay;
-            const tipoTurno = shift.turno === 1 ? 'Turno Mañana' : 'Turno Mixto';
-            const tarifa = salaryRates[region][shift.turno]?.salarioXturno || 0;
+    // Limpiar selección actual
+    currentShifts = [];
+    
+    // Actualizar vista de planilla
+    actualizarVistaPlanilla();
+    
+    Swal.fire({
+        icon: 'success',
+        title: 'Colaborador actualizado',
+        text: 'Los turnos han sido actualizados exitosamente.',
+        timer: 2000,
+        showConfirmButton: false
+    });
+}
+
+function actualizarVistaPlanilla() {
+    const tableBody = document.getElementById('payrollTableBody');
+    const emptyState = document.getElementById('emptyPayrollState');
+    const payrollActionsContainer = document.getElementById('payrollActionsContainer');
+    const payrollCount = document.getElementById('payrollCount');
+    
+    // Actualizar contador
+    payrollCount.textContent = payrollCollaborators.length;
+    
+    if (payrollCollaborators.length === 0) {
+        // Mostrar estado vacío
+        tableBody.innerHTML = '';
+        emptyState.style.display = 'flex';
+        payrollActionsContainer.style.display = 'none';
+    } else {
+        // Mostrar tabla con colaboradores
+        emptyState.style.display = 'none';
+        payrollActionsContainer.style.display = 'flex';
+        
+        // Generar filas de la tabla
+        tableBody.innerHTML = payrollCollaborators.map((colaborador, index) => `
+            <tr>
+                <td>
+                    <div class="collaborator-name-cell">${colaborador.nombre}</div>
+                    <div class="collaborator-id-cell">ID: ${colaborador.id}</div>
+                </td>
+                <td style="text-align: center;">
+                    <span class="shift-count morning">${colaborador.turnosMañana}</span>
+                </td>
+                <td style="text-align: center;">
+                    <span class="shift-count mixed">${colaborador.turnosMixtos}</span>
+                </td>
+                <td style="text-align: center;">
+                    <span class="shift-count hours">${colaborador.turnos4Horas || 0}</span>
+                    ${colaborador.turnos4Horas > 0 ? `
+                        <div style="font-size: 0.65rem; color: #6b7280; margin-top: 2px; line-height: 1.2;">
+                            ${obtenerDetallesTurnos4Horas(colaborador.shifts)}
+                        </div>
+                    ` : ''}
+                </td>
+                <td style="text-align: center;">
+                    <span class="shift-count total">${colaborador.totalTurnos}</span>
+                </td>
+                <td style="text-align: right;">
+                    <span class="payment-amount">Q ${colaborador.totalPago.toFixed(2)}</span>
+                </td>
+                <td style="text-align: center;">
+                    <div class="table-actions">
+                        <button class="btn-table-action btn-edit" onclick="editarColaborador(${index})" title="Editar turnos">
+                            <i class="fas fa-edit"></i>
+                        </button>
+                        <button class="btn-table-action btn-remove" onclick="eliminarColaboradorDePlanilla(${index})" title="Eliminar de planilla">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </div>
+                </td>
+            </tr>
+        `).join('');
+        
+        // Actualizar totales generales
+        actualizarTotalesGenerales();
+    }
+}
+function obtenerDetallesTurnos4Horas(shifts) {
+    const turnos4h = shifts.filter(s => s.turno === 3);
+    if (turnos4h.length === 0) return '';
+    
+    const mañana = turnos4h.filter(s => s.subTurno === 1).length;
+    const mixto = turnos4h.filter(s => s.subTurno === 2).length;
+    
+    const detalles = [];
+    if (mañana > 0) detalles.push(`${mañana}M`);
+    if (mixto > 0) detalles.push(`${mixto}X`);
+    
+    return detalles.length > 0 ? `(${detalles.join(', ')})` : '';
+}
+function actualizarTotalesGenerales() {
+    const totalColaboradores = payrollCollaborators.length;
+    const totalTurnos = payrollCollaborators.reduce((sum, c) => sum + c.totalTurnos, 0);
+    
+    // ⭐ CALCULAR TOTAL CON REDONDEO
+    const totalPago = payrollCollaborators.reduce((sum, c) => sum + c.totalPago, 0);
+    const totalPagoRedondeado = redondearMonto(totalPago);
+    
+    // Calcular desglose de turnos
+    const totalTurnosMañana = payrollCollaborators.reduce((sum, c) => sum + c.turnosMañana, 0);
+    const totalTurnosMixtos = payrollCollaborators.reduce((sum, c) => sum + c.turnosMixtos, 0);
+    const totalTurnos4Horas = payrollCollaborators.reduce((sum, c) => sum + c.turnos4Horas, 0);
+    
+    // Actualizar elementos básicos
+    document.getElementById('totalCollaborators').textContent = totalColaboradores;
+    document.getElementById('totalShifts').textContent = totalTurnos;
+    document.getElementById('totalAmount').textContent = `Q ${totalPagoRedondeado.toFixed(2)}`;
+    
+    // Actualizar detalles adicionales si existen los elementos
+    const detailsElement = document.getElementById('shiftsBreakdown');
+    if (detailsElement) {
+        detailsElement.innerHTML = `
+            <div style="font-size: 0.75rem; color: #6b7280; margin-top: 4px;">
+                ${totalTurnosMañana > 0 ? `${totalTurnosMañana} Mañana` : ''}
+                ${totalTurnosMañana > 0 && (totalTurnosMixtos > 0 || totalTurnos4Horas > 0) ? ' • ' : ''}
+                ${totalTurnosMixtos > 0 ? `${totalTurnosMixtos} Mixtos` : ''}
+                ${totalTurnosMixtos > 0 && totalTurnos4Horas > 0 ? ' • ' : ''}
+                ${totalTurnos4Horas > 0 ? `${totalTurnos4Horas} de 4H` : ''}
+            </div>
+        `;
+    }
+}
+
+function editarColaborador(index) {
+    const colaborador = payrollCollaborators[index];
+    
+    Swal.fire({
+        title: 'Editar colaborador',
+        text: `¿Desea cargar los turnos de ${colaborador.nombre} para editarlos?`,
+        icon: 'question',
+        showCancelButton: true,
+        confirmButtonText: 'Sí, editar',
+        cancelButtonText: 'Cancelar',
+        confirmButtonColor: '#1e40af'
+    }).then((result) => {
+        if (result.isConfirmed) {
+            // Buscar y seleccionar el colaborador en la lista
+            const collaboratorItem = document.querySelector(`[data-employee-id="${colaborador.id}"]`);
+            if (collaboratorItem) {
+                // Simular selección del colaborador
+                const colaboradorData = allCollaborators.find(c => c.IdPersonal === colaborador.id);
+                if (colaboradorData) {
+                    seleccionarColaborador(colaboradorData, collaboratorItem);
+                    // Cargar los turnos existentes
+                    currentShifts = [...colaborador.shifts];
+                    
+                    Swal.fire({
+                        icon: 'info',
+                        title: 'Turnos cargados',
+                        text: 'Los turnos han sido cargados. Puede editarlos y guardar los cambios.',
+                        confirmButtonColor: '#1e40af'
+                    });
+                }
+            }
+        }
+    });
+}
+
+function eliminarColaboradorDePlanilla(index) {
+    const colaborador = payrollCollaborators[index];
+    
+    Swal.fire({
+        title: '¿Eliminar colaborador?',
+        text: `Se eliminará a ${colaborador.nombre} de la planilla.`,
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonText: 'Sí, eliminar',
+        cancelButtonText: 'Cancelar',
+        confirmButtonColor: '#ef4444'
+    }).then((result) => {
+        if (result.isConfirmed) {
+            payrollCollaborators.splice(index, 1);
+            actualizarVistaPlanilla();
             
-            filas += `
-                <tr>
-                    <td>${fechaFormateada}</td>
-                    <td style="text-transform: capitalize;">${diaSemana}</td>
-                    <td>
-                        <span style="background: ${shift.turno === 1 ? '#fef3c7; color: #92400e' : '#ddd6fe; color: #5b21b6'}; padding: 4px 8px; border-radius: 4px; font-size: 0.8rem; font-weight: 600;">
-                            ${shift.turno === 1 ? '☀️' : '🌙'} ${tipoTurno}
-                        </span>
-                    </td>
-                    <td style="font-weight: 600;">Q ${tarifa.toFixed(2)}</td>
-                    <td style="font-weight: 600; color: #10b981;">Q ${tarifa.toFixed(2)}</td>
-                </tr>
-            `;
+            Swal.fire({
+                icon: 'success',
+                title: 'Colaborador eliminado',
+                text: 'El colaborador ha sido eliminado de la planilla.',
+                timer: 1500,
+                showConfirmButton: false
+            });
+        }
+    });
+}
+
+function limpiarTodaLaPlanilla() {
+    if (payrollCollaborators.length === 0) {
+        Swal.fire({
+            icon: 'info',
+            title: 'Planilla vacía',
+            text: 'No hay colaboradores en la planilla para limpiar.',
+            confirmButtonColor: '#4f46e5'
         });
+        return;
+    }
     
-    return filas;
+    Swal.fire({
+        title: '¿Limpiar toda la planilla?',
+        text: `Se eliminarán todos los ${payrollCollaborators.length} colaboradores de la planilla.`,
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonText: 'Sí, limpiar todo',
+        cancelButtonText: 'Cancelar',
+        confirmButtonColor: '#f43f5e'
+    }).then((result) => {
+        if (result.isConfirmed) {
+            payrollCollaborators = [];
+            actualizarVistaPlanilla();
+            actualizarVisibilidadAcciones();
+            
+            Swal.fire({
+                icon: 'success',
+                title: 'Planilla limpiada',
+                text: 'Todos los colaboradores han sido eliminados.',
+                timer: 2000,
+                showConfirmButton: false
+            });
+        }
+    });
 }
 
-// Generar desglose de pagos para impresión
-function generarDesglosePagos() {
+function calcularSalarioColaborador(shifts) {
     const region = isCapitalino ? 'capitalino' : 'regional';
-    let desglose = '';
+    if (!salaryRates[region] || shifts.length === 0) return 0;
+    
     let total = 0;
     
-    const turnosMañana = currentShifts.filter(s => s.turno === 1).length; // ⚠️ CAMBIAR selectedShifts
-    const turnosMixtos = currentShifts.filter(s => s.turno === 2).length; // ⚠️ CAMBIAR selectedShifts
+    shifts.forEach(shift => {
+        if (shift.turno === 1) {
+            // Turno de mañana completo
+            if (salaryRates[region][1]) {
+                total += salaryRates[region][1].salarioXturno;
+            }
+        } else if (shift.turno === 2) {
+            // Turno mixto completo
+            if (salaryRates[region][2]) {
+                total += salaryRates[region][2].salarioXturno;
+            }
+        } else if (shift.turno === 3) {
+            // Turno de 4 horas - usar tarifa según subtipo
+            const tarifaBase = shift.subTurno === 1 ? 
+                salaryRates[region][1]?.salarioXhora : // Tarifa de mañana
+                salaryRates[region][2]?.salarioXhora;  // Tarifa mixta
+            
+            if (tarifaBase) {
+                total += tarifaBase * 4; // 4 horas × tarifa correspondiente
+            }
+        }
+    });
     
-    if (turnosMañana > 0 && salaryRates[region][1]) {
-        const subtotal = turnosMañana * salaryRates[region][1].salarioXturno;
-        total += subtotal;
-        desglose += `
-            <div class="breakdown-item">
-                <span>${turnosMañana} Turno(s) de Mañana × Q ${salaryRates[region][1].salarioXturno.toFixed(2)}</span>
-                <span>Q ${subtotal.toFixed(2)}</span>
+    // ⭐ APLICAR REDONDEO AL TOTAL
+    return redondearMonto(total);
+}
+function redondearMonto(monto) {
+    // Redondear al múltiplo de 0.05 más cercano
+    return Math.round(monto / 0.05) * 0.05;
+}
+function redondearMontoConOpcion(monto, direccion = 'cercano') {
+    switch(direccion) {
+        case 'arriba':
+            return Math.ceil(monto / 0.05) * 0.05;
+        case 'abajo':
+            return Math.floor(monto / 0.05) * 0.05;
+        default: // 'cercano'
+            return Math.round(monto / 0.05) * 0.05;
+    }
+}
+function agregarNuevoColaboradorAPlanilla() {
+    const colaboradorData = {
+        id: selectedEmployee.id,
+        nombre: selectedEmployee.nombre,
+        puesto: selectedEmployee.puesto,
+        shifts: [...currentShifts],
+        turnosMañana: currentShifts.filter(s => s.turno === 1).length,
+        turnosMixtos: currentShifts.filter(s => s.turno === 2).length,
+        turnos4Horas: currentShifts.filter(s => s.turno === 3).length,
+        totalTurnos: currentShifts.length,
+        totalPago: calcularSalarioColaborador(currentShifts), // ⭐ YA INCLUYE REDONDEO
+        fechaAgregado: new Date().toISOString()
+    };
+    
+    payrollCollaborators.push(colaboradorData);
+    
+    // Limpiar selección actual
+    currentShifts = [];
+    
+    // Actualizar vista de planilla y visibilidad de acciones
+    actualizarVistaPlanilla();
+    actualizarVisibilidadAcciones();
+    
+    Swal.fire({
+        icon: 'success',
+        title: 'Colaborador agregado',
+        text: `${selectedEmployee.nombre} ha sido agregado a la planilla.`,
+        timer: 2000,
+        showConfirmButton: false
+    });
+}
+// Función para solicitar autorización y guardar planilla
+async function solicitarAutorizacionPlanilla() {
+    // Validar que el usuario esté autenticado
+    const userData = JSON.parse(localStorage.getItem('userData'));
+    if (!userData) {
+        Swal.fire({
+            icon: 'error',
+            title: 'Sesión expirada',
+            text: 'Su sesión ha expirado. Por favor, inicie sesión nuevamente.',
+            confirmButtonColor: '#1e40af'
+        }).then(() => {
+            // Redirigir al login
+            window.location.href = '../Login.html';
+        });
+        return;
+    }
+
+    // Validar que hay colaboradores en la planilla
+    if (payrollCollaborators.length === 0) {
+        Swal.fire({
+            icon: 'warning',
+            title: 'Planilla vacía',
+            text: 'No hay colaboradores en la planilla para guardar.',
+            confirmButtonColor: '#1e40af'
+        });
+        return;
+    }
+
+    // Validar que la configuración de planilla esté completa
+    if (!planillaConfig.confirmada) {
+        Swal.fire({
+            icon: 'error',
+            title: 'Configuración incompleta',
+            text: 'Debe configurar el tipo de planilla antes de guardar.',
+            confirmButtonColor: '#1e40af'
+        });
+        return;
+    }
+
+    // Mostrar resumen antes de guardar
+    const totalColaboradores = payrollCollaborators.length;
+    const totalTurnos = payrollCollaborators.reduce((sum, c) => sum + c.totalTurnos, 0);
+    const totalPago = payrollCollaborators.reduce((sum, c) => sum + c.totalPago, 0);
+    const tipoPlanillaTexto = planillaConfig.tipo === 'quincenal' ? 'Planilla Quincenal' : 'Planilla Fin de Mes';
+    const mesNombre = new Date(planillaConfig.anio, planillaConfig.mes - 1).toLocaleDateString('es-GT', { month: 'long' });
+    
+    // Obtener nombre del departamento
+    const nombreDepartamento = await obtenerInfoDepartamentoParaResumen();
+
+    const result = await Swal.fire({
+        title: '¿Solicitar autorización de planilla?',
+        html: `
+            <div style="text-align: left; margin: 20px 0;">
+                <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; margin-bottom: 20px;">
+                    <h4 style="color: #1e40af; margin-bottom: 15px; text-align: center;">📋 Resumen de Planilla</h4>
+                    
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px;">
+                        <div><strong>Tipo:</strong> ${tipoPlanillaTexto}</div>
+                        <div><strong>Período:</strong> ${mesNombre} ${planillaConfig.anio}</div>
+                        <div><strong>Colaboradores:</strong> ${totalColaboradores}</div>
+                        <div><strong>Total turnos:</strong> ${totalTurnos}</div>
+                    </div>
+                    
+                    <div style="text-align: center; margin-top: 15px; padding: 15px; background: #e8f5e8; border-radius: 6px; border: 2px solid #10b981;">
+                        <strong style="color: #059669; font-size: 1.2rem;">Total a pagar: Q ${totalPago.toFixed(2)}</strong>
+                    </div>
+                </div>
+
+                <div style="background: #e3f2fd; padding: 15px; border-radius: 8px; margin-bottom: 15px; border-left: 4px solid #2196f3;">
+                    <p style="margin: 0; color: #1565c0;">
+                        <strong>👤 Usuario:</strong> ${userData.NombreCompleto}<br>
+                        <strong>🏢 Departamento:</strong> ${nombreDepartamento}<br>
+                        <strong>📅 Fecha:</strong> ${new Date().toLocaleDateString('es-GT')}
+                    </p>
+                </div>
+
+                <div style="background: #fff3cd; padding: 15px; border-radius: 8px; border-left: 4px solid #ffc107;">
+                    <p style="margin: 0; color: #856404;">
+                        <strong>⚠️ Importante:</strong> Una vez guardada, la planilla será enviada para autorización y no podrá ser modificada.
+                    </p>
+                </div>
+            </div>
+        `,
+        icon: 'question',
+        showCancelButton: true,
+        confirmButtonText: '✅ Sí, solicitar autorización',
+        cancelButtonText: '❌ Cancelar',
+        confirmButtonColor: '#10b981',
+        cancelButtonColor: '#6c757d',
+        width: '600px'
+    });
+
+    if (result.isConfirmed) {
+        await guardarPlanillaEnBD();
+    }
+}
+
+// Función principal para guardar la planilla en la base de datos
+async function guardarPlanillaEnBD() {
+    const loadingSwal = mostrarCargando('Guardando planilla...');
+    
+    try {
+        const connection = await connectionString();
+        
+        // Obtener información del usuario logueado desde localStorage
+        const userData = JSON.parse(localStorage.getItem('userData'));
+        if (!userData) {
+            throw new Error('No se encontraron datos del usuario. Por favor, inicie sesión nuevamente.');
+        }
+        
+        const idUsuario = userData.IdPersonal;
+        const nombreUsuario = userData.NombreCompleto;
+        
+        // === PASO 1: Insertar encabezado de planilla ===
+        const totalPago = payrollCollaborators.reduce((sum, c) => sum + c.totalPago, 0);
+        const totalPagoRedondeado = redondearMonto(totalPago); // ⭐ REDONDEAR TOTAL GENERAL
+        const totalColaboradores = payrollCollaborators.length;
+        
+        // Determinar IdTipoPago basado en el tipo de planilla
+        const idTipoPago = planillaConfig.tipo === 'quincenal' ? 1 : 2;
+        const tipoPagoTexto = planillaConfig.tipo === 'quincenal' ? 'Planilla Quincenal' : 'Planilla Fin de Mes';
+        
+        const insertPlanilla = await connection.query(`
+            INSERT INTO PagoPlanillaParcial (
+                IdDepartamentoSucursal,
+                MontoPlanillaParcial,
+                CantidadColaboradores,
+                IdTipoPago,
+                TipoPago,
+                Mes,
+                Anyo,
+                IdUsuario,
+                NombreUsuario
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `, [
+            currentDepartamentoId,
+            totalPagoRedondeado, // ⭐ MONTO REDONDEADO
+            totalColaboradores.toString(),
+            idTipoPago,
+            tipoPagoTexto,
+            planillaConfig.mes.toString(),
+            planillaConfig.anio.toString(),
+            idUsuario,
+            nombreUsuario
+        ]);
+        
+        const idPlanillaParcial = insertPlanilla.insertId;
+        
+        // === PASO 2: Insertar detalles de la planilla ===
+        const detallesPromises = [];
+        
+        for (const colaborador of payrollCollaborators) {
+            // Insertar cada turno como un registro separado
+            for (const shift of colaborador.shifts) {
+                // Calcular monto pagado para este turno específico
+                const region = isCapitalino ? 'capitalino' : 'regional';
+                let montoPagado = 0;
+                
+                if (shift.turno === 1 && salaryRates[region][1]) {
+                    montoPagado = salaryRates[region][1].salarioXturno;
+                } else if (shift.turno === 2 && salaryRates[region][2]) {
+                    montoPagado = salaryRates[region][2].salarioXturno;
+                } else if (shift.turno === 3 && salaryRates[region][1]) {
+                    // Turno de 4 horas usa salario por hora * 4
+                    const tarifaBase = shift.subTurno === 1 ? 
+                        salaryRates[region][1].salarioXhora : 
+                        salaryRates[region][2].salarioXhora;
+                    montoPagado = tarifaBase * 4;
+                }
+                
+                // ⭐ REDONDEAR MONTO INDIVIDUAL
+                montoPagado = redondearMonto(montoPagado);
+                
+                // Determinar nombre del tipo de turno
+                let tipoTurnoTexto = '';
+                switch(shift.turno) {
+                    case 1:
+                        tipoTurnoTexto = 'Turno Mañana';
+                        break;
+                    case 2:
+                        tipoTurnoTexto = 'Turno Mixto';
+                        break;
+                    case 3:
+                        const subTipoTexto = shift.subTurno === 1 ? 'Mañana' : 'Mixto';
+                        tipoTurnoTexto = `Turno 4 Horas (${subTipoTexto})`;
+                        break;
+                }
+                
+                const detallePromise = connection.query(`
+                    INSERT INTO PagoPlanillaParcialDetalle (
+                        IdPlanillaParcial,
+                        IdPersonal,
+                        NombrePersonal,
+                        FechaLaborada,
+                        IdTipoTurno,
+                        TipoTurno,
+                        MontoPagado
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                `, [
+                    idPlanillaParcial,
+                    colaborador.id,
+                    colaborador.nombre,
+                    shift.fecha,
+                    shift.turno,
+                    tipoTurnoTexto,
+                    montoPagado // ⭐ MONTO REDONDEADO
+                ]);
+                
+                detallesPromises.push(detallePromise);
+            }
+        }
+        
+        // Ejecutar todas las inserciones de detalles
+        await Promise.all(detallesPromises);
+        
+        await connection.close();
+        
+        // Cerrar loading
+        Swal.close();
+        
+        // Mostrar éxito
+        await Swal.fire({
+            icon: 'success',
+            title: '¡Planilla guardada exitosamente!',
+            html: `
+                <div style="text-align: left; margin: 20px 0;">
+                    <div style="background: #e8f5e8; padding: 20px; border-radius: 8px; border: 2px solid #10b981;">
+                        <h4 style="color: #059669; margin-bottom: 15px; text-align: center;">✅ Detalles de la operación</h4>
+                        
+                        <div style="margin-bottom: 10px;"><strong>📋 ID Planilla:</strong> ${idPlanillaParcial}</div>
+                        <div style="margin-bottom: 10px;"><strong>👥 Colaboradores:</strong> ${totalColaboradores}</div>
+                        <div style="margin-bottom: 10px;"><strong>📊 Registros detalle:</strong> ${detallesPromises.length}</div>
+                        <div style="margin-bottom: 10px;"><strong>💰 Monto total:</strong> Q ${totalPagoRedondeado.toFixed(2)}</div>
+                        <div><strong>📅 Fecha:</strong> ${new Date().toLocaleDateString('es-GT')}</div>
+                    </div>
+                    
+                    <div style="background: #d1ecf1; padding: 15px; border-radius: 8px; margin-top: 15px; border-left: 4px solid #17a2b8;">
+                        <p style="margin: 0; color: #0c5460;">
+                            <strong>ℹ️ Información:</strong> La planilla ha sido enviada para autorización. Puede consultar el estado en el módulo de reportes.
+                        </p>
+                    </div>
+                </div>
+            `,
+            confirmButtonText: 'Entendido',
+            confirmButtonColor: '#10b981',
+            width: '550px'
+        });
+        
+        // Limpiar planilla después de guardar exitosamente
+        limpiarTodaLaPlanillaCompleta();
+        
+    } catch (error) {
+        console.error('Error al guardar planilla:', error);
+        
+        Swal.close();
+        
+        Swal.fire({
+            icon: 'error',
+            title: 'Error al guardar planilla',
+            html: `
+                <div style="text-align: left; margin: 20px 0;">
+                    <div style="background: #f8d7da; padding: 15px; border-radius: 8px; border-left: 4px solid #dc3545;">
+                        <p style="margin-bottom: 10px; color: #721c24;">
+                            <strong>❌ Error técnico:</strong> No se pudo guardar la planilla en la base de datos.
+                        </p>
+                        <p style="margin: 0; color: #721c24; font-size: 0.9rem;">
+                            <strong>Detalles:</strong> ${error.message || 'Error desconocido'}
+                        </p>
+                    </div>
+                    
+                    <div style="background: #fff3cd; padding: 15px; border-radius: 8px; margin-top: 15px; border-left: 4px solid #ffc107;">
+                        <p style="margin: 0; color: #856404;">
+                            <strong>💡 Sugerencia:</strong> Verifique la conexión a la base de datos y vuelva a intentarlo.
+                        </p>
+                    </div>
+                </div>
+            `,
+            confirmButtonText: 'Entendido',
+            confirmButtonColor: '#dc3545',
+            width: '500px'
+        });
+    }
+}
+
+// Función para limpiar completamente la planilla después de guardar
+function limpiarTodaLaPlanillaCompleta() {
+    // Limpiar arrays de datos
+    payrollCollaborators = [];
+    currentShifts = [];
+    selectedEmployee = null;
+    
+    // Limpiar selecciones visuales
+    document.querySelectorAll('.collaborator-item').forEach(item => {
+        item.classList.remove('selected');
+    });
+    
+    // Actualizar vista de planilla
+    actualizarVistaPlanilla();
+    
+    // Mostrar estado de bienvenida
+    document.getElementById('welcomeState').style.display = 'flex';
+    document.getElementById('payrollSection').style.display = 'block';
+    
+    // Actualizar visibilidad de acciones
+    actualizarVisibilidadAcciones();
+}
+
+// NUEVA FUNCIÓN: Obtener información del departamento para el resumen
+async function obtenerInfoDepartamentoParaResumen() {
+    try {
+        const userData = JSON.parse(localStorage.getItem('userData'));
+        if (!userData) return 'Departamento no disponible';
+
+        const connection = await connectionString();
+        const result = await connection.query(`
+            SELECT NombreDepartamento 
+            FROM departamentos 
+            WHERE IdDepartamento = ?
+        `, [currentDepartamentoId]);
+        await connection.close();
+
+        return result[0]?.NombreDepartamento || userData.NombreDepartamento;
+    } catch (error) {
+        console.error('Error al obtener información del departamento:', error);
+        const userData = JSON.parse(localStorage.getItem('userData'));
+        return userData?.NombreDepartamento || 'Departamento no disponible';
+    }
+}
+async function cargarDiasEspeciales(departamentoId) {
+    try {
+        const connection = await connectionString();
+        
+        // Cargar feriados nacionales (IdDepartamento = 0) + feriados del departamento específico
+        const result = await connection.query(`
+            SELECT 
+                Dia, 
+                Mes, 
+                IdDepartamento, 
+                Descripcion 
+            FROM DiasEspeciales 
+            WHERE IdDepartamento = 0 OR IdDepartamento = ?
+            ORDER BY Mes, Dia
+        `, [departamentoId]);
+        
+        await connection.close();
+        
+        // Almacenar días especiales
+        diasEspeciales = result.map(dia => ({
+            dia: parseInt(dia.Dia),
+            mes: parseInt(dia.Mes),
+            idDepartamento: parseInt(dia.IdDepartamento),
+            descripcion: dia.Descripcion,
+            esNacional: dia.IdDepartamento === 0
+        }));
+        
+        console.log(`Días especiales cargados para departamento ${departamentoId}:`, diasEspeciales);
+        
+        // Actualizar calendario si está abierto
+        if (document.getElementById('calendarModal').style.display === 'block') {
+            actualizarCalendario();
+        }
+        
+    } catch (error) {
+        console.error('Error al cargar días especiales:', error);
+        diasEspeciales = [];
+    }
+}
+
+function esDiaEspecial(fecha) {
+    const date = new Date(fecha);
+    const dia = date.getDate();
+    const mes = date.getMonth() + 1; // getMonth() devuelve 0-11, necesitamos 1-12
+    
+    return diasEspeciales.find(diaEspecial => 
+        diaEspecial.dia === dia && diaEspecial.mes === mes
+    );
+}
+
+// Funciones para Semana Santa
+function calcularDomingoPascua(año) {
+    // Algoritmo de Gauss para calcular la Pascua
+    const a = año % 19;
+    const b = Math.floor(año / 100);
+    const c = año % 100;
+    const d = Math.floor(b / 4);
+    const e = b % 4;
+    const f = Math.floor((b + 8) / 25);
+    const g = Math.floor((b - f + 1) / 3);
+    const h = (19 * a + b - d - g + 15) % 30;
+    const i = Math.floor(c / 4);
+    const k = c % 4;
+    const l = (32 + 2 * e + 2 * i - h - k) % 7;
+    const m = Math.floor((a + 11 * h + 22 * l) / 451);
+    const n = Math.floor((h + l - 7 * m + 114) / 31);
+    const p = (h + l - 7 * m + 114) % 31;
+    
+    return new Date(año, n - 1, p + 1);
+}
+
+function calcularFechasSemanaSanta(año) {
+    const domingoPascua = calcularDomingoPascua(año);
+    const fechas = [];
+    
+    // Definir los días de Semana Santa que son feriados en Guatemala
+    const diasSemanaSanta = [
+        { nombre: 'Domingo de Ramos', diasAntes: 7, bloqueado: false }, // Opcional
+        { nombre: 'Lunes Santo', diasAntes: 6, bloqueado: true },
+        { nombre: 'Martes Santo', diasAntes: 5, bloqueado: true },
+        { nombre: 'Miércoles Santo', diasAntes: 4, bloqueado: true },
+        { nombre: 'Jueves Santo', diasAntes: 3, bloqueado: true },
+        { nombre: 'Viernes Santo', diasAntes: 2, bloqueado: true },
+        { nombre: 'Sábado de Gloria', diasAntes: 1, bloqueado: true },
+        { nombre: 'Domingo de Pascua', diasAntes: 0, bloqueado: false }
+    ];
+    
+    diasSemanaSanta.forEach(dia => {
+        if (dia.bloqueado) {
+            const fecha = new Date(domingoPascua);
+            fecha.setDate(domingoPascua.getDate() - dia.diasAntes);
+            
+            fechas.push({
+                fecha: formatDate(fecha),
+                fechaObj: new Date(fecha),
+                nombre: dia.nombre,
+                esPascua: true
+            });
+        }
+    });
+    
+    return fechas;
+}
+
+function generarFechasSemanaSanta() {
+    const añoActual = new Date().getFullYear();
+    const añoSiguiente = añoActual + 1;
+    
+    fechasSemanaSanta = [
+        ...calcularFechasSemanaSanta(añoActual),
+        ...calcularFechasSemanaSanta(añoSiguiente)
+    ];
+    
+    console.log(`Fechas de Semana Santa cargadas para ${añoActual}-${añoSiguiente}:`, fechasSemanaSanta);
+}
+
+function esSemanaSanta(fecha) {
+    const dateString = formatDate(fecha);
+    return fechasSemanaSanta.find(pascua => pascua.fecha === dateString);
+}
+function mostrarErrorMesActual(fecha, validacion) {
+    const fechaFormateada = formatDateDisplay(fecha);
+    const fechaActual = new Date();
+    const mesActualNombre = fechaActual.toLocaleDateString('es-GT', { month: 'long', year: 'numeric' });
+    const mesFechaNombre = fecha.toLocaleDateString('es-GT', { month: 'long', year: 'numeric' });
+    
+    let titulo, mensaje, icono;
+    
+    switch (validacion.motivo) {
+        case 'mes_pasado':
+            titulo = 'Mes anterior no permitido';
+            icono = 'warning';
+            mensaje = `
+                <div style="text-align: left; margin: 20px 0;">
+                    <p><strong>📅 Fecha seleccionada:</strong> ${fechaFormateada}</p>
+                    <p><strong>📊 Mes de la fecha:</strong> ${mesFechaNombre}</p>
+                    <p><strong>📅 Mes actual:</strong> ${mesActualNombre}</p>
+                    <br>
+                    <div style="background: #fef3c7; padding: 15px; border-radius: 8px; border-left: 4px solid #f59e0b;">
+                        <p style="margin: 0; color: #92400e;">
+                            <strong>⚠️ Restricción temporal:</strong> No se pueden asignar turnos en meses anteriores. Solo se permite trabajar en el mes actual.
+                        </p>
+                    </div>
+                    <div style="margin-top: 10px; background: #e0f2fe; padding: 10px; border-radius: 6px;">
+                        <p style="margin: 0; color: #0891b2; font-size: 0.9rem;">
+                            <strong>💡 Sugerencia:</strong> Use los controles de navegación para ir al mes actual (${mesActualNombre}).
+                        </p>
+                    </div>
+                </div>
+            `;
+            break;
+            
+        case 'mes_futuro':
+            titulo = 'Mes futuro no permitido';
+            icono = 'info';
+            mensaje = `
+                <div style="text-align: left; margin: 20px 0;">
+                    <p><strong>📅 Fecha seleccionada:</strong> ${fechaFormateada}</p>
+                    <p><strong>📊 Mes de la fecha:</strong> ${mesFechaNombre}</p>
+                    <p><strong>📅 Mes actual:</strong> ${mesActualNombre}</p>
+                    <br>
+                    <div style="background: #dbeafe; padding: 15px; border-radius: 8px; border-left: 4px solid #3b82f6;">
+                        <p style="margin: 0; color: #1e40af;">
+                            <strong>ℹ️ Restricción temporal:</strong> No se pueden asignar turnos en meses futuros. Solo se permite trabajar en el mes actual.
+                        </p>
+                    </div>
+                    <div style="margin-top: 10px; background: #e0f2fe; padding: 10px; border-radius: 6px;">
+                        <p style="margin: 0; color: #0891b2; font-size: 0.9rem;">
+                            <strong>💡 Sugerencia:</strong> Use los controles de navegación para regresar al mes actual (${mesActualNombre}).
+                        </p>
+                    </div>
+                </div>
+            `;
+            break;
+            
+        case 'anio_pasado':
+            titulo = 'Año anterior no permitido';
+            icono = 'error';
+            mensaje = `
+                <div style="text-align: left; margin: 20px 0;">
+                    <p><strong>📅 Fecha seleccionada:</strong> ${fechaFormateada}</p>
+                    <p><strong>📊 Año de la fecha:</strong> ${validacion.anioFecha}</p>
+                    <p><strong>📅 Año actual:</strong> ${validacion.anioActual}</p>
+                    <br>
+                    <div style="background: #fecaca; padding: 15px; border-radius: 8px; border-left: 4px solid #ef4444;">
+                        <p style="margin: 0; color: #991b1b;">
+                            <strong>🚫 Restricción temporal:</strong> No se pueden asignar turnos en años anteriores. Solo se permite trabajar en el año y mes actual.
+                        </p>
+                    </div>
+                </div>
+            `;
+            break;
+            
+        case 'anio_futuro':
+            titulo = 'Año futuro no permitido';
+            icono = 'info';
+            mensaje = `
+                <div style="text-align: left; margin: 20px 0;">
+                    <p><strong>📅 Fecha seleccionada:</strong> ${fechaFormateada}</p>
+                    <p><strong>📊 Año de la fecha:</strong> ${validacion.anioFecha}</p>
+                    <p><strong>📅 Año actual:</strong> ${validacion.anioActual}</p>
+                    <br>
+                    <div style="background: #dbeafe; padding: 15px; border-radius: 8px; border-left: 4px solid #3b82f6;">
+                        <p style="margin: 0; color: #1e40af;">
+                            <strong>ℹ️ Restricción temporal:</strong> No se pueden asignar turnos en años futuros. Solo se permite trabajar en el año y mes actual.
+                        </p>
+                    </div>
+                </div>
+            `;
+            break;
+            
+        default:
+            titulo = 'Fecha no válida';
+            icono = 'error';
+            mensaje = `
+                <div style="text-align: left; margin: 20px 0;">
+                    <p><strong>📅 Fecha seleccionada:</strong> ${fechaFormateada}</p>
+                    <br>
+                    <div style="background: #fecaca; padding: 15px; border-radius: 8px; border-left: 4px solid #ef4444;">
+                        <p style="margin: 0; color: #991b1b;">
+                            <strong>❌ Error:</strong> La fecha seleccionada no es válida. Solo se permite trabajar en el mes actual.
+                        </p>
+                    </div>
+                </div>
+            `;
+    }
+    
+    Swal.fire({
+        icon: icono,
+        title: titulo,
+        html: mensaje,
+        confirmButtonText: 'Entendido',
+        confirmButtonColor: '#1e40af',
+        width: '600px'
+    });
+}
+
+function mostrarErrorTipoPlanilla(fecha, validacion) {
+    const fechaFormateada = formatDateDisplay(fecha);
+    const mesNombre = fecha.toLocaleDateString('es-GT', { month: 'long' });
+    const anio = fecha.getFullYear();
+    
+    let titulo, mensaje, colorFondo, colorBorde, colorTexto, icono;
+    
+    if (validacion.motivo === 'fuera_quincenal') {
+        titulo = 'Fuera del período quincenal';
+        icono = 'warning';
+        colorFondo = '#fef3c7';
+        colorBorde = '#f59e0b';
+        colorTexto = '#92400e';
+        mensaje = `
+            <div style="text-align: left; margin: 20px 0;">
+                <p><strong>📅 Fecha seleccionada:</strong> ${fechaFormateada}</p>
+                <p><strong>📋 Tipo de planilla:</strong> Planilla Quincenal</p>
+                <p><strong>📊 Día seleccionado:</strong> ${validacion.diaSeleccionado}</p>
+                <br>
+                <div style="background: ${colorFondo}; padding: 15px; border-radius: 8px; border-left: 4px solid ${colorBorde};">
+                    <p style="margin: 0; color: ${colorTexto};">
+                        <strong>⚠️ Restricción de planilla:</strong> La planilla quincenal solo permite seleccionar días del <strong>1 al 15</strong> de ${mesNombre} ${anio}.
+                    </p>
+                </div>
+                <div style="margin-top: 10px; background: #e0f2fe; padding: 10px; border-radius: 6px;">
+                    <p style="margin: 0; color: #0891b2; font-size: 0.9rem;">
+                        <strong>💡 Sugerencia:</strong> Para trabajar en la segunda quincena, cambie a "Planilla Fin de Mes" en la configuración.
+                    </p>
+                </div>
+            </div>
+        `;
+    } else if (validacion.motivo === 'fuera_fin_mes') {
+        titulo = 'Fuera del período de fin de mes';
+        icono = 'warning';
+        colorFondo = '#fecaca';
+        colorBorde = '#ef4444';
+        colorTexto = '#991b1b';
+        mensaje = `
+            <div style="text-align: left; margin: 20px 0;">
+                <p><strong>📅 Fecha seleccionada:</strong> ${fechaFormateada}</p>
+                <p><strong>📋 Tipo de planilla:</strong> Planilla Fin de Mes</p>
+                <p><strong>📊 Día seleccionado:</strong> ${validacion.diaSeleccionado}</p>
+                <br>
+                <div style="background: ${colorFondo}; padding: 15px; border-radius: 8px; border-left: 4px solid ${colorBorde};">
+                    <p style="margin: 0; color: ${colorTexto};">
+                        <strong>🚫 Restricción de planilla:</strong> La planilla de fin de mes solo permite seleccionar días del <strong>${validacion.rango}</strong> de ${mesNombre} ${anio}.
+                    </p>
+                </div>
+                <div style="margin-top: 10px; background: #e0f2fe; padding: 10px; border-radius: 6px;">
+                    <p style="margin: 0; color: #0891b2; font-size: 0.9rem;">
+                        <strong>💡 Sugerencia:</strong> Para trabajar en la primera quincena, cambie a "Planilla Quincenal" en la configuración.
+                    </p>
+                </div>
+            </div>
+        `;
+    } else {
+        titulo = 'Error de configuración';
+        icono = 'error';
+        mensaje = `
+            <div style="text-align: left; margin: 20px 0;">
+                <p><strong>📅 Fecha seleccionada:</strong> ${fechaFormateada}</p>
+                <br>
+                <div style="background: #fecaca; padding: 15px; border-radius: 8px; border-left: 4px solid #ef4444;">
+                    <p style="margin: 0; color: #991b1b;">
+                        <strong>❌ Error:</strong> No se puede determinar las restricciones de fecha. Por favor, verifique la configuración de la planilla.
+                    </p>
+                </div>
             </div>
         `;
     }
     
-    if (turnosMixtos > 0 && salaryRates[region][2]) {
-        const subtotal = turnosMixtos * salaryRates[region][2].salarioXturno;
-        total += subtotal;
-        desglose += `
-            <div class="breakdown-item">
-                <span>${turnosMixtos} Turno(s) Mixto(s) × Q ${salaryRates[region][2].salarioXturno.toFixed(2)}</span>
-                <span>Q ${subtotal.toFixed(2)}</span>
-            </div>
-        `;
-    }
-    
-    desglose += `
-        <div class="breakdown-item">
-            <span><strong>TOTAL GENERAL</strong></span>
-            <span><strong>Q ${total.toFixed(2)}</strong></span>
-        </div>
-    `;
-    
-    return desglose;
+    Swal.fire({
+        icon: icono,
+        title: titulo,
+        html: mensaje,
+        confirmButtonText: 'Entendido',
+        confirmButtonColor: '#1e40af',
+        width: '600px'
+    });
 }
-
-// Obtener período de turnos
-function obtenerPeriodoTurnos() {
-    if (currentShifts.length === 0) return 'Sin turnos registrados'; // ⚠️ CAMBIAR selectedShifts
-    
-    const fechas = currentShifts.map(s => new Date(s.fecha)).sort((a, b) => a - b); // ⚠️ CAMBIAR selectedShifts
-    const primera = fechas[0].toLocaleDateString('es-GT');
-    const ultima = fechas[fechas.length - 1].toLocaleDateString('es-GT');
-    
-    return primera === ultima ? primera : `${primera} - ${ultima}`;
-}
-
-// Funciones auxiliares
 function formatDate(date) {
     return date.toISOString().split('T')[0];
 }
@@ -1802,19 +2626,6 @@ function formatDateDisplay(date) {
     return date.toLocaleDateString('es-GT', options);
 }
 
-function obtenerSemana(fecha) {
-    const date = new Date(fecha);
-    // Asegurar que sea lunes el primer día de la semana
-    const day = date.getDay(); // 0 = domingo, 1 = lunes, ..., 6 = sábado
-    const diff = date.getDate() - day + (day === 0 ? -6 : 1);
-    const lunes = new Date(date.getFullYear(), date.getMonth(), diff);
-    
-    const año = lunes.getFullYear();
-    const mes = lunes.getMonth() + 1;
-    const dia = lunes.getDate();
-    
-    return `${año}-${mes.toString().padStart(2, '0')}-${dia.toString().padStart(2, '0')}`;
-}
 function obtenerFechasSemana(fecha) {
     const date = new Date(fecha);
     const day = date.getDay();
@@ -1830,10 +2641,12 @@ function obtenerFechasSemana(fecha) {
     
     return fechasSemana;
 }
+
 function contarTurnosEnSemana(fecha) {
     const fechasSemana = obtenerFechasSemana(fecha);
     return currentShifts.filter(shift => fechasSemana.includes(shift.fecha)).length;
 }
+
 function mostrarCargando(mensaje = "Cargando...") {
     return Swal.fire({
         title: mensaje,
@@ -1875,124 +2688,69 @@ function ajustarAlturaLista() {
         }, 10);
     }
 }
-// Esta parte valida dias especiales y los almacena para aquellas fechas que son asuetos, feriados o especiales
 
-async function cargarDiasEspeciales(departamentoId) {
+//Valiación de planillas duplicadas
+async function verificarPlanillaExistente(tipo, mes, anio, departamentoId) {
     try {
         const connection = await connectionString();
         
-        // Cargar feriados nacionales (IdDepartamento = 0) + feriados del departamento específico
+        // Determinar IdTipoPago basado en el tipo de planilla
+        const idTipoPago = tipo === 'quincenal' ? 1 : 2;
+        
         const result = await connection.query(`
             SELECT 
-                Dia, 
-                Mes, 
-                IdDepartamento, 
-                Descripcion 
-            FROM DiasEspeciales 
-            WHERE IdDepartamento = 0 OR IdDepartamento = ?
-            ORDER BY Mes, Dia
-        `, [departamentoId]);
+                p.IdPlanillaParcial,
+                p.TipoPago,
+                p.Mes,
+                p.Anyo,
+                p.MontoPlanillaParcial,
+                p.CantidadColaboradores,
+                p.NombreUsuario,
+                p.FechaRegistro,
+                p.Estado as IdEstado,
+                e.NombreEstado
+            FROM PagoPlanillaParcial p
+            INNER JOIN PagoPlanillaParcialEstados e ON p.Estado = e.IdEstadoPagoPlanillaParcial
+            WHERE 
+                p.IdDepartamentoSucursal = ? AND 
+                p.IdTipoPago = ? AND 
+                p.Mes = ? AND 
+                p.Anyo = ?
+        `, [departamentoId, idTipoPago, mes.toString(), anio.toString()]);
         
         await connection.close();
         
-        // Almacenar días especiales
-        diasEspeciales = result.map(dia => ({
-            dia: parseInt(dia.Dia),
-            mes: parseInt(dia.Mes),
-            idDepartamento: parseInt(dia.IdDepartamento),
-            descripcion: dia.Descripcion,
-            esNacional: dia.IdDepartamento === 0
-        }));
-        
-        console.log(`Días especiales cargados para departamento ${departamentoId}:`, diasEspeciales);
-        
-        // Actualizar calendario si está abierto
-        if (document.getElementById('calendarModal').style.display === 'block') {
-            actualizarCalendario();
-        }
+        return result.length > 0 ? result[0] : null;
         
     } catch (error) {
-        console.error('Error al cargar días especiales:', error);
-        diasEspeciales = [];
+        console.error('Error al verificar planilla existente:', error);
+        throw error;
     }
 }
-function esDiaEspecial(fecha) {
-    const date = new Date(fecha);
-    const dia = date.getDate();
-    const mes = date.getMonth() + 1; // getMonth() devuelve 0-11, necesitamos 1-12
-    
-    return diasEspeciales.find(diaEspecial => 
-        diaEspecial.dia === dia && diaEspecial.mes === mes
-    );
+async function cargarEstadosPlanilla() {
+    try {
+        const connection = await connectionString();
+        
+        const result = await connection.query(`
+            SELECT 
+                IdEstadoPagoPlanillaParcial,
+                NombreEstado
+            FROM PagoPlanillaParcialEstados
+            ORDER BY IdEstadoPagoPlanillaParcial
+        `);
+        
+        await connection.close();
+        
+        return result;
+        
+    } catch (error) {
+        console.error('Error al cargar estados de planilla:', error);
+        return [];
+    }
 }
-// Funcion para Semana Santa
-function calcularDomingoPascua(año) {
-    // Algoritmo de Gauss para calcular la Pascua
-    const a = año % 19;
-    const b = Math.floor(año / 100);
-    const c = año % 100;
-    const d = Math.floor(b / 4);
-    const e = b % 4;
-    const f = Math.floor((b + 8) / 25);
-    const g = Math.floor((b - f + 1) / 3);
-    const h = (19 * a + b - d - g + 15) % 30;
-    const i = Math.floor(c / 4);
-    const k = c % 4;
-    const l = (32 + 2 * e + 2 * i - h - k) % 7;
-    const m = Math.floor((a + 11 * h + 22 * l) / 451);
-    const n = Math.floor((h + l - 7 * m + 114) / 31);
-    const p = (h + l - 7 * m + 114) % 31;
-    
-    return new Date(año, n - 1, p + 1);
-}
-function calcularFechasSemanaSanta(año) {
-    const domingoPascua = calcularDomingoPascua(año);
-    const fechas = [];
-    
-    // Definir los días de Semana Santa que son feriados en Guatemala
-    const diasSemanaSanta = [
-        { nombre: 'Domingo de Ramos', diasAntes: 7, bloqueado: false }, // Opcional
-        { nombre: 'Lunes Santo', diasAntes: 6, bloqueado: true },
-        { nombre: 'Martes Santo', diasAntes: 5, bloqueado: true },
-        { nombre: 'Miércoles Santo', diasAntes: 4, bloqueado: true },
-        { nombre: 'Jueves Santo', diasAntes: 3, bloqueado: true },
-        { nombre: 'Viernes Santo', diasAntes: 2, bloqueado: true },
-        { nombre: 'Sábado de Gloria', diasAntes: 1, bloqueado: true },
-        { nombre: 'Domingo de Pascua', diasAntes: 0, bloqueado: false }
-    ];
-    
-    diasSemanaSanta.forEach(dia => {
-        if (dia.bloqueado) {
-            const fecha = new Date(domingoPascua);
-            fecha.setDate(domingoPascua.getDate() - dia.diasAntes);
-            
-            fechas.push({
-                fecha: formatDate(fecha),
-                fechaObj: new Date(fecha),
-                nombre: dia.nombre,
-                esPascua: true
-            });
-        }
-    });
-    
-    return fechas;
-}
-function generarFechasSemanaSanta() {
-    const añoActual = new Date().getFullYear();
-    const añoSiguiente = añoActual + 1;
-    
-    fechasSemanaSanta = [
-        ...calcularFechasSemanaSanta(añoActual),
-        ...calcularFechasSemanaSanta(añoSiguiente)
-    ];
-    
-    console.log(`Fechas de Semana Santa cargadas para ${añoActual}-${añoSiguiente}:`, fechasSemanaSanta);
-}
-function esSemanaSanta(fecha) {
-    const dateString = formatDate(fecha);
-    return fechasSemanaSanta.find(pascua => pascua.fecha === dateString);
-}
+
 // Función global para eliminar turnos (llamada desde HTML)
 window.eliminarTurno = eliminarTurno;
 window.editarColaborador = editarColaborador; 
 window.eliminarColaboradorDePlanilla = eliminarColaboradorDePlanilla;
+window.cambiarConfiguracionDesdeHeader = cambiarConfiguracionDesdeHeader;

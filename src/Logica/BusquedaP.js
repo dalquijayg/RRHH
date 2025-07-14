@@ -4,7 +4,7 @@ const odbc = require('odbc');
 const Swal = require('sweetalert2');
 const conexion = 'DSN=recursos2';
 const XLSX = require('xlsx');
-
+const fotoCache = new Map();
 // Variables globales
 let currentPage = 1;
 let totalPages = 1;
@@ -162,67 +162,65 @@ async function buscarPersonal() {
         const tipoPersonalValue = tipoPersonalFilter.value;
         const estadoValue = estadoFilter.value;
         
-        // Construir la consulta SQL base (MODIFICADA PARA INCLUIR INFORMACIÓN DE REGISTRO)
+        // CONSULTA OPTIMIZADA - SIN FOTOS INICIALMENTE
         let query = `
-                    SELECT
-                        personal.IdPersonal, 
-                        CONCAT(personal.PrimerNombre, ' ', IFNULL(personal.SegundoNombre, ''), ' ', IFNULL(personal.TercerNombre, ''), ' ', personal.PrimerApellido, ' ', IFNULL(personal.SegundoApellido, '')) AS NombreCompleto, 
-                        departamentos.NombreDepartamento, 
-                        Puestos.Nombre AS Puesto,
-                        estadocivil.EstadoCivil, 
-                        TipoPersonal.TipoPersonal, 
-                        IFNULL(planillas.Nombre_Planilla, 'Sin Planilla') AS Nombre_Planilla,
-                        IFNULL(personal.FechaContrato, 'No asignado') AS FechaContrato, 
-                        IFNULL(personal.FechaPlanilla, 'No asignado') AS FechaPlanilla,
-                        IFNULL(personal.InicioLaboral, 'No asignado') AS InicioLaboral,
-                        EstadoPersonal.EstadoPersonal,
-                        personal.Estado as EstadoId,
-                        personal.DPI,
-                        personal.FechaNacimiento,
-                        personal.IdDepartamentoOrigen,
-                        personal.IdMunicipioOrigen,
-                        personal.Hijos,
-                        personal.DireccionRecidencia,
-                        personal.IdDepartamentoG,
-                        personal.IdMunicipioG,
-                        personal.Telefono1,
-                        personal.Telefono2,
-                        personal.CorreoElectronico,
-                        personal.NombreContactoEmergencia,
-                        personal.TelefonoContactoEmergencia,
-                        personal.IdParentesco,
-                        parentesco.Parentesco AS ParentescoEmergencia,
-                        deptoOrigen.NombreDepartamento AS DepartamentoOrigen,
-                        muniOrigen.NombreMunicipio AS MunicipioOrigen,
-                        deptoResidencia.NombreDepartamento AS DepartamentoResidencia,
-                        muniResidencia.NombreMunicipio AS MunicipioResidencia,
-                        personal.IdUsuario,
-                        personal.Fechahoraregistro,
-                        CONCAT(usuarioRegistro.PrimerNombre, ' ', IFNULL(usuarioRegistro.SegundoNombre, ''), ' ', IFNULL(usuarioRegistro.TercerNombre, ''), ' ', usuarioRegistro.PrimerApellido, ' ', IFNULL(usuarioRegistro.SegundoApellido, '')) AS UsuarioRegistro,
-                        CASE 
-                            WHEN FotosPersonal.Foto IS NOT NULL THEN CONCAT('data:image/jpeg;base64,', TO_BASE64(FotosPersonal.Foto))
-                            ELSE NULL 
-                        END AS FotoBase64
-                    FROM
-                        personal 
-                        LEFT JOIN departamentos ON personal.IdSucuDepa = departamentos.IdDepartamento
-                        LEFT JOIN Puestos ON personal.IdPuesto = Puestos.IdPuesto
-                        LEFT JOIN PuestosGenerales ON Puestos.Id_PuestoGeneral = PuestosGenerales.Id_Puesto
-                        LEFT JOIN FotosPersonal ON personal.IdPersonal = FotosPersonal.IdPersonal
-                        LEFT JOIN estadocivil ON personal.IdEstadoCivil = estadocivil.IdCivil
-                        LEFT JOIN TipoPersonal ON personal.TipoPersonal = TipoPersonal.IdTipo
-                        LEFT JOIN planillas ON personal.IdPlanilla = planillas.IdPlanilla
-                        INNER JOIN EstadoPersonal ON personal.Estado = EstadoPersonal.IdEstado
-                        LEFT JOIN departamentosguatemala deptoOrigen ON personal.IdDepartamentoOrigen = deptoOrigen.IdDepartamentoG
-                        LEFT JOIN municipios muniOrigen ON personal.IdMunicipioOrigen = muniOrigen.IdMunicipio
-                        LEFT JOIN departamentosguatemala deptoResidencia ON personal.IdDepartamentoG = deptoResidencia.IdDepartamentoG
-                        LEFT JOIN municipios muniResidencia ON personal.IdMunicipioG = muniResidencia.IdMunicipio
-                        LEFT JOIN parentesco ON personal.IdParentesco = parentesco.IdParentesco
-                        LEFT JOIN personal usuarioRegistro ON personal.IdUsuario = usuarioRegistro.IdPersonal
-                    WHERE 1=1
+            SELECT
+                personal.IdPersonal, 
+                CONCAT(personal.PrimerNombre, ' ', IFNULL(personal.SegundoNombre, ''), ' ', IFNULL(personal.TercerNombre, ''), ' ', personal.PrimerApellido, ' ', IFNULL(personal.SegundoApellido, '')) AS NombreCompleto, 
+                departamentos.NombreDepartamento, 
+                Puestos.Nombre AS Puesto,
+                estadocivil.EstadoCivil, 
+                TipoPersonal.TipoPersonal, 
+                IFNULL(planillas.Nombre_Planilla, 'Sin Planilla') AS Nombre_Planilla,
+                IFNULL(personal.FechaContrato, 'No asignado') AS FechaContrato, 
+                IFNULL(personal.FechaPlanilla, 'No asignado') AS FechaPlanilla,
+                IFNULL(personal.InicioLaboral, 'No asignado') AS InicioLaboral,
+                EstadoPersonal.EstadoPersonal,
+                personal.Estado as EstadoId,
+                personal.DPI,
+                personal.FechaNacimiento,
+                personal.IdDepartamentoOrigen,
+                personal.IdMunicipioOrigen,
+                personal.Hijos,
+                personal.DireccionRecidencia,
+                personal.IdDepartamentoG,
+                personal.IdMunicipioG,
+                personal.Telefono1,
+                personal.Telefono2,
+                personal.CorreoElectronico,
+                personal.NombreContactoEmergencia,
+                personal.TelefonoContactoEmergencia,
+                personal.IdParentesco,
+                parentesco.Parentesco AS ParentescoEmergencia,
+                deptoOrigen.NombreDepartamento AS DepartamentoOrigen,
+                muniOrigen.NombreMunicipio AS MunicipioOrigen,
+                deptoResidencia.NombreDepartamento AS DepartamentoResidencia,
+                muniResidencia.NombreMunicipio AS MunicipioResidencia,
+                personal.IdUsuario,
+                personal.Fechahoraregistro,
+                CONCAT(usuarioRegistro.PrimerNombre, ' ', IFNULL(usuarioRegistro.SegundoNombre, ''), ' ', IFNULL(usuarioRegistro.TercerNombre, ''), ' ', usuarioRegistro.PrimerApellido, ' ', IFNULL(usuarioRegistro.SegundoApellido, '')) AS UsuarioRegistro,
+                -- INDICADOR DE SI TIENE FOTO (sin cargar la foto)
+                CASE WHEN FotosPersonal.Foto IS NOT NULL THEN 1 ELSE 0 END AS TieneFoto
+            FROM
+                personal 
+                LEFT JOIN departamentos ON personal.IdSucuDepa = departamentos.IdDepartamento
+                LEFT JOIN Puestos ON personal.IdPuesto = Puestos.IdPuesto
+                LEFT JOIN PuestosGenerales ON Puestos.Id_PuestoGeneral = PuestosGenerales.Id_Puesto
+                LEFT JOIN FotosPersonal ON personal.IdPersonal = FotosPersonal.IdPersonal
+                LEFT JOIN estadocivil ON personal.IdEstadoCivil = estadocivil.IdCivil
+                LEFT JOIN TipoPersonal ON personal.TipoPersonal = TipoPersonal.IdTipo
+                LEFT JOIN planillas ON personal.IdPlanilla = planillas.IdPlanilla
+                INNER JOIN EstadoPersonal ON personal.Estado = EstadoPersonal.IdEstado
+                LEFT JOIN departamentosguatemala deptoOrigen ON personal.IdDepartamentoOrigen = deptoOrigen.IdDepartamentoG
+                LEFT JOIN municipios muniOrigen ON personal.IdMunicipioOrigen = muniOrigen.IdMunicipio
+                LEFT JOIN departamentosguatemala deptoResidencia ON personal.IdDepartamentoG = deptoResidencia.IdDepartamentoG
+                LEFT JOIN municipios muniResidencia ON personal.IdMunicipioG = muniResidencia.IdMunicipio
+                LEFT JOIN parentesco ON personal.IdParentesco = parentesco.IdParentesco
+                LEFT JOIN personal usuarioRegistro ON personal.IdUsuario = usuarioRegistro.IdPersonal
+            WHERE 1=1
         `;
         
-        // Añadir condiciones según los filtros
+        // Resto de la consulta igual...
         const params = [];
         
         if (estadoValue != 0) {
@@ -250,23 +248,7 @@ async function buscarPersonal() {
         const result = await connection.query(query, params);
         await connection.close();
         
-        // Función para formatear fecha y hora
-        const formatearFechaHora = (fechaHora) => {
-            if (!fechaHora) return 'No registrado';
-            
-            const fecha = new Date(fechaHora);
-            if (isNaN(fecha.getTime())) return 'No registrado';
-            
-            const dia = fecha.getUTCDate().toString().padStart(2, '0');
-            const mes = (fecha.getUTCMonth() + 1).toString().padStart(2, '0');
-            const año = fecha.getUTCFullYear();
-            const horas = fecha.getUTCHours().toString().padStart(2, '0');
-            const minutos = fecha.getUTCMinutes().toString().padStart(2, '0');
-            
-            return `${dia}/${mes}/${año} ${horas}:${minutos}`;
-        };
-        
-        // Procesar los resultados (MODIFICADO PARA INCLUIR INFORMACIÓN DE REGISTRO)
+        // Procesar resultados SIN cargar fotos
         allEmployees = result.map(employee => {
             // Calcular edad
             let edad = 'No registrada';
@@ -292,7 +274,6 @@ async function buscarPersonal() {
                     años--;
                 }
                 
-                // Si es menos de un año, mostrar en meses
                 if (años < 1) {
                     let meses = hoy.getMonth() - fechaInicio.getMonth();
                     if (meses < 0) meses += 12;
@@ -305,23 +286,26 @@ async function buscarPersonal() {
                 }
             }
             
-            // Función auxiliar para formatear fechas correctamente
             const formatearFechaSinZonaHoraria = (fecha) => {
                 if (!fecha) return 'No registrado';
-                
-                // Convertir a objeto Date
                 const fechaObj = new Date(fecha);
-                
-                // Verificar si es una fecha válida
                 if (isNaN(fechaObj.getTime())) return 'No registrado';
-                
-                // Obtener componentes de la fecha (día, mes, año)
                 const dia = fechaObj.getUTCDate().toString().padStart(2, '0');
                 const mes = (fechaObj.getUTCMonth() + 1).toString().padStart(2, '0');
                 const año = fechaObj.getUTCFullYear();
-                
-                // Retornar fecha formateada como DD/MM/YYYY
                 return `${dia}/${mes}/${año}`;
+            };
+            
+            const formatearFechaHora = (fechaHora) => {
+                if (!fechaHora) return 'No registrado';
+                const fecha = new Date(fechaHora);
+                if (isNaN(fecha.getTime())) return 'No registrado';
+                const dia = fecha.getUTCDate().toString().padStart(2, '0');
+                const mes = (fecha.getUTCMonth() + 1).toString().padStart(2, '0');
+                const año = fecha.getUTCFullYear();
+                const horas = fecha.getUTCHours().toString().padStart(2, '0');
+                const minutos = fecha.getUTCMinutes().toString().padStart(2, '0');
+                return `${dia}/${mes}/${año} ${horas}:${minutos}`;
             };
             
             return {
@@ -357,21 +341,20 @@ async function buscarPersonal() {
                 nombreContactoEmergencia: employee.NombreContactoEmergencia || 'No registrado',
                 telefonoContactoEmergencia: employee.TelefonoContactoEmergencia || 'No registrado',
                 parentescoEmergencia: employee.ParentescoEmergencia || 'No especificado',
-                foto: employee.FotoBase64 || '../Imagenes/user-default.png',
-                // NUEVOS CAMPOS AGREGADOS PARA INFORMACIÓN DE REGISTRO
+                // FOTO SE CARGA DINÁMICAMENTE
+                foto: '../Imagenes/user-default.png', // Imagen por defecto
+                tieneFoto: employee.TieneFoto === 1,
+                fotoReal: null, // Se cargará bajo demanda
                 idUsuarioRegistro: employee.IdUsuario || null,
                 usuarioRegistro: employee.UsuarioRegistro || 'No registrado',
                 fechaHoraRegistro: formatearFechaHora(employee.Fechahoraregistro)
             };
         });
         
-        // Actualizar la UI
         filteredEmployees = [...allEmployees];
         
-        // Crear resumen de filtros aplicados para mostrar cuando el acordeón esté colapsado
         actualizarResumenFiltros(searchTermValue, departamentoValue, tipoPersonalValue, estadoValue);
         
-        // Colapsar los filtros después de buscar (en pantallas pequeñas)
         if (window.innerWidth < 768) {
             colapsarFiltros(true);
         }
@@ -379,7 +362,6 @@ async function buscarPersonal() {
         actualizarResultados();
         mostrarCargando(false);
         
-        // Mostrar notificación
         mostrarNotificacion(`Se encontraron ${allEmployees.length} empleados`, 'success');
         
     } catch (error) {
@@ -497,7 +479,36 @@ function actualizarResultados() {
         }
     }
 }
-
+async function cargarFotoEmpleado(idPersonal) {
+    // Si ya está en cache, devolverla
+    if (fotoCache.has(idPersonal)) {
+        return fotoCache.get(idPersonal);
+    }
+    
+    try {
+        const connection = await getConnection();
+        const result = await connection.query(`
+            SELECT CASE 
+                WHEN Foto IS NOT NULL THEN CONCAT('data:image/jpeg;base64,', TO_BASE64(Foto))
+                ELSE NULL 
+            END AS FotoBase64
+            FROM FotosPersonal 
+            WHERE IdPersonal = ?
+        `, [idPersonal]);
+        await connection.close();
+        
+        const fotoUrl = result.length > 0 && result[0].FotoBase64 ? 
+            result[0].FotoBase64 : '../Imagenes/user-default.png';
+        
+        // Guardar en cache
+        fotoCache.set(idPersonal, fotoUrl);
+        
+        return fotoUrl;
+    } catch (error) {
+        console.error('Error al cargar foto:', error);
+        return '../Imagenes/user-default.png';
+    }
+}
 // Renderizar vista de tarjetas (MODIFICADA PARA INCLUIR INFO DE REGISTRO)
 function renderizarGridView(empleados) {
     let html = '';
@@ -509,7 +520,11 @@ function renderizarGridView(empleados) {
                     ${empleado.estado}
                 </div>
                 <div class="card-photo">
-                    <img src="${empleado.foto}" alt="${empleado.nombre}" onerror="this.src='../Imagenes/user-default.png'">
+                    <img src="${empleado.foto}" alt="${empleado.nombre}" 
+                         data-id="${empleado.id}" 
+                         data-tiene-foto="${empleado.tieneFoto}"
+                         class="lazy-foto"
+                         onerror="this.src='../Imagenes/user-default.png'">
                 </div>
                 <div class="card-info">
                     <h3 class="card-name">${empleado.nombre}</h3>
@@ -547,21 +562,72 @@ function renderizarGridView(empleados) {
     
     gridView.innerHTML = html;
     
-    // Añadir eventos a las imágenes de las tarjetas
+    // CARGAR FOTOS DE FORMA LAZY (solo las visibles)
+    cargarFotosLazy();
+    
+    // Eventos para el visor de fotos
     document.querySelectorAll('.card-photo img').forEach(img => {
         img.style.cursor = 'zoom-in';
-        img.addEventListener('click', function() {
+        img.addEventListener('click', async function() {
             const empleadoCard = this.closest('.employee-card');
-            const id = empleadoCard.dataset.id;
-            const empleado = filteredEmployees.find(emp => emp.id === parseInt(id));
+            const id = parseInt(empleadoCard.dataset.id);
+            const empleado = filteredEmployees.find(emp => emp.id === id);
             
             if (empleado) {
-                abrirVisorFoto(empleado.foto, empleado.nombre);
+                // Cargar foto real si no está cargada
+                if (empleado.tieneFoto && !empleado.fotoReal) {
+                    const fotoReal = await cargarFotoEmpleado(id);
+                    empleado.fotoReal = fotoReal;
+                }
+                abrirVisorFoto(empleado.fotoReal || empleado.foto, empleado.nombre);
             }
         });
     });
 }
-
+function cargarFotosLazy() {
+    const imagenes = document.querySelectorAll('.lazy-foto');
+    
+    const imageObserver = new IntersectionObserver((entries, observer) => {
+        entries.forEach(async (entry) => {
+            if (entry.isIntersecting) {
+                const img = entry.target;
+                const idPersonal = parseInt(img.dataset.id);
+                const tieneFoto = img.dataset.tieneFoto === 'true';
+                
+                if (tieneFoto) {
+                    try {
+                        // Mostrar indicador de carga
+                        img.style.opacity = '0.5';
+                        
+                        // Cargar foto real
+                        const fotoReal = await cargarFotoEmpleado(idPersonal);
+                        
+                        // Actualizar empleado en el array
+                        const empleado = filteredEmployees.find(emp => emp.id === idPersonal);
+                        if (empleado) {
+                            empleado.fotoReal = fotoReal;
+                        }
+                        
+                        // Cambiar src de la imagen
+                        img.src = fotoReal;
+                        img.style.opacity = '1';
+                        
+                    } catch (error) {
+                        console.error('Error cargando foto:', error);
+                        img.style.opacity = '1';
+                    }
+                }
+                
+                // Dejar de observar esta imagen
+                observer.unobserve(img);
+            }
+        });
+    }, {
+        rootMargin: '50px' // Cargar cuando esté a 50px de ser visible
+    });
+    
+    imagenes.forEach(img => imageObserver.observe(img));
+}
 // Renderizar vista de tabla (MODIFICADA PARA INCLUIR INFO DE REGISTRO)
 function renderizarTableView(empleados) {
     let html = '';
@@ -570,7 +636,11 @@ function renderizarTableView(empleados) {
         html += `
             <tr data-id="${empleado.id}">
                 <td>
-                    <img src="${empleado.foto}" alt="${empleado.nombre}" class="table-img" onerror="this.src='../Imagenes/user-default.png'">
+                    <img src="${empleado.foto}" alt="${empleado.nombre}" 
+                         data-id="${empleado.id}" 
+                         data-tiene-foto="${empleado.tieneFoto}"
+                         class="table-img lazy-foto"
+                         onerror="this.src='../Imagenes/user-default.png'">
                 </td>
                 <td>
                     <div class="table-name">${empleado.nombre}</div>
@@ -602,16 +672,23 @@ function renderizarTableView(empleados) {
     
     tableResults.innerHTML = html;
     
-    // Añadir eventos a las imágenes de la tabla
+    // CARGAR FOTOS LAZY PARA TABLA TAMBIÉN
+    cargarFotosLazy();
+    
+    // Eventos para el visor de fotos
     document.querySelectorAll('.table-img').forEach(img => {
         img.style.cursor = 'zoom-in';
-        img.addEventListener('click', function() {
+        img.addEventListener('click', async function() {
             const row = this.closest('tr');
-            const id = row.dataset.id;
-            const empleado = filteredEmployees.find(emp => emp.id === parseInt(id));
+            const id = parseInt(row.dataset.id);
+            const empleado = filteredEmployees.find(emp => emp.id === id);
             
             if (empleado) {
-                abrirVisorFoto(empleado.foto, empleado.nombre);
+                if (empleado.tieneFoto && !empleado.fotoReal) {
+                    const fotoReal = await cargarFotoEmpleado(id);
+                    empleado.fotoReal = fotoReal;
+                }
+                abrirVisorFoto(empleado.fotoReal || empleado.foto, empleado.nombre);
             }
         });
     });
@@ -1645,11 +1722,6 @@ document.addEventListener('DOMContentLoaded', () => {
         btn.addEventListener('click', () => {
             employeeModal.classList.remove('show');
         });
-    });
-    
-    // Event listener para volver atrás
-    btnBack.addEventListener('click', () => {
-        window.location.href = 'Menu.html';
     });
     
     // Event listener para cerrar modal al hacer clic fuera de él
