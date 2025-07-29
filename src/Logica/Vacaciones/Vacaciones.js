@@ -23,6 +23,7 @@ let searchTimeout;
 let currentSearchResults = [];
 let isGeneratingPDF = false;
 let isClosingModal = false;
+const photoCache = new Map();
 
 // Variables para el calendario
 let calendar;
@@ -193,8 +194,6 @@ async function loadUserDepartmentInfo() {
             // Actualizar la UI con la información del departamento
             document.getElementById('departmentName').textContent = userDepartmentName;
             document.getElementById('departmentTotal').textContent = departmentInfo.TotalEmpleados || '0';
-            
-            console.log('Departamento cargado:', userDepartmentName, 'Total empleados:', departmentInfo.TotalEmpleados);
         } else {
             userDepartmentName = 'Departamento desconocido';
             document.getElementById('departmentName').textContent = userDepartmentName;
@@ -214,11 +213,22 @@ async function loadUserDepartmentInfo() {
         throw error;
     }
 }
-
+function isValidDate(dateString) {
+    if (!dateString) return false;
+    
+    try {
+        const date = createDateFromDBString(dateString);
+        return date && !isNaN(date);
+    } catch (error) {
+        return false;
+    }
+}
 // Cargar empleados del departamento (modificada para usar el departamento del usuario)
 async function loadEmployees(deptId) {
     try {
         const connection = await connectionString();
+        
+        // CONSULTA OPTIMIZADA con formato de fecha CORREGIDO
         const query = `
             SELECT
                 personal.IdPersonal, 
@@ -228,6 +238,7 @@ async function loadEmployees(deptId) {
                 personal.PrimerApellido, 
                 personal.SegundoApellido, 
                 personal.DPI,
+                -- Formatear fecha EXACTAMENTE como YYYY-MM-DD sin conversión de zona horaria
                 DATE_FORMAT(personal.FechaPlanilla, '%Y-%m-%d') AS FechaPlanilla,
                 personal.IdSucuDepa,
                 personal.IdPlanilla,
@@ -239,10 +250,11 @@ async function loadEmployees(deptId) {
                             WHERE IdPersonal = personal.IdPersonal AND Estado IN (1,2,3,4)), 0)
                 AS DiasVacaciones,
                 Puestos.Nombre,
+                -- Solo verificar SI EXISTE foto, no cargarla
                 CASE 
-                    WHEN FotosPersonal.Foto IS NOT NULL THEN CONCAT('data:image/jpeg;base64,', TO_BASE64(FotosPersonal.Foto))
-                    ELSE NULL 
-                END AS FotoBase64
+                    WHEN FotosPersonal.Foto IS NOT NULL THEN 1
+                    ELSE 0 
+                END AS TieneFoto
             FROM
                 personal
                 INNER JOIN Puestos ON personal.IdPuesto = Puestos.IdPuesto
@@ -258,7 +270,21 @@ async function loadEmployees(deptId) {
         await connection.close();
         
         if (result.length > 0) {
-            employeesData = result;
+            // Procesar datos con fechas corregidas
+            employeesData = result.map(employee => {
+                // Verificar que la fecha esté en formato correcto
+                if (employee.FechaPlanilla && !isValidDate(employee.FechaPlanilla)) {
+                    console.warn(`Fecha inválida para empleado ${employee.IdPersonal}:`, employee.FechaPlanilla);
+                }
+                
+                return {
+                    ...employee,
+                    FotoBase64: null, // Se cargará bajo demanda
+                    FotoLoaded: false, // Flag para controlar si ya se cargó
+                    _searchIndex: null // Se creará cuando sea necesario
+                };
+            });
+            
             filteredData = [...employeesData];
             
             // Resetear a la primera página
@@ -268,6 +294,9 @@ async function loadEmployees(deptId) {
             
             renderEmployeesTable();
             updatePagination();
+            
+            // CARGAR FOTOS DE LA PÁGINA ACTUAL en background
+            loadPhotosForCurrentPage();
         } else {
             employeesData = [];
             filteredData = [];
@@ -289,7 +318,164 @@ async function loadEmployees(deptId) {
         throw error;
     }
 }
+// Función para cargar foto individual
+async function loadEmployeePhoto(employeeId) {
+    // Verificar cache primero
+    if (photoCache.has(employeeId)) {
+        return photoCache.get(employeeId);
+    }
+    
+    try {
+        const connection = await connectionString();
+        const query = `
+            SELECT 
+                CASE 
+                    WHEN FotosPersonal.Foto IS NOT NULL THEN CONCAT('data:image/jpeg;base64,', TO_BASE64(FotosPersonal.Foto))
+                    ELSE NULL 
+                END AS FotoBase64
+            FROM 
+                FotosPersonal 
+            WHERE 
+                IdPersonal = ?
+        `;
+        
+        const result = await connection.query(query, [employeeId]);
+        await connection.close();
+        
+        const fotoBase64 = result.length > 0 ? result[0].FotoBase64 : null;
+        
+        // Guardar en cache
+        photoCache.set(employeeId, fotoBase64);
+        
+        return fotoBase64;
+    } catch (error) {
+        console.error('Error al cargar foto:', error);
+        return null;
+    }
+}
 
+// Función para cargar fotos de la página actual
+async function loadPhotosForCurrentPage() {
+    const start = (currentPage - 1) * itemsPerPage;
+    const end = start + itemsPerPage;
+    const currentPageData = filteredData.slice(start, end);
+    
+    // Cargar fotos en paralelo (máximo 3 a la vez para no sobrecargar)
+    const batchSize = 3;
+    
+    for (let i = 0; i < currentPageData.length; i += batchSize) {
+        const batch = currentPageData.slice(i, i + batchSize);
+        
+        const promises = batch.map(async (employee) => {
+            if (!employee.FotoLoaded && employee.TieneFoto === 1) {
+                try {
+                    const fotoBase64 = await loadEmployeePhoto(employee.IdPersonal);
+                    
+                    // Actualizar en employeesData
+                    const index = employeesData.findIndex(emp => emp.IdPersonal === employee.IdPersonal);
+                    if (index !== -1) {
+                        employeesData[index].FotoBase64 = fotoBase64;
+                        employeesData[index].FotoLoaded = true;
+                    }
+                    
+                    // Actualizar en filteredData
+                    const filteredIndex = filteredData.findIndex(emp => emp.IdPersonal === employee.IdPersonal);
+                    if (filteredIndex !== -1) {
+                        filteredData[filteredIndex].FotoBase64 = fotoBase64;
+                        filteredData[filteredIndex].FotoLoaded = true;
+                    }
+                    
+                    // Actualizar la imagen en el DOM si está visible
+                    updatePhotoInDOM(employee.IdPersonal, fotoBase64);
+                    
+                } catch (error) {
+                    console.error(`Error cargando foto de empleado ${employee.IdPersonal}:`, error);
+                }
+            }
+        });
+        
+        await Promise.all(promises);
+        
+        // Pequeña pausa entre lotes para no bloquear la UI
+        if (i + batchSize < currentPageData.length) {
+            await new Promise(resolve => setTimeout(resolve, 100));
+        }
+    }
+}
+
+// Función para actualizar foto en el DOM
+function updatePhotoInDOM(employeeId, fotoBase64) {
+    const photoElement = document.querySelector(`tr[data-id="${employeeId}"] .employee-photo-cell img`);
+    if (photoElement) {
+        const newSrc = fotoBase64 || '../Imagenes/user-default.png';
+        
+        // Agregar efecto de fade-in
+        photoElement.style.opacity = '0.5';
+        photoElement.src = newSrc;
+        
+        photoElement.onload = () => {
+            photoElement.style.transition = 'opacity 0.3s ease';
+            photoElement.style.opacity = '1';
+        };
+        
+        photoElement.onerror = () => {
+            photoElement.src = '../Imagenes/user-default.png';
+            photoElement.style.opacity = '1';
+        };
+    }
+}
+
+// Función para precargar fotos de páginas adyacentes
+async function preloadAdjacentPagesPhotos() {
+    const totalPages = Math.ceil(filteredData.length / itemsPerPage);
+    const pagesToPreload = [];
+    
+    // Página anterior
+    if (currentPage > 1) {
+        pagesToPreload.push(currentPage - 1);
+    }
+    
+    // Página siguiente
+    if (currentPage < totalPages) {
+        pagesToPreload.push(currentPage + 1);
+    }
+    
+    for (const page of pagesToPreload) {
+        const start = (page - 1) * itemsPerPage;
+        const end = start + itemsPerPage;
+        const pageData = filteredData.slice(start, end);
+        
+        // Cargar fotos en background con prioridad baja
+        setTimeout(async () => {
+            for (const employee of pageData) {
+                if (!employee.FotoLoaded && employee.TieneFoto === 1) {
+                    try {
+                        const fotoBase64 = await loadEmployeePhoto(employee.IdPersonal);
+                        
+                        // Actualizar datos
+                        const index = employeesData.findIndex(emp => emp.IdPersonal === employee.IdPersonal);
+                        if (index !== -1) {
+                            employeesData[index].FotoBase64 = fotoBase64;
+                            employeesData[index].FotoLoaded = true;
+                        }
+                        
+                        const filteredIndex = filteredData.findIndex(emp => emp.IdPersonal === employee.IdPersonal);
+                        if (filteredIndex !== -1) {
+                            filteredData[filteredIndex].FotoBase64 = fotoBase64;
+                            filteredData[filteredIndex].FotoLoaded = true;
+                        }
+                        
+                    } catch (error) {
+                        console.error(`Error precargando foto:`, error);
+                    }
+                    
+                    // Pausa entre precargas para no impactar rendimiento
+                    await new Promise(resolve => setTimeout(resolve, 200));
+                }
+            }
+        }, 500); // Esperar 500ms antes de empezar a precargar
+    }
+}
 // Función para cargar días especiales (modificada)
 async function loadSpecialDays() {
     try {
@@ -506,10 +692,12 @@ function renderEmployeesTable() {
         return;
     }
     
+    // Crear fragment para mejor rendimiento
+    const fragment = document.createDocumentFragment();
+    
     currentPageData.forEach((employee, index) => {
         const fullName = getFullName(employee);
         const hireDate = formatDate(employee.FechaPlanilla);
-        const photoSrc = employee.FotoBase64 || '../Imagenes/user-default.png';
         const isCurrentUser = employee.IdPersonal === userData.IdPersonal;
         
         const row = document.createElement('tr');
@@ -525,7 +713,6 @@ function renderEmployeesTable() {
         let actionsCell = '';
                 
         if (isCurrentUser) {
-            // Para el usuario actual, mostrar un mensaje indicando que no puede solicitar vacaciones para sí mismo
             actionsCell = `
                 <div class="user-actions-disabled">
                     <span class="user-actions-message tooltip">
@@ -535,7 +722,6 @@ function renderEmployeesTable() {
                 </div>
             `;
         } else {
-            // Para otros usuarios, mostrar los botones de acción normales
             actionsCell = `
                 <div class="action-buttons">
                     <button class="btn-action btn-request" title="Solicitar vacaciones" onclick="openVacationModal(${employee.IdPersonal})">
@@ -561,10 +747,14 @@ function renderEmployeesTable() {
             diasDisponiblesStyle = `<div class="days-count" style="background-color: #4CAF50;">${diasVacaciones} días</div>`;
         }
         
+        // FOTO OPTIMIZADA - usar placeholder mientras carga
+        const photoSrc = employee.FotoBase64 || '../Imagenes/user-default.png';
+        const photoClass = employee.FotoLoaded ? '' : 'loading-photo';
+        
         row.innerHTML = `
             <td>
                 <div class="employee-photo-cell">
-                    <img src="${photoSrc}" alt="${fullName}" loading="lazy">
+                    <img src="${photoSrc}" alt="${fullName}" loading="lazy" class="${photoClass}">
                 </div>
             </td>
             <td>
@@ -578,10 +768,19 @@ function renderEmployeesTable() {
             <td>${actionsCell}</td>
         `;
         
-        tbody.appendChild(row);
+        fragment.appendChild(row);
     });
     
+    tbody.appendChild(fragment);
     updateSortIndicators();
+    
+    // Cargar fotos para la página actual
+    loadPhotosForCurrentPage();
+    
+    // Precargar fotos de páginas adyacentes en background
+    setTimeout(() => {
+        preloadAdjacentPagesPhotos();
+    }, 1000);
 }
 
 // Actualizar paginación
@@ -609,21 +808,23 @@ function filterData() {
     
     if (searchTerm === '') {
         filteredData = [...employeesData];
-        // Mostrar/ocultar botón de limpiar
         const clearBtn = document.getElementById('clearSearchBtn');
         if (clearBtn) clearBtn.style.display = 'none';
     } else {
+        // BÚSQUEDA OPTIMIZADA con índices
         filteredData = employeesData.filter(employee => {
-            const fullName = getFullName(employee).toLowerCase();
-            const position = (employee.Nombre || '').toLowerCase();
-            const dpi = (employee.DPI || '').toLowerCase();
+            // Crear índice de búsqueda si no existe
+            if (!employee._searchIndex) {
+                const fullName = getFullName(employee).toLowerCase();
+                const position = (employee.Nombre || '').toLowerCase();
+                const dpi = (employee.DPI || '').toLowerCase();
+                
+                employee._searchIndex = `${fullName} ${position} ${dpi}`;
+            }
             
-            return fullName.includes(searchTerm) || 
-                   position.includes(searchTerm) || 
-                   dpi.includes(searchTerm);
+            return employee._searchIndex.includes(searchTerm);
         });
         
-        // Mostrar botón de limpiar
         const clearBtn = document.getElementById('clearSearchBtn');
         if (clearBtn) clearBtn.style.display = 'block';
     }
@@ -639,12 +840,22 @@ function filterData() {
         updatePagination();
     }
     
-    // Actualizar contador si no hay resultados
+    // Log para debug
     if (filteredData.length === 0 && searchTerm !== '') {
         console.log(`Sin resultados para: "${searchTerm}" en departamento ${userDepartmentName}`);
     }
 }
-
+function debounce(func, wait) {
+    let timeout;
+    return function executedFunction(...args) {
+        const later = () => {
+            clearTimeout(timeout);
+            func(...args);
+        };
+        clearTimeout(timeout);
+        timeout = setTimeout(later, wait);
+    };
+}
 // Función para limpiar búsqueda
 function clearSearch() {
     const searchInput = document.getElementById('searchInput');
@@ -735,6 +946,7 @@ function updateSortIndicators() {
 // Función para refrescar datos
 async function refreshData() {
     try {
+        clearPhotoCache();
         // Agregar clase de loading al botón
         const refreshBtn = document.getElementById('refreshBtn');
         if (refreshBtn) {
@@ -807,7 +1019,39 @@ function formatDate(dateString) {
     if (!dateString) return 'N/A';
     
     try {
-        const date = new Date(dateString);
+        // Parsear manualmente para evitar problemas de zona horaria
+        let dateStr = dateString;
+        
+        // Si viene en formato YYYY-MM-DD (desde la base de datos)
+        if (typeof dateStr === 'string' && dateStr.includes('-')) {
+            const parts = dateStr.split(' ')[0]; // Tomar solo la parte de fecha, ignorar hora
+            const [year, month, day] = parts.split('-').map(num => parseInt(num, 10));
+            
+            // Crear fecha local sin conversión UTC
+            const date = new Date(year, month - 1, day); // month - 1 porque en JS los meses van de 0-11
+            
+            if (isNaN(date)) return 'N/A';
+            
+            const dayFormatted = String(date.getDate()).padStart(2, '0');
+            const monthFormatted = String(date.getMonth() + 1).padStart(2, '0');
+            const yearFormatted = date.getFullYear();
+            
+            return `${dayFormatted}/${monthFormatted}/${yearFormatted}`;
+        }
+        
+        // Si viene como objeto Date
+        if (dateStr instanceof Date) {
+            if (isNaN(dateStr)) return 'N/A';
+            
+            const day = String(dateStr.getDate()).padStart(2, '0');
+            const month = String(dateStr.getMonth() + 1).padStart(2, '0');
+            const year = dateStr.getFullYear();
+            
+            return `${day}/${month}/${year}`;
+        }
+        
+        // Fallback: intentar parsear como Date normal
+        const date = new Date(dateStr);
         if (isNaN(date)) return 'N/A';
         
         const day = String(date.getDate()).padStart(2, '0');
@@ -815,8 +1059,9 @@ function formatDate(dateString) {
         const year = date.getFullYear();
         
         return `${day}/${month}/${year}`;
+        
     } catch (error) {
-        console.error('Error al formatear fecha:', error);
+        console.error('Error al formatear fecha:', error, 'Fecha original:', dateString);
         return 'N/A';
     }
 }
@@ -826,21 +1071,41 @@ function formatFechaBaseDatos(fecha) {
     if (!fecha) return '';
     
     try {
+        let dateObj;
+        
+        // Si es string, parsearlo manualmente
         if (typeof fecha === 'string') {
-            fecha = new Date(fecha);
+            if (fecha.includes('-')) {
+                // Ya está en formato YYYY-MM-DD
+                const parts = fecha.split(' ')[0]; // Ignorar hora si existe
+                const [year, month, day] = parts.split('-').map(num => parseInt(num, 10));
+                dateObj = new Date(year, month - 1, day);
+            } else if (fecha.includes('/')) {
+                // Formato DD/MM/YYYY
+                const [day, month, year] = fecha.split('/').map(num => parseInt(num, 10));
+                dateObj = new Date(year, month - 1, day);
+            } else {
+                dateObj = new Date(fecha);
+            }
+        } else if (fecha instanceof Date) {
+            dateObj = fecha;
+        } else {
+            console.error('Tipo de fecha no reconocido:', typeof fecha, fecha);
+            return '';
         }
         
-        if (!(fecha instanceof Date) || isNaN(fecha)) {
+        if (!(dateObj instanceof Date) || isNaN(dateObj)) {
             console.error('Fecha inválida:', fecha);
             return '';
         }
         
-        const year = fecha.getFullYear();
-        const month = String(fecha.getMonth() + 1).padStart(2, '0');
-        const day = String(fecha.getDate()).padStart(2, '0');
+        const year = dateObj.getFullYear();
+        const month = String(dateObj.getMonth() + 1).padStart(2, '0');
+        const day = String(dateObj.getDate()).padStart(2, '0');
+        
         return `${year}-${month}-${day}`;
     } catch (error) {
-        console.error('Error al formatear fecha para BD:', error);
+        console.error('Error al formatear fecha para BD:', error, 'Fecha original:', fecha);
         return '';
     }
 }
@@ -2340,23 +2605,41 @@ async function obtenerHistorialVacaciones(employeeId, fechaInicio = null, fechaF
 function formatFechaBaseDatosUTC(fecha) {
     if (!fecha) return '';
     
-    // Si es string, intentar convertir a Date
-    if (typeof fecha === 'string') {
-        fecha = new Date(fecha);
-    }
-    
-    // Verificar que sea una fecha válida
-    if (!(fecha instanceof Date) || isNaN(fecha)) {
-        console.error('Fecha inválida:', fecha);
+    try {
+        let dateObj;
+        
+        // Si es string, parsearlo cuidadosamente
+        if (typeof fecha === 'string') {
+            if (fecha.includes('-')) {
+                // Formato YYYY-MM-DD
+                const parts = fecha.split(' ')[0];
+                const [year, month, day] = parts.split('-').map(num => parseInt(num, 10));
+                dateObj = new Date(year, month - 1, day);
+            } else {
+                dateObj = new Date(fecha);
+            }
+        } else if (fecha instanceof Date) {
+            dateObj = fecha;
+        } else {
+            console.error('Tipo de fecha no válido:', typeof fecha);
+            return '';
+        }
+        
+        if (!(dateObj instanceof Date) || isNaN(dateObj)) {
+            console.error('Fecha inválida:', fecha);
+            return '';
+        }
+        
+        // Usar los métodos locales, no UTC
+        const year = dateObj.getFullYear();
+        const month = String(dateObj.getMonth() + 1).padStart(2, '0');
+        const day = String(dateObj.getDate()).padStart(2, '0');
+        
+        return `${year}-${month}-${day}`;
+    } catch (error) {
+        console.error('Error al formatear fecha UTC:', error);
         return '';
     }
-    
-    // Usar la fecha UTC para evitar problemas de zona horaria
-    const year = fecha.getUTCFullYear();
-    const month = String(fecha.getUTCMonth() + 1).padStart(2, '0');
-    const day = String(fecha.getUTCDate()).padStart(2, '0');
-    
-    return `${year}-${month}-${day}`;
 }
 // Función para actualizar la tabla de historial
 function actualizarTablaHistorial(historial) {
@@ -2441,30 +2724,34 @@ function actualizarTablaHistorial(historial) {
 function formatDateWithDay(dateString) {
     if (!dateString) return 'N/A';
     
-    // Para evitar problemas de zona horaria, parseamos la fecha manualmente
-    const [year, month, day] = dateString.split('-').map(num => parseInt(num, 10));
-    // Crear fecha usando UTC para evitar ajustes automáticos de zona horaria
-    // Importante: month - 1 porque en JS los meses van de 0-11
-    const date = new Date(Date.UTC(year, month - 1, day));
-    
-    if (isNaN(date)) return 'N/A';
-    
-    // Arreglo con los nombres de los días de la semana en español
-    const daysOfWeek = [
-        'domingo', 'lunes', 'martes', 'miércoles', 
-        'jueves', 'viernes', 'sábado'
-    ];
-    
-    // Obtener el día de la semana (0-6, donde 0 es domingo)
-    const dayOfWeek = daysOfWeek[date.getUTCDay()];
-    
-    // Formatear la fecha como "lunes 12-05-2025"
-    // IMPORTANTE: usar getUTCDate() en lugar de getDate() para evitar ajustes de zona horaria
-    const formattedDay = String(date.getUTCDate()).padStart(2, '0');
-    const formattedMonth = String(date.getUTCMonth() + 1).padStart(2, '0');
-    const formattedYear = date.getUTCFullYear();
-    
-    return `${dayOfWeek} ${formattedDay}-${formattedMonth}-${formattedYear}`;
+    try {
+        // Parsear manualmente para evitar problemas de zona horaria
+        const parts = dateString.split(' ')[0]; // Tomar solo la parte de fecha
+        const [year, month, day] = parts.split('-').map(num => parseInt(num, 10));
+        
+        // Crear fecha local sin UTC
+        const date = new Date(year, month - 1, day);
+        
+        if (isNaN(date)) return 'N/A';
+        
+        // Nombres de los días de la semana en español
+        const daysOfWeek = [
+            'domingo', 'lunes', 'martes', 'miércoles', 
+            'jueves', 'viernes', 'sábado'
+        ];
+        
+        const dayOfWeek = daysOfWeek[date.getDay()];
+        
+        // Formatear la fecha como "lunes 12/05/2025"
+        const formattedDay = String(date.getDate()).padStart(2, '0');
+        const formattedMonth = String(date.getMonth() + 1).padStart(2, '0');
+        const formattedYear = date.getFullYear();
+        
+        return `${dayOfWeek} ${formattedDay}/${formattedMonth}/${formattedYear}`;
+    } catch (error) {
+        console.error('Error al formatear fecha con día:', error);
+        return 'N/A';
+    }
 }
 
 // Función para filtrar historial por fechas
@@ -3302,7 +3589,8 @@ async function generateSelectedPdf() {
 function initEvents() {
     // Búsqueda
     if (searchInput) {
-        searchInput.addEventListener('input', filterData);
+        const debouncedFilter = debounce(filterData, 300); // 300ms de delay
+        searchInput.addEventListener('input', debouncedFilter);
     }
     
     // Botón limpiar búsqueda
@@ -3318,6 +3606,12 @@ function initEvents() {
                 currentPage--;
                 renderEmployeesTable();
                 updatePagination();
+                
+                // Scroll suave al inicio de la tabla
+                document.querySelector('.employees-table-section').scrollIntoView({ 
+                    behavior: 'smooth', 
+                    block: 'start' 
+                });
             }
         });
     }
@@ -3329,6 +3623,12 @@ function initEvents() {
                 currentPage++;
                 renderEmployeesTable();
                 updatePagination();
+                
+                // Scroll suave al inicio de la tabla
+                document.querySelector('.employees-table-section').scrollIntoView({ 
+                    behavior: 'smooth', 
+                    block: 'start' 
+                });
             }
         });
     }
@@ -3498,7 +3798,10 @@ function initEvents() {
         }
     });
 }
-
+function clearPhotoCache() {
+    photoCache.clear();
+    console.log('Cache de fotos limpiado');
+}
 // Funciones auxiliares finales
 window.openVacationModal = openVacationModal;
 window.openInfoModal = openInfoModal;

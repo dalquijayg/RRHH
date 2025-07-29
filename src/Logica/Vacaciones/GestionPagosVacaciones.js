@@ -81,6 +81,7 @@ async function initApp() {
         // Inicializar los eventos
         initEvents();
         initReports();
+        
         // Cargar contadores iniciales (resumen de solicitudes)
         await loadCounters();
         
@@ -267,9 +268,10 @@ function initTabs() {
                 tabContent.classList.add('active');
             }
             
-            // Cargar datos según la pestaña seleccionada
+            // REMOVER ESTA PARTE - No cargar datos automáticamente
+            // Solo mostrar las tablas vacías con mensaje inicial
             if (tabId === 'pendientes') {
-                loadPendingRequests(selectedDepartmentId);
+                showInitialPendingState();
             } else if (tabId === 'tramite') {
                 loadProcessingRequests();
             } else if (tabId === 'cobrar') {
@@ -278,10 +280,43 @@ function initTabs() {
         });
     });
 }
-
+function showInitialPendingState() {
+    const tbody = document.querySelector('#pendientesTable tbody');
+    tbody.innerHTML = `
+        <tr>
+            <td colspan="9" class="loading-message">
+                <div class="empty-state">
+                    <i class="fas fa-search"></i>
+                    <h3>Seleccione un departamento</h3>
+                    <p>Elija un departamento y haga clic en "Buscar" para ver las solicitudes pendientes.</p>
+                </div>
+            </td>
+        </tr>
+    `;
+    
+    // Resetear paginación
+    pendingRequests = [];
+    paginationState.pendientes.filteredData = [];
+    paginationState.pendientes.currentPage = 1;
+    updatePagination('pendientes');
+}
 // Cargar solicitudes pendientes por departamento
 async function loadPendingRequests(deptId = null) {
     try {
+        // Mostrar indicador de carga SOLO cuando se ejecute esta función
+        const tbody = document.querySelector('#pendientesTable tbody');
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="9" class="loading-message">
+                    <div class="empty-state">
+                        <i class="fas fa-spinner fa-spin"></i>
+                        <h3>Cargando solicitudes</h3>
+                        <p>Por favor espere mientras cargamos las solicitudes pendientes...</p>
+                    </div>
+                </td>
+            </tr>
+        `;
+        
         const connection = await connectionString();
         
         // Construir la consulta base
@@ -308,11 +343,7 @@ async function loadPendingRequests(deptId = null) {
                 planillas.Nombre_Planilla,
                 planillas.EsCapital,
                 Puestos.Nombre as NombrePuesto,
-                DATE_FORMAT(p.FechaPlanilla, '%Y-%m-%d') AS FechaPlanilla,
-                CASE 
-                    WHEN FotosPersonal.Foto IS NOT NULL THEN CONCAT('data:image/jpeg;base64,', TO_BASE64(FotosPersonal.Foto))
-                    ELSE NULL 
-                END AS FotoBase64
+                DATE_FORMAT(p.FechaPlanilla, '%Y-%m-%d') AS FechaPlanilla
             FROM 
                 vacacionespagadas vp
                 INNER JOIN departamentos d ON vp.IdDepartamento = d.IdDepartamento
@@ -386,11 +417,7 @@ async function loadProcessingRequests() {
                 p.SegundoApellido,
                 planillas.Nombre_Planilla,
                 Puestos.Nombre as NombrePuesto,
-                DATE_FORMAT(p.FechaPlanilla, '%Y-%m-%d') AS FechaPlanilla,
-                CASE 
-                    WHEN FotosPersonal.Foto IS NOT NULL THEN CONCAT('data:image/jpeg;base64,', TO_BASE64(FotosPersonal.Foto))
-                    ELSE NULL 
-                END AS FotoBase64
+                DATE_FORMAT(p.FechaPlanilla, '%Y-%m-%d') AS FechaPlanilla
             FROM 
                 vacacionespagadas vp
                 INNER JOIN departamentos d ON vp.IdDepartamento = d.IdDepartamento
@@ -452,11 +479,7 @@ async function loadCollectingRequests() {
                 p.SegundoApellido,
                 planillas.Nombre_Planilla,
                 Puestos.Nombre as NombrePuesto,
-                DATE_FORMAT(p.FechaPlanilla, '%Y-%m-%d') AS FechaPlanilla,
-                CASE 
-                    WHEN FotosPersonal.Foto IS NOT NULL THEN CONCAT('data:image/jpeg;base64,', TO_BASE64(FotosPersonal.Foto))
-                    ELSE NULL 
-                END AS FotoBase64
+                DATE_FORMAT(p.FechaPlanilla, '%Y-%m-%d') AS FechaPlanilla
             FROM 
                 vacacionespagadas vp
                 INNER JOIN departamentos d ON vp.IdDepartamento = d.IdDepartamento

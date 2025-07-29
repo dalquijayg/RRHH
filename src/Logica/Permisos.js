@@ -8,6 +8,52 @@ const conexion = 'DSN=recursos2';
 const currentUser = JSON.parse(localStorage.getItem('userData'));
 let selectedEmployee = null;
 
+// Mapeo de módulos
+const MODULOS = {
+    1: {
+        nombre: 'Gestión de Personal',
+        icono: 'fas fa-users',
+        color: '#4E77E5',
+        descripcion: 'Administración de empleados, puestos y departamentos'
+    },
+    2: {
+        nombre: 'Nómina y Planillas',
+        icono: 'fas fa-calculator',
+        color: '#28a745',
+        descripcion: 'Cálculos salariales, deducciones y planillas'
+    },
+    3: {
+        nombre: 'Vacaciones',
+        icono: 'fas fa-calendar-alt',
+        color: '#17a2b8',
+        descripcion: 'Gestión de solicitudes y períodos vacacionales'
+    },
+    4: {
+        nombre: 'Archivos',
+        icono: 'fas fa-folder',
+        color: '#6f42c1',
+        descripcion: 'Documentos y expedientes del personal'
+    },
+    5: {
+        nombre: 'Adicionales',
+        icono: 'fas fa-plus-circle',
+        color: '#fd7e14',
+        descripcion: 'Bonificaciones, horas extra y pagos adicionales'
+    },
+    6: {
+        nombre: 'Reportes',
+        icono: 'fas fa-chart-bar',
+        color: '#e83e8c',
+        descripcion: 'Informes y estadísticas del sistema'
+    },
+    7: {
+        nombre: 'Administración',
+        icono: 'fas fa-cogs',
+        color: '#6c757d',
+        descripcion: 'Configuración del sistema y permisos'
+    }
+};
+
 // Referencias a elementos DOM
 const loadingIndicator = document.getElementById('loadingIndicator');
 const btnVolver = document.getElementById('btnVolver');
@@ -46,7 +92,6 @@ async function getConnection() {
 }
 
 function mostrarNotificacion(mensaje, tipo = 'info') {
-    // Verificar si ya existe el contenedor de toast
     let toastContainer = document.querySelector('.toast-container');
     
     if (!toastContainer) {
@@ -55,11 +100,9 @@ function mostrarNotificacion(mensaje, tipo = 'info') {
         document.body.appendChild(toastContainer);
     }
     
-    // Crear el toast
     const toast = document.createElement('div');
     toast.className = `toast toast-${tipo}`;
     
-    // Definir iconos según el tipo
     const iconMap = {
         success: 'check-circle',
         error: 'times-circle',
@@ -67,7 +110,6 @@ function mostrarNotificacion(mensaje, tipo = 'info') {
         info: 'info-circle'
     };
     
-    // Crear contenido del toast
     toast.innerHTML = `
         <div class="toast-icon">
             <i class="fas fa-${iconMap[tipo]}"></i>
@@ -78,10 +120,8 @@ function mostrarNotificacion(mensaje, tipo = 'info') {
         </button>
     `;
     
-    // Agregar al contenedor
     toastContainer.appendChild(toast);
     
-    // Manejar el cierre del toast
     const closeBtn = toast.querySelector('.toast-close');
     closeBtn.addEventListener('click', () => {
         toast.classList.add('toast-hiding');
@@ -90,7 +130,6 @@ function mostrarNotificacion(mensaje, tipo = 'info') {
         }, 300);
     });
     
-    // Auto-cierre después de 5 segundos
     setTimeout(() => {
         if (toast.parentElement) {
             toast.classList.add('toast-hiding');
@@ -124,10 +163,8 @@ async function cargarDepartamentos() {
         const result = await connection.query(query);
         await connection.close();
         
-        // Limpiar opciones actuales manteniendo la opción por defecto
         departamentoSelect.innerHTML = '<option value="">Todos los departamentos</option>';
         
-        // Agregar cada departamento
         result.forEach(depto => {
             const option = document.createElement('option');
             option.value = depto.IdDepartamento;
@@ -159,7 +196,6 @@ async function buscarColaboradores() {
         
         const connection = await getConnection();
         
-        // Construir la consulta según los filtros
         let query = `
             SELECT 
                 personal.IdPersonal,
@@ -182,7 +218,6 @@ async function buscarColaboradores() {
         
         const queryParams = [];
         
-        // Agregar filtros según los valores ingresados
         if (nombreBusqueda) {
             query += `
                 AND (
@@ -201,15 +236,12 @@ async function buscarColaboradores() {
             queryParams.push(departamentoId);
         }
         
-        // Ordenar por departamento y nombre
         query += ` ORDER BY departamentos.NombreDepartamento, personal.PrimerNombre`;
         
         const result = await connection.query(query, queryParams);
         await connection.close();
         
-        // Actualizar interfaz
         mostrarResultados(result);
-        
         mostrarCargando(false);
         
     } catch (error) {
@@ -221,14 +253,11 @@ async function buscarColaboradores() {
 
 // Mostrar resultados de búsqueda
 function mostrarResultados(colaboradores) {
-    // Limpiar lista actual
     resultsList.innerHTML = '';
     
-    // Actualizar contador
     const count = colaboradores ? colaboradores.length : 0;
     resultCount.textContent = count;
     
-    // Mostrar mensaje vacío o tabla según corresponda
     if (!colaboradores || colaboradores.length === 0) {
         emptyState.style.display = 'flex';
         emptyState.innerHTML = `
@@ -239,11 +268,9 @@ function mostrarResultados(colaboradores) {
         return;
     }
     
-    // Mostrar tabla de resultados
     emptyState.style.display = 'none';
     resultsContainer.style.display = 'block';
     
-    // Agregar cada colaborador a la tabla
     colaboradores.forEach(colaborador => {
         const row = document.createElement('tr');
         
@@ -259,13 +286,10 @@ function mostrarResultados(colaboradores) {
             </td>
         `;
         
-        // Almacenar datos completos en la fila para acceso posterior
         row.dataset.colaborador = JSON.stringify(colaborador);
-        
         resultsList.appendChild(row);
     });
     
-    // Configurar eventos para los botones de selección
     document.querySelectorAll('.btn-select').forEach(btn => {
         btn.addEventListener('click', function() {
             const colaboradorData = JSON.parse(this.closest('tr').dataset.colaborador);
@@ -278,39 +302,34 @@ function mostrarResultados(colaboradores) {
 function seleccionarColaborador(colaborador) {
     selectedEmployee = colaborador;
     
-    // Actualizar la interfaz con los datos del colaborador
     selectedEmployeeName.textContent = colaborador.NombreCompleto;
     selectedEmployeePosition.textContent = `${colaborador.NombrePuesto || 'Sin puesto'} - ${colaborador.NombreDepartamento || 'Sin departamento'}`;
     selectedEmployeeId.textContent = colaborador.IdPersonal;
     selectedEmployeePhoto.src = colaborador.FotoBase64 || '../Imagenes/user-default.png';
     
-    // Cargar los permisos disponibles
-    cargarPermisos();
+    cargarPermisosPorModulos();
     
-    // Mostrar la sección de permisos
     permissionsSection.style.display = 'block';
-    
-    // Hacer scroll a la sección de permisos
     permissionsSection.scrollIntoView({ behavior: 'smooth' });
 }
 
-// Cargar los permisos disponibles
-// Función cargarPermisos modificada para mostrar un listado simple
-async function cargarPermisos() {
+// Nueva función para cargar permisos organizados por módulos
+async function cargarPermisosPorModulos() {
     try {
         mostrarCargando(true);
         
         const connection = await getConnection();
         
-        // Consulta para obtener todos los permisos
+        // Consulta actualizada para incluir el campo Modulo
         const permisosQuery = `
             SELECT
                 TiposTransaccionesRRHH.Descripcion, 
-                TiposTransaccionesRRHH.Codigo
+                TiposTransaccionesRRHH.Codigo,
+                IFNULL(TiposTransaccionesRRHH.Modulo, 7) AS Modulo
             FROM
                 TiposTransaccionesRRHH
             ORDER BY
-                TiposTransaccionesRRHH.Descripcion
+                TiposTransaccionesRRHH.Modulo, TiposTransaccionesRRHH.Descripcion
         `;
         
         const permisosResult = await connection.query(permisosQuery);
@@ -325,152 +344,47 @@ async function cargarPermisos() {
         const permisosAsignadosResult = await connection.query(permisosAsignadosQuery, [selectedEmployee.IdPersonal]);
         await connection.close();
         
-        // Crear un array de códigos asignados para facilitar la verificación
+        // Crear array de códigos asignados
         const codigosAsignados = permisosAsignadosResult.map(p => p.Codigo);
         
-        // Limpiar lista actual y elementos previos
+        // Organizar permisos por módulo
+        const permisosPorModulo = {};
+        permisosResult.forEach(permiso => {
+            const moduloId = permiso.Modulo || 7; // Si no tiene módulo, va a Administración
+            if (!permisosPorModulo[moduloId]) {
+                permisosPorModulo[moduloId] = [];
+            }
+            permisosPorModulo[moduloId].push({
+                ...permiso,
+                isAssigned: codigosAsignados.includes(permiso.Codigo)
+            });
+        });
+        
+        // Limpiar contenedor
         permissionsList.innerHTML = '';
         
-        // Eliminar elementos previos si existen
-        const prevSearch = document.querySelector('.permissions-search');
-        if (prevSearch) prevSearch.remove();
+        // Crear controles superiores
+        crearControlesPermisos();
         
-        const prevActions = document.querySelector('.permissions-select-actions');
-        if (prevActions) prevActions.remove();
+        // Crear contenedor principal
+        const modulosContainer = document.createElement('div');
+        modulosContainer.className = 'modulos-container';
         
-        // Crear un contenedor para las acciones
-        const actionsContainer = document.createElement('div');
-        actionsContainer.className = 'permissions-controls';
-        
-        // Agregar botones de selección
-        const selectActions = document.createElement('div');
-        selectActions.className = 'permissions-select-actions';
-        
-        const btnSelectAll = document.createElement('button');
-        btnSelectAll.className = 'btn btn-select-all';
-        btnSelectAll.innerHTML = '<i class="fas fa-check-square"></i> Seleccionar Todos';
-        btnSelectAll.addEventListener('click', seleccionarTodosPermisos);
-        
-        const btnDeselectAll = document.createElement('button');
-        btnDeselectAll.className = 'btn btn-deselect-all';
-        btnDeselectAll.innerHTML = '<i class="fas fa-square"></i> Deseleccionar Todos';
-        btnDeselectAll.addEventListener('click', deseleccionarTodosPermisos);
-        
-        selectActions.appendChild(btnSelectAll);
-        selectActions.appendChild(btnDeselectAll);
-        
-        // Agregar barra de búsqueda
-        const searchBar = document.createElement('div');
-        searchBar.className = 'permissions-search';
-        searchBar.innerHTML = `
-            <div class="input-with-icon">
-                <i class="fas fa-filter"></i>
-                <input type="text" id="permissionsSearch" placeholder="Filtrar permisos...">
-            </div>
-        `;
-        
-        // Agregar todo al contenedor principal
-        actionsContainer.appendChild(selectActions);
-        actionsContainer.appendChild(searchBar);
-        
-        // Insertar antes de la lista de permisos
-        permissionsList.parentNode.insertBefore(actionsContainer, permissionsList);
-        
-        // Crear contenedor para el listado de permisos
-        const permisosContainer = document.createElement('div');
-        permisosContainer.className = 'permissions-list-container';
-        
-        // Ordenar los permisos por código
-        permisosResult.sort((a, b) => {
-            // Primero por código numérico
-            const numA = parseInt(a.Codigo);
-            const numB = parseInt(b.Codigo);
-            if (!isNaN(numA) && !isNaN(numB)) {
-                return numA - numB;
+        // Crear cada módulo
+        Object.keys(permisosPorModulo).forEach(moduloId => {
+            const modulo = MODULOS[moduloId];
+            const permisos = permisosPorModulo[moduloId];
+            
+            if (permisos.length > 0) {
+                const moduloElement = crearModuloElement(modulo, permisos, moduloId);
+                modulosContainer.appendChild(moduloElement);
             }
-            // Si no son numéricos, ordenar por texto
-            return a.Codigo.localeCompare(b.Codigo);
         });
         
-        // Crear un elemento para cada permiso
-        permisosResult.forEach(permiso => {
-            const isAssigned = codigosAsignados.includes(permiso.Codigo);
-            
-            const permissionItem = document.createElement('div');
-            permissionItem.className = 'permission-item';
-            
-            permissionItem.innerHTML = `
-                <input type="checkbox" id="perm${permiso.Codigo}" 
-                    class="permission-checkbox" 
-                    data-codigo="${permiso.Codigo}" 
-                    data-descripcion="${permiso.Descripcion}"
-                    ${isAssigned ? 'checked' : ''}>
-                <label for="perm${permiso.Codigo}" class="permission-label">
-                    ${permiso.Descripcion}
-                </label>
-                <span class="permission-code">${permiso.Codigo}</span>
-            `;
-            
-            permisosContainer.appendChild(permissionItem);
-        });
+        permissionsList.appendChild(modulosContainer);
         
-        // Agregar contenedor al DOM
-        permissionsList.appendChild(permisosContainer);
-        
-        // Configurar el evento de búsqueda
-        const permissionsSearch = document.getElementById('permissionsSearch');
-        if (permissionsSearch) {
-            permissionsSearch.addEventListener('input', function() {
-                const searchTerm = this.value.toLowerCase();
-                const permissionItems = document.querySelectorAll('.permission-item');
-                
-                // Restablecer la visualización
-                permissionItems.forEach(item => {
-                    item.classList.remove('match');
-                    item.style.display = 'flex';
-                });
-                
-                // No hay término de búsqueda, mostrar todo
-                if (!searchTerm) {
-                    return;
-                }
-                
-                let itemsVisibles = 0;
-                
-                // Filtrar los permisos
-                permissionItems.forEach(item => {
-                    const permissionText = item.querySelector('.permission-label').textContent.toLowerCase();
-                    const permissionCode = item.querySelector('.permission-code').textContent.toLowerCase();
-                    
-                    if (permissionText.includes(searchTerm) || permissionCode.includes(searchTerm)) {
-                        item.style.display = 'flex';
-                        item.classList.add('match');
-                        itemsVisibles++;
-                    } else {
-                        item.style.display = 'none';
-                    }
-                });
-                
-                // Mostrar mensaje si no hay resultados
-                if (itemsVisibles === 0) {
-                    let noResults = document.querySelector('.no-search-results');
-                    if (!noResults) {
-                        noResults = document.createElement('div');
-                        noResults.className = 'no-search-results';
-                        noResults.innerHTML = `
-                            <i class="fas fa-search"></i>
-                            <p>No se encontraron permisos con el término "${searchTerm}"</p>
-                        `;
-                        permissionsList.appendChild(noResults);
-                    }
-                } else {
-                    const noResults = document.querySelector('.no-search-results');
-                    if (noResults) {
-                        noResults.remove();
-                    }
-                }
-            });
-        }
+        // Actualizar contador
+        actualizarContadorPermisos();
         
         mostrarCargando(false);
         
@@ -481,16 +395,308 @@ async function cargarPermisos() {
     }
 }
 
+// Crear elemento de módulo
+function crearModuloElement(modulo, permisos, moduloId) {
+    const moduloDiv = document.createElement('div');
+    moduloDiv.className = 'modulo-card';
+    
+    const permisosAsignados = permisos.filter(p => p.isAssigned).length;
+    const totalPermisos = permisos.length;
+    
+    moduloDiv.innerHTML = `
+        <div class="modulo-header" data-modulo="${moduloId}">
+            <div class="modulo-info">
+                <div class="modulo-icon" style="background-color: ${modulo.color}">
+                    <i class="${modulo.icono}"></i>
+                </div>
+                <div class="modulo-details">
+                    <h3 class="modulo-title">${modulo.nombre}</h3>
+                    <p class="modulo-description">${modulo.descripcion}</p>
+                    <div class="modulo-stats">
+                        <span class="permisos-count">${permisosAsignados}/${totalPermisos} permisos asignados</span>
+                        <div class="progress-bar">
+                            <div class="progress-fill" style="width: ${(permisosAsignados/totalPermisos)*100}%; background-color: ${modulo.color}"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modulo-actions">
+                <button class="btn-modulo-toggle" type="button">
+                    <i class="fas fa-chevron-down toggle-icon"></i>
+                </button>
+                <button class="btn-select-all-modulo" type="button" data-modulo="${moduloId}">
+                    <i class="fas fa-check-square"></i> Todo
+                </button>
+                <button class="btn-deselect-all-modulo" type="button" data-modulo="${moduloId}">
+                    <i class="fas fa-square"></i> Ninguno
+                </button>
+            </div>
+        </div>
+        <div class="modulo-content">
+            <div class="permisos-grid">
+                ${permisos.map(permiso => `
+                    <div class="permission-item ${permiso.isAssigned ? 'assigned' : ''}">
+                        <input type="checkbox" 
+                               id="perm${permiso.Codigo}" 
+                               class="permission-checkbox" 
+                               data-codigo="${permiso.Codigo}" 
+                               data-descripcion="${permiso.Descripcion}"
+                               data-modulo="${moduloId}"
+                               ${permiso.isAssigned ? 'checked' : ''}>
+                        <label for="perm${permiso.Codigo}" class="permission-label">
+                            ${permiso.Descripcion}
+                        </label>
+                        <span class="permission-code">${permiso.Codigo}</span>
+                    </div>
+                `).join('')}
+            </div>
+        </div>
+    `;
+    
+    // Configurar eventos del módulo
+    configurarEventosModulo(moduloDiv, moduloId);
+    
+    return moduloDiv;
+}
+
+// Configurar eventos de cada módulo
+function configurarEventosModulo(moduloDiv, moduloId) {
+    const header = moduloDiv.querySelector('.modulo-header');
+    const content = moduloDiv.querySelector('.modulo-content');
+    const toggleBtn = moduloDiv.querySelector('.btn-modulo-toggle');
+    const selectAllBtn = moduloDiv.querySelector('.btn-select-all-modulo');
+    const deselectAllBtn = moduloDiv.querySelector('.btn-deselect-all-modulo');
+    
+    // Toggle del módulo
+    toggleBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        moduloDiv.classList.toggle('expanded');
+    });
+    
+    // Header también hace toggle
+    header.addEventListener('click', (e) => {
+        if (!e.target.closest('.modulo-actions')) {
+            moduloDiv.classList.toggle('expanded');
+        }
+    });
+    
+    // Seleccionar todos los permisos del módulo
+    selectAllBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const checkboxes = moduloDiv.querySelectorAll('.permission-checkbox');
+        checkboxes.forEach(cb => cb.checked = true);
+        actualizarEstadoModulo(moduloDiv, moduloId);
+        actualizarContadorPermisos();
+    });
+    
+    // Deseleccionar todos los permisos del módulo
+    deselectAllBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const checkboxes = moduloDiv.querySelectorAll('.permission-checkbox');
+        checkboxes.forEach(cb => cb.checked = false);
+        actualizarEstadoModulo(moduloDiv, moduloId);
+        actualizarContadorPermisos();
+    });
+    
+    // Eventos de checkboxes individuales
+    const checkboxes = moduloDiv.querySelectorAll('.permission-checkbox');
+    checkboxes.forEach(checkbox => {
+        checkbox.addEventListener('change', () => {
+            actualizarEstadoModulo(moduloDiv, moduloId);
+            actualizarContadorPermisos();
+        });
+    });
+    
+    // Expandir por defecto si tiene permisos asignados
+    const permisosAsignados = moduloDiv.querySelectorAll('.permission-checkbox:checked').length;
+    if (permisosAsignados > 0) {
+        moduloDiv.classList.add('expanded');
+    }
+}
+
+// Actualizar estado visual del módulo
+function actualizarEstadoModulo(moduloDiv, moduloId) {
+    const checkboxes = moduloDiv.querySelectorAll('.permission-checkbox');
+    const checkedBoxes = moduloDiv.querySelectorAll('.permission-checkbox:checked');
+    const totalPermisos = checkboxes.length;
+    const permisosAsignados = checkedBoxes.length;
+    
+    // Actualizar contador
+    const countElement = moduloDiv.querySelector('.permisos-count');
+    countElement.textContent = `${permisosAsignados}/${totalPermisos} permisos asignados`;
+    
+    // Actualizar barra de progreso
+    const progressFill = moduloDiv.querySelector('.progress-fill');
+    const porcentaje = totalPermisos > 0 ? (permisosAsignados / totalPermisos) * 100 : 0;
+    progressFill.style.width = `${porcentaje}%`;
+    
+    // Actualizar clases de estado
+    moduloDiv.classList.remove('all-selected', 'partial-selected', 'none-selected');
+    if (permisosAsignados === totalPermisos && totalPermisos > 0) {
+        moduloDiv.classList.add('all-selected');
+    } else if (permisosAsignados > 0) {
+        moduloDiv.classList.add('partial-selected');
+    } else {
+        moduloDiv.classList.add('none-selected');
+    }
+}
+
+// Crear controles superiores de permisos
+function crearControlesPermisos() {
+    const controlsContainer = document.createElement('div');
+    controlsContainer.className = 'permissions-controls';
+    
+    controlsContainer.innerHTML = `
+        <div class="permissions-search">
+            <div class="input-with-icon">
+                <i class="fas fa-search"></i>
+                <input type="text" id="permissionsSearch" placeholder="Buscar permisos en todos los módulos...">
+            </div>
+        </div>
+        <div class="permissions-actions">
+            <div class="permissions-counter">
+                <span id="selectedCount">0</span> permisos seleccionados
+            </div>
+            <div class="permissions-buttons">
+                <button class="btn btn-select-all-global" id="btnSelectAllGlobal">
+                    <i class="fas fa-check-double"></i> Seleccionar Todo
+                </button>
+                <button class="btn btn-deselect-all-global" id="btnDeselectAllGlobal">
+                    <i class="fas fa-times"></i> Deseleccionar Todo
+                </button>
+                <button class="btn btn-expand-all" id="btnExpandAll">
+                    <i class="fas fa-expand"></i> Expandir Todo
+                </button>
+                <button class="btn btn-collapse-all" id="btnCollapseAll">
+                    <i class="fas fa-compress"></i> Contraer Todo
+                </button>
+            </div>
+        </div>
+    `;
+    
+    permissionsList.appendChild(controlsContainer);
+    
+    // Configurar eventos de controles
+    configurarEventosControles();
+}
+
+// Configurar eventos de controles globales
+function configurarEventosControles() {
+    // Búsqueda
+    const searchInput = document.getElementById('permissionsSearch');
+    if (searchInput) {
+        searchInput.addEventListener('input', function() {
+            filtrarPermisos(this.value);
+        });
+    }
+    
+    // Seleccionar todo globalmente
+    const btnSelectAllGlobal = document.getElementById('btnSelectAllGlobal');
+    if (btnSelectAllGlobal) {
+        btnSelectAllGlobal.addEventListener('click', () => {
+            const checkboxes = permissionsList.querySelectorAll('.permission-checkbox');
+            checkboxes.forEach(cb => cb.checked = true);
+            actualizarTodosLosModulos();
+            actualizarContadorPermisos();
+        });
+    }
+    
+    // Deseleccionar todo globalmente
+    const btnDeselectAllGlobal = document.getElementById('btnDeselectAllGlobal');
+    if (btnDeselectAllGlobal) {
+        btnDeselectAllGlobal.addEventListener('click', () => {
+            const checkboxes = permissionsList.querySelectorAll('.permission-checkbox');
+            checkboxes.forEach(cb => cb.checked = false);
+            actualizarTodosLosModulos();
+            actualizarContadorPermisos();
+        });
+    }
+    
+    // Expandir todo
+    const btnExpandAll = document.getElementById('btnExpandAll');
+    if (btnExpandAll) {
+        btnExpandAll.addEventListener('click', () => {
+            const modulos = permissionsList.querySelectorAll('.modulo-card');
+            modulos.forEach(modulo => modulo.classList.add('expanded'));
+        });
+    }
+    
+    // Contraer todo
+    const btnCollapseAll = document.getElementById('btnCollapseAll');
+    if (btnCollapseAll) {
+        btnCollapseAll.addEventListener('click', () => {
+            const modulos = permissionsList.querySelectorAll('.modulo-card');
+            modulos.forEach(modulo => modulo.classList.remove('expanded'));
+        });
+    }
+}
+
+// Filtrar permisos por búsqueda
+function filtrarPermisos(termino) {
+    const terminoLower = termino.toLowerCase();
+    const modulos = permissionsList.querySelectorAll('.modulo-card');
+    
+    modulos.forEach(modulo => {
+        const permisoItems = modulo.querySelectorAll('.permission-item');
+        let tieneCoincidencias = false;
+        
+        permisoItems.forEach(item => {
+            const label = item.querySelector('.permission-label').textContent.toLowerCase();
+            const code = item.querySelector('.permission-code').textContent.toLowerCase();
+            const coincide = label.includes(terminoLower) || code.includes(terminoLower);
+            
+            if (coincide || !termino) {
+                item.style.display = 'flex';
+                item.classList.toggle('highlighted', !!termino && coincide);
+                if (coincide) tieneCoincidencias = true;
+            } else {
+                item.style.display = 'none';
+                item.classList.remove('highlighted');
+            }
+        });
+        
+        // Expandir módulo si tiene coincidencias
+        if (tieneCoincidencias && termino) {
+            modulo.classList.add('expanded');
+        }
+        
+        // Mostrar/ocultar módulo completo si no hay coincidencias
+        modulo.style.display = (tieneCoincidencias || !termino) ? 'block' : 'none';
+    });
+}
+
+// Actualizar contador de permisos seleccionados
+function actualizarContadorPermisos() {
+    const selectedCount = permissionsList.querySelectorAll('.permission-checkbox:checked').length;
+    const selectedCountElement = document.getElementById('selectedCount');
+    if (selectedCountElement) {
+        selectedCountElement.textContent = selectedCount;
+    }
+}
+
+// Actualizar todos los módulos
+function actualizarTodosLosModulos() {
+    const modulos = permissionsList.querySelectorAll('.modulo-card');
+    modulos.forEach(modulo => {
+        const moduloId = modulo.querySelector('.modulo-header').dataset.modulo;
+        actualizarEstadoModulo(modulo, moduloId);
+    });
+}
+
 // Confirmar asignación de permisos
 function confirmarAsignacion() {
-    // Obtener los permisos seleccionados
     const permisosSeleccionados = [];
     const checkboxes = permissionsList.querySelectorAll('input[type="checkbox"]:checked');
     
     checkboxes.forEach(checkbox => {
+        const moduloId = checkbox.dataset.modulo;
+        const modulo = MODULOS[moduloId];
+        
         permisosSeleccionados.push({
             codigo: checkbox.dataset.codigo,
-            descripcion: checkbox.dataset.descripcion
+            descripcion: checkbox.dataset.descripcion,
+            modulo: modulo ? modulo.nombre : 'Sin módulo',
+            moduloColor: modulo ? modulo.color : '#6c757d'
         });
     });
     
@@ -499,24 +705,49 @@ function confirmarAsignacion() {
         return;
     }
     
+    // Agrupar permisos por módulo para el resumen
+    const permisosPorModulo = {};
+    permisosSeleccionados.forEach(permiso => {
+        if (!permisosPorModulo[permiso.modulo]) {
+            permisosPorModulo[permiso.modulo] = {
+                color: permiso.moduloColor,
+                permisos: []
+            };
+        }
+        permisosPorModulo[permiso.modulo].permisos.push(permiso);
+    });
+    
     // Llenar el resumen de permisos en el modal
     permissionsSummary.innerHTML = '';
     
-    permisosSeleccionados.forEach(permiso => {
-        const summaryItem = document.createElement('div');
-        summaryItem.className = 'summary-item';
-        summaryItem.innerHTML = `
-            <i class="fas fa-check-circle"></i>
-            <span>${permiso.descripcion}</span>
-            <span class="summary-code">${permiso.codigo}</span>
+    Object.keys(permisosPorModulo).forEach(nombreModulo => {
+        const moduloData = permisosPorModulo[nombreModulo];
+        
+        const moduloSummary = document.createElement('div');
+        moduloSummary.className = 'summary-module';
+        moduloSummary.innerHTML = `
+            <div class="summary-module-header" style="border-left-color: ${moduloData.color}">
+                <h4>${nombreModulo}</h4>
+                <span class="summary-module-count">${moduloData.permisos.length} permisos</span>
+            </div>
+            <div class="summary-module-items">
+                ${moduloData.permisos.map(permiso => `
+                    <div class="summary-item">
+                        <i class="fas fa-check-circle"></i>
+                        <span>${permiso.descripcion}</span>
+                        <span class="summary-code">${permiso.codigo}</span>
+                    </div>
+                `).join('')}
+            </div>
         `;
         
-        permissionsSummary.appendChild(summaryItem);
+        permissionsSummary.appendChild(moduloSummary);
     });
     
     // Mostrar modal de confirmación
     confirmModal.classList.add('active');
 }
+
 // Función actualizada para guardar permisos y actualizar IngresoSistema
 async function guardarPermisos() {
     try {
@@ -631,14 +862,11 @@ async function guardarPermisos() {
         mostrarCargando(false);
     }
 }
+
 // Cancelar asignación de permisos
 function cancelarAsignacion() {
-    // Ocultar sección de permisos
     permissionsSection.style.display = 'none';
-    // Limpiar selección
     selectedEmployee = null;
-    
-    // Hacer scroll a la sección de resultados
     resultsContainer.scrollIntoView({ behavior: 'smooth' });
 }
 
@@ -649,9 +877,8 @@ function manejarEventoEnter(event) {
     }
 }
 
-// Configurar eventos
+// Configurar eventos principales
 function configurarEventos() {
-    
     // Botón buscar
     btnBuscar.addEventListener('click', buscarColaboradores);
     
@@ -680,42 +907,6 @@ function configurarEventos() {
         if (event.target === confirmModal) {
             confirmModal.classList.remove('active');
         }
-    });
-    
-    // Seleccionar todo/ninguno
-    const btnSelectAll = document.createElement('button');
-    btnSelectAll.className = 'btn btn-select-all';
-    btnSelectAll.innerHTML = '<i class="fas fa-check-square"></i> Seleccionar Todos';
-    btnSelectAll.addEventListener('click', seleccionarTodosPermisos);
-    
-    const btnDeselectAll = document.createElement('button');
-    btnDeselectAll.className = 'btn btn-deselect-all';
-    btnDeselectAll.innerHTML = '<i class="fas fa-square"></i> Deseleccionar Todos';
-    btnDeselectAll.addEventListener('click', deseleccionarTodosPermisos);
-    
-    // Agregar botones antes de la lista de permisos
-    const btnsContainer = document.createElement('div');
-    btnsContainer.className = 'permissions-select-actions';
-    btnsContainer.appendChild(btnSelectAll);
-    btnsContainer.appendChild(btnDeselectAll);
-    
-    // Insertar antes de la lista de permisos
-    permissionsList.parentNode.insertBefore(btnsContainer, permissionsList);
-}
-
-// Seleccionar todos los permisos
-function seleccionarTodosPermisos() {
-    const checkboxes = permissionsList.querySelectorAll('input[type="checkbox"]');
-    checkboxes.forEach(cb => {
-        cb.checked = true;
-    });
-}
-
-// Deseleccionar todos los permisos
-function deseleccionarTodosPermisos() {
-    const checkboxes = permissionsList.querySelectorAll('input[type="checkbox"]');
-    checkboxes.forEach(cb => {
-        cb.checked = false;
     });
 }
 
@@ -746,121 +937,7 @@ async function inicializar() {
     }
 }
 
-// Filtrar permisos por búsqueda
-function configurarBusquedaPermisos() {
-    const searchBar = document.createElement('div');
-    searchBar.className = 'permissions-search';
-    searchBar.innerHTML = `
-        <div class="input-with-icon">
-            <i class="fas fa-filter"></i>
-            <input type="text" id="permissionsSearch" placeholder="Buscar permisos...">
-        </div>
-    `;
-    
-    // Insertar antes de la lista de permisos
-    permissionsList.parentNode.insertBefore(searchBar, permissionsList);
-    
-    // Configurar el evento de búsqueda
-    const permissionsSearch = document.getElementById('permissionsSearch');
-    permissionsSearch.addEventListener('input', function() {
-        const searchTerm = this.value.toLowerCase();
-        const permissionItems = permissionsList.querySelectorAll('.permission-item');
-        
-        permissionItems.forEach(item => {
-            const permissionText = item.querySelector('.permission-label').textContent.toLowerCase();
-            const permissionCode = item.querySelector('.permission-code').textContent.toLowerCase();
-            
-            if (permissionText.includes(searchTerm) || permissionCode.includes(searchTerm)) {
-                item.style.display = 'flex';
-            } else {
-                item.style.display = 'none';
-            }
-        });
-    });
-}
-
-// Añadir estilos para la búsqueda de permisos y botones adicionales
-function agregarEstilosAdicionales() {
-    const style = document.createElement('style');
-    style.textContent = `
-        .permissions-select-actions {
-            display: flex;
-            gap: 10px;
-            margin-bottom: 15px;
-        }
-        
-        .btn-select-all, .btn-deselect-all {
-            background-color: var(--color-light);
-            color: var(--color-dark);
-            border: 1px solid rgba(0, 0, 0, 0.1);
-            padding: 8px 12px;
-            font-size: 0.9rem;
-        }
-        
-        .btn-select-all:hover, .btn-deselect-all:hover {
-            background-color: rgba(78, 119, 229, 0.1);
-        }
-        
-        .permissions-search {
-            margin-bottom: 15px;
-        }
-        
-        .permissions-search input {
-            width: 100%;
-            padding: 10px 10px 10px 35px;
-            border: 1px solid rgba(0, 0, 0, 0.1);
-            border-radius: var(--border-radius);
-            font-size: 0.95rem;
-        }
-        
-        .highlight-animation {
-            animation: pulse 1s ease-in-out;
-        }
-        
-        .permission-item.match {
-            background-color: rgba(255, 184, 69, 0.2);
-        }
-    `;
-    
-    document.head.appendChild(style);
-}
-
-// Mejorar el módulo para mostrar los permisos en categorías
-function organizarPermisosPorCategoria() {
-    // Configurar y agregar al inicializar
-    document.addEventListener('DOMContentLoaded', function() {
-        agregarEstilosAdicionales();
-        setTimeout(() => {
-            configurarBusquedaPermisos();
-        }, 500);
-    });
-}
-
-// Escuchar por cambios en el DOM para configurar búsqueda cuando el permissionsList cambie
-function observarCambiosDOM() {
-    const observer = new MutationObserver(function(mutations) {
-        mutations.forEach(function(mutation) {
-            if (mutation.type === 'childList' && 
-                mutation.target.id === 'permissionsList' && 
-                mutation.addedNodes.length > 0 &&
-                !document.getElementById('permissionsSearch')) {
-                
-                setTimeout(() => {
-                    configurarBusquedaPermisos();
-                }, 100);
-            }
-        });
-    });
-    
-    // Iniciar la observación del DOM
-    if (permissionsList) {
-        observer.observe(permissionsList.parentNode, { childList: true, subtree: true });
-    }
-}
-
 // Ejecutar al cargar la página
 document.addEventListener('DOMContentLoaded', function() {
     inicializar();
-    observarCambiosDOM();
-    organizarPermisosPorCategoria();
 });

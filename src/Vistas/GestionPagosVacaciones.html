@@ -8,23 +8,6 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
 </head>
 <body>
-    <!-- Encabezado con logos y título -->
-    <header class="header">
-        <div class="header-center">
-            <h1 class="page-title">Proceso de Pago de Vacaciones</h1>
-            <div class="color-strip">
-                <div class="color-strip-item color-red"></div>
-                <div class="color-strip-item color-blue"></div>
-                <div class="color-strip-item color-green"></div>
-                <div class="color-strip-item color-yellow"></div>
-                <div class="color-strip-item color-orange"></div>
-            </div>
-        </div>
-        <div class="header-right">
-            <img src="../Imagenes/Logo Recursos Humanos new.png" alt="RRHH Logo" class="rrhh-logo">
-        </div>
-    </header>
-
     <!-- Contenido principal -->
     <main class="content">
         <!-- Pestañas de proceso -->
@@ -104,13 +87,12 @@
                                 </tr>
                             </thead>
                             <tbody>
-                                <!-- Los datos se cargarán dinámicamente -->
                                 <tr>
                                     <td colspan="9" class="loading-message">
                                         <div class="empty-state">
-                                            <i class="fas fa-spinner fa-spin"></i>
-                                            <h3>Cargando solicitudes</h3>
-                                            <p>Por favor espere mientras cargamos las solicitudes pendientes...</p>
+                                            <i class="fas fa-search"></i>
+                                            <h3>Seleccione un departamento</h3>
+                                            <p>Elija un departamento y haga clic en "Buscar" para ver las solicitudes pendientes.</p>
                                         </div>
                                     </td>
                                 </tr>
@@ -301,53 +283,55 @@
             <div class="tab-content" id="reportes-tab">
                 <div class="reports-container">
                     <div class="report-panel">
+                        <!-- Header más compacto -->
                         <div class="panel-header">
                             <h3><i class="fas fa-chart-bar"></i> Generador de Reportes</h3>
-                            <p>Configure los filtros deseados y genere reportes personalizados</p>
+                            <p>Configure filtros y genere reportes personalizados</p>
                         </div>
                         
+                        <!-- Filtros optimizados en grid -->
                         <div class="filter-section">
                             <div class="filter-row">
+                                <!-- Departamento -->
                                 <div class="filter-group">
                                     <label for="reportFilterDept">Departamento:</label>
                                     <select id="reportFilterDept" class="filter-select">
-                                        <option value="">Todos los departamentos</option>
+                                        <option value="">Todos</option>
                                         <!-- Se cargarán dinámicamente -->
                                     </select>
                                 </div>
                                 
+                                <!-- Estado -->
                                 <div class="filter-group">
                                     <label for="reportFilterStatus">Estado:</label>
                                     <select id="reportFilterStatus" class="filter-select">
-                                        <option value="">Todos los estados</option>
+                                        <option value="">Todos</option>
                                         <option value="1">Por Autorizar</option>
                                         <option value="2">En Trámite</option>
-                                        <option value="3">Pendiente de Cobro</option>
+                                        <option value="3">Pend. Cobro</option>
                                         <option value="4">Pagado</option>
                                         <option value="5">Anulado</option>
                                     </select>
                                 </div>
-                            </div>
-                            
-                            <div class="filter-row">
+                                
+                                <!-- Rango de fechas compacto -->
                                 <div class="filter-group date-range">
-                                    <label>Rango de fechas:</label>
+                                    <label>Fechas:</label>
                                     <div class="date-inputs">
                                         <div class="date-field">
-                                            <label for="reportDateFrom">Desde:</label>
                                             <input type="date" id="reportDateFrom" class="filter-date">
                                         </div>
                                         <div class="date-field">
-                                            <label for="reportDateTo">Hasta:</label>
                                             <input type="date" id="reportDateTo" class="filter-date">
                                         </div>
                                     </div>
                                 </div>
                                 
+                                <!-- Búsqueda por nombre -->
                                 <div class="filter-group">
-                                    <label for="reportSearchName">Buscar por nombre:</label>
+                                    <label for="reportSearchName">Nombre:</label>
                                     <div class="search-field">
-                                        <input type="text" id="reportSearchName" placeholder="Nombre del colaborador..." class="search-input">
+                                        <input type="text" id="reportSearchName" placeholder="Colaborador..." class="search-input">
                                         <button id="clearReportSearch" class="clear-btn">
                                             <i class="fas fa-times"></i>
                                         </button>
@@ -355,16 +339,18 @@
                                 </div>
                             </div>
                             
+                            <!-- Acciones en una sola línea -->
                             <div class="filter-actions">
+                                <button id="resetFiltersBtn" class="action-btn reset">
+                                    <i class="fas fa-undo"></i> Limpiar
+                                </button>
                                 <button id="searchReportBtn" class="action-btn search">
                                     <i class="fas fa-search"></i> Buscar
-                                </button>
-                                <button id="resetFiltersBtn" class="action-btn reset">
-                                    <i class="fas fa-sync-alt"></i> Limpiar filtros
                                 </button>
                             </div>
                         </div>
                         
+                        <!-- Resultados con header compacto -->
                         <div class="report-results">
                             <div class="results-header">
                                 <h4>Resultados</h4>
@@ -375,36 +361,35 @@
                                         <option value="csv">CSV</option>
                                     </select>
                                     <button id="exportReportBtn" class="action-btn export">
-                                        <i class="fas fa-file-export"></i> Exportar
+                                        <i class="fas fa-download"></i> Exportar
                                     </button>
                                 </div>
                             </div>
                             
-                            <!-- Tabla de resultados -->
+                            <!-- Tabla con más espacio disponible -->
                             <div class="table-container">
                                 <table id="reportTable" class="data-table">
                                     <thead>
                                         <tr>
-                                            <th>Fecha Solicitud</th>
+                                            <th>Fecha</th>
                                             <th>Colaborador</th>
                                             <th>Departamento</th>
                                             <th>Período</th>
                                             <th>Días</th>
                                             <th>Monto</th>
                                             <th>Estado</th>
-                                            <th>No. Cheque</th>
-                                            <th>No. Recibo</th>
-                                            <th>Fecha Pago</th>
+                                            <th>Cheque</th>
+                                            <th>Recibo</th>
+                                            <th>Historial</th>
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        <!-- Los datos se cargarán dinámicamente -->
                                         <tr>
                                             <td colspan="10" class="loading-message">
                                                 <div class="empty-state">
                                                     <i class="fas fa-filter"></i>
                                                     <h3>Configure los filtros</h3>
-                                                    <p>Seleccione los filtros deseados y haga clic en "Buscar" para generar el reporte.</p>
+                                                    <p>Seleccione filtros y haga clic en "Buscar".</p>
                                                 </div>
                                             </td>
                                         </tr>

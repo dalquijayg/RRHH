@@ -3153,3 +3153,62 @@ textarea:focus {
 .align-center { align-items: center; }
 .justify-center { justify-content: center; }
 .justify-between { justify-content: space-between; }
+
+.employee-photo-cell img.loading-photo {
+    background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+    background-size: 200% 100%;
+    animation: shimmer 1.5s infinite;
+    opacity: 0.7;
+}
+
+.employee-photo-cell img {
+    transition: opacity 0.3s ease, transform 0.2s ease;
+}
+
+.employee-photo-cell img:hover {
+    transform: scale(1.05);
+}
+
+/* Animación shimmer para fotos que cargan */
+@keyframes shimmer {
+    0% {
+        background-position: -200% 0;
+    }
+    100% {
+        background-position: 200% 0;
+    }
+}
+
+/* Optimización para rendimiento */
+.employee-photo-cell {
+    will-change: transform;
+    backface-visibility: hidden;
+}
+
+/* Placeholders para datos que cargan */
+.loading-placeholder {
+    background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+    background-size: 200% 100%;
+    animation: shimmer 1.5s infinite;
+    border-radius: 4px;
+    height: 20px;
+    margin: 2px 0;
+}
+
+/* Optimización adicional para tablas grandes */
+.employees-table {
+    contain: layout style paint;
+}
+
+.employees-table tbody tr {
+    contain: layout style paint;
+}
+
+/* Mejoras de rendimiento para animaciones */
+.animate-in {
+    will-change: transform, opacity;
+}
+
+.animate-in:nth-child(n+20) {
+    animation: none; /* Desactivar animación para filas muy abajo */
+}

@@ -70,12 +70,16 @@ function cargarInfoUsuario() {
     if (userData) {
         document.getElementById('userName').textContent = userData.NombreCompleto || 'Usuario';
         
-        // Determinar rol según el puesto (5 es RRHH)
+        // Determinar rol según el puesto
         let rol = 'Usuario';
         if (userData.Id_Puesto === 5) {
             rol = 'Administrador RRHH';
         } else if (userData.Id_Puesto === 1) {
             rol = 'Gerente';
+        } else if (userData.Id_Puesto === 140) {
+            rol = 'Supervisor Dashboard';
+        } else if ([94, 95, 175].includes(userData.Id_Puesto)) {
+            rol = 'Encargado Regional';
         } else {
             rol = 'Colaborador';
         }
@@ -90,6 +94,17 @@ function cargarInfoUsuario() {
         // Actualizar el saludo según la hora
         actualizarSaludo();
         setInterval(actualizarSaludo, 3600000);
+        
+        // NUEVA LÓGICA: Verificar tipo de dashboard
+        if (verificarPermisosEncargadoRegional()) {
+            console.log('Usuario encargado regional, mostrando dashboard regional');
+            mostrarDashboardRegional();
+            return;
+        } else if (!verificarPermisosDashboard()) {
+            console.log('Usuario sin permisos de dashboard, ocultando contenido');
+            ocultarDashboardCompleto();
+            return;
+        }
     }
 }
 // Función para determinar el saludo según la hora
@@ -175,6 +190,12 @@ function mostrarNotificacion(mensaje, tipo = 'info') {
 
 // Funciones para cargar datos estadísticos
 async function cargarEstadisticas() {
+    // Verificar permisos antes de cargar
+    if (!verificarPermisosDashboard()) {
+        console.log('Sin permisos para cargar estadísticas');
+        return;
+    }
+
     try {
         const connection = await getConnection();
         
@@ -228,6 +249,12 @@ async function cargarEstadisticas() {
 
 // Cargar regiones
 async function cargarRegiones() {
+    // Verificar permisos antes de cargar
+    if (!verificarPermisosDashboard()) {
+        console.log('Sin permisos para cargar regiones');
+        return;
+    }
+
     try {
         const regionGrid = document.getElementById('regionGrid');
         
@@ -537,6 +564,10 @@ async function cargarEstadoDepartamentos(regionId = 0) {
                 mostrarNotificacion('Datos actualizados correctamente', 'success');
             }, 500);
         }
+        if (!verificarPermisosDashboard()) {
+            console.log('Sin permisos para cargar estado de departamentos');
+            return;
+        }
         
     } catch (error) {
         console.error('Error al cargar estado de departamentos:', error);
@@ -719,6 +750,13 @@ function crearCeldaPersonal(datos) {
 
 // Cargar gráficos
 async function cargarGraficoDepartamentos(regionId = 0) {
+    // Verificar permisos antes de cargar
+    if (!verificarPermisosDashboard()) {
+        console.log('Sin permisos para cargar gráfico de departamentos');
+        return;
+    }
+
+    // ... resto del código existente de la función se mantiene igual
     try {
         // Mostrar spinner en el botón de refrescar
         const refreshBtn = document.getElementById('refreshChartBtn');
@@ -1869,6 +1907,41 @@ function abrirVentanaBusquedaP() {
 }
 async function cargarNotificaciones() {
     try {
+        const userData = JSON.parse(localStorage.getItem('userData'));
+        
+        // Verificar si es encargado regional
+        if ([94, 95, 175].includes(userData.Id_Puesto)) {
+            // Cargar notificaciones específicas para encargados regionales
+            const notificacionesRegionales = await cargarNotificacionesRegionales();
+            
+            // Actualizar el badge de notificaciones
+            actualizarBadgeNotificacionesRegionales(notificacionesRegionales);
+            
+            // Renderizar las notificaciones
+            renderizarNotificacionesRegionales(notificacionesRegionales);
+            
+            return;
+        }
+        
+        // CÓDIGO ORIGINAL para otros usuarios (ID_Puesto = 140)
+        if (userData.Id_Puesto !== 140) {
+            // Sin notificaciones para otros puestos
+            document.getElementById('notificationBadge').textContent = '0';
+            document.getElementById('notificationBadge').classList.remove('active');
+            
+            const container = document.getElementById('notificationsBody');
+            if (container) {
+                container.innerHTML = `
+                    <div class="empty-notifications">
+                        <i class="fas fa-bell-slash"></i>
+                        <p>No hay notificaciones disponibles para su rol</p>
+                    </div>
+                `;
+            }
+            return;
+        }
+        
+        // Código original para usuarios con ID_Puesto = 140
         const connection = await getConnection();
         
         // 1. Colaboradores con Tarjeta de Manipulación vencida
@@ -1926,6 +1999,7 @@ async function cargarNotificaciones() {
             TipoPersonal = 1
             AND IdPlanilla = 0
         `);
+        
         // 7. Colaboradores sin número de IGSS
         const sinIGSS = await connection.query(`
             SELECT COUNT(*) AS total 
@@ -1944,7 +2018,7 @@ async function cargarNotificaciones() {
         
         await connection.close();
         
-        // Preparar los datos de notificaciones
+        // Preparar los datos de notificaciones (código original)
         notificationsData = [
             {
                 id: 1,
@@ -2095,17 +2169,1833 @@ function renderizarNotificaciones() {
         container.appendChild(notifElement);
     });
 }
-function inicializarNotificaciones() {
-    // Efecto hover para el icono de notificaciones
-    const notifIcon = document.getElementById('notificationsIcon');
-    if (notifIcon) {
-        notifIcon.addEventListener('mouseenter', () => {
-            const icon = notifIcon.querySelector('i');
-            icon.classList.add('fa-shake');
-            setTimeout(() => {
-                icon.classList.remove('fa-shake');
-            }, 500);
+function verificarPermisosDashboard() {
+    const userData = JSON.parse(localStorage.getItem('userData'));
+    
+    // Verificar si el usuario tiene el puesto ID 140
+    if (!userData || userData.Id_Puesto !== 140) {
+        return false;
+    }
+    return true;
+}
+function ocultarDashboardCompleto() {
+    // Ocultar las tarjetas de estadísticas
+    const statsContainer = document.querySelector('.stats-container');
+    if (statsContainer) {
+        statsContainer.style.display = 'none';
+    }
+    
+    // Ocultar las filas del dashboard (gráficos y estado)
+    const dashboardRows = document.querySelectorAll('.dashboard-row');
+    dashboardRows.forEach(row => {
+        row.style.display = 'none';
+    });
+    
+    // Mostrar mensaje informativo en su lugar
+    const mainContent = document.querySelector('.main-content');
+    const contentAfterHeader = mainContent.querySelector('.content-header').nextElementSibling;
+    
+    const messageContainer = document.createElement('div');
+    messageContainer.className = 'dashboard-restricted-message';
+    messageContainer.innerHTML = `
+        <div class="restricted-content">
+            <div class="restricted-icon">
+                <i class="fas fa-lock"></i>
+            </div>
+            <h3>Acceso Restringido</h3>
+            <p>No tienes permisos para visualizar el dashboard completo.</p>
+            <p>Utiliza el menú lateral para acceder a las funciones disponibles para tu rol.</p>
+        </div>
+    `;
+    
+    mainContent.insertBefore(messageContainer, contentAfterHeader);
+}
+function verificarPermisosEncargadoRegional() {
+    const userData = JSON.parse(localStorage.getItem('userData'));
+    
+    // Verificar si el usuario tiene uno de los puestos de encargado regional
+    if (!userData || ![94, 95, 175].includes(userData.Id_Puesto)) {
+        return false;
+    }
+    return true;
+}
+function mostrarDashboardRegional() {
+    // Ocultar las tarjetas de estadísticas del dashboard principal
+    const statsContainer = document.querySelector('.stats-container');
+    if (statsContainer) {
+        statsContainer.style.display = 'none';
+    }
+    
+    // Ocultar las filas del dashboard principal
+    const dashboardRows = document.querySelectorAll('.dashboard-row');
+    dashboardRows.forEach(row => {
+        row.style.display = 'none';
+    });
+    
+    // Crear el contenedor del dashboard regional
+    const mainContent = document.querySelector('.main-content');
+    const contentAfterHeader = mainContent.querySelector('.content-header').nextElementSibling;
+    
+    const regionalDashboard = document.createElement('div');
+    regionalDashboard.className = 'regional-dashboard-container';
+    regionalDashboard.innerHTML = `
+        <div class="regional-header-compact">
+            <div class="header-left">
+                <div class="header-icon">
+                    <i class="fas fa-building"></i>
+                </div>
+                <div class="header-text">
+                    <h3>Sucursales a tu Cargo</h3>
+                    <p>Gestiona y supervisa las sucursales de tu región</p>
+                </div>
+            </div>
+            <div class="header-stats">
+                <div class="stat-compact">
+                    <span class="stat-number" id="totalSucursales">0</span>
+                    <span class="stat-text">Sucursales</span>
+                </div>
+                <div class="stat-compact">
+                    <span class="stat-number" id="totalColaboradores">0</span>
+                    <span class="stat-text">Total Personal</span>
+                </div>
+                <button class="btn-refresh-compact" id="refreshRegionalBtn" title="Actualizar datos">
+                    <i class="fas fa-sync-alt"></i>
+                </button>
+            </div>
+        </div>
+        
+        <div class="regional-table-card">
+            <!-- resto del código de la tabla se mantiene igual -->
+            <div class="regional-table-header">
+                <div class="table-title">
+                    <i class="fas fa-list"></i>
+                    <span>Control de Personal por Sucursal</span>
+                </div>
+                <div class="table-legend">
+                    <div class="legend-item">
+                        <span class="legend-color complete"></span>
+                        <span>Completo</span>
+                    </div>
+                    <div class="legend-item">
+                        <span class="legend-color deficit"></span>
+                        <span>Faltante</span>
+                    </div>
+                    <div class="legend-item">
+                        <span class="legend-color excess"></span>
+                        <span>Excedente</span>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="regional-table-container">
+                <div class="regional-table-loading" id="regionalTableLoading">
+                    <div class="loading-spinner">
+                        <i class="fas fa-spinner fa-spin"></i>
+                    </div>
+                    <span>Cargando sucursales...</span>
+                </div>
+                
+                <table class="regional-table" id="regionalTable">
+                    <thead>
+                        <tr>
+                            <th class="col-sucursal">Sucursal / Región</th>
+                            <th class="col-personal">Personal Fijo</th>
+                            <th class="col-personal">Personal Parcial</th>
+                            <th class="col-personal">Vacacionistas</th>
+                            <th class="col-total">Total</th>
+                            <th class="col-estado">Estado</th>
+                            <th class="col-acciones">Acciones</th>
+                        </tr>
+                        <tr class="sub-header">
+                            <th></th>
+                            <th class="sub-label">Actual / Objetivo</th>
+                            <th class="sub-label">Actual / Objetivo</th>
+                            <th class="sub-label">Actual / Objetivo</th>
+                            <th class="sub-label">Actual / Objetivo</th>
+                            <th></th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody id="regionalTableBody">
+                        <!-- Datos se cargarán dinámicamente -->
+                    </tbody>
+                </table>
+                
+                <div class="regional-table-empty" id="regionalTableEmpty" style="display: none;">
+                    <div class="empty-icon">
+                        <i class="fas fa-building"></i>
+                    </div>
+                    <h4>No hay sucursales asignadas</h4>
+                    <p>No se encontraron sucursales bajo tu supervisión</p>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    mainContent.insertBefore(regionalDashboard, contentAfterHeader);
+    
+    // Cargar datos de sucursales
+    cargarSucursalesRegionales();
+    
+    // Event listener para refresh
+    document.getElementById('refreshRegionalBtn').addEventListener('click', () => {
+        cargarSucursalesRegionales();
+    });
+}
+async function cargarSucursalesRegionales() {
+    const userData = JSON.parse(localStorage.getItem('userData'));
+    const loadingElement = document.getElementById('regionalTableLoading');
+    const tableElement = document.getElementById('regionalTable');
+    const emptyElement = document.getElementById('regionalTableEmpty');
+    const tableBody = document.getElementById('regionalTableBody');
+    const refreshBtn = document.getElementById('refreshRegionalBtn');
+    
+    try {
+        // Mostrar loading
+        loadingElement.style.display = 'flex';
+        tableElement.style.display = 'none';
+        emptyElement.style.display = 'none';
+        
+        // Spinner en botón de refresh
+        if (refreshBtn) {
+            refreshBtn.querySelector('i').classList.add('fa-spin');
+        }
+        
+        const connection = await getConnection();
+        
+        // Query principal para obtener sucursales con datos de personal
+        const sucursales = await connection.query(`
+            SELECT
+                d.IdDepartamento,
+                d.NombreDepartamento,
+                r.NombreRegion,
+                d.CantFijos,
+                d.CantParciales,
+                d.CantVacacionista,
+                -- Contar personal actual por tipo
+                SUM(CASE WHEN p.TipoPersonal = 1 AND p.Estado = 1 THEN 1 ELSE 0 END) AS ActualFijos,
+                SUM(CASE WHEN p.TipoPersonal = 2 AND p.Estado = 1 THEN 1 ELSE 0 END) AS ActualParciales,
+                SUM(CASE WHEN p.TipoPersonal = 3 AND p.Estado = 1 THEN 1 ELSE 0 END) AS ActualVacacionistas,
+                COUNT(CASE WHEN p.Estado = 1 THEN 1 END) AS TotalActual
+            FROM
+                departamentos d
+                INNER JOIN Regiones r ON d.IdRegion = r.IdRegion
+                LEFT JOIN personal p ON d.IdDepartamento = p.IdSucuDepa
+            WHERE
+                d.IdEncargadoRegional = ?
+            GROUP BY
+                d.IdDepartamento, d.NombreDepartamento, r.NombreRegion,
+                d.CantFijos, d.CantParciales, d.CantVacacionista
+            ORDER BY
+                r.NombreRegion, d.NombreDepartamento
+        `, [userData.IdPersonal]);
+        
+        await connection.close();
+        
+        // Limpiar tabla
+        tableBody.innerHTML = '';
+        
+        if (sucursales.length === 0) {
+            // Mostrar estado vacío
+            loadingElement.style.display = 'none';
+            emptyElement.style.display = 'flex';
+            actualizarEstadisticasHeader(0, 0);
+        } else {
+            // Calcular totales
+            let totalSucursales = sucursales.length;
+            let totalColaboradores = sucursales.reduce((sum, s) => sum + Number(s.TotalActual), 0);
+            
+            // Llenar tabla
+            sucursales.forEach((sucursal, index) => {
+                // Convertir BigInt a Number
+                const cantFijos = Number(sucursal.CantFijos) || 0;
+                const cantParciales = Number(sucursal.CantParciales) || 0;
+                const cantVacacionista = Number(sucursal.CantVacacionista) || 0;
+                const actualFijos = Number(sucursal.ActualFijos) || 0;
+                const actualParciales = Number(sucursal.ActualParciales) || 0;
+                const actualVacacionistas = Number(sucursal.ActualVacacionistas) || 0;
+                const totalObjetivo = cantFijos + cantParciales + cantVacacionista;
+                const totalActual = Number(sucursal.TotalActual) || 0;
+                
+                // Determinar estados por tipo de personal
+                const estadoFijos = determinarEstadoPersonal(actualFijos, cantFijos);
+                const estadoParciales = determinarEstadoPersonal(actualParciales, cantParciales);
+                const estadoVacacionistas = determinarEstadoPersonal(actualVacacionistas, cantVacacionista);
+                const estadoGeneral = determinarEstadoGeneral(totalActual, totalObjetivo);
+                
+                const row = document.createElement('tr');
+                row.className = `regional-table-row ${estadoGeneral.clase}`;
+                row.innerHTML = `
+                    <td class="col-sucursal">
+                        <div class="sucursal-info">
+                            <div class="sucursal-icon">
+                                <i class="fas fa-store"></i>
+                            </div>
+                            <div class="sucursal-details">
+                                <span class="sucursal-name">${sucursal.NombreDepartamento}</span>
+                                <span class="sucursal-region">${sucursal.NombreRegion}</span>
+                            </div>
+                        </div>
+                    </td>
+                    <td class="col-personal">
+                        <div class="personal-counter ${estadoFijos.clase}">
+                            <span class="actual">${actualFijos}</span>
+                            <span class="separator">/</span>
+                            <span class="objetivo">${cantFijos}</span>
+                            <div class="status-indicator ${estadoFijos.clase}"></div>
+                        </div>
+                    </td>
+                    <td class="col-personal">
+                        <div class="personal-counter ${estadoParciales.clase}">
+                            <span class="actual">${actualParciales}</span>
+                            <span class="separator">/</span>
+                            <span class="objetivo">${cantParciales}</span>
+                            <div class="status-indicator ${estadoParciales.clase}"></div>
+                        </div>
+                    </td>
+                    <td class="col-personal">
+                        <div class="personal-counter ${estadoVacacionistas.clase}">
+                            <span class="actual">${actualVacacionistas}</span>
+                            <span class="separator">/</span>
+                            <span class="objetivo">${cantVacacionista}</span>
+                            <div class="status-indicator ${estadoVacacionistas.clase}"></div>
+                        </div>
+                    </td>
+                    <td class="col-total">
+                        <div class="total-counter ${estadoGeneral.clase}">
+                            <span class="total-actual">${totalActual}</span>
+                            <span class="separator">/</span>
+                            <span class="total-objetivo">${totalObjetivo}</span>
+                        </div>
+                    </td>
+                    <td class="col-estado">
+                        <div class="estado-badge ${estadoGeneral.clase}">
+                            <i class="fas fa-${estadoGeneral.icono}"></i>
+                            <span>${estadoGeneral.texto}</span>
+                        </div>
+                    </td>
+                    <td class="col-acciones">
+                        <div class="acciones-container">
+                            <button class="btn-action btn-view" data-id="${sucursal.IdDepartamento}" title="Ver detalles">
+                                <i class="fas fa-eye"></i>
+                            </button>
+                        </div>
+                    </td>
+                `;
+                
+                // Animación escalonada
+                row.style.animationDelay = `${index * 0.1}s`;
+                row.classList.add('fade-in-row');
+                
+                tableBody.appendChild(row);
+            });
+            
+            // Actualizar estadísticas del header
+            actualizarEstadisticasHeader(totalSucursales, totalColaboradores);
+            
+            // Mostrar tabla
+            loadingElement.style.display = 'none';
+            tableElement.style.display = 'table';
+            
+            // Event listeners para botones de acción
+            agregarEventListenersAcciones();
+        }
+        
+        // Detener spinner
+        if (refreshBtn) {
+            refreshBtn.querySelector('i').classList.remove('fa-spin');
+        }
+        
+        // Mostrar notificación de éxito si fue un refresh manual
+        if (refreshBtn && refreshBtn.querySelector('i').classList.contains('fa-spin')) {
+            mostrarNotificacion('Datos actualizados correctamente', 'success');
+        }
+        
+    } catch (error) {
+        console.error('Error al cargar sucursales regionales:', error);
+        
+        // Mostrar error
+        loadingElement.style.display = 'none';
+        tableBody.innerHTML = `
+            <tr>
+                <td colspan="7" class="error-row">
+                    <div class="error-content">
+                        <i class="fas fa-exclamation-triangle"></i>
+                        <span>Error al cargar las sucursales</span>
+                    </div>
+                </td>
+            </tr>
+        `;
+        tableElement.style.display = 'table';
+        actualizarEstadisticasHeader(0, 0);
+        
+        // Detener spinner
+        if (refreshBtn) {
+            refreshBtn.querySelector('i').classList.remove('fa-spin');
+        }
+        
+        mostrarNotificacion('Error al cargar las sucursales', 'error');
+    }
+}
+function determinarEstadoPersonal(actual, objetivo) {
+    if (objetivo === 0) {
+        return { clase: 'no-data', texto: 'N/A' };
+    }
+    
+    if (actual === objetivo) {
+        return { clase: 'complete', texto: 'Completo' };
+    } else if (actual < objetivo) {
+        return { clase: 'deficit', texto: `Faltan ${objetivo - actual}` };
+    } else {
+        return { clase: 'excess', texto: `Sobran ${actual - objetivo}` };
+    }
+}
+function determinarEstadoGeneral(totalActual, totalObjetivo) {
+    if (totalObjetivo === 0) {
+        return { 
+            clase: 'no-data', 
+            texto: 'Sin Asignar', 
+            icono: 'info-circle' 
+        };
+    }
+    
+    if (totalActual === totalObjetivo) {
+        return { 
+            clase: 'complete', 
+            texto: 'Completo', 
+            icono: 'check-circle' 
+        };
+    } else if (totalActual < totalObjetivo) {
+        return { 
+            clase: 'deficit', 
+            texto: 'Faltante', 
+            icono: 'exclamation-circle' 
+        };
+    } else {
+        return { 
+            clase: 'excess', 
+            texto: 'Excedente', 
+            icono: 'exclamation-triangle' 
+        };
+    }
+}
+function actualizarEstadisticasHeader(totalSucursales, totalColaboradores) {
+    const sucursalesElement = document.getElementById('totalSucursales');
+    const colaboradoresElement = document.getElementById('totalColaboradores');
+    
+    if (sucursalesElement) {
+        sucursalesElement.textContent = totalSucursales;
+    }
+    
+    if (colaboradoresElement) {
+        colaboradoresElement.textContent = totalColaboradores;
+    }
+}
+function agregarEventListenersAcciones() {
+    // Botones "Ver detalles"
+    document.querySelectorAll('.btn-view').forEach(btn => {
+        btn.addEventListener('click', async (e) => {
+            const idDepartamento = e.currentTarget.dataset.id;
+            const nombreDepartamento = e.currentTarget.closest('tr').querySelector('.sucursal-name').textContent;
+            await mostrarDetallesColaboradores(idDepartamento, nombreDepartamento);
         });
+    });
+}
+async function mostrarDetallesColaboradores(idDepartamento, nombreDepartamento) {
+    try {
+        // Mostrar loading
+        const loadingSwal = Swal.fire({
+            title: 'Cargando colaboradores...',
+            html: `
+                <div style="display: flex; flex-direction: column; align-items: center; gap: 15px;">
+                    <div class="spinner" style="border: 5px solid #f3f3f3; border-top: 5px solid #FF9800; border-radius: 50%; width: 50px; height: 50px; animation: spin 1s linear infinite;"></div>
+                    <p>Obteniendo información del personal de <strong>${nombreDepartamento}</strong></p>
+                </div>
+            `,
+            showConfirmButton: false,
+            allowOutsideClick: false
+        });
+
+        const connection = await getConnection();
+        
+        const colaboradores = await connection.query(`
+            SELECT
+                personal.IdPersonal, 
+                personal.PrimerNombre, 
+                personal.SegundoNombre, 
+                personal.TercerNombre, 
+                personal.PrimerApellido, 
+                personal.SegundoApellido, 
+                Puestos.Nombre AS NombrePuesto, 
+                personal.InicioLaboral, 
+                TipoPersonal.TipoPersonal,
+                personal.TipoPersonal AS IdTipoPersonal
+            FROM
+                personal
+                INNER JOIN
+                Puestos
+                ON 
+                    personal.IdPuesto = Puestos.IdPuesto
+                INNER JOIN
+                TipoPersonal
+                ON 
+                    personal.TipoPersonal = TipoPersonal.IdTipo
+            WHERE
+                personal.IdSucuDepa = ? AND
+                personal.Estado = 1
+            ORDER BY
+                personal.PrimerNombre ASC 
+                
+        `, [idDepartamento]);
+        
+        await connection.close();
+        
+        // Cerrar loading
+        loadingSwal.close();
+        
+        // Mostrar modal con los datos
+        mostrarModalColaboradores(colaboradores, nombreDepartamento);
+        
+    } catch (error) {
+        console.error('Error al cargar colaboradores:', error);
+        
+        // Cerrar loading
+        if (loadingSwal) {
+            loadingSwal.close();
+        }
+        
+        Swal.fire({
+            icon: 'error',
+            title: 'Error',
+            text: 'No se pudieron cargar los colaboradores de esta sucursal.',
+            confirmButtonColor: '#FF9800'
+        });
+    }
+}
+function mostrarModalColaboradores(colaboradores, nombreDepartamento) {
+    // Agrupar por tipo de personal (código existente)
+    const colaboradoresPorTipo = {
+        1: colaboradores.filter(c => c.IdTipoPersonal === 1),
+        2: colaboradores.filter(c => c.IdTipoPersonal === 2),
+        3: colaboradores.filter(c => c.IdTipoPersonal === 3)
+    };
+    
+    const totalColaboradores = colaboradores.length;
+    
+    // Función para formatear nombre completo (código existente)
+    const formatearNombre = (colaborador) => {
+        const nombres = [
+            colaborador.PrimerNombre,
+            colaborador.SegundoNombre,
+            colaborador.TercerNombre
+        ].filter(n => n && n.trim()).join(' ');
+        
+        const apellidos = [
+            colaborador.PrimerApellido,
+            colaborador.SegundoApellido
+        ].filter(a => a && a.trim()).join(' ');
+        
+        return `${nombres} ${apellidos}`.trim();
+    };
+    
+    // Función para formatear fecha (código existente)
+    const formatearFecha = (fecha) => {
+        if (!fecha) return 'N/A';
+        const date = new Date(fecha);
+        return date.toLocaleDateString('es-GT', {
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric'
+        });
+    };
+    
+    // Función para calcular antigüedad (código existente)
+    const calcularAntiguedad = (fechaInicio) => {
+        if (!fechaInicio) return 'N/A';
+        const inicio = new Date(fechaInicio);
+        const hoy = new Date();
+        const diffTime = Math.abs(hoy - inicio);
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+        
+        if (diffDays < 30) return `${diffDays} días`;
+        if (diffDays < 365) return `${Math.floor(diffDays / 30)} meses`;
+        return `${Math.floor(diffDays / 365)} años`;
+    };
+    
+    // Crear contenido de las pestañas - VERSIÓN ACTUALIZADA CON BOTÓN DE EDICIÓN
+    const crearTablaColaboradores = (colaboradoresTipo, tipoNombre) => {
+        if (colaboradoresTipo.length === 0) {
+            return `
+                <div class="empty-colaboradores">
+                    <i class="fas fa-users"></i>
+                    <p>No hay ${tipoNombre.toLowerCase()} registrado</p>
+                </div>
+            `;
+        }
+        
+        return `
+            <div class="colaboradores-table-container">
+                <table class="colaboradores-table">
+                    <thead>
+                        <tr>
+                            <th>Colaborador</th>
+                            <th>Puesto</th>
+                            <th>Fecha Ingreso</th>
+                            <th>Antigüedad</th>
+                            <th>Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${colaboradoresTipo.map((col, index) => `
+                            <tr class="colaborador-row" style="animation-delay: ${index * 0.05}s">
+                                <td>
+                                    <div class="colaborador-info">
+                                        <div class="colaborador-avatar">
+                                            <i class="fas fa-user"></i>
+                                        </div>
+                                        <div class="colaborador-details">
+                                            <span class="colaborador-name">${formatearNombre(col)}</span>
+                                            <span class="colaborador-id">ID: ${col.IdPersonal}</span>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td>
+                                    <span class="puesto-badge">${col.NombrePuesto}</span>
+                                </td>
+                                <td>
+                                    <span class="fecha-ingreso">${formatearFecha(col.InicioLaboral)}</span>
+                                </td>
+                                <td>
+                                    <span class="antiguedad-badge">${calcularAntiguedad(col.InicioLaboral)}</span>
+                                </td>
+                                <td>
+                                    <div class="acciones-colaborador">
+                                        <button class="btn-edit-colaborador" 
+                                                data-id="${col.IdPersonal}"
+                                                data-nombre="${formatearNombre(col)}"
+                                                data-departamento="${nombreDepartamento}"
+                                                data-puesto="${col.NombrePuesto}"
+                                                title="Editar colaborador">
+                                            <i class="fas fa-edit"></i>
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+            </div>
+        `;
+    };
+    
+    // HTML del modal (código existente del header y pestañas)
+    const modalHtml = `
+        <div class="colaboradores-modal-header">
+            <div class="modal-title-section">
+                <div class="sucursal-icon-large">
+                    <i class="fas fa-building"></i>
+                </div>
+                <div class="sucursal-info-large">
+                    <h3>${nombreDepartamento}</h3>
+                    <p>${totalColaboradores} colaborador${totalColaboradores !== 1 ? 'es' : ''} activo${totalColaboradores !== 1 ? 's' : ''}</p>
+                </div>
+            </div>
+            <div class="modal-stats">
+                <div class="modal-stat">
+                    <span class="stat-num">${colaboradoresPorTipo[1].length}</span>
+                    <span class="stat-label">Fijos</span>
+                </div>
+                <div class="modal-stat">
+                    <span class="stat-num">${colaboradoresPorTipo[2].length}</span>
+                    <span class="stat-label">Parciales</span>
+                </div>
+                <div class="modal-stat">
+                    <span class="stat-num">${colaboradoresPorTipo[3].length}</span>
+                    <span class="stat-label">Vacacionistas</span>
+                </div>
+            </div>
+        </div>
+        
+        <div class="colaboradores-tabs">
+            <button class="tab-btn active" data-tab="fijos">
+                <i class="fas fa-user-tie"></i>
+                Personal Fijo (${colaboradoresPorTipo[1].length})
+            </button>
+            <button class="tab-btn" data-tab="parciales">
+                <i class="fas fa-user-clock"></i>
+                Personal Parcial (${colaboradoresPorTipo[2].length})
+            </button>
+            <button class="tab-btn" data-tab="vacacionistas">
+                <i class="fas fa-umbrella-beach"></i>
+                Vacacionistas (${colaboradoresPorTipo[3].length})
+            </button>
+        </div>
+        
+        <div class="colaboradores-content">
+            <div class="tab-content active" id="tab-fijos">
+                ${crearTablaColaboradores(colaboradoresPorTipo[1], 'Personal Fijo')}
+            </div>
+            <div class="tab-content" id="tab-parciales">
+                ${crearTablaColaboradores(colaboradoresPorTipo[2], 'Personal Parcial')}
+            </div>
+            <div class="tab-content" id="tab-vacacionistas">
+                ${crearTablaColaboradores(colaboradoresPorTipo[3], 'Vacacionistas')}
+            </div>
+        </div>
+    `;
+    
+    // Mostrar modal
+    Swal.fire({
+        title: '',
+        html: modalHtml,
+        width: '95%',
+        maxWidth: '1200px',
+        showCloseButton: true,
+        showConfirmButton: false,
+        customClass: {
+            container: 'colaboradores-modal-container',
+            popup: 'colaboradores-modal-popup'
+        },
+        didOpen: () => {
+            // Activar funcionalidad de pestañas (código existente)
+            activarPestanasColaboradores();
+            
+            // Animar filas (código existente)
+            document.querySelectorAll('.colaborador-row').forEach(row => {
+                row.classList.add('fade-in-colaborador');
+            });
+            
+            // NUEVO: Agregar event listeners para los botones de edición
+            document.querySelectorAll('.btn-edit-colaborador').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    const idPersonal = btn.dataset.id;
+                    const nombreCompleto = btn.dataset.nombre;
+                    const departamentoActual = btn.dataset.departamento;
+                    const puestoActual = btn.dataset.puesto;
+                    
+                    mostrarModalEdicionColaborador(idPersonal, nombreCompleto, departamentoActual, puestoActual);
+                });
+            });
+        }
+    });
+}
+function activarPestanasColaboradores() {
+    const tabBtns = document.querySelectorAll('.tab-btn');
+    const tabContents = document.querySelectorAll('.tab-content');
+    
+    tabBtns.forEach(btn => {
+        btn.addEventListener('click', () => {
+            // Remover clase active de todos los botones y contenidos
+            tabBtns.forEach(b => b.classList.remove('active'));
+            tabContents.forEach(c => c.classList.remove('active'));
+            
+            // Agregar clase active al botón clickeado
+            btn.classList.add('active');
+            
+            // Mostrar contenido correspondiente
+            const tabId = btn.dataset.tab;
+            document.getElementById(`tab-${tabId}`).classList.add('active');
+            
+            // Animar filas nuevamente
+            setTimeout(() => {
+                document.querySelectorAll('.colaborador-row').forEach((row, index) => {
+                    row.style.animationDelay = `${index * 0.05}s`;
+                    row.classList.remove('fade-in-colaborador');
+                    row.offsetHeight; // Trigger reflow
+                    row.classList.add('fade-in-colaborador');
+                });
+            }, 50);
+        });
+    });
+}
+async function cargarNotificacionesRegionales() {
+    try {
+        const userData = JSON.parse(localStorage.getItem('userData'));
+        const idPersonal = userData.IdPersonal;
+        
+        // ===== EJECUTAR CONSULTAS SECUENCIALMENTE =====
+        let colaboradores = [];
+        let planillasPendientes = [];
+        
+        // QUERY 1: ANIVERSARIOS
+        try {
+            const connection1 = await getConnection();
+            const notificacionesQuery = `
+                SELECT 
+                    p.IdPersonal,
+                    CONCAT(p.PrimerNombre, ' ', IFNULL(p.SegundoNombre, ''), ' ', p.PrimerApellido, ' ', IFNULL(p.SegundoApellido, '')) AS NombreCompleto,
+                    d.NombreDepartamento,
+                    p.FechaPlanilla,
+                    TIMESTAMPDIFF(YEAR, p.FechaPlanilla, CURDATE()) AS AniosActuales,
+                    TIMESTAMPDIFF(YEAR, p.FechaPlanilla, CURDATE()) + 1 AS ProximosAnios,
+                    DATEDIFF(
+                        DATE_ADD(p.FechaPlanilla, INTERVAL (TIMESTAMPDIFF(YEAR, p.FechaPlanilla, CURDATE()) + 1) YEAR),
+                        CURDATE()
+                    ) AS DiasParaAniversario,
+                    DATE_ADD(p.FechaPlanilla, INTERVAL (TIMESTAMPDIFF(YEAR, p.FechaPlanilla, CURDATE()) + 1) YEAR) AS FechaAniversario,
+                    (TIMESTAMPDIFF(YEAR, p.FechaPlanilla, CURDATE()) * 15) - 
+                        IFNULL((SELECT COUNT(*) FROM vacacionestomadas WHERE IdPersonal = p.IdPersonal), 0) -
+                        IFNULL((SELECT SUM(CAST(DiasSolicitado AS UNSIGNED)) FROM vacacionespagadas 
+                                WHERE IdPersonal = p.IdPersonal AND Estado IN (1,2,3,4)), 0)
+                    AS DiasVacacionesAcumulados,
+                    puestos.Nombre AS NombrePuesto,
+                    CASE 
+                        WHEN FotosPersonal.Foto IS NOT NULL THEN 1
+                        ELSE 0 
+                    END AS TieneFoto
+                FROM 
+                    personal p
+                    INNER JOIN departamentos d ON p.IdSucuDepa = d.IdDepartamento
+                    INNER JOIN Puestos puestos ON p.IdPuesto = puestos.IdPuesto
+                    LEFT JOIN FotosPersonal ON p.IdPersonal = FotosPersonal.IdPersonal
+                WHERE 
+                    d.IdEncargadoRegional = ? 
+                    AND p.Estado = 1
+                    AND p.TipoPersonal = 1
+                    AND p.FechaPlanilla IS NOT NULL
+                    AND DATEDIFF(
+                        DATE_ADD(p.FechaPlanilla, INTERVAL (TIMESTAMPDIFF(YEAR, p.FechaPlanilla, CURDATE()) + 1) YEAR),
+                        CURDATE()
+                    ) BETWEEN 1 AND 90
+                ORDER BY 
+                    DiasParaAniversario ASC, d.NombreDepartamento, p.PrimerNombre
+            `;
+            
+            colaboradores = await connection1.query(notificacionesQuery, [idPersonal]);
+            await connection1.close();
+            console.log('Aniversarios cargados:', colaboradores.length);
+            
+        } catch (error) {
+            console.error('Error en query de aniversarios:', error);
+            colaboradores = [];
+        }
+        
+        // QUERY 2: PLANILLAS PENDIENTES (con pequeña pausa)
+        await new Promise(resolve => setTimeout(resolve, 100));
+        
+        try {
+            const connection2 = await getConnection();
+            const planillasPendientesQuery = `
+                SELECT 
+                    p.IdPlanillaParcial,
+                    p.TipoPago,
+                    p.Mes,
+                    p.Anyo,
+                    p.MontoPlanillaParcial,
+                    p.CantidadColaboradores,
+                    p.FechaRegistro,
+                    p.NombreUsuario,
+                    d.IdDepartamento,
+                    d.NombreDepartamento,
+                    DATEDIFF(CURDATE(), DATE(p.FechaRegistro)) AS DiasEspera
+                FROM 
+                    PagoPlanillaParcial p
+                    INNER JOIN departamentos d ON p.IdDepartamentoSucursal = d.IdDepartamento
+                WHERE 
+                    d.IdEncargadoRegional = ? 
+                    AND p.Estado = 0
+                ORDER BY 
+                    p.FechaRegistro ASC
+            `;
+            
+            planillasPendientes = await connection2.query(planillasPendientesQuery, [idPersonal]);
+            await connection2.close();
+            console.log('Planillas pendientes cargadas:', planillasPendientes.length);
+            
+        } catch (error) {
+            console.error('Error en query de planillas pendientes:', error);
+            planillasPendientes = [];
+        }
+        
+        // ===== PROCESAR DATOS =====
+        const notificaciones = [];
+        
+        // Procesar aniversarios
+        if (colaboradores.length > 0) {
+            const notificacionesRegionales = {
+                proximos7Dias: colaboradores.filter(c => Number(c.DiasParaAniversario) <= 7),
+                proximos30Dias: colaboradores.filter(c => Number(c.DiasParaAniversario) <= 30 && Number(c.DiasParaAniversario) > 7),
+                proximos60Dias: colaboradores.filter(c => Number(c.DiasParaAniversario) <= 60 && Number(c.DiasParaAniversario) > 30),
+                proximos90Dias: colaboradores.filter(c => Number(c.DiasParaAniversario) <= 90 && Number(c.DiasParaAniversario) > 60)
+            };
+            
+            // Agregar notificaciones de aniversarios
+            if (notificacionesRegionales.proximos7Dias.length > 0) {
+                notificaciones.push({
+                    id: 'aniversarios_7_dias',
+                    icon: 'calendar-exclamation',
+                    color: 'danger',
+                    title: 'Aniversarios esta semana',
+                    count: notificacionesRegionales.proximos7Dias.length,
+                    description: `${notificacionesRegionales.proximos7Dias.length} colaborador${notificacionesRegionales.proximos7Dias.length !== 1 ? 'es' : ''} cumplirá${notificacionesRegionales.proximos7Dias.length !== 1 ? 'n' : ''} años en planilla esta semana`,
+                    data: notificacionesRegionales.proximos7Dias,
+                    tipo: 'aniversarios',
+                    periodo: '7 días'
+                });
+            }
+            
+            if (notificacionesRegionales.proximos30Dias.length > 0) {
+                notificaciones.push({
+                    id: 'aniversarios_30_dias',
+                    icon: 'calendar-plus',
+                    color: 'warning',
+                    title: 'Aniversarios este mes',
+                    count: notificacionesRegionales.proximos30Dias.length,
+                    description: `${notificacionesRegionales.proximos30Dias.length} colaborador${notificacionesRegionales.proximos30Dias.length !== 1 ? 'es' : ''} cumplirá${notificacionesRegionales.proximos30Dias.length !== 1 ? 'n' : ''} años en planilla este mes`,
+                    data: notificacionesRegionales.proximos30Dias,
+                    tipo: 'aniversarios',
+                    periodo: '30 días'
+                });
+            }
+            
+            if (notificacionesRegionales.proximos60Dias.length > 0) {
+                notificaciones.push({
+                    id: 'aniversarios_60_dias',
+                    icon: 'calendar-day',
+                    color: 'info',
+                    title: 'Aniversarios próximos 2 meses',
+                    count: notificacionesRegionales.proximos60Dias.length,
+                    description: `${notificacionesRegionales.proximos60Dias.length} colaborador${notificacionesRegionales.proximos60Dias.length !== 1 ? 'es' : ''} cumplirá${notificacionesRegionales.proximos60Dias.length !== 1 ? 'n' : ''} años en los próximos 2 meses`,
+                    data: notificacionesRegionales.proximos60Dias,
+                    tipo: 'aniversarios',
+                    periodo: '60 días'
+                });
+            }
+            
+            if (notificacionesRegionales.proximos90Dias.length > 0) {
+                notificaciones.push({
+                    id: 'aniversarios_90_dias',
+                    icon: 'calendar',
+                    color: 'success',
+                    title: 'Aniversarios próximos 3 meses',
+                    count: notificacionesRegionales.proximos90Dias.length,
+                    description: `${notificacionesRegionales.proximos90Dias.length} colaborador${notificacionesRegionales.proximos90Dias.length !== 1 ? 'es' : ''} cumplirá${notificacionesRegionales.proximos90Dias.length !== 1 ? 'n' : ''} años en los próximos 3 meses`,
+                    data: notificacionesRegionales.proximos90Dias,
+                    tipo: 'aniversarios',
+                    periodo: '90 días'
+                });
+            }
+        }
+        
+        // Procesar planillas pendientes
+        if (planillasPendientes.length > 0) {
+            const planillasUrgentes = planillasPendientes.filter(p => Number(p.DiasEspera) >= 3);
+            const planillasRecientes = planillasPendientes.filter(p => Number(p.DiasEspera) < 3);
+            
+            // Agregar notificaciones de planillas urgentes PRIMERO (mayor prioridad)
+            if (planillasUrgentes.length > 0) {
+                notificaciones.unshift({
+                    id: 'planillas_urgentes',
+                    icon: 'exclamation-triangle',
+                    color: 'danger',
+                    title: 'Planillas urgentes por autorizar',
+                    count: planillasUrgentes.length,
+                    description: `${planillasUrgentes.length} planilla${planillasUrgentes.length !== 1 ? 's' : ''} con más de 3 días esperando autorización`,
+                    data: planillasUrgentes,
+                    tipo: 'planillas',
+                    urgencia: 'alta'
+                });
+            }
+            
+            // Agregar notificaciones de planillas recientes
+            if (planillasRecientes.length > 0) {
+                // Insertar después de urgentes pero antes de aniversarios
+                const insertIndex = planillasUrgentes.length > 0 ? 1 : 0;
+                notificaciones.splice(insertIndex, 0, {
+                    id: 'planillas_pendientes',
+                    icon: 'clock',
+                    color: 'warning',
+                    title: 'Planillas pendientes de autorización',
+                    count: planillasRecientes.length,
+                    description: `${planillasRecientes.length} planilla${planillasRecientes.length !== 1 ? 's' : ''} esperando su autorización`,
+                    data: planillasRecientes,
+                    tipo: 'planillas',
+                    urgencia: 'normal'
+                });
+            }
+        }
+        
+        console.log('Notificaciones regionales procesadas:', notificaciones.length);
+        return notificaciones;
+        
+    } catch (error) {
+        console.error('Error general al cargar notificaciones regionales:', error);
+        return [];
+    }
+}
+async function cargarFotoColaborador(idPersonal) {
+    try {
+        const connection = await getConnection();
+        
+        const fotoQuery = `
+            SELECT 
+                CASE 
+                    WHEN FotosPersonal.Foto IS NOT NULL THEN CONCAT('data:image/jpeg;base64,', TO_BASE64(FotosPersonal.Foto))
+                    ELSE NULL 
+                END AS FotoBase64
+            FROM 
+                FotosPersonal
+            WHERE 
+                IdPersonal = ?
+        `;
+        
+        const result = await connection.query(fotoQuery, [idPersonal]);
+        await connection.close();
+        
+        if (result.length > 0 && result[0].FotoBase64) {
+            return result[0].FotoBase64;
+        }
+        
+        return '../Imagenes/user-default.png';
+        
+    } catch (error) {
+        console.error('Error al cargar foto:', error);
+        return '../Imagenes/user-default.png';
+    }
+}
+function actualizarBadgeNotificacionesRegionales(notificaciones) {
+    const badge = document.getElementById('notificationBadge');
+    
+    // Contar total de notificaciones
+    const totalNotificaciones = notificaciones.length;
+    
+    // Actualizar el badge
+    badge.textContent = totalNotificaciones;
+    
+    // Mostrar/ocultar el badge según si hay notificaciones
+    if (totalNotificaciones > 0) {
+        badge.classList.add('active');
+    } else {
+        badge.classList.remove('active');
+    }
+}
+function renderizarNotificacionesRegionales(notificaciones) {
+    const container = document.getElementById('notificationsBody');
+    
+    // Limpiar el contenedor
+    container.innerHTML = '';
+    
+    // Si no hay notificaciones, mostrar mensaje
+    if (notificaciones.length === 0) {
+        container.innerHTML = `
+            <div class="empty-notifications">
+                <i class="fas fa-bell-slash"></i>
+                <p>No hay notificaciones pendientes para sus departamentos</p>
+            </div>
+        `;
+        return;
+    }
+    
+    // Crear elementos para cada notificación
+    notificaciones.forEach((notif, index) => {
+        const notifElement = document.createElement('div');
+        notifElement.className = `notification-item ${notif.color}`;
+        notifElement.setAttribute('data-id', notif.id);
+        notifElement.innerHTML = `
+            <div class="notification-icon">
+                <i class="fas fa-${notif.icon}"></i>
+            </div>
+            <div class="notification-content">
+                <div class="notification-title">${notif.title}</div>
+                <div class="notification-description">${notif.description}</div>
+            </div>
+            <button class="notification-action" data-notif-id="${notif.id}" title="Ver detalles">
+                <i class="fas fa-eye"></i>
+            </button>
+        `;
+        
+        // Añadir animación con delay
+        notifElement.style.animationDelay = `${index * 0.1}s`;
+        
+        container.appendChild(notifElement);
+    });
+    
+    // Agregar event listeners para ver detalles
+    document.querySelectorAll('.notification-action').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            const notifId = e.currentTarget.dataset.notifId;
+            const notificacion = notificaciones.find(n => n.id === notifId);
+            if (notificacion) {
+                // Determinar qué tipo de modal mostrar
+                if (notificacion.tipo === 'planillas') {
+                    mostrarDetallesPlanillasPendientes(notificacion);
+                } else {
+                    mostrarDetallesAniversarios(notificacion);
+                }
+            }
+        });
+    });
+}
+function mostrarDetallesPlanillasPendientes(notificacion) {
+    const planillas = notificacion.data;
+    
+    // Calcular estadísticas (mismo código que antes)
+    const totalMonto = planillas.reduce((sum, p) => sum + Number(p.MontoPlanillaParcial), 0);
+    const totalColaboradores = planillas.reduce((sum, p) => sum + Number(p.CantidadColaboradores), 0);
+    const planillasQuincenales = planillas.filter(p => p.TipoPago.includes('Quincenal')).length;
+    const planillasFinMes = planillas.filter(p => p.TipoPago.includes('Fin')).length;
+    
+    const sucursalesConPlanillas = [...new Set(planillas.map(p => p.NombreDepartamento))];
+    
+    // Crear contenido del modal CON FECHAS CORREGIDAS
+    const modalContent = `
+        <div class="planillas-modal-header">
+            <div class="modal-header-icon ${notificacion.color}">
+                <i class="fas fa-${notificacion.icon}"></i>
+            </div>
+            <div class="modal-header-info">
+                <h3>${notificacion.title}</h3>
+                <p>${planillas.length} planilla${planillas.length !== 1 ? 's' : ''} esperando autorización</p>
+            </div>
+            <div class="modal-header-stats">
+                <div class="header-stat">
+                    <span class="stat-number">${planillas.length}</span>
+                    <span class="stat-label">Planillas</span>
+                </div>
+                <div class="header-stat">
+                    <span class="stat-number">Q${totalMonto.toFixed(0)}</span>
+                    <span class="stat-label">Total</span>
+                </div>
+            </div>
+        </div>
+        
+        <div class="planillas-content">
+            <div class="planillas-summary">
+                <div class="summary-stats">
+                    <div class="summary-stat">
+                        <i class="fas fa-building"></i>
+                        <span><strong>${sucursalesConPlanillas.length}</strong> sucursales con planillas</span>
+                    </div>
+                    <div class="summary-stat">
+                        <i class="fas fa-users"></i>
+                        <span><strong>${totalColaboradores}</strong> colaboradores en total</span>
+                    </div>
+                    <div class="summary-stat">
+                        <i class="fas fa-calendar-week"></i>
+                        <span><strong>${planillasQuincenales}</strong> quincenales, <strong>${planillasFinMes}</strong> fin de mes</span>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="planillas-table-container">
+                <table class="planillas-table">
+                    <thead>
+                        <tr>
+                            <th>Sucursal</th>
+                            <th>Tipo</th>
+                            <th>Período</th>
+                            <th>Colaboradores</th>
+                            <th>Monto</th>
+                            <th>Días Espera</th>
+                            <th>Enviado por</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${planillas.map((planilla, index) => {
+                            const diasEspera = Number(planilla.DiasEspera);
+                            
+                            // ✅ CORRECCIÓN DE FECHA DE REGISTRO
+                            const fechaRegistro = parseFechaSinZonaHoraria(planilla.FechaRegistro);
+                            
+                            // Crear fecha para el mes/año de la planilla
+                            const mesNombre = new Date(planilla.Anyo, planilla.Mes - 1)
+                                .toLocaleDateString('es-GT', { month: 'short' });
+                            
+                            // Determinar urgencia por días
+                            let urgenciaClass = 'normal';
+                            let urgenciaIcon = 'clock';
+                            if (diasEspera >= 7) {
+                                urgenciaClass = 'danger';
+                                urgenciaIcon = 'exclamation-triangle';
+                            } else if (diasEspera >= 3) {
+                                urgenciaClass = 'warning';
+                                urgenciaIcon = 'exclamation-circle';
+                            }
+                            
+                            return `
+                                <tr class="planilla-row" style="animation-delay: ${index * 0.1}s">
+                                    <td>
+                                        <div class="sucursal-cell">
+                                            <i class="fas fa-store"></i>
+                                            <span>${planilla.NombreDepartamento}</span>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <div class="tipo-planilla ${planilla.TipoPago.includes('Quincenal') ? 'quincenal' : 'fin-mes'}">
+                                            ${planilla.TipoPago.includes('Quincenal') ? 'Quincenal' : 'Fin de Mes'}
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <div class="periodo-cell">
+                                            <span class="mes">${mesNombre} ${planilla.Anyo}</span>
+                                        </div>
+                                    </td>
+                                    <td class="text-center">
+                                        <span class="colaboradores-count">${planilla.CantidadColaboradores}</span>
+                                    </td>
+                                    <td class="text-right">
+                                        <span class="monto">Q${Number(planilla.MontoPlanillaParcial).toFixed(2)}</span>
+                                    </td>
+                                    <td class="text-center">
+                                        <div class="dias-espera ${urgenciaClass}">
+                                            <i class="fas fa-${urgenciaIcon}"></i>
+                                            <span>${diasEspera} día${diasEspera !== 1 ? 's' : ''}</span>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <div class="usuario-cell">
+                                            <i class="fas fa-user"></i>
+                                            <span>${planilla.NombreUsuario}</span>
+                                        </div>
+                                    </td>
+                                </tr>
+                            `;
+                        }).join('')}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    `;
+    
+    // Mostrar modal con SweetAlert2
+    Swal.fire({
+        html: modalContent,
+        width: '1200px',
+        showCloseButton: true,
+        showConfirmButton: false,
+        customClass: {
+            popup: 'planillas-modal-popup'
+        },
+        didOpen: () => {
+            // Agregar animaciones a las filas
+            document.querySelectorAll('.planilla-row').forEach(row => {
+                row.classList.add('fade-in-row');
+            });
+        }
+    });
+}
+function mostrarDetallesAniversarios(notificacion) {
+    const colaboradores = notificacion.data;
+    
+    // Crear encabezado del modal (mismo código que antes)
+    const headerContent = `
+        <div class="aniversarios-modal-header">
+            <div class="modal-header-icon ${notificacion.color}">
+                <i class="fas fa-${notificacion.icon}"></i>
+            </div>
+            <div class="modal-header-info">
+                <h3>${notificacion.title}</h3>
+                <p>${colaboradores.length} colaborador${colaboradores.length !== 1 ? 'es' : ''} en los próximos ${notificacion.periodo}</p>
+            </div>
+            <div class="modal-header-stats">
+                <div class="header-stat">
+                    <span class="stat-number">${colaboradores.length}</span>
+                    <span class="stat-label">Total</span>
+                </div>
+                <div class="header-stat">
+                    <span class="stat-number">${colaboradores.reduce((sum, c) => sum + Number(c.DiasVacacionesAcumulados || 0), 0)}</span>
+                    <span class="stat-label">Días Acum.</span>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    // Crear contenido de la tabla CON FECHAS CORREGIDAS
+    const tableContent = `
+        <div class="aniversarios-content">
+            <div class="aniversarios-table-container">
+                <table class="aniversarios-table">
+                    <thead>
+                        <tr>
+                            <th>Colaborador</th>
+                            <th>Departamento</th>
+                            <th>Días para Aniversario</th>
+                            <th>Días de Vacaciones</th>
+                            <th>Fecha Aniversario</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${colaboradores.map((colaborador, index) => {
+                            const diasParaAniversario = Number(colaborador.DiasParaAniversario);
+                            const diasVacaciones = Number(colaborador.DiasVacacionesAcumulados || 0);
+                            
+                            // ✅ CORRECCIÓN DE FECHA - Usar función nueva
+                            const fechaAniversario = parseFechaSinZonaHoraria(colaborador.FechaAniversario);
+                            
+                            const aniosActuales = Number(colaborador.AniosActuales);
+                            const proximosAnios = Number(colaborador.ProximosAnios);
+                            const fotoSrc = colaborador.FotoBase64 || '../Imagenes/user-default.png';
+                            
+                            // Determinar la urgencia para los días
+                            let urgenciaClass = 'info';
+                            let urgenciaText = '';
+                            let urgenciaIcon = 'clock';
+                            
+                            if (diasParaAniversario <= 1) {
+                                urgenciaClass = 'danger';
+                                urgenciaText = diasParaAniversario === 0 ? '¡HOY!' : 'Mañana';
+                                urgenciaIcon = 'exclamation-triangle';
+                            } else if (diasParaAniversario <= 7) {
+                                urgenciaClass = 'danger';
+                                urgenciaText = `${diasParaAniversario} días`;
+                                urgenciaIcon = 'exclamation-circle';
+                            } else if (diasParaAniversario <= 30) {
+                                urgenciaClass = 'warning';
+                                urgenciaText = `${diasParaAniversario} días`;
+                                urgenciaIcon = 'clock';
+                            } else {
+                                urgenciaClass = 'info';
+                                urgenciaText = `${diasParaAniversario} días`;
+                                urgenciaIcon = 'calendar';
+                            }
+                            
+                            // Determinar el color para días de vacaciones
+                            let vacacionesClass = 'success';
+                            if (diasVacaciones <= 0) {
+                                vacacionesClass = 'danger';
+                            } else if (diasVacaciones < 15) {
+                                vacacionesClass = 'warning';
+                            } else if (diasVacaciones < 30) {
+                                vacacionesClass = 'info';
+                            }
+                            
+                            return `
+                                <tr class="aniversario-row" style="animation-delay: ${index * 0.1}s">
+                                    <td>
+                                        <div class="colaborador-cell">
+                                            <div class="colaborador-photo-container" data-employee-id="${colaborador.IdPersonal}" data-has-photo="${colaborador.TieneFoto}">
+                                                <div class="photo-placeholder">
+                                                    <i class="fas fa-user"></i>
+                                                </div>
+                                            </div>
+                                            <div class="colaborador-info-cell">
+                                                <div class="colaborador-name">${colaborador.NombreCompleto}</div>
+                                                <div class="colaborador-puesto">${colaborador.NombrePuesto}</div>
+                                                <div class="colaborador-anos">${aniosActuales} → ${proximosAnios} años de servicio</div>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <div class="departamento-badge">
+                                            <i class="fas fa-building"></i>
+                                            ${colaborador.NombreDepartamento}
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <div class="dias-aniversario ${urgenciaClass}">
+                                            <i class="fas fa-${urgenciaIcon}"></i>
+                                            <span class="dias-numero">${urgenciaText}</span>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <div class="dias-vacaciones ${vacacionesClass}">
+                                            <i class="fas fa-calendar-check"></i>
+                                            <span class="dias-numero">${diasVacaciones}</span>
+                                            <span class="dias-label">días</span>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <div class="fecha-aniversario">
+                                            <div class="fecha-completa">
+                                                <i class="fas fa-calendar-day"></i>
+                                                ${formatFechaParaUsuario(fechaAniversario)}
+                                            </div>
+                                        </div>
+                                    </td>
+                                </tr>
+                            `;
+                        }).join('')}
+                    </tbody>
+                </table>
+            </div>
+            
+            <div class="modal-summary">
+                <div class="summary-item">
+                    <i class="fas fa-users"></i>
+                    <span><strong>${colaboradores.length}</strong> colaboradores próximos a cumplir años</span>
+                </div>
+                <div class="summary-item">
+                    <i class="fas fa-calendar-check"></i>
+                    <span><strong>${colaboradores.reduce((sum, c) => sum + Number(c.DiasVacacionesAcumulados || 0), 0)}</strong> días de vacaciones acumulados en total</span>
+                </div>
+                <div class="summary-item">
+                    <i class="fas fa-chart-line"></i>
+                    <span>Promedio: <strong>${Math.round(colaboradores.reduce((sum, c) => sum + Number(c.DiasVacacionesAcumulados || 0), 0) / colaboradores.length)}</strong> días por colaborador</span>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    // Mostrar modal con SweetAlert2
+    Swal.fire({
+        html: headerContent + tableContent,
+        width: '1200px',
+        showCloseButton: true,
+        showConfirmButton: false,
+        customClass: {
+            popup: 'aniversarios-modal-popup'
+        },
+        didOpen: () => {
+            // Agregar animaciones a las filas
+            document.querySelectorAll('.aniversario-row').forEach(row => {
+                row.classList.add('fade-in-row');
+            });
+            
+            // CARGAR FOTOS DE FORMA LAZY (una por una)
+            cargarFotosLazy();
+        }
+    });
+}
+async function cargarFotosLazy() {
+    const photoContainers = document.querySelectorAll('.colaborador-photo-container');
+    
+    for (const container of photoContainers) {
+        const employeeId = container.dataset.employeeId;
+        const hasPhoto = container.dataset.hasPhoto === '1';
+        
+        // Si no tiene foto, usar el placeholder
+        if (!hasPhoto) {
+            container.innerHTML = `
+                <img src="../Imagenes/user-default.png" alt="Sin foto" class="colaborador-photo">
+            `;
+            continue;
+        }
+        
+        try {
+            // Cargar foto individual
+            const fotoSrc = await cargarFotoColaborador(employeeId);
+            
+            // Reemplazar placeholder con la foto real
+            container.innerHTML = `
+                <img src="${fotoSrc}" alt="Foto colaborador" class="colaborador-photo">
+            `;
+            
+        } catch (error) {
+            console.error('Error al cargar foto del colaborador:', error);
+            // En caso de error, usar imagen por defecto
+            container.innerHTML = `
+                <img src="../Imagenes/user-default.png" alt="Error cargando foto" class="colaborador-photo">
+            `;
+        }
+        
+        // Pequeña pausa para no sobrecargar la base de datos
+        await new Promise(resolve => setTimeout(resolve, 50));
+    }
+}
+function parseFechaSinZonaHoraria(fechaString) {
+    if (!fechaString) return null;
+    
+    // Si la fecha viene en formato YYYY-MM-DD desde MySQL
+    if (typeof fechaString === 'string' && fechaString.includes('-')) {
+        const partes = fechaString.split('-');
+        const año = parseInt(partes[0]);
+        const mes = parseInt(partes[1]) - 1; // JavaScript usa meses 0-11
+        const dia = parseInt(partes[2]);
+        
+        // Crear fecha usando la zona horaria local, no UTC
+        return new Date(año, mes, dia);
+    }
+    
+    // Si viene como objeto Date de la base de datos
+    if (fechaString instanceof Date) {
+        // Obtener los componentes sin conversión UTC
+        const año = fechaString.getFullYear();
+        const mes = fechaString.getMonth();
+        const dia = fechaString.getDate();
+        
+        return new Date(año, mes, dia);
+    }
+    
+    // Fallback: intentar parsing normal
+    return new Date(fechaString);
+}
+function formatFechaParaUsuario(fecha) {
+    if (!fecha) return 'No disponible';
+    
+    // Asegurar que es un objeto Date
+    const fechaObj = fecha instanceof Date ? fecha : parseFechaSinZonaHoraria(fecha);
+    
+    if (!fechaObj || isNaN(fechaObj)) return 'Fecha inválida';
+    
+    // Formatear usando zona horaria local
+    return fechaObj.toLocaleDateString('es-GT', {
+        weekday: 'long',
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+        timeZone: 'America/Guatemala' // Forzar zona horaria de Guatemala
+    });
+}
+// Función para mostrar modal de edición de colaborador
+async function mostrarModalEdicionColaborador(idPersonal, nombreCompleto, departamentoActual, puestoActual) {
+    try {
+        // Cargar departamentos disponibles
+        const connection = await getConnection();
+        
+        const departamentosQuery = `
+            SELECT 
+                IdDepartamento,
+                NombreDepartamento,
+                IdRegion
+            FROM 
+                departamentos
+            ORDER BY 
+                NombreDepartamento
+        `;
+        
+        const departamentos = await connection.query(departamentosQuery);
+        await connection.close();
+        
+        // Crear opciones de departamentos
+        const opcionesDepartamentos = departamentos.map(dept => 
+            `<option value="${dept.IdDepartamento}" ${dept.NombreDepartamento === departamentoActual ? 'selected' : ''}>
+                ${dept.NombreDepartamento}
+            </option>`
+        ).join('');
+        
+        // HTML del modal de edición
+        const modalHtml = `
+            <div class="edit-employee-modal-header">
+                <div class="modal-title-section">
+                    <div class="edit-icon">
+                        <i class="fas fa-user-edit"></i>
+                    </div>
+                    <div class="modal-title-info">
+                        <h3>Editar Colaborador</h3>
+                        <p>${nombreCompleto}</p>
+                    </div>
+                </div>
+            </div>
+            
+            <form id="editEmployeeForm" class="edit-employee-form">
+                <div class="form-section">
+                    <div class="form-group">
+                        <label for="editDepartamento" class="form-label">
+                            <i class="fas fa-building"></i>
+                            Departamento
+                        </label>
+                        <select id="editDepartamento" name="departamento" class="form-control" required>
+                            <option value="">Seleccione un departamento...</option>
+                            ${opcionesDepartamentos}
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="editPuesto" class="form-label">
+                            <i class="fas fa-briefcase"></i>
+                            Puesto
+                        </label>
+                        <select id="editPuesto" name="puesto" class="form-control" required>
+                            <option value="">Primero seleccione un departamento...</option>
+                        </select>
+                        <div class="loading-puestos" style="display: none;">
+                            <i class="fas fa-spinner fa-spin"></i>
+                            <span>Cargando puestos...</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="form-actions">
+                    <button type="button" class="btn btn-secondary" id="cancelarEdicion">
+                        <i class="fas fa-times"></i>
+                        Cancelar
+                    </button>
+                    <button type="submit" class="btn btn-primary" id="guardarCambios">
+                        <i class="fas fa-save"></i>
+                        Guardar Cambios
+                    </button>
+                </div>
+            </form>
+        `;
+        
+        // Mostrar modal con SweetAlert2
+        const modal = await Swal.fire({
+            html: modalHtml,
+            width: '500px',
+            showCloseButton: true,
+            showConfirmButton: false,
+            customClass: {
+                popup: 'edit-employee-modal-popup'
+            },
+            didOpen: () => {
+                inicializarEventosEdicion(idPersonal, puestoActual);
+            }
+        });
+        
+    } catch (error) {
+        console.error('Error al mostrar modal de edición:', error);
+        Swal.fire({
+            icon: 'error',
+            title: 'Error',
+            text: 'No se pudo abrir el formulario de edición',
+            confirmButtonColor: '#FF9800'
+        });
+    }
+}
+
+// Función para inicializar eventos del modal de edición
+function inicializarEventosEdicion(idPersonal, puestoActual) {
+    const selectDepartamento = document.getElementById('editDepartamento');
+    const selectPuesto = document.getElementById('editPuesto');
+    const loadingPuestos = document.querySelector('.loading-puestos');
+    const form = document.getElementById('editEmployeeForm');
+    const btnCancelar = document.getElementById('cancelarEdicion');
+    
+    // Cargar puestos del departamento seleccionado inicialmente
+    if (selectDepartamento.value) {
+        cargarPuestosPorDepartamento(selectDepartamento.value, puestoActual);
+    }
+    
+    // Evento para cargar puestos cuando cambia el departamento
+    selectDepartamento.addEventListener('change', async () => {
+        const departamentoId = selectDepartamento.value;
+        
+        if (!departamentoId) {
+            selectPuesto.innerHTML = '<option value="">Primero seleccione un departamento...</option>';
+            return;
+        }
+        
+        await cargarPuestosPorDepartamento(departamentoId);
+    });
+    
+    // Evento para cancelar edición
+    btnCancelar.addEventListener('click', () => {
+        Swal.close();
+    });
+    
+    // Evento para guardar cambios
+    form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        await guardarCambiosColaborador(idPersonal, selectDepartamento, selectPuesto);
+    });
+}
+
+// Función para cargar puestos por departamento
+async function cargarPuestosPorDepartamento(departamentoId, puestoActualSeleccionar = null) {
+    const selectPuesto = document.getElementById('editPuesto');
+    const loadingPuestos = document.querySelector('.loading-puestos');
+    
+    try {
+        // Mostrar loading
+        loadingPuestos.style.display = 'flex';
+        selectPuesto.disabled = true;
+        selectPuesto.innerHTML = '<option value="">Cargando puestos...</option>';
+        
+        const connection = await getConnection();
+        
+        const puestosQuery = `
+            SELECT 
+                IdPuesto,
+                Nombre AS NombrePuesto
+            FROM 
+                Puestos
+            WHERE 
+                IdDepartamento = ?
+            ORDER BY 
+                Nombre
+        `;
+        
+        const puestos = await connection.query(puestosQuery, [departamentoId]);
+        await connection.close();
+        
+        // Crear opciones de puestos
+        let opcionesPuestos = '<option value="">Seleccione un puesto...</option>';
+        
+        puestos.forEach(puesto => {
+            const selected = puestoActualSeleccionar && puesto.NombrePuesto === puestoActualSeleccionar ? 'selected' : '';
+            opcionesPuestos += `<option value="${puesto.IdPuesto}" ${selected}>
+                ${puesto.NombrePuesto}
+            </option>`;
+        });
+        
+        selectPuesto.innerHTML = opcionesPuestos;
+        selectPuesto.disabled = false;
+        
+        // Ocultar loading
+        loadingPuestos.style.display = 'none';
+        
+        if (puestos.length === 0) {
+            selectPuesto.innerHTML = '<option value="">No hay puestos disponibles en este departamento</option>';
+            selectPuesto.disabled = true;
+        }
+        
+    } catch (error) {
+        console.error('Error al cargar puestos:', error);
+        selectPuesto.innerHTML = '<option value="">Error al cargar puestos</option>';
+        selectPuesto.disabled = true;
+        loadingPuestos.style.display = 'none';
+        
+        mostrarNotificacion('Error al cargar los puestos del departamento', 'error');
+    }
+}
+
+// Función para guardar los cambios del colaborador
+async function guardarCambiosColaborador(idPersonal, selectDepartamento, selectPuesto) {
+    const btnGuardar = document.getElementById('guardarCambios');
+    const originalText = btnGuardar.innerHTML;
+    
+    try {
+        // Mostrar loading en el botón
+        btnGuardar.disabled = true;
+        btnGuardar.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Guardando...';
+        
+        const nuevoDepartamentoId = selectDepartamento.value;
+        const nuevoPuestoId = selectPuesto.value;
+        
+        if (!nuevoDepartamentoId || !nuevoPuestoId) {
+            throw new Error('Debe seleccionar tanto departamento como puesto');
+        }
+        
+        const connection = await getConnection();
+        
+        // 1. Obtener datos actuales del colaborador
+        const datosActualesQuery = `
+            SELECT 
+                p.IdPersonal,
+                CONCAT(p.PrimerNombre, ' ', IFNULL(p.SegundoNombre, ''), ' ', p.PrimerApellido, ' ', IFNULL(p.SegundoApellido, '')) AS NombreCompleto,
+                p.IdSucuDepa AS DepartamentoActual,
+                p.IdPuesto AS PuestoActual,
+                d.NombreDepartamento AS NombreDepartamentoActual,
+                pu.Nombre AS NombrePuestoActual
+            FROM 
+                personal p
+                INNER JOIN departamentos d ON p.IdSucuDepa = d.IdDepartamento
+                INNER JOIN Puestos pu ON p.IdPuesto = pu.IdPuesto
+            WHERE 
+                p.IdPersonal = ?
+        `;
+        
+        const datosActuales = await connection.query(datosActualesQuery, [idPersonal]);
+        
+        if (datosActuales.length === 0) {
+            throw new Error('No se encontró el colaborador');
+        }
+        
+        const colaborador = datosActuales[0];
+        
+        // 2. Obtener nombres de nuevo departamento y puesto
+        const nuevosDatosQuery = `
+            SELECT 
+                d.NombreDepartamento,
+                p.Nombre AS NombrePuesto
+            FROM 
+                departamentos d,
+                Puestos p
+            WHERE 
+                d.IdDepartamento = ? AND
+                p.IdPuesto = ?
+        `;
+        
+        const nuevosDatos = await connection.query(nuevosDatosQuery, [nuevoDepartamentoId, nuevoPuestoId]);
+        
+        if (nuevosDatos.length === 0) {
+            throw new Error('Departamento o puesto no válido');
+        }
+        
+        const nuevosValores = nuevosDatos[0];
+        
+        // 3. Verificar si realmente hay cambios
+        const huboChangioDepartamento = parseInt(colaborador.DepartamentoActual) !== parseInt(nuevoDepartamentoId);
+        const huboCanbioPuesto = parseInt(colaborador.PuestoActual) !== parseInt(nuevoPuestoId);
+        
+        if (!huboChangioDepartamento && !huboCanbioPuesto) {
+            mostrarNotificacion('No se detectaron cambios para guardar', 'info');
+            Swal.close();
+            return;
+        }
+        
+        // 4. Iniciar transacción
+        await connection.query('START TRANSACTION');
+        
+        try {
+            // 5. Actualizar datos del colaborador
+            const updateQuery = `
+                UPDATE personal 
+                SET 
+                    IdSucuDepa = ?,
+                    IdPuesto = ?
+                WHERE 
+                    IdPersonal = ?
+            `;
+            
+            await connection.query(updateQuery, [nuevoDepartamentoId, nuevoPuestoId, idPersonal]);
+            
+            // 6. Registrar cambios en CambiosPersonal
+            const userData = JSON.parse(localStorage.getItem('userData'));
+            
+            // Registrar cambio de departamento si aplica
+            if (huboChangioDepartamento) {
+                const registroDepartamentoQuery = `
+                    INSERT INTO CambiosPersonal 
+                    (IdPersonal, NombrePersonal, TipoCambio, Cambio, ValorAnterior, ValorNuevo, IdUsuario, NombreUsuario)
+                    VALUES (?, ?, 4, 'Departamento', ?, ?, ?, ?)
+                `;
+                
+                await connection.query(registroDepartamentoQuery, [
+                    idPersonal,
+                    colaborador.NombreCompleto,
+                    colaborador.NombreDepartamentoActual,
+                    nuevosValores.NombreDepartamento,
+                    userData.IdPersonal,
+                    userData.NombreCompleto
+                ]);
+            }
+            
+            // Registrar cambio de puesto si aplica
+            if (huboCanbioPuesto) {
+                const registroPuestoQuery = `
+                    INSERT INTO CambiosPersonal 
+                    (IdPersonal, NombrePersonal, TipoCambio, Cambio, ValorAnterior, ValorNuevo, IdUsuario, NombreUsuario)
+                    VALUES (?, ?, 4, 'Puesto', ?, ?, ?, ?)
+                `;
+                
+                await connection.query(registroPuestoQuery, [
+                    idPersonal,
+                    colaborador.NombreCompleto,
+                    colaborador.NombrePuestoActual,
+                    nuevosValores.NombrePuesto,
+                    userData.IdPersonal,
+                    userData.NombreCompleto
+                ]);
+            }
+            
+            // 7. Confirmar transacción
+            await connection.query('COMMIT');
+            
+            // Mostrar mensaje de éxito
+            await Swal.fire({
+                icon: 'success',
+                title: '¡Cambios guardados!',
+                text: `Los datos del colaborador han sido actualizados correctamente.`,
+                timer: 2000,
+                showConfirmButton: false
+            });
+            
+            // Recargar la vista de sucursales
+            cargarSucursalesRegionales();
+            
+        } catch (error) {
+            // Rollback en caso de error
+            await connection.query('ROLLBACK');
+            throw error;
+        }
+        
+        await connection.close();
+        
+    } catch (error) {
+        console.error('Error al guardar cambios:', error);
+        
+        Swal.fire({
+            icon: 'error',
+            title: 'Error al guardar',
+            text: error.message || 'No se pudieron guardar los cambios',
+            confirmButtonColor: '#FF9800'
+        });
+    } finally {
+        // Restaurar botón
+        btnGuardar.disabled = false;
+        btnGuardar.innerHTML = originalText;
     }
 }
 personalNuevoBtn.addEventListener('click', abrirVentanaPersonalNuevo);

@@ -6,6 +6,7 @@
     <title>Planilla Tiempo Parcial - Recursos Humanos</title>
     <link rel="stylesheet" href="../Disenos/Planilla/PlanillaTiempoParcial.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/3.0.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/sweetalert2/11.0.19/sweetalert2.min.js"></script>
 </head>
 <body>
@@ -44,75 +45,114 @@
     </header>
 
     <!-- Nuevo: Selección de Tipo de Planilla -->
-    <section class="payroll-type-section">
-        <div class="payroll-type-container">
-            <div class="payroll-type-header">
-                <h2><i class="fas fa-calendar-check"></i> Configuración de Planilla</h2>
-                <p>Seleccione el tipo y período de la planilla a generar</p>
-            </div>
-            
-            <div class="payroll-type-form" id="payrollTypeForm">
-                <div class="form-row">
-                    <div class="form-group">
-                        <label for="tipoQuincena">Tipo de Planilla</label>
-                        <select id="tipoQuincena" class="form-control">
-                            <option value="">Seleccione tipo...</option>
-                            <option value="quincenal">Planilla Quincenal</option>
-                            <option value="fin_mes">Planilla Fin de Mes</option>
-                        </select>
-                    </div>
-                    
-                    <div class="form-group">
-                        <label for="mesPlanilla">Mes</label>
-                        <select id="mesPlanilla" class="form-control">
-                            <option value="">Seleccione mes...</option>
-                            <option value="1">Enero</option>
-                            <option value="2">Febrero</option>
-                            <option value="3">Marzo</option>
-                            <option value="4">Abril</option>
-                            <option value="5">Mayo</option>
-                            <option value="6">Junio</option>
-                            <option value="7">Julio</option>
-                            <option value="8">Agosto</option>
-                            <option value="9">Septiembre</option>
-                            <option value="10">Octubre</option>
-                            <option value="11">Noviembre</option>
-                            <option value="12">Diciembre</option>
-                        </select>
-                    </div>
-                    
-                    <div class="form-group">
-                        <label for="anioPlanilla">Año</label>
-                        <select id="anioPlanilla" class="form-control">
-                            <option value="">Seleccione año...</option>
-                            <!-- Se llena dinámicamente -->
-                        </select>
-                    </div>
-                    
-                    <div class="form-group">
-                        <button type="button" id="confirmarPlanilla" class="btn btn-primary" disabled>
-                            <i class="fas fa-check"></i>
-                            Confirmar Selección
+    <section class="payroll-type-section config-centered">
+    <div class="payroll-type-container">
+        <div class="payroll-type-header enhanced">
+            <h2><i class="fas fa-cog"></i> Configuración de Planilla</h2>
+            <p>Configure el tipo y período de la planilla antes de gestionar colaboradores</p>
+        </div>
+        
+        <div class="payroll-type-form" id="payrollTypeForm">
+            <div class="form-row enhanced">
+                <div class="form-group enhanced">
+                    <label for="tipoQuincena">📋 Tipo</label>
+                    <select id="tipoQuincena" class="form-control enhanced">
+                        <option value="">Seleccione tipo...</option>
+                        <option value="quincenal">Planilla Quincenal (1-15)</option>
+                        <option value="fin_mes">Planilla Fin de Mes (16-último día)</option>
+                    </select>
+                </div>
+                
+                <div class="form-group enhanced">
+                    <label for="mesPlanilla">📅 Mes</label>
+                    <select id="mesPlanilla" class="form-control enhanced">
+                        <option value="">Seleccione mes...</option>
+                        <option value="1">Enero</option>
+                        <option value="2">Febrero</option>
+                        <option value="3">Marzo</option>
+                        <option value="4">Abril</option>
+                        <option value="5">Mayo</option>
+                        <option value="6">Junio</option>
+                        <option value="7">Julio</option>
+                        <option value="8">Agosto</option>
+                        <option value="9">Septiembre</option>
+                        <option value="10">Octubre</option>
+                        <option value="11">Noviembre</option>
+                        <option value="12">Diciembre</option>
+                    </select>
+                </div>
+                
+                <div class="form-group enhanced">
+                    <label for="anioPlanilla">🗓️ Año</label>
+                    <select id="anioPlanilla" class="form-control enhanced">
+                        <option value="">Seleccione año...</option>
+                        <!-- Se llena dinámicamente -->
+                    </select>
+                </div>
+                
+                <!-- BOTONES MEJORADOS LADO A LADO -->
+                <div class="form-group enhanced buttons-group">
+                    <div class="config-buttons-container">
+                        <button type="button" id="confirmarPlanilla" class="btn-config btn-config-primary" disabled>
+                            <i class="fas fa-rocket"></i>
+                            <span>¡Iniciar!</span>
+                        </button>
+                        
+                        <button type="button" id="descargarPDF" class="btn-config btn-config-secondary" style="display: none;">
+                            <i class="fas fa-file-pdf"></i>
+                            <span>PDF</span>
                         </button>
                     </div>
                 </div>
             </div>
             
-            <!-- Vista confirmada (oculta inicialmente) -->
-            <div class="payroll-confirmed" id="payrollConfirmed" style="display: none;">
-                <div class="confirmed-info">
-                    <div class="confirmed-details">
-                        <span class="confirmed-type" id="confirmedType">Tipo de Planilla</span>
-                        <span class="confirmed-period" id="confirmedPeriod">Período</span>
+            <!-- Información compacta -->
+            <div class="config-info">
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: var(--spacing-sm);">
+                    <div class="info-card">
+                        <h4 style="color: var(--trust-blue); margin-bottom: var(--spacing-xs); display: flex; align-items: center; gap: var(--spacing-xs);">
+                            <i class="fas fa-calendar-week"></i>
+                            Quincenal
+                        </h4>
+                        <p>Del <strong>1 al 15</strong> del mes</p>
                     </div>
-                    <button type="button" id="changePlanilla" class="btn-change">
-                        <i class="fas fa-edit"></i>
-                        Cambiar
-                    </button>
+                    
+                    <div class="info-card">
+                        <h4 style="color: var(--success-emerald); margin-bottom: var(--spacing-xs); display: flex; align-items: center; gap: var(--spacing-xs);">
+                            <i class="fas fa-calendar-check"></i>
+                            Fin de Mes
+                        </h4>
+                        <p>Del <strong>16 al último día</strong> del mes</p>
+                    </div>
+                </div>
+                
+                <div class="info-important">
+                    <p>
+                        <i class="fas fa-info-circle"></i>
+                        <strong>Importante:</strong> Una vez confirmada podrá gestionar colaboradores y turnos.
+                    </p>
                 </div>
             </div>
         </div>
-    </section>
+        
+        <!-- Vista confirmada (compacta) -->
+        <div class="payroll-confirmed enhanced" id="payrollConfirmed" style="display: none;">
+            <div class="confirmed-info" style="background: linear-gradient(135deg, var(--success-emerald) 0%, var(--success-light) 100%); color: white; padding: var(--spacing-lg); border-radius: var(--radius-lg); display: flex; justify-content: space-between; align-items: center; box-shadow: var(--shadow-medium);">
+                <div class="confirmed-details">
+                    <div style="display: flex; align-items: center; gap: var(--spacing-sm); margin-bottom: var(--spacing-xs);">
+                        <i class="fas fa-check-circle" style="font-size: 1.2rem;"></i>
+                        <span class="confirmed-type" id="confirmedType" style="font-size: 1rem; font-weight: 700;">Tipo de Planilla</span>
+                    </div>
+                    <span class="confirmed-period" id="confirmedPeriod" style="font-size: 0.8rem; opacity: 0.9;">Período</span>
+                </div>
+                <button type="button" id="changePlanilla" class="btn-change" style="background: rgba(255, 255, 255, 0.2); border: 2px solid rgba(255, 255, 255, 0.5); color: white; padding: var(--spacing-xs) var(--spacing-md); border-radius: var(--radius-md); font-size: 0.75rem; font-weight: 600; cursor: pointer; transition: all 0.2s ease; backdrop-filter: blur(10px);">
+                    <i class="fas fa-edit"></i>
+                    Cambiar
+                </button>
+            </div>
+        </div>
+    </div>
+</section>
 
     <!-- Contenedor Principal -->
     <main class="main-container">

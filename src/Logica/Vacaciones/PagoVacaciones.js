@@ -157,7 +157,9 @@ async function loadDepartmentInfo() {
                 departamentos
                 LEFT JOIN personal ON departamentos.IdDepartamento = personal.IdSucuDepa
             WHERE 
-                departamentos.IdDepartamento = ?
+                departamentos.IdDepartamento = ? AND
+                personal.Estado = 1 AND
+                personal.TipoPersonal = 1
             GROUP BY 
                 departamentos.NombreDepartamento`;
         

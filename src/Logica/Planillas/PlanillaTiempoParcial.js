@@ -1,7 +1,8 @@
 const { connectionString } = require('../Conexion/Conexion');
 const Swal = require('sweetalert2');
+const { jsPDF } = require('jspdf');
 
-// Variables globales
+// ===== VARIABLES GLOBALES =====
 let currentDate = new Date();
 let selectedEmployee = null;
 let selectedShifts = [];
@@ -19,9 +20,10 @@ let planillaConfig = {
     anio: null,
     confirmada: false
 };
-// Inicialización principal - ACTUALIZADA
+
+// ===== INICIALIZACIÓN PRINCIPAL - MEJORADA CON PROGRESO =====
 document.addEventListener('DOMContentLoaded', async () => {
-    console.log('Iniciando aplicación...');
+    console.log('Iniciando aplicación con progreso mejorado...');
     
     try {
         mostrarFechaActual();
@@ -29,15 +31,196 @@ document.addEventListener('DOMContentLoaded', async () => {
         await cargarTarifasSalarios();
         generarFechasSemanaSanta();
         await cargarInformacionDepartamento();
+        await actualizarVisibilidadBotonPDF();
         inicializarEventos();
-        inicializarPlanilla(); 
+        inicializarPlanillaConProgreso(); 
+        
         actualizarVisibilidadAcciones();
-        console.log('Aplicación inicializada correctamente');
+        const botonPDF = document.getElementById('descargarPDF');
+        if (botonPDF) {
+            botonPDF.addEventListener('click', generarPDFPlanilla);
+        }
     } catch (error) {
         console.error('Error al inicializar la aplicación:', error);
         mostrarError('Error al inicializar la aplicación');
     }
 });
+
+// ⭐ FUNCIÓN MEJORADA PARA INICIALIZAR CON PROGRESO
+function inicializarPlanillaConProgreso() {
+    // Ocultar TODOS los elementos hasta que se configure
+    ocultarElementosHastaConfigurar();
+    
+    // Aplicar modo configuración al contenedor principal
+    const mainContainer = document.querySelector('.main-container');
+    if (mainContainer) {
+        mainContainer.classList.add('config-mode');
+        mainContainer.classList.remove('normal-mode');
+    }
+    
+    // Mostrar paso inicial
+    actualizarProgresoVisual('config');
+    
+    // Solo mostrar la sección de configuración
+    document.getElementById('payrollSection').style.display = 'none';
+    document.getElementById('collaboratorsSection').style.display = 'none';
+    document.getElementById('welcomeState').style.display = 'none';
+    
+    // Mejorar el botón de confirmación
+    mejorarBotonConfirmacion();
+    
+    actualizarVistaPlanilla();
+}
+
+// ⭐ FUNCIÓN PARA OCULTAR ELEMENTOS HASTA CONFIGURAR
+function ocultarElementosHastaConfigurar() {
+    // Ocultar panel izquierdo completo
+    const leftPanel = document.querySelector('.left-panel');
+    if (leftPanel) {
+        leftPanel.style.display = 'none';
+    }
+    
+    // Ocultar panel derecho completo  
+    const rightPanel = document.querySelector('.right-panel');
+    if (rightPanel) {
+        rightPanel.style.display = 'none';
+    }
+    
+    // Cambiar el layout del contenedor principal para que solo muestre la configuración
+    const mainContainer = document.querySelector('.main-container');
+    if (mainContainer) {
+        mainContainer.style.gridTemplateColumns = '1fr';
+        mainContainer.style.justifyContent = 'center';
+        mainContainer.style.alignItems = 'start';
+        mainContainer.style.paddingTop = '2rem';
+    }
+    
+    // Asegurar que la sección de configuración esté visible y centrada
+    const payrollTypeSection = document.querySelector('.payroll-type-section');
+    if (payrollTypeSection) {
+        payrollTypeSection.style.display = 'block';
+        payrollTypeSection.style.maxWidth = '800px';
+        payrollTypeSection.style.margin = '0 auto';
+    }
+}
+
+// ⭐ FUNCIÓN PARA MOSTRAR ELEMENTOS DESPUÉS DE CONFIGURAR
+function mostrarElementosDespuesDeConfigurarConAnimacion() {
+    const leftPanel = document.querySelector('.left-panel');
+    const rightPanel = document.querySelector('.right-panel');
+    
+    if (leftPanel) {
+        leftPanel.style.display = 'flex';
+        leftPanel.classList.add('panel-fade-in');
+    }
+    
+    if (rightPanel) {
+        rightPanel.style.display = 'flex';
+        rightPanel.classList.add('panel-fade-in');
+    }
+    
+    // Restaurar el layout normal del contenedor principal
+    const mainContainer = document.querySelector('.main-container');
+    if (mainContainer) {
+        mainContainer.style.gridTemplateColumns = '320px 1fr';
+        mainContainer.style.justifyContent = '';
+        mainContainer.style.alignItems = '';
+        mainContainer.style.paddingTop = '';
+    }
+}
+
+// ⭐ FUNCIÓN PARA ACTUALIZAR PROGRESO VISUAL
+function actualizarProgresoVisual(step) {
+    const steps = ['config', 'collaborators', 'shifts', 'generate'];
+    const stepElements = steps.map(s => document.getElementById(`step-${s}`));
+    const connectors = [
+        document.getElementById('connector-1'),
+        document.getElementById('connector-2'),
+        document.getElementById('connector-3')
+    ];
+    
+    // Encontrar el índice del paso actual
+    const currentIndex = steps.indexOf(step);
+    
+    // Actualizar cada paso
+    stepElements.forEach((element, index) => {
+        if (!element) return;
+        
+        // Remover todas las clases
+        element.classList.remove('active', 'completed');
+        
+        if (index < currentIndex) {
+            // Pasos completados
+            element.classList.add('completed');
+        } else if (index === currentIndex) {
+            // Paso actual
+            element.classList.add('active');
+        }
+        // Los pasos futuros no tienen clase (estado por defecto)
+    });
+    
+    // Actualizar conectores
+    connectors.forEach((connector, index) => {
+        if (!connector) return;
+        
+        // Remover todas las clases
+        connector.classList.remove('active', 'completed');
+        
+        if (index < currentIndex) {
+            // Conectores completados
+            connector.classList.add('completed');
+        } else if (index === currentIndex) {
+            // Conector actual
+            connector.classList.add('active');
+        }
+    });
+}
+
+// ⭐ FUNCIÓN PARA MEJORAR EL BOTÓN DE CONFIRMACIÓN
+function mejorarBotonConfirmacion() {
+    const confirmarBtn = document.getElementById('confirmarPlanilla');
+    if (confirmarBtn) {
+        confirmarBtn.classList.add('btn-confirm-enhanced');
+        
+        // Agregar event listener para validación en tiempo real
+        ['tipoQuincena', 'mesPlanilla', 'anioPlanilla'].forEach(id => {
+            const element = document.getElementById(id);
+            if (element) {
+                element.classList.add('form-control', 'enhanced');
+                element.addEventListener('change', validarFormularioConProgreso);
+            }
+        });
+    }
+}
+
+// ⭐ VALIDACIÓN MEJORADA CON PROGRESO VISUAL
+function validarFormularioConProgreso() {
+    const tipo = document.getElementById('tipoQuincena').value;
+    const mes = document.getElementById('mesPlanilla').value;
+    const anio = document.getElementById('anioPlanilla').value;
+    const confirmarBtn = document.getElementById('confirmarPlanilla');
+    
+    const todosCompletos = tipo && mes && anio;
+    
+    if (confirmarBtn) {
+        confirmarBtn.disabled = !todosCompletos;
+        
+        if (todosCompletos) {
+            confirmarBtn.classList.add('ready');
+            confirmarBtn.innerHTML = `
+                <i class="fas fa-rocket"></i>
+                <span>¡Iniciar Planilla!</span>
+            `;
+        } else {
+            confirmarBtn.classList.remove('ready');
+            confirmarBtn.innerHTML = `
+                <i class="fas fa-cog"></i>
+                <span>Complete campos</span>
+            `;
+        }
+    }
+}
+
 function cargarAnios() {
     const select = document.getElementById('anioPlanilla');
     const currentYear = new Date().getFullYear();
@@ -56,12 +239,6 @@ function cargarAnios() {
     }
 }
 
-function inicializarPlanilla() {
-    // Mostrar siempre la sección de planilla
-    document.getElementById('payrollSection').style.display = 'block';
-    actualizarVistaPlanilla();
-}
-
 // Mostrar fecha actual en el header
 function mostrarFechaActual() {
     const now = new Date();
@@ -73,6 +250,7 @@ function mostrarFechaActual() {
     };
     document.getElementById('currentDate').textContent = now.toLocaleDateString('es-GT', options);
 }
+
 async function cargarInformacionDepartamento() {
     try {
         // Obtener datos del usuario logueado
@@ -137,6 +315,7 @@ async function cargarInformacionDepartamento() {
         });
     }
 }
+
 function mostrarInformacionDepartamento(departamentoInfo, userData) {
     // Buscar o crear el contenedor central del header
     let headerCenter = document.querySelector('.header-center');
@@ -168,6 +347,7 @@ function mostrarInformacionDepartamento(departamentoInfo, userData) {
         </div>
     `;
 }
+
 async function cargarTarifasSalarios() {
     try {
         const connection = await connectionString();
@@ -209,154 +389,9 @@ async function cargarTarifasSalarios() {
         mostrarError('Error al cargar las tarifas de salarios');
     }
 }
-async function buscarColaboradoresAutomatico() {
-    if (!currentDepartamentoId) {
-        throw new Error('No se ha configurado el departamento');
-    }
-    
-    try {
-        const connection = await connectionString();
-        const result = await connection.query(`
-            SELECT
-                personal.IdPersonal, 
-                personal.PrimerApellido, 
-                personal.SegundoApellido, 
-                personal.PrimerNombre, 
-                personal.SegundoNombre, 
-                personal.TercerNombre, 
-                Puestos.Nombre
-            FROM
-                personal
-                INNER JOIN
-                Puestos
-                ON 
-                    personal.IdPuesto = Puestos.IdPuesto
-            WHERE
-                personal.TipoPersonal = 2 AND
-                personal.Estado = 1 AND
-                personal.IdSucuDepa = ?
-            ORDER BY personal.PrimerApellido, personal.PrimerNombre
-        `, [currentDepartamentoId]);
-        
-        await connection.close();
-        
-        allCollaborators = result.map(collab => ({
-            ...collab,
-            nombreCompleto: `${collab.PrimerNombre} ${collab.SegundoNombre || ''} ${collab.TercerNombre || ''} ${collab.PrimerApellido} ${collab.SegundoApellido || ''}`.trim().replace(/\s+/g, ' ')
-        }));
-        
-        mostrarColaboradores(allCollaborators);
-        
-    } catch (error) {
-        console.error('Error al buscar colaboradores:', error);
-        throw error;
-    }
-}
-function inicializarEventos() {
-    // Función auxiliar para agregar event listener seguro
-    const addSafeEventListener = (id, event, handler) => {
-        const element = document.getElementById(id);
-        if (element) {
-            element.addEventListener(event, handler);
-        } else {
-            console.warn(`Elemento con ID '${id}' no encontrado`);
-        }
-    };
 
-    addSafeEventListener('tipoQuincena', 'change', validarFormularioPlanilla);
-    addSafeEventListener('mesPlanilla', 'change', validarFormularioPlanilla);
-    addSafeEventListener('anioPlanilla', 'change', validarFormularioPlanilla);
-    addSafeEventListener('confirmarPlanilla', 'click', confirmarSeleccionPlanilla);
-    addSafeEventListener('changePlanilla', 'click', cambiarConfiguracionPlanilla);
-
-    addSafeEventListener('searchCollaborator', 'input', filtrarColaboradores);
-    
-    addSafeEventListener('clearAllPayroll', 'click', limpiarTodaLaPlanilla);
-    addSafeEventListener('generateFinalPayroll', 'click', solicitarAutorizacionPlanilla);
-    
-    addSafeEventListener('closeCalendarModal', 'click', cerrarCalendario);
-    
-    const calendarModal = document.getElementById('calendarModal');
-    if (calendarModal) {
-        calendarModal.addEventListener('click', (e) => {
-            if (e.target.id === 'calendarModal') {
-                cerrarCalendario();
-            }
-        });
-    }
-    
-    // Navegación del calendario
-    addSafeEventListener('prevMonth', 'click', () => {
-        currentDate.setMonth(currentDate.getMonth() - 1);
-        actualizarCalendario();
-    });
-    
-    addSafeEventListener('nextMonth', 'click', () => {
-        currentDate.setMonth(currentDate.getMonth() + 1);
-        actualizarCalendario();
-    });
-    
-    // Botones del modal del calendario
-    addSafeEventListener('saveAndCloseCalendar', 'click', guardarYCerrarCalendario);
-    addSafeEventListener('clearShiftsFromModal', 'click', () => {
-        if (currentShifts.length === 0) {
-            Swal.fire({
-                icon: 'info',
-                title: 'Sin turnos',
-                text: 'No hay turnos para limpiar.',
-                confirmButtonColor: '#4f46e5'
-            });
-            return;
-        }
-        
-        Swal.fire({
-            title: '¿Limpiar todos los turnos?',
-            text: `Se eliminarán todos los ${currentShifts.length} turnos registrados.`,
-            icon: 'warning',
-            showCancelButton: true,
-            confirmButtonText: 'Sí, limpiar',
-            cancelButtonText: 'Cancelar',
-            confirmButtonColor: '#f43f5e'
-        }).then((result) => {
-            if (result.isConfirmed) {
-                currentShifts = [];
-                actualizarCalendario();
-                actualizarResumenModal();
-                
-                Swal.fire({
-                    icon: 'success',
-                    title: 'Turnos limpiados',
-                    text: 'Todos los turnos han sido eliminados.',
-                    timer: 1500,
-                    showConfirmButton: false
-                });
-            }
-        });
-    });
-    
-    // ⭐ EVENTOS DEL MODAL DE SELECCIÓN DE TURNO
-    addSafeEventListener('closeModal', 'click', cerrarModal);
-    
-    document.addEventListener('click', (e) => {
-        if (e.target.classList.contains('shift-option') || e.target.closest('.shift-option')) {
-            const button = e.target.classList.contains('shift-option') ? e.target : e.target.closest('.shift-option');
-            seleccionarTipoTurno(button.dataset.shift);
-        }
-    });
-    
-    // Cerrar modal de selección de turno
-    const shiftModal = document.getElementById('shiftModal');
-    if (shiftModal) {
-        shiftModal.addEventListener('click', (e) => {
-            if (e.target.id === 'shiftModal') {
-                cerrarModal();
-            }
-        });
-    }
-    
-    console.log('Event listeners inicializados correctamente');
-}
-async function confirmarSeleccionPlanilla() {
+// ⭐ FUNCIÓN MEJORADA PARA CONFIRMAR CON TRANSICIONES
+async function confirmarSeleccionPlanillaConTransiciones() {
     const tipo = document.getElementById('tipoQuincena').value;
     const mes = document.getElementById('mesPlanilla').value;
     const anio = document.getElementById('anioPlanilla').value;
@@ -383,79 +418,23 @@ async function confirmarSeleccionPlanilla() {
         return;
     }
     
-    // Mostrar loading mientras verifica
-    const loadingSwal = mostrarCargando('Verificando disponibilidad...');
+    // Actualizar progreso a "verificando"
+    mostrarEstadoCarga('Verificando disponibilidad de planilla...');
     
     try {
-        // ⭐ VERIFICACIÓN CON ESTADOS REALES
+        // Verificación de planilla existente
         const planillaExistente = await verificarPlanillaExistente(tipo, mes, anio, currentDepartamentoId);
         
-        // Cerrar loading
-        Swal.close();
-        
         if (planillaExistente) {
-            // Si existe, mostrar información detallada con estado real
-            const tipoTexto = tipo === 'quincenal' ? 'Quincenal' : 'Fin de Mes';
-            const mesNombre = new Date(anio, mes - 1).toLocaleDateString('es-GT', { month: 'long' });
-            const fechaRegistro = new Date(planillaExistente.FechaRegistro).toLocaleDateString('es-GT');
+            // Ocultar estado de carga
+            ocultarEstadoCarga();
             
-            // ⭐ OBTENER COLOR Y ESTILO SEGÚN EL ESTADO
-            const estadoInfo = obtenerEstiloEstado(planillaExistente.IdEstado, planillaExistente.NombreEstado);
-            
-            await Swal.fire({
-                icon: 'warning',
-                title: 'Planilla ya existe',
-                html: `
-                    <div style="text-align: left; margin: 20px 0;">
-                        <div style="background: #fef3c7; padding: 20px; border-radius: 8px; border-left: 4px solid #f59e0b; margin-bottom: 20px;">
-                            <h4 style="color: #92400e; margin-bottom: 15px; text-align: center;">⚠️ Planilla Duplicada Detectada</h4>
-                            
-                            <div style="margin-bottom: 15px;">
-                                <strong style="color: #92400e;">📋 Tipo:</strong> Planilla ${tipoTexto}<br>
-                                <strong style="color: #92400e;">📅 Período:</strong> ${mesNombre} ${anio}<br>
-                                <strong style="color: #92400e;">💰 Monto:</strong> Q ${parseFloat(planillaExistente.MontoPlanillaParcial).toFixed(2)}<br>
-                                <strong style="color: #92400e;">👥 Colaboradores:</strong> ${planillaExistente.CantidadColaboradores}<br>
-                                <strong style="color: #92400e;">👤 Creada por:</strong> ${planillaExistente.NombreUsuario}<br>
-                                <strong style="color: #92400e;">📆 Fecha registro:</strong> ${fechaRegistro}
-                            </div>
-                            
-                            <div style="text-align: center; padding: 12px; background: ${estadoInfo.fondo}; border-radius: 8px; border: 2px solid ${estadoInfo.borde};">
-                                <div style="display: flex; align-items: center; justify-content: center; gap: 8px;">
-                                    <span style="font-size: 1.2rem;">${estadoInfo.icono}</span>
-                                    <strong style="color: ${estadoInfo.texto}; font-size: 1.1rem;">Estado: ${planillaExistente.NombreEstado}</strong>
-                                </div>
-                                <div style="font-size: 0.85rem; color: ${estadoInfo.texto}; opacity: 0.8; margin-top: 4px;">
-                                    ${estadoInfo.descripcion}
-                                </div>
-                            </div>
-                        </div>
-
-                        <div style="background: #fee2e2; padding: 15px; border-radius: 8px; border-left: 4px solid #ef4444;">
-                            <p style="margin: 0; color: #991b1b;">
-                                <strong>🚫 No se puede crear:</strong> Ya existe una planilla ${tipoTexto.toLowerCase()} para ${mesNombre} ${anio} en este departamento.
-                            </p>
-                        </div>
-                        
-                        <div style="background: #e0f2fe; padding: 15px; border-radius: 8px; margin-top: 15px; border-left: 4px solid #0891b2;">
-                            <p style="margin: 0; color: #0891b2; font-size: 0.9rem;">
-                                <strong>💡 Opciones disponibles:</strong><br>
-                                • Seleccione un período diferente<br>
-                                • Cambie el tipo de planilla<br>
-                                • Consulte con el administrador sobre la planilla existente
-                            </p>
-                        </div>
-                    </div>
-                `,
-                confirmButtonText: 'Entendido',
-                confirmButtonColor: '#1e40af',
-                width: '650px'
-            });
-            
-            return; // No continuar si ya existe
+            // Mostrar error de planilla duplicada
+            await mostrarErrorPlanillaDuplicada(planillaExistente, tipo, mes, anio);
+            return;
         }
         
-        // Si no existe, continuar con el proceso normal
-        // Guardar configuración
+        // Si no existe, continuar con el proceso
         planillaConfig = {
             tipo: tipo,
             mes: parseInt(mes),
@@ -463,60 +442,156 @@ async function confirmarSeleccionPlanilla() {
             confirmada: true
         };
         
+        // Actualizar progreso a "cargando colaboradores"
+        actualizarProgresoVisual('collaborators');
+        mostrarEstadoCarga('Configuración confirmada. Cargando colaboradores...');
+        
+        // Transición suave a modo normal
+        await transicionAModoNormal();
+        
         // Actualizar interfaz
         actualizarVistaPlanillaConfirmada();
         mostrarInformacionEnHeader();
         
-        // Ocultar toda la sección de configuración
+        // Ocultar sección de configuración con animación
         const payrollTypeSection = document.querySelector('.payroll-type-section');
-        setTimeout(() => {
-            payrollTypeSection.classList.add('hidden');
-        }, 300);
+        if (payrollTypeSection) {
+            payrollTypeSection.classList.add('panel-fade-out');
+            setTimeout(() => {
+                payrollTypeSection.classList.add('hidden');
+                payrollTypeSection.style.display = 'none';
+            }, 500);
+        }
         
         // Cargar colaboradores
-        cargarColaboradoresDespuesDeConfirmar();
+        await cargarColaboradoresConProgreso();
         
-        Swal.fire({
-            icon: 'success',
-            title: 'Configuración confirmada',
-            text: 'Cargando colaboradores del departamento...',
-            timer: 2000,
-            showConfirmButton: false
-        });
+        // Ocultar estado de carga
+        ocultarEstadoCarga();
         
     } catch (error) {
         console.error('Error al verificar planilla:', error);
         
-        // Cerrar loading en caso de error
-        Swal.close();
+        // Ocultar estado de carga
+        ocultarEstadoCarga();
         
+        // Mostrar error
         Swal.fire({
             icon: 'error',
             title: 'Error de verificación',
-            html: `
-                <div style="text-align: left; margin: 20px 0;">
-                    <div style="background: #fee2e2; padding: 15px; border-radius: 8px; border-left: 4px solid #ef4444;">
-                        <p style="margin-bottom: 10px; color: #991b1b;">
-                            <strong>❌ Error técnico:</strong> No se pudo verificar si existe una planilla duplicada.
-                        </p>
-                        <p style="margin: 0; color: #991b1b; font-size: 0.9rem;">
-                            <strong>Detalles:</strong> ${error.message || 'Error de conexión con la base de datos'}
-                        </p>
-                    </div>
-                    
-                    <div style="background: #fef3c7; padding: 15px; border-radius: 8px; margin-top: 15px; border-left: 4px solid #f59e0b;">
-                        <p style="margin: 0; color: #92400e;">
-                            <strong>💡 Sugerencia:</strong> Verifique la conexión a la base de datos y vuelva a intentarlo.
-                        </p>
-                    </div>
-                </div>
-            `,
-            confirmButtonText: 'Entendido',
-            confirmButtonColor: '#ef4444',
-            width: '500px'
+            text: 'No se pudo verificar la disponibilidad de la planilla. Intente nuevamente.',
+            confirmButtonColor: '#ef4444'
         });
     }
 }
+
+// ⭐ FUNCIÓN PARA TRANSICIÓN SUAVE A MODO NORMAL
+async function transicionAModoNormal() {
+    const mainContainer = document.querySelector('.main-container');
+    
+    if (mainContainer) {
+        // Agregar clase de transición
+        mainContainer.style.transition = 'all 0.6s ease';
+        
+        // Cambiar a modo normal
+        mainContainer.classList.remove('config-mode');
+        mainContainer.classList.add('normal-mode');
+        
+        // Mostrar elementos con animación
+        setTimeout(() => {
+            mostrarElementosDespuesDeConfigurarConAnimacion();
+        }, 300);
+    }
+}
+
+// ⭐ FUNCIÓN PARA MOSTRAR ESTADO DE CARGA
+function mostrarEstadoCarga(mensaje) {
+    const configContainer = document.querySelector('.payroll-type-container');
+    
+    // Crear elemento de carga si no existe
+    let loadingElement = document.getElementById('config-loading');
+    if (!loadingElement) {
+        loadingElement = document.createElement('div');
+        loadingElement.id = 'config-loading';
+        loadingElement.className = 'config-loading';
+        loadingElement.innerHTML = `
+            <div class="config-spinner"></div>
+            <div class="config-loading-text" id="loading-text">${mensaje}</div>
+        `;
+        
+        if (configContainer) {
+            configContainer.appendChild(loadingElement);
+        }
+    } else {
+        document.getElementById('loading-text').textContent = mensaje;
+        loadingElement.style.display = 'flex';
+    }
+}
+
+// ⭐ FUNCIÓN PARA OCULTAR ESTADO DE CARGA
+function ocultarEstadoCarga() {
+    const loadingElement = document.getElementById('config-loading');
+    if (loadingElement) {
+        loadingElement.style.display = 'none';
+    }
+}
+
+// ⭐ FUNCIÓN PARA MOSTRAR ERROR DE PLANILLA DUPLICADA
+async function mostrarErrorPlanillaDuplicada(planillaExistente, tipo, mes, anio) {
+    const tipoTexto = tipo === 'quincenal' ? 'Quincenal' : 'Fin de Mes';
+    const mesNombre = new Date(anio, mes - 1).toLocaleDateString('es-GT', { month: 'long' });
+    const fechaRegistro = new Date(planillaExistente.FechaRegistro).toLocaleDateString('es-GT');
+    
+    const estadoInfo = obtenerEstiloEstado(planillaExistente.IdEstado, planillaExistente.NombreEstado);
+    
+    await Swal.fire({
+        icon: 'warning',
+        title: 'Planilla ya existe',
+        html: `
+            <div style="text-align: left; margin: 20px 0;">
+                <div style="background: linear-gradient(135deg, #fef3c7 0%, #fed7aa 100%); padding: 20px; border-radius: 12px; border: 2px solid #f59e0b; margin-bottom: 20px; box-shadow: var(--shadow-large);">
+                    <h4 style="color: #92400e; margin-bottom: 15px; text-align: center; display: flex; align-items: center; justify-content: center; gap: 8px;">
+                        <i class="fas fa-exclamation-triangle" style="font-size: 1.2rem;"></i>
+                        Planilla Duplicada Detectada
+                    </h4>
+                    
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px;">
+                        <div><strong style="color: #92400e;">📋 Tipo:</strong> Planilla ${tipoTexto}</div>
+                        <div><strong style="color: #92400e;">📅 Período:</strong> ${mesNombre} ${anio}</div>
+                        <div><strong style="color: #92400e;">💰 Monto:</strong> Q ${parseFloat(planillaExistente.MontoPlanillaParcial).toFixed(2)}</div>
+                        <div><strong style="color: #92400e;">👥 Colaboradores:</strong> ${planillaExistente.CantidadColaboradores}</div>
+                        <div style="grid-column: span 2;"><strong style="color: #92400e;">👤 Creada por:</strong> ${planillaExistente.NombreUsuario}</div>
+                        <div style="grid-column: span 2;"><strong style="color: #92400e;">📆 Fecha registro:</strong> ${fechaRegistro}</div>
+                    </div>
+                    
+                    <div style="text-align: center; padding: 15px; background: ${estadoInfo.fondo}; border-radius: 8px; border: 2px solid ${estadoInfo.borde};">
+                        <div style="display: flex; align-items: center; justify-content: center; gap: 8px; margin-bottom: 5px;">
+                            <span style="font-size: 1.3rem;">${estadoInfo.icono}</span>
+                            <strong style="color: ${estadoInfo.texto}; font-size: 1.1rem;">Estado: ${planillaExistente.NombreEstado}</strong>
+                        </div>
+                        <div style="font-size: 0.85rem; color: ${estadoInfo.texto}; opacity: 0.9;">
+                            ${estadoInfo.descripcion}
+                        </div>
+                    </div>
+                </div>
+
+                <div style="background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%); padding: 15px; border-radius: 8px; border: 2px solid #ef4444; margin-bottom: 15px;">
+                    <p style="margin: 0; color: #991b1b; text-align: center;">
+                        <strong>🚫 No se puede crear una nueva planilla</strong><br>
+                        <span style="font-size: 0.9rem;">Ya existe una planilla ${tipoTexto.toLowerCase()} para ${mesNombre} ${anio}</span>
+                    </p>
+                </div>
+            </div>
+        `,
+        confirmButtonText: 'Entendido',
+        confirmButtonColor: '#1e40af',
+        width: '700px',
+        customClass: {
+            popup: 'duplicate-planilla-modal'
+        }
+    });
+}
+
 function obtenerEstiloEstado(idEstado, nombreEstado) {
     // Mapear TUS estados reales a estilos apropiados
     const estilosEstados = {
@@ -580,33 +655,27 @@ function obtenerEstiloEstado(idEstado, nombreEstado) {
         descripcion: `Estado: ${nombreEstado}`
     };
 }
-async function cargarColaboradoresDespuesDeConfirmar() {
+
+// ⭐ FUNCIÓN PARA CARGAR COLABORADORES CON PROGRESO
+async function cargarColaboradoresConProgreso() {
     try {
-        // Mostrar loading
-        const loadingSwal = mostrarCargando('Cargando colaboradores...');
+        // Actualizar progreso
+        actualizarProgresoVisual('collaborators');
         
         // Buscar colaboradores
         await buscarColaboradoresAutomatico();
         
-        // Cerrar loading
-        Swal.close();
+        // Mostrar sección de planilla y estado de bienvenida
+        document.getElementById('payrollSection').style.display = 'block';
+        document.getElementById('welcomeState').style.display = 'flex';
         
-        // Mostrar notificación de éxito
+        // Actualizar progreso a siguiente paso
         setTimeout(() => {
-            Swal.fire({
-                icon: 'success',
-                title: 'Colaboradores cargados',
-                text: `Se encontraron ${allCollaborators.length} colaboradores en su departamento.`,
-                timer: 2500,
-                showConfirmButton: false,
-                toast: true,
-                position: 'top-end'
-            });
-        }, 500);
+            actualizarProgresoVisual('shifts');
+        }, 1000);
         
     } catch (error) {
         console.error('Error al cargar colaboradores:', error);
-        Swal.close();
         
         Swal.fire({
             icon: 'error',
@@ -616,120 +685,51 @@ async function cargarColaboradoresDespuesDeConfirmar() {
         });
     }
 }
-function cambiarConfiguracionPlanilla() {
-    const form = document.getElementById('payrollTypeForm');
-    const confirmed = document.getElementById('payrollConfirmed');
-    const planillaInfo = document.getElementById('planillaInfo');
-    const payrollTypeSection = document.querySelector('.payroll-type-section');
-    
-    // Mostrar la sección de configuración
-    payrollTypeSection.classList.remove('hidden');
-    
-    // Mostrar formulario, ocultar vista confirmada
-    form.style.display = 'block';
-    confirmed.style.display = 'none';
-    planillaInfo.style.display = 'none';
-    
-    // Resetear configuración
-    planillaConfig.confirmada = false;
-    
-    // ⭐ NUEVO: Ocultar colaboradores cuando se cambia la configuración
-    ocultarColaboradores();
-    
-    // Limpiar selecciones de colaboradores
-    limpiarSelecciones();
-}
 
-function cambiarConfiguracionDesdeHeader() {
-    const payrollTypeSection = document.querySelector('.payroll-type-section');
-    const planillaInfo = document.getElementById('planillaInfo');
+async function buscarColaboradoresAutomatico() {
+    if (!currentDepartamentoId) {
+        throw new Error('No se ha configurado el departamento');
+    }
     
-    // Mostrar la sección de configuración
-    payrollTypeSection.classList.remove('hidden');
-    
-    // Hacer scroll hacia la sección de configuración
-    payrollTypeSection.scrollIntoView({ 
-        behavior: 'smooth', 
-        block: 'start' 
-    });
-    
-    // Ocultar la información del header temporalmente
-    planillaInfo.style.display = 'none';
-    
-    // Resetear configuración
-    planillaConfig.confirmada = false;
-    
-    // ⭐ NUEVO: Ocultar colaboradores cuando se cambia la configuración
-    ocultarColaboradores();
-    
-    // Limpiar selecciones
-    limpiarSelecciones();
-}
-function ocultarColaboradores() {
-    const collaboratorsSection = document.getElementById('collaboratorsSection');
-    
-    // Ocultar sección de colaboradores
-    collaboratorsSection.style.display = 'none';
-    
-    // Limpiar datos
-    allCollaborators = [];
-    
-    // Limpiar lista visual
-    const collaboratorsList = document.getElementById('collaboratorsList');
-    const collaboratorCount = document.getElementById('collaboratorCount');
-    
-    collaboratorsList.innerHTML = '';
-    collaboratorCount.textContent = '0';
-    
-    // Limpiar búsqueda
-    document.getElementById('searchCollaborator').value = '';
-    
-    console.log('Colaboradores ocultados - esperando confirmación de planilla');
-}
-function mostrarInformacionEnHeader() {
-    const planillaInfo = document.getElementById('planillaInfo');
-    const planillaBadge = document.getElementById('planillaBadge');
-    
-    const tipoTexto = planillaConfig.tipo === 'quincenal' ? 'Quincenal' : 'Fin de Mes';
-    const mesNombre = new Date(planillaConfig.anio, planillaConfig.mes - 1).toLocaleDateString('es-GT', { month: 'short' });
-    
-    planillaBadge.textContent = `${tipoTexto} • ${mesNombre} ${planillaConfig.anio}`;
-    planillaInfo.style.display = 'flex';
-}
-
-function actualizarVistaPlanillaConfirmada() {
-    const form = document.getElementById('payrollTypeForm');
-    const confirmed = document.getElementById('payrollConfirmed');
-    const confirmedType = document.getElementById('confirmedType');
-    const confirmedPeriod = document.getElementById('confirmedPeriod');
-    
-    // Ocultar formulario, mostrar vista confirmada
-    form.style.display = 'none';
-    confirmed.style.display = 'block';
-    
-    // Actualizar textos
-    const tipoTexto = planillaConfig.tipo === 'quincenal' ? 'Planilla Quincenal' : 'Planilla Fin de Mes';
-    const mesNombre = new Date(planillaConfig.anio, planillaConfig.mes - 1).toLocaleDateString('es-GT', { month: 'long' });
-    
-    confirmedType.textContent = tipoTexto;
-    confirmedPeriod.textContent = `${mesNombre} ${planillaConfig.anio}`;
-}
-
-function validarFormularioPlanilla() {
-    const tipo = document.getElementById('tipoQuincena').value;
-    const mes = document.getElementById('mesPlanilla').value;
-    const anio = document.getElementById('anioPlanilla').value;
-    const confirmarBtn = document.getElementById('confirmarPlanilla');
-    
-    const todosCompletos = tipo && mes && anio;
-    confirmarBtn.disabled = !todosCompletos;
-    
-    if (todosCompletos) {
-        confirmarBtn.classList.add('btn-ready');
-    } else {
-        confirmarBtn.classList.remove('btn-ready');
+    try {
+        const connection = await connectionString();
+        const result = await connection.query(`
+            SELECT
+                personal.IdPersonal, 
+                personal.PrimerApellido, 
+                personal.SegundoApellido, 
+                personal.PrimerNombre, 
+                personal.SegundoNombre, 
+                personal.TercerNombre, 
+                Puestos.Nombre
+            FROM
+                personal
+                INNER JOIN
+                Puestos
+                ON 
+                    personal.IdPuesto = Puestos.IdPuesto
+            WHERE
+                personal.TipoPersonal = 2 AND
+                personal.Estado = 1 AND
+                personal.IdSucuDepa = ?
+            ORDER BY personal.PrimerApellido, personal.PrimerNombre
+        `, [currentDepartamentoId]);
+        
+        await connection.close();
+        
+        allCollaborators = result.map(collab => ({
+            ...collab,
+            nombreCompleto: `${collab.PrimerNombre} ${collab.SegundoNombre || ''} ${collab.TercerNombre || ''} ${collab.PrimerApellido} ${collab.SegundoApellido || ''}`.trim().replace(/\s+/g, ' ')
+        }));
+        
+        mostrarColaboradores(allCollaborators);
+        
+    } catch (error) {
+        console.error('Error al buscar colaboradores:', error);
+        throw error;
     }
 }
+
 function mostrarColaboradores(colaboradores) {
     // ⭐ NUEVA VALIDACIÓN: Solo mostrar si la planilla está confirmada
     if (!planillaConfig.confirmada) {
@@ -762,7 +762,7 @@ function mostrarColaboradores(colaboradores) {
                 <div class="collaborator-id">ID: ${collab.IdPersonal}</div>
             `;
             
-            item.addEventListener('click', () => seleccionarColaborador(collab, item));
+            item.addEventListener('click', () => seleccionarColaboradorConProgreso(collab, item));
             list.appendChild(item);
         });
     }
@@ -773,6 +773,88 @@ function mostrarColaboradores(colaboradores) {
     // Limpiar búsqueda
     document.getElementById('searchCollaborator').value = '';
     setTimeout(ajustarAlturaLista, 100);
+}
+
+// ⭐ FUNCIÓN MEJORADA PARA SELECCIONAR COLABORADOR CON PROGRESO
+function seleccionarColaboradorConProgreso(colaborador, itemElement) {
+    // Remover selección anterior
+    document.querySelectorAll('.collaborator-item').forEach(item => {
+        item.classList.remove('selected');
+    });
+    
+    // Seleccionar nuevo colaborador
+    itemElement.classList.add('selected');
+    selectedEmployee = {
+        id: colaborador.IdPersonal,
+        nombre: colaborador.nombreCompleto,
+        puesto: colaborador.Nombre
+    };
+    
+    // ⭐ ACTUALIZAR PROGRESO A "TURNOS"
+    actualizarProgresoVisual('shifts');
+    
+    // Verificar si el colaborador ya está en la planilla
+    const colaboradorEnPlanilla = payrollCollaborators.find(c => c.id === colaborador.IdPersonal);
+    
+    if (colaboradorEnPlanilla) {
+        // Cargar sus turnos existentes
+        currentShifts = [...colaboradorEnPlanilla.shifts];
+        
+        Swal.fire({
+            icon: 'info',
+            title: 'Colaborador encontrado en planilla',
+            html: `
+                <div style="text-align: left; margin: 15px 0;">
+                    <div style="background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%); padding: var(--spacing-lg); border-radius: var(--radius-xl); border: 2px solid #3b82f6; margin-bottom: var(--spacing-lg);">
+                        <h4 style="color: #1e40af; margin-bottom: var(--spacing-md); text-align: center; display: flex; align-items: center; justify-content: center; gap: 8px;">
+                            <i class="fas fa-user-check"></i>
+                            Colaborador en Planilla
+                        </h4>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; font-size: 0.9rem;">
+                            <div><strong>👤 Colaborador:</strong> ${colaborador.nombreCompleto}</div>
+                            <div><strong>💼 Puesto:</strong> ${colaborador.Nombre}</div>
+                            <div><strong>📊 Turnos actuales:</strong> ${colaboradorEnPlanilla.totalTurnos}</div>
+                            <div><strong>💰 Total a pagar:</strong> Q ${colaboradorEnPlanilla.totalPago.toFixed(2)}</div>
+                        </div>
+                    </div>
+                    
+                    <div style="background: #e0f2fe; padding: 12px; border-radius: 8px; border-left: 4px solid #0891b2;">
+                        <p style="margin: 0; color: #0891b2; font-size: 0.9rem;">
+                            <strong>ℹ️ Este colaborador ya tiene turnos configurados.</strong> Puedes editarlos o simplemente revisar la información.
+                        </p>
+                    </div>
+                </div>
+            `,
+            showCancelButton: true,
+            confirmButtonText: '📅 Editar turnos',
+            cancelButtonText: '👀 Solo revisar',
+            confirmButtonColor: '#4f46e5',
+            cancelButtonColor: '#6b7280',
+            width: '500px'
+        }).then((result) => {
+            if (result.isConfirmed) {
+                setTimeout(() => {
+                    abrirCalendario();
+                }, 200);
+            }
+        });
+    } else {
+        // Colaborador nuevo
+        currentShifts = [];
+
+        setTimeout(() => {
+            abrirCalendario();
+        }, 300);
+    }
+    
+    // Ocultar estado de bienvenida
+    document.getElementById('welcomeState').style.display = 'none';
+    
+    // La sección de planilla siempre debe estar visible
+    document.getElementById('payrollSection').style.display = 'block';
+    
+    // Actualizar visibilidad de acciones
+    actualizarVisibilidadAcciones();
 }
 
 function filtrarColaboradores() {
@@ -813,104 +895,93 @@ function filtrarColaboradores() {
                 <div class="collaborator-id">ID: ${collab.IdPersonal}</div>
             `;
             
-            item.addEventListener('click', () => seleccionarColaborador(collab, item));
+            item.addEventListener('click', () => seleccionarColaboradorConProgreso(collab, item));
             list.appendChild(item);
         });
     }
     setTimeout(ajustarAlturaLista, 100);
 }
-function seleccionarColaborador(colaborador, itemElement) {
-    // Remover selección anterior
-    document.querySelectorAll('.collaborator-item').forEach(item => {
-        item.classList.remove('selected');
-    });
+
+// ⭐ FUNCIÓN MEJORADA PARA CAMBIAR CONFIGURACIÓN CON RESET DE PROGRESO
+function cambiarConfiguracionPlanillaConReset() {
+    const form = document.getElementById('payrollTypeForm');
+    const confirmed = document.getElementById('payrollConfirmed');
+    const planillaInfo = document.getElementById('planillaInfo');
+    const payrollTypeSection = document.querySelector('.payroll-type-section');
     
-    // Seleccionar nuevo colaborador
-    itemElement.classList.add('selected');
-    selectedEmployee = {
-        id: colaborador.IdPersonal,
-        nombre: colaborador.nombreCompleto,
-        puesto: colaborador.Nombre
-    };
+    // ⭐ RESETEAR PROGRESO A INICIAL
+    actualizarProgresoVisual('config');
     
-    // Verificar si el colaborador ya está en la planilla
-    const colaboradorEnPlanilla = payrollCollaborators.find(c => c.id === colaborador.IdPersonal);
+    // Ocultar elementos nuevamente
+    ocultarElementosHastaConfigurar();
     
-    if (colaboradorEnPlanilla) {
-        // Cargar sus turnos existentes
-        currentShifts = [...colaboradorEnPlanilla.shifts];
-        
-        Swal.fire({
-            icon: 'info',
-            title: 'Colaborador encontrado en planilla',
-            html: `
-                <div style="text-align: left; margin: 15px 0;">
-                    <p><strong>👤 Colaborador:</strong> ${colaborador.nombreCompleto}</p>
-                    <p><strong>💼 Puesto:</strong> ${colaborador.Nombre}</p>
-                    <p><strong>📊 Turnos actuales:</strong> ${colaboradorEnPlanilla.totalTurnos}</p>
-                    <p><strong>💰 Total a pagar:</strong> Q ${colaboradorEnPlanilla.totalPago.toFixed(2)}</p>
-                    <br>
-                    <div style="background: #e0f2fe; padding: 12px; border-radius: 8px; border-left: 4px solid #0891b2;">
-                        <p style="margin: 0; color: #0891b2; font-size: 0.9rem;">
-                            <strong>ℹ️ Este colaborador ya tiene turnos configurados.</strong> Puedes editarlos o simplemente revisar la información.
-                        </p>
-                    </div>
-                </div>
-            `,
-            showCancelButton: true,
-            confirmButtonText: '📅 Editar turnos',
-            cancelButtonText: '👀 Solo revisar',
-            confirmButtonColor: '#4f46e5',
-            cancelButtonColor: '#6b7280',
-            width: '500px'
-        }).then((result) => {
-            if (result.isConfirmed) {
-                setTimeout(() => {
-                    abrirCalendario();
-                }, 200);
-            }
-        });
-    } else {
-        // Colaborador nuevo
-        currentShifts = [];
-        
-        setTimeout(() => {
-            abrirCalendario();
-        }, 300);
+    // Aplicar modo configuración
+    const mainContainer = document.querySelector('.main-container');
+    if (mainContainer) {
+        mainContainer.classList.add('config-mode');
+        mainContainer.classList.remove('normal-mode');
     }
     
-    // Ocultar estado de bienvenida
-    document.getElementById('welcomeState').style.display = 'none';
+    // Mostrar la sección de configuración
+    payrollTypeSection.classList.remove('hidden', 'panel-fade-out');
+    payrollTypeSection.style.display = 'block';
     
-    // La sección de planilla siempre debe estar visible
-    document.getElementById('payrollSection').style.display = 'block';
+    // Mostrar formulario, ocultar vista confirmada
+    form.style.display = 'block';
+    confirmed.style.display = 'none';
+    planillaInfo.style.display = 'none';
     
-    // Actualizar visibilidad de acciones
-    actualizarVisibilidadAcciones();
-}
-function limpiarSelecciones() {
-    limpiarSeleccionEmpleado();
-    document.getElementById('searchCollaborator').value = '';
+    // Resetear configuración
+    planillaConfig.confirmada = false;
+    
+    // Limpiar selecciones y datos
+    limpiarSelecciones();
+    payrollCollaborators = [];
+    allCollaborators = [];
+    currentShifts = [];
+    selectedEmployee = null;
+    
+    // Mostrar notificación
+    Swal.fire({
+        icon: 'info',
+        title: 'Configuración reiniciada',
+        text: 'Puede configurar una nueva planilla.',
+        timer: 1500,
+        showConfirmButton: false,
+        toast: true,
+        position: 'top-end'
+    });
 }
 
-function limpiarSeleccionEmpleado() {
-    // Remover selección visual
-    document.querySelectorAll('.collaborator-item').forEach(item => {
-        item.classList.remove('selected');
-    });
+function mostrarInformacionEnHeader() {
+    const planillaInfo = document.getElementById('planillaInfo');
+    const planillaBadge = document.getElementById('planillaBadge');
     
-    // Limpiar variables
-    selectedEmployee = null;
-    currentShifts = [];
+    const tipoTexto = planillaConfig.tipo === 'quincenal' ? 'Quincenal' : 'Fin de Mes';
+    const mesNombre = new Date(planillaConfig.anio, planillaConfig.mes - 1).toLocaleDateString('es-GT', { month: 'short' });
     
-    // Mantener la planilla visible pero mostrar bienvenida si no hay colaboradores
-    if (payrollCollaborators.length === 0) {
-        document.getElementById('welcomeState').style.display = 'flex';
-    }
-    
-    // Actualizar visibilidad de acciones
-    actualizarVisibilidadAcciones();
+    planillaBadge.textContent = `${tipoTexto} • ${mesNombre} ${planillaConfig.anio}`;
+    planillaInfo.style.display = 'flex';
 }
+
+function actualizarVistaPlanillaConfirmada() {
+    const form = document.getElementById('payrollTypeForm');
+    const confirmed = document.getElementById('payrollConfirmed');
+    const confirmedType = document.getElementById('confirmedType');
+    const confirmedPeriod = document.getElementById('confirmedPeriod');
+    
+    // Ocultar formulario, mostrar vista confirmada
+    form.style.display = 'none';
+    confirmed.style.display = 'block';
+    
+    // Actualizar textos
+    const tipoTexto = planillaConfig.tipo === 'quincenal' ? 'Planilla Quincenal' : 'Planilla Fin de Mes';
+    const mesNombre = new Date(planillaConfig.anio, planillaConfig.mes - 1).toLocaleDateString('es-GT', { month: 'long' });
+    
+    confirmedType.textContent = tipoTexto;
+    confirmedPeriod.textContent = `${mesNombre} ${planillaConfig.anio}`;
+}
+
 // Abrir modal del calendario
 function abrirCalendario() {
     if (!selectedEmployee) {
@@ -981,16 +1052,8 @@ function guardarYCerrarCalendario() {
         });
     } else {
         // Agregar nuevo colaborador directamente
-        agregarNuevoColaboradorAPlanilla();
+        agregarNuevoColaboradorAPlanillaConProgreso();
         cerrarCalendario();
-        
-        Swal.fire({
-            icon: 'success',
-            title: 'Agregado a planilla',
-            text: `${selectedEmployee.nombre} ha sido agregado a la planilla con ${currentShifts.length} turno(s).`,
-            timer: 2500,
-            showConfirmButton: false
-        });
     }
 }
 
@@ -1111,6 +1174,7 @@ function actualizarCalendario() {
     // Actualizar indicadores de semana
     actualizarIndicadoresSemana();
 }
+
 function validarMesActual(fecha) {
     const fechaActual = new Date();
     const mesActual = fechaActual.getMonth();
@@ -1201,6 +1265,7 @@ function esDomingo(fecha) {
     const date = new Date(fecha);
     return date.getDay() === 0; // 0 = domingo
 }
+
 function seleccionarFecha(fecha) {
     const dateString = formatDate(fecha);
     const validacionPlanilla = validarFechaPorTipoPlanilla(fecha);
@@ -1360,7 +1425,6 @@ function seleccionarFecha(fecha) {
         window.tempSelectedDate = dateString;
     }
 }
-
 // Seleccionar tipo de turno
 function seleccionarTipoTurno(tipoTurno) {
     const fecha = window.tempSelectedDate;
@@ -1400,6 +1464,7 @@ function seleccionarTipoTurno(tipoTurno) {
     
     delete window.tempSelectedDate;
 }
+
 function mostrarSubmenuTurno4Horas(fecha) {
     const fechaDisplay = document.getElementById('selectedDate').textContent;
     
@@ -1526,7 +1591,7 @@ function mostrarSubmenuTurno4Horas(fecha) {
     });
 }
 
-// 3. NUEVA FUNCIÓN: Confirmar turno de 4 horas con subtipo
+// NUEVA FUNCIÓN: Confirmar turno de 4 horas con subtipo
 function confirmarTurno4Horas(fecha, subTurno) {
     const subTipoNombre = subTurno === 1 ? 'Mañana' : 'Mixto';
     const tipoNombre = `Turno 4 Horas (${subTipoNombre})`;
@@ -1559,6 +1624,7 @@ function confirmarTurno4Horas(fecha, subTurno) {
         position: 'top-end'
     });
 }
+
 // Eliminar turno
 function eliminarTurno(fecha) {
     currentShifts = currentShifts.filter(s => s.fecha !== fecha);
@@ -1589,6 +1655,36 @@ function actualizarResumenModal() {
     }
     
     document.getElementById('modalTotalCount').textContent = totalTurnos;
+}
+
+// ⭐ FUNCIÓN PARA ACTUALIZAR PROGRESO CUANDO SE AGREGA A PLANILLA
+function agregarNuevoColaboradorAPlanillaConProgreso() {
+    const colaboradorData = {
+        id: selectedEmployee.id,
+        nombre: selectedEmployee.nombre,
+        puesto: selectedEmployee.puesto,
+        shifts: [...currentShifts],
+        turnosMañana: currentShifts.filter(s => s.turno === 1).length,
+        turnosMixtos: currentShifts.filter(s => s.turno === 2).length,
+        turnos4Horas: currentShifts.filter(s => s.turno === 3).length,
+        totalTurnos: currentShifts.length,
+        totalPago: calcularSalarioColaborador(currentShifts),
+        fechaAgregado: new Date().toISOString()
+    };
+    
+    payrollCollaborators.push(colaboradorData);
+    
+    // ⭐ ACTUALIZAR PROGRESO A "GENERAR" SI HAY COLABORADORES
+    if (payrollCollaborators.length > 0) {
+        actualizarProgresoVisual('generate');
+    }
+    
+    // Limpiar selección actual
+    currentShifts = [];
+    
+    // Actualizar vista de planilla y visibilidad de acciones
+    actualizarVistaPlanilla();
+    actualizarVisibilidadAcciones();
 }
 
 function actualizarIndicadoresSemana() {
@@ -1631,6 +1727,7 @@ function actualizarIndicadoresSemana() {
         }
     });
 }
+
 function actualizarVisibilidadAcciones() {
     const payrollActionsContainer = document.getElementById('payrollActionsContainer');
     const hasCollaborators = payrollCollaborators.length > 0;
@@ -1664,7 +1761,7 @@ function actualizarColaboradorEnPlanilla(index) {
         turnosMixtos: currentShifts.filter(s => s.turno === 2).length,
         turnos4Horas: currentShifts.filter(s => s.turno === 3).length,
         totalTurnos: currentShifts.length,
-        totalPago: calcularSalarioColaborador(currentShifts), // ⭐ YA INCLUYE REDONDEO
+        totalPago: calcularSalarioColaborador(currentShifts),
         fechaActualizado: new Date().toISOString()
     };
     
@@ -1746,6 +1843,7 @@ function actualizarVistaPlanilla() {
         actualizarTotalesGenerales();
     }
 }
+
 function obtenerDetallesTurnos4Horas(shifts) {
     const turnos4h = shifts.filter(s => s.turno === 3);
     if (turnos4h.length === 0) return '';
@@ -1759,6 +1857,7 @@ function obtenerDetallesTurnos4Horas(shifts) {
     
     return detalles.length > 0 ? `(${detalles.join(', ')})` : '';
 }
+
 function actualizarTotalesGenerales() {
     const totalColaboradores = payrollCollaborators.length;
     const totalTurnos = payrollCollaborators.reduce((sum, c) => sum + c.totalTurnos, 0);
@@ -1811,7 +1910,7 @@ function editarColaborador(index) {
                 // Simular selección del colaborador
                 const colaboradorData = allCollaborators.find(c => c.IdPersonal === colaborador.id);
                 if (colaboradorData) {
-                    seleccionarColaborador(colaboradorData, collaboratorItem);
+                    seleccionarColaboradorConProgreso(colaboradorData, collaboratorItem);
                     // Cargar los turnos existentes
                     currentShifts = [...colaborador.shifts];
                     
@@ -1922,51 +2021,143 @@ function calcularSalarioColaborador(shifts) {
     // ⭐ APLICAR REDONDEO AL TOTAL
     return redondearMonto(total);
 }
+
 function redondearMonto(monto) {
     // Redondear al múltiplo de 0.05 más cercano
     return Math.round(monto / 0.05) * 0.05;
 }
-function redondearMontoConOpcion(monto, direccion = 'cercano') {
-    switch(direccion) {
-        case 'arriba':
-            return Math.ceil(monto / 0.05) * 0.05;
-        case 'abajo':
-            return Math.floor(monto / 0.05) * 0.05;
-        default: // 'cercano'
-            return Math.round(monto / 0.05) * 0.05;
-    }
+
+function limpiarSelecciones() {
+    limpiarSeleccionEmpleado();
+    document.getElementById('searchCollaborator').value = '';
 }
-function agregarNuevoColaboradorAPlanilla() {
-    const colaboradorData = {
-        id: selectedEmployee.id,
-        nombre: selectedEmployee.nombre,
-        puesto: selectedEmployee.puesto,
-        shifts: [...currentShifts],
-        turnosMañana: currentShifts.filter(s => s.turno === 1).length,
-        turnosMixtos: currentShifts.filter(s => s.turno === 2).length,
-        turnos4Horas: currentShifts.filter(s => s.turno === 3).length,
-        totalTurnos: currentShifts.length,
-        totalPago: calcularSalarioColaborador(currentShifts), // ⭐ YA INCLUYE REDONDEO
-        fechaAgregado: new Date().toISOString()
-    };
+
+function limpiarSeleccionEmpleado() {
+    // Remover selección visual
+    document.querySelectorAll('.collaborator-item').forEach(item => {
+        item.classList.remove('selected');
+    });
     
-    payrollCollaborators.push(colaboradorData);
-    
-    // Limpiar selección actual
+    // Limpiar variables
+    selectedEmployee = null;
     currentShifts = [];
     
-    // Actualizar vista de planilla y visibilidad de acciones
-    actualizarVistaPlanilla();
-    actualizarVisibilidadAcciones();
+    // Mantener la planilla visible pero mostrar bienvenida si no hay colaboradores
+    if (payrollCollaborators.length === 0) {
+        document.getElementById('welcomeState').style.display = 'flex';
+    }
     
-    Swal.fire({
-        icon: 'success',
-        title: 'Colaborador agregado',
-        text: `${selectedEmployee.nombre} ha sido agregado a la planilla.`,
-        timer: 2000,
-        showConfirmButton: false
-    });
+    // Actualizar visibilidad de acciones
+    actualizarVisibilidadAcciones();
 }
+
+// ⭐ INICIALIZACIÓN DE EVENT LISTENERS ACTUALIZADA
+function inicializarEventos() {
+    // Función auxiliar para agregar event listener seguro
+    const addSafeEventListener = (id, event, handler) => {
+        const element = document.getElementById(id);
+        if (element) {
+            element.addEventListener(event, handler);
+        } else {
+            console.warn(`Elemento con ID '${id}' no encontrado`);
+        }
+    };
+
+    // ⭐ USAR LAS NUEVAS FUNCIONES CON PROGRESO
+    addSafeEventListener('tipoQuincena', 'change', validarFormularioConProgreso);
+    addSafeEventListener('mesPlanilla', 'change', validarFormularioConProgreso);
+    addSafeEventListener('anioPlanilla', 'change', validarFormularioConProgreso);
+    addSafeEventListener('confirmarPlanilla', 'click', confirmarSeleccionPlanillaConTransiciones);
+    
+    // Resto de event listeners...
+    addSafeEventListener('changePlanilla', 'click', cambiarConfiguracionPlanillaConReset);
+    addSafeEventListener('searchCollaborator', 'input', filtrarColaboradores);
+    addSafeEventListener('clearAllPayroll', 'click', limpiarTodaLaPlanilla);
+    addSafeEventListener('generateFinalPayroll', 'click', solicitarAutorizacionPlanilla);
+    addSafeEventListener('closeCalendarModal', 'click', cerrarCalendario);
+    
+    // Event listeners del calendario y modales...
+    const calendarModal = document.getElementById('calendarModal');
+    if (calendarModal) {
+        calendarModal.addEventListener('click', (e) => {
+            if (e.target.id === 'calendarModal') {
+                cerrarCalendario();
+            }
+        });
+    }
+    
+    // Navegación del calendario
+    addSafeEventListener('prevMonth', 'click', () => {
+        currentDate.setMonth(currentDate.getMonth() - 1);
+        actualizarCalendario();
+    });
+    
+    addSafeEventListener('nextMonth', 'click', () => {
+        currentDate.setMonth(currentDate.getMonth() + 1);
+        actualizarCalendario();
+    });
+    
+    // Botones del modal del calendario
+    addSafeEventListener('saveAndCloseCalendar', 'click', guardarYCerrarCalendario);
+    addSafeEventListener('clearShiftsFromModal', 'click', () => {
+        if (currentShifts.length === 0) {
+            Swal.fire({
+                icon: 'info',
+                title: 'Sin turnos',
+                text: 'No hay turnos para limpiar.',
+                confirmButtonColor: '#4f46e5'
+            });
+            return;
+        }
+        
+        Swal.fire({
+            title: '¿Limpiar todos los turnos?',
+            text: `Se eliminarán todos los ${currentShifts.length} turnos registrados.`,
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonText: 'Sí, limpiar',
+            cancelButtonText: 'Cancelar',
+            confirmButtonColor: '#f43f5e'
+        }).then((result) => {
+            if (result.isConfirmed) {
+                currentShifts = [];
+                actualizarCalendario();
+                actualizarResumenModal();
+                
+                Swal.fire({
+                    icon: 'success',
+                    title: 'Turnos limpiados',
+                    text: 'Todos los turnos han sido eliminados.',
+                    timer: 1500,
+                    showConfirmButton: false
+                });
+            }
+        });
+    });
+    
+    // Eventos del modal de selección de turno
+    addSafeEventListener('closeModal', 'click', cerrarModal);
+    
+    document.addEventListener('click', (e) => {
+        if (e.target.classList.contains('shift-option') || e.target.closest('.shift-option')) {
+            const button = e.target.classList.contains('shift-option') ? e.target : e.target.closest('.shift-option');
+            seleccionarTipoTurno(button.dataset.shift);
+        }
+    });
+    
+    // Cerrar modal de selección de turno
+    const shiftModal = document.getElementById('shiftModal');
+    if (shiftModal) {
+        shiftModal.addEventListener('click', (e) => {
+            if (e.target.id === 'shiftModal') {
+                cerrarModal();
+            }
+        });
+    }
+    
+    console.log('Event listeners inicializados correctamente');
+}
+
 // Función para solicitar autorización y guardar planilla
 async function solicitarAutorizacionPlanilla() {
     // Validar que el usuario esté autenticado
@@ -2038,7 +2229,7 @@ async function solicitarAutorizacionPlanilla() {
                 <div style="background: #e3f2fd; padding: 15px; border-radius: 8px; margin-bottom: 15px; border-left: 4px solid #2196f3;">
                     <p style="margin: 0; color: #1565c0;">
                         <strong>👤 Usuario:</strong> ${userData.NombreCompleto}<br>
-                        <strong>🏢 Departamento:</strong> ${nombreDepartamento}<br>
+                        <strong>🏢 Sucursal:</strong> ${nombreDepartamento}<br>
                         <strong>📅 Fecha:</strong> ${new Date().toLocaleDateString('es-GT')}
                     </p>
                 </div>
@@ -2253,24 +2444,100 @@ async function guardarPlanillaEnBD() {
 
 // Función para limpiar completamente la planilla después de guardar
 function limpiarTodaLaPlanillaCompleta() {
-    // Limpiar arrays de datos
+    console.log('Iniciando reset completo del sistema...');
+    
+    // ===== PASO 1: LIMPIAR DATOS =====
     payrollCollaborators = [];
     currentShifts = [];
     selectedEmployee = null;
+    allCollaborators = [];
     
-    // Limpiar selecciones visuales
+    // ===== PASO 2: RESETEAR CONFIGURACIÓN DE PLANILLA =====
+    planillaConfig = {
+        tipo: null,
+        mes: null,
+        anio: null,
+        confirmada: false
+    };
+    
+    // ===== PASO 3: RESETEAR FORMULARIO DE CONFIGURACIÓN =====
+    const tipoQuincena = document.getElementById('tipoQuincena');
+    const mesPlanilla = document.getElementById('mesPlanilla');
+    const anioPlanilla = document.getElementById('anioPlanilla');
+    const confirmarBtn = document.getElementById('confirmarPlanilla');
+    
+    if (tipoQuincena) tipoQuincena.value = '';
+    if (mesPlanilla) mesPlanilla.value = '';
+    if (anioPlanilla) anioPlanilla.value = '';
+    
+    // Resetear estado del botón
+    if (confirmarBtn) {
+        confirmarBtn.disabled = true;
+        confirmarBtn.classList.remove('ready');
+        confirmarBtn.innerHTML = `
+            <i class="fas fa-cog"></i>
+            <span>Complete todos los campos</span>
+        `;
+    }
+    
+    // ===== PASO 4: VOLVER AL ESTADO INICIAL DE CONFIGURACIÓN =====
+    // Ocultar elementos nuevamente
+    ocultarElementosHastaConfigurar();
+    
+    // Aplicar modo configuración
+    const mainContainer = document.querySelector('.main-container');
+    if (mainContainer) {
+        mainContainer.classList.add('config-mode');
+        mainContainer.classList.remove('normal-mode');
+    }
+    
+    // ===== PASO 5: MOSTRAR SECCIÓN DE CONFIGURACIÓN =====
+    const payrollTypeSection = document.querySelector('.payroll-type-section');
+    const form = document.getElementById('payrollTypeForm');
+    const confirmed = document.getElementById('payrollConfirmed');
+    const planillaInfo = document.getElementById('planillaInfo');
+    
+    if (payrollTypeSection) {
+        payrollTypeSection.classList.remove('hidden', 'panel-fade-out');
+        payrollTypeSection.style.display = 'block';
+        payrollTypeSection.style.maxWidth = '800px';
+        payrollTypeSection.style.margin = '0 auto';
+    }
+    
+    if (form) form.style.display = 'block';
+    if (confirmed) confirmed.style.display = 'none';
+    if (planillaInfo) planillaInfo.style.display = 'none';
+    
+    // ===== PASO 6: RESETEAR PROGRESO VISUAL A INICIAL =====
+    actualizarProgresoVisual('config');
+    
+    // ===== PASO 7: LIMPIAR SELECCIONES VISUALES =====
     document.querySelectorAll('.collaborator-item').forEach(item => {
         item.classList.remove('selected');
     });
     
-    // Actualizar vista de planilla
+    // ===== PASO 8: OCULTAR SECCIONES QUE NO DEBEN ESTAR VISIBLES =====
+    const collaboratorsSection = document.getElementById('collaboratorsSection');
+    const payrollSection = document.getElementById('payrollSection');
+    const welcomeState = document.getElementById('welcomeState');
+    
+    if (collaboratorsSection) {
+        collaboratorsSection.style.display = 'none';
+        // Limpiar lista de colaboradores
+        const collaboratorsList = document.getElementById('collaboratorsList');
+        const collaboratorCount = document.getElementById('collaboratorCount');
+        const searchInput = document.getElementById('searchCollaborator');
+        
+        if (collaboratorsList) collaboratorsList.innerHTML = '';
+        if (collaboratorCount) collaboratorCount.textContent = '0';
+        if (searchInput) searchInput.value = '';
+    }
+    
+    if (payrollSection) payrollSection.style.display = 'none';
+    if (welcomeState) welcomeState.style.display = 'none';
+    
+    // ===== PASO 9: ACTUALIZAR VISTA DE PLANILLA =====
     actualizarVistaPlanilla();
-    
-    // Mostrar estado de bienvenida
-    document.getElementById('welcomeState').style.display = 'flex';
-    document.getElementById('payrollSection').style.display = 'block';
-    
-    // Actualizar visibilidad de acciones
     actualizarVisibilidadAcciones();
 }
 
@@ -2295,11 +2562,13 @@ async function obtenerInfoDepartamentoParaResumen() {
         return userData?.NombreDepartamento || 'Departamento no disponible';
     }
 }
+
+// ===== FUNCIONES AUXILIARES Y VALIDACIONES =====
+
 async function cargarDiasEspeciales(departamentoId) {
     try {
         const connection = await connectionString();
         
-        // Cargar feriados nacionales (IdDepartamento = 0) + feriados del departamento específico
         const result = await connection.query(`
             SELECT 
                 Dia, 
@@ -2313,7 +2582,6 @@ async function cargarDiasEspeciales(departamentoId) {
         
         await connection.close();
         
-        // Almacenar días especiales
         diasEspeciales = result.map(dia => ({
             dia: parseInt(dia.Dia),
             mes: parseInt(dia.Mes),
@@ -2324,7 +2592,6 @@ async function cargarDiasEspeciales(departamentoId) {
         
         console.log(`Días especiales cargados para departamento ${departamentoId}:`, diasEspeciales);
         
-        // Actualizar calendario si está abierto
         if (document.getElementById('calendarModal').style.display === 'block') {
             actualizarCalendario();
         }
@@ -2338,16 +2605,14 @@ async function cargarDiasEspeciales(departamentoId) {
 function esDiaEspecial(fecha) {
     const date = new Date(fecha);
     const dia = date.getDate();
-    const mes = date.getMonth() + 1; // getMonth() devuelve 0-11, necesitamos 1-12
+    const mes = date.getMonth() + 1;
     
     return diasEspeciales.find(diaEspecial => 
         diaEspecial.dia === dia && diaEspecial.mes === mes
     );
 }
 
-// Funciones para Semana Santa
 function calcularDomingoPascua(año) {
-    // Algoritmo de Gauss para calcular la Pascua
     const a = año % 19;
     const b = Math.floor(año / 100);
     const c = año % 100;
@@ -2370,9 +2635,8 @@ function calcularFechasSemanaSanta(año) {
     const domingoPascua = calcularDomingoPascua(año);
     const fechas = [];
     
-    // Definir los días de Semana Santa que son feriados en Guatemala
     const diasSemanaSanta = [
-        { nombre: 'Domingo de Ramos', diasAntes: 7, bloqueado: false }, // Opcional
+        { nombre: 'Domingo de Ramos', diasAntes: 7, bloqueado: false },
         { nombre: 'Lunes Santo', diasAntes: 6, bloqueado: true },
         { nombre: 'Martes Santo', diasAntes: 5, bloqueado: true },
         { nombre: 'Miércoles Santo', diasAntes: 4, bloqueado: true },
@@ -2415,6 +2679,7 @@ function esSemanaSanta(fecha) {
     const dateString = formatDate(fecha);
     return fechasSemanaSanta.find(pascua => pascua.fecha === dateString);
 }
+
 function mostrarErrorMesActual(fecha, validacion) {
     const fechaFormateada = formatDateDisplay(fecha);
     const fechaActual = new Date();
@@ -2438,11 +2703,6 @@ function mostrarErrorMesActual(fecha, validacion) {
                             <strong>⚠️ Restricción temporal:</strong> No se pueden asignar turnos en meses anteriores. Solo se permite trabajar en el mes actual.
                         </p>
                     </div>
-                    <div style="margin-top: 10px; background: #e0f2fe; padding: 10px; border-radius: 6px;">
-                        <p style="margin: 0; color: #0891b2; font-size: 0.9rem;">
-                            <strong>💡 Sugerencia:</strong> Use los controles de navegación para ir al mes actual (${mesActualNombre}).
-                        </p>
-                    </div>
                 </div>
             `;
             break;
@@ -2459,47 +2719,6 @@ function mostrarErrorMesActual(fecha, validacion) {
                     <div style="background: #dbeafe; padding: 15px; border-radius: 8px; border-left: 4px solid #3b82f6;">
                         <p style="margin: 0; color: #1e40af;">
                             <strong>ℹ️ Restricción temporal:</strong> No se pueden asignar turnos en meses futuros. Solo se permite trabajar en el mes actual.
-                        </p>
-                    </div>
-                    <div style="margin-top: 10px; background: #e0f2fe; padding: 10px; border-radius: 6px;">
-                        <p style="margin: 0; color: #0891b2; font-size: 0.9rem;">
-                            <strong>💡 Sugerencia:</strong> Use los controles de navegación para regresar al mes actual (${mesActualNombre}).
-                        </p>
-                    </div>
-                </div>
-            `;
-            break;
-            
-        case 'anio_pasado':
-            titulo = 'Año anterior no permitido';
-            icono = 'error';
-            mensaje = `
-                <div style="text-align: left; margin: 20px 0;">
-                    <p><strong>📅 Fecha seleccionada:</strong> ${fechaFormateada}</p>
-                    <p><strong>📊 Año de la fecha:</strong> ${validacion.anioFecha}</p>
-                    <p><strong>📅 Año actual:</strong> ${validacion.anioActual}</p>
-                    <br>
-                    <div style="background: #fecaca; padding: 15px; border-radius: 8px; border-left: 4px solid #ef4444;">
-                        <p style="margin: 0; color: #991b1b;">
-                            <strong>🚫 Restricción temporal:</strong> No se pueden asignar turnos en años anteriores. Solo se permite trabajar en el año y mes actual.
-                        </p>
-                    </div>
-                </div>
-            `;
-            break;
-            
-        case 'anio_futuro':
-            titulo = 'Año futuro no permitido';
-            icono = 'info';
-            mensaje = `
-                <div style="text-align: left; margin: 20px 0;">
-                    <p><strong>📅 Fecha seleccionada:</strong> ${fechaFormateada}</p>
-                    <p><strong>📊 Año de la fecha:</strong> ${validacion.anioFecha}</p>
-                    <p><strong>📅 Año actual:</strong> ${validacion.anioActual}</p>
-                    <br>
-                    <div style="background: #dbeafe; padding: 15px; border-radius: 8px; border-left: 4px solid #3b82f6;">
-                        <p style="margin: 0; color: #1e40af;">
-                            <strong>ℹ️ Restricción temporal:</strong> No se pueden asignar turnos en años futuros. Solo se permite trabajar en el año y mes actual.
                         </p>
                     </div>
                 </div>
@@ -2556,11 +2775,6 @@ function mostrarErrorTipoPlanilla(fecha, validacion) {
                         <strong>⚠️ Restricción de planilla:</strong> La planilla quincenal solo permite seleccionar días del <strong>1 al 15</strong> de ${mesNombre} ${anio}.
                     </p>
                 </div>
-                <div style="margin-top: 10px; background: #e0f2fe; padding: 10px; border-radius: 6px;">
-                    <p style="margin: 0; color: #0891b2; font-size: 0.9rem;">
-                        <strong>💡 Sugerencia:</strong> Para trabajar en la segunda quincena, cambie a "Planilla Fin de Mes" en la configuración.
-                    </p>
-                </div>
             </div>
         `;
     } else if (validacion.motivo === 'fuera_fin_mes') {
@@ -2578,11 +2792,6 @@ function mostrarErrorTipoPlanilla(fecha, validacion) {
                 <div style="background: ${colorFondo}; padding: 15px; border-radius: 8px; border-left: 4px solid ${colorBorde};">
                     <p style="margin: 0; color: ${colorTexto};">
                         <strong>🚫 Restricción de planilla:</strong> La planilla de fin de mes solo permite seleccionar días del <strong>${validacion.rango}</strong> de ${mesNombre} ${anio}.
-                    </p>
-                </div>
-                <div style="margin-top: 10px; background: #e0f2fe; padding: 10px; border-radius: 6px;">
-                    <p style="margin: 0; color: #0891b2; font-size: 0.9rem;">
-                        <strong>💡 Sugerencia:</strong> Para trabajar en la primera quincena, cambie a "Planilla Quincenal" en la configuración.
                     </p>
                 </div>
             </div>
@@ -2612,6 +2821,62 @@ function mostrarErrorTipoPlanilla(fecha, validacion) {
         width: '600px'
     });
 }
+
+//Valiación de planillas duplicadas
+async function verificarPlanillaExistente(tipo, mes, anio, departamentoId) {
+    try {
+        const connection = await connectionString();
+        
+        // Determinar IdTipoPago basado en el tipo de planilla
+        const idTipoPago = tipo === 'quincenal' ? 1 : 2;
+        
+        const result = await connection.query(`
+            SELECT 
+                p.IdPlanillaParcial,
+                p.TipoPago,
+                p.Mes,
+                p.Anyo,
+                p.MontoPlanillaParcial,
+                p.CantidadColaboradores,
+                p.NombreUsuario,
+                p.FechaRegistro,
+                p.Estado as IdEstado,
+                e.NombreEstado
+            FROM PagoPlanillaParcial p
+            INNER JOIN PagoPlanillaParcialEstados e ON p.Estado = e.IdEstadoPagoPlanillaParcial
+            WHERE 
+                p.IdDepartamentoSucursal = ? AND 
+                p.IdTipoPago = ? AND 
+                p.Mes = ? AND 
+                p.Anyo = ?
+            ORDER BY p.FechaRegistro DESC
+        `, [departamentoId, idTipoPago, mes.toString(), anio.toString()]);
+        
+        await connection.close();
+        
+        // ⭐ NUEVA LÓGICA: Si no hay resultados, no existe planilla
+        if (result.length === 0) {
+            return null;
+        }
+        
+        // ⭐ NUEVA LÓGICA: Filtrar planillas activas (excluir anuladas)
+        const planillasActivas = result.filter(planilla => planilla.IdEstado !== 6);
+        
+        // Si solo hay planillas anuladas, permitir crear nueva
+        if (planillasActivas.length === 0) {
+            console.log('Solo se encontraron planillas anuladas, permitiendo crear nueva planilla');
+            return null;
+        }
+        
+        // Si hay planillas activas, devolver la más reciente
+        return planillasActivas[0];
+        
+    } catch (error) {
+        console.error('Error al verificar planilla existente:', error);
+        throw error;
+    }
+}
+
 function formatDate(date) {
     return date.toISOString().split('T')[0];
 }
@@ -2688,15 +2953,19 @@ function ajustarAlturaLista() {
         }, 10);
     }
 }
-
-//Valiación de planillas duplicadas
-async function verificarPlanillaExistente(tipo, mes, anio, departamentoId) {
+//Funciones para poder generar el PDF
+async function verificarPlanillaEstado1() {
     try {
+        // Obtener datos del usuario logueado
+        const userData = JSON.parse(localStorage.getItem('userData'));
+        if (!userData || !currentDepartamentoId) {
+            console.log('No hay datos de usuario o departamento');
+            return null;
+        }
+
         const connection = await connectionString();
         
-        // Determinar IdTipoPago basado en el tipo de planilla
-        const idTipoPago = tipo === 'quincenal' ? 1 : 2;
-        
+        // Buscar planillas en Estado 1 (Autorizado) del departamento actual
         const result = await connection.query(`
             SELECT 
                 p.IdPlanillaParcial,
@@ -2705,52 +2974,891 @@ async function verificarPlanillaExistente(tipo, mes, anio, departamentoId) {
                 p.Anyo,
                 p.MontoPlanillaParcial,
                 p.CantidadColaboradores,
-                p.NombreUsuario,
+                p.IdTipoPago,
                 p.FechaRegistro,
-                p.Estado as IdEstado,
                 e.NombreEstado
             FROM PagoPlanillaParcial p
             INNER JOIN PagoPlanillaParcialEstados e ON p.Estado = e.IdEstadoPagoPlanillaParcial
             WHERE 
                 p.IdDepartamentoSucursal = ? AND 
-                p.IdTipoPago = ? AND 
-                p.Mes = ? AND 
-                p.Anyo = ?
-        `, [departamentoId, idTipoPago, mes.toString(), anio.toString()]);
+                p.Estado = 1
+            ORDER BY p.FechaRegistro DESC
+            LIMIT 1
+        `, [currentDepartamentoId]);
         
         await connection.close();
         
-        return result.length > 0 ? result[0] : null;
+        if (result.length > 0) {
+            console.log('Planilla encontrada en Estado 1:', result[0]);
+            return result[0];
+        }
+        
+        return null;
         
     } catch (error) {
-        console.error('Error al verificar planilla existente:', error);
-        throw error;
-    }
-}
-async function cargarEstadosPlanilla() {
-    try {
-        const connection = await connectionString();
-        
-        const result = await connection.query(`
-            SELECT 
-                IdEstadoPagoPlanillaParcial,
-                NombreEstado
-            FROM PagoPlanillaParcialEstados
-            ORDER BY IdEstadoPagoPlanillaParcial
-        `);
-        
-        await connection.close();
-        
-        return result;
-        
-    } catch (error) {
-        console.error('Error al cargar estados de planilla:', error);
-        return [];
+        console.error('Error al verificar planilla en Estado 1:', error);
+        return null;
     }
 }
 
-// Función global para eliminar turnos (llamada desde HTML)
+// ===== FUNCIÓN PARA MOSTRAR/OCULTAR BOTÓN PDF =====
+async function actualizarVisibilidadBotonPDF() {
+    const botonPDF = document.getElementById('descargarPDF');
+    
+    if (!botonPDF) {
+        console.log('Botón PDF no encontrado');
+        return;
+    }
+    
+    try {
+        const planillaAutorizada = await verificarPlanillaEstado1();
+        
+        if (planillaAutorizada) {
+            // Mostrar botón PDF y agregar información
+            botonPDF.style.display = 'flex';
+            botonPDF.disabled = false;
+            botonPDF.classList.add('ready');
+            
+            // Actualizar tooltip con información de la planilla
+            const tipoTexto = planillaAutorizada.IdTipoPago === 1 ? 'Quincenal' : 'Fin de Mes';
+            const mesNombre = new Date(planillaAutorizada.Anyo, planillaAutorizada.Mes - 1)
+                .toLocaleDateString('es-GT', { month: 'long' });
+            
+            botonPDF.title = `Descargar PDF - ${tipoTexto} ${mesNombre} ${planillaAutorizada.Anyo}`;
+            
+            // Guardar datos de la planilla para el PDF
+            window.planillaParaPDF = planillaAutorizada;
+            
+            console.log('Botón PDF habilitado para planilla:', planillaAutorizada.IdPlanillaParcial);
+            
+        } else {
+            // Ocultar botón PDF
+            botonPDF.style.display = 'none';
+            botonPDF.disabled = true;
+            botonPDF.classList.remove('ready');
+            window.planillaParaPDF = null;
+            
+            console.log('No hay planillas autorizadas - Botón PDF oculto');
+        }
+        
+    } catch (error) {
+        console.error('Error al actualizar visibilidad del botón PDF:', error);
+        botonPDF.style.display = 'none';
+    }
+}
+
+async function generarPDFPlanilla() {
+    try {
+        // Verificar que existe planilla para PDF
+        if (!window.planillaParaPDF) {
+            throw new Error('No hay planilla disponible para generar PDF');
+        }
+
+        // Mostrar indicador de carga
+        Swal.fire({
+            title: 'Generando PDF...',
+            text: 'Por favor espere mientras se genera el documento',
+            allowOutsideClick: false,
+            didOpen: () => {
+                Swal.showLoading();
+            }
+        });
+
+        // Obtener datos completos de la planilla
+        const datosCompletos = await obtenerDatosCompletosParaPDF(window.planillaParaPDF.IdPlanillaParcial);
+        
+        if (!datosCompletos || !datosCompletos.colaboradores || datosCompletos.colaboradores.length === 0) {
+            throw new Error('No se encontraron datos de colaboradores para la planilla');
+        }
+
+        // Generar el PDF
+        await crearDocumentoPDF(datosCompletos);
+
+        // Cerrar indicador de carga
+        Swal.close();
+
+        // Mostrar confirmación
+        Swal.fire({
+            icon: 'success',
+            title: '¡PDF Generado!',
+            text: 'El documento PDF ha sido generado exitosamente',
+            confirmButtonColor: '#10b981'
+        });
+
+    } catch (error) {
+        console.error('Error al generar PDF:', error);
+        
+        Swal.close();
+        
+        Swal.fire({
+            icon: 'error',
+            title: 'Error al generar PDF',
+            text: error.message || 'No se pudo generar el documento PDF',
+            confirmButtonColor: '#ef4444'
+        });
+    }
+}
+async function obtenerDatosCompletosParaPDF(idPlanilla) {
+    try {
+        const connection = await connectionString();
+        
+        // ===== CONSULTA MODIFICADA PARA INCLUIR NOMBRE AUTORIZÓ =====
+        const planillaQuery = await connection.query(`
+            SELECT 
+                p.IdPlanillaParcial,
+                p.TipoPago,
+                p.Mes,
+                p.Anyo,
+                p.MontoPlanillaParcial,
+                p.CantidadColaboradores,
+                p.FechaRegistro,
+                p.IdTipoPago,
+                p.NombreUsuario,
+                p.NombreUsuarioAutoriza,
+                d.NombreDepartamento
+            FROM PagoPlanillaParcial p
+            INNER JOIN departamentos d ON p.IdDepartamentoSucursal = d.IdDepartamento
+            WHERE p.IdPlanillaParcial = ?
+        `, [idPlanilla]);
+
+        if (planillaQuery.length === 0) {
+            throw new Error('Planilla no encontrada');
+        }
+
+        const planilla = planillaQuery[0];
+
+        // 2. Obtener detalles de colaboradores (mismo código)
+        const colaboradoresQuery = await connection.query(`
+            SELECT 
+                pd.IdPersonal,
+                pd.NombrePersonal,
+                pd.FechaLaborada,
+                pd.IdTipoTurno,
+                pd.TipoTurno,
+                pd.MontoPagado
+            FROM PagoPlanillaParcialDetalle pd
+            WHERE pd.IdPlanillaParcial = ?
+            ORDER BY pd.NombrePersonal, pd.FechaLaborada
+        `, [idPlanilla]);
+
+        // 3. Procesar colaboradores (mismo código)
+        const colaboradoresProcesados = procesarColaboradores(colaboradoresQuery);
+
+        await connection.close();
+
+        return {
+            planilla: planilla, // ✅ Ahora incluye NombreUsuario y NombreUsuarioAutorizo
+            colaboradores: colaboradoresProcesados,
+            fechaGeneracion: new Date()
+        };
+
+    } catch (error) {
+        console.error('Error al obtener datos para PDF:', error);
+        throw error;
+    }
+}
+function procesarColaboradores(colaboradoresData) {
+    const colaboradoresMap = new Map();
+
+    colaboradoresData.forEach(row => {
+        const id = row.IdPersonal;
+        
+        if (!colaboradoresMap.has(id)) {
+            // ===== MANTENER NOMBRE ORIGINAL (sin formatear a "Apellido, Nombre") =====
+            const nombreCompleto = row.NombrePersonal;
+            
+            colaboradoresMap.set(id, {
+                id: id,
+                nombre: nombreCompleto, // Mantener formato original
+                turnos: {
+                    manana: { cantidad: 0, fechas: [], monto: 0 },
+                    mixto: { cantidad: 0, fechas: [], monto: 0 },
+                    cuatroHoras: { cantidad: 0, fechas: [], monto: 0 }
+                },
+                totalTurnos: 0,
+                totalMonto: 0
+            });
+        }
+
+        const colaborador = colaboradoresMap.get(id);
+        const fecha = new Date(row.FechaLaborada).toLocaleDateString('es-GT', {
+            day: '2-digit',
+            month: '2-digit',
+            year: 'numeric'
+        });
+
+        // Clasificar turnos (resto del código igual)
+        switch (row.IdTipoTurno) {
+            case 1: // Mañana
+                colaborador.turnos.manana.cantidad++;
+                colaborador.turnos.manana.fechas.push(fecha);
+                colaborador.turnos.manana.monto += parseFloat(row.MontoPagado);
+                break;
+            case 2: // Mixto
+                colaborador.turnos.mixto.cantidad++;
+                colaborador.turnos.mixto.fechas.push(fecha);
+                colaborador.turnos.mixto.monto += parseFloat(row.MontoPagado);
+                break;
+            case 3: // 4 Horas
+                colaborador.turnos.cuatroHoras.cantidad++;
+                colaborador.turnos.cuatroHoras.fechas.push(fecha);
+                colaborador.turnos.cuatroHoras.monto += parseFloat(row.MontoPagado);
+                break;
+        }
+
+        colaborador.totalTurnos++;
+        colaborador.totalMonto += parseFloat(row.MontoPagado);
+    });
+
+    return Array.from(colaboradoresMap.values()).sort((a, b) => a.nombre.localeCompare(b.nombre));
+}
+function formatearNombreApellidoNombre(nombreCompleto) {
+    const partes = nombreCompleto.trim().split(' ');
+    
+    if (partes.length >= 2) {
+        // Asumir que las últimas dos partes son apellidos y las primeras son nombres
+        const nombres = partes.slice(0, -2).join(' ');
+        const apellidos = partes.slice(-2).join(' ');
+        
+        if (nombres && apellidos) {
+            return `${apellidos}, ${nombres}`;
+        } else {
+            // Si solo hay 2 partes, asumir que una es nombre y otra apellido
+            const nombre = partes[0];
+            const apellido = partes[1];
+            return `${apellido}, ${nombre}`;
+        }
+    }
+    
+    return nombreCompleto; // Retornar como está si no se puede procesar
+}
+async function crearDocumentoPDF(datos) {
+    const { jsPDF } = window.jspdf;
+    
+    // Crear documento horizontal (landscape)
+    const doc = new jsPDF({
+        orientation: 'landscape',
+        unit: 'mm',
+        format: 'a4'
+    });
+
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const pageHeight = doc.internal.pageSize.getHeight();
+    const margin = 10;
+    let currentY = margin;
+
+    // ===== ENCABEZADO =====
+    currentY = dibujarEncabezado(doc, datos, margin, currentY, pageWidth);
+
+    // ===== TABLA DE COLABORADORES =====
+    currentY = await dibujarTablaColaboradores(doc, datos.colaboradores, margin, currentY, pageWidth, pageHeight);
+
+    // ===== NUEVA SECCIÓN: FIRMAS =====
+    currentY = dibujarSeccionFirmas(doc, datos, margin, currentY, pageWidth);
+
+    // ===== PIE DE PÁGINA =====
+    dibujarPiePagina(doc, datos, pageWidth, pageHeight, margin);
+
+    // ===== GUARDAR DOCUMENTO =====
+    const nombreArchivo = generarNombreArchivo(datos.planilla);
+    doc.save(nombreArchivo);
+}
+function dibujarEncabezado(doc, datos, margin, currentY, pageWidth) {
+    const planilla = datos.planilla;
+    
+    // ===== HEADER CON FONDO GRIS =====
+    doc.setFillColor(55, 65, 81); // Gris oscuro profesional
+    doc.rect(0, 0, pageWidth, 25, 'F');
+    
+    // Título principal en blanco
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(20);
+    doc.setFont('helvetica', 'bold');
+    doc.text('PLANILLA DE TIEMPO PARCIAL', pageWidth / 2, 15, { align: 'center' });
+    
+    // Restaurar color negro
+    doc.setTextColor(0, 0, 0);
+    currentY = 35;
+
+    // ===== SECCIÓN DE INFORMACIÓN CON CAJAS GRISES =====
+    const boxHeight = 25;
+    const col1X = margin;
+    const col2X = pageWidth / 2 + 5;
+    const boxWidth = (pageWidth / 2) - margin - 5;
+
+    // Caja izquierda
+    doc.setFillColor(248, 250, 252); // Gris muy claro
+    doc.setLineWidth(0.5);
+    doc.rect(col1X, currentY, boxWidth, boxHeight, 'FD');
+    
+    // Caja derecha  
+    doc.rect(col2X, currentY, boxWidth, boxHeight, 'FD');
+
+    // ===== CONTENIDO DE LAS CAJAS =====
+    doc.setFontSize(11);
+    let textY = currentY + 6;
+
+    // Columna izquierda
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(55, 65, 81); // Gris oscuro en lugar de azul
+    doc.text('SUCURSAL:', col1X + 3, textY);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(0, 0, 0);
+    doc.text(planilla.NombreDepartamento, col1X + 3, textY + 5);
+
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(55, 65, 81);
+    doc.text('PERÍODO:', col1X + 3, textY + 12);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(0, 0, 0);
+    const mesNombre = new Date(planilla.Anyo, planilla.Mes - 1).toLocaleDateString('es-GT', { 
+        month: 'long', 
+        year: 'numeric' 
+    });
+    doc.text(mesNombre.toUpperCase(), col1X + 3, textY + 17);
+
+    // Columna derecha
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(55, 65, 81);
+    doc.text('TIPO DE PAGO:', col2X + 3, textY);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(0, 0, 0);
+    doc.text(planilla.TipoPago.toUpperCase(), col2X + 3, textY + 5);
+
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(55, 65, 81);
+    doc.text('TOTAL COLABORADORES:', col2X + 3, textY + 12);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(0, 0, 0);
+    doc.text(planilla.CantidadColaboradores.toString(), col2X + 3, textY + 17);
+
+    currentY += boxHeight + 8;
+
+    // ===== FECHAS EN UNA LÍNEA =====
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(100, 100, 100);
+    
+    const fechaRegistro = new Date(planilla.FechaRegistro).toLocaleDateString('es-GT');
+    const fechaGeneracion = datos.fechaGeneracion.toLocaleDateString('es-GT');
+    
+    const fechasText = `Fecha de Registro: ${fechaRegistro}  |  Fecha de Generación: ${fechaGeneracion}`;
+    doc.text(fechasText, pageWidth / 2, currentY, { align: 'center' });
+    
+    currentY += 10;
+    
+    // Línea separadora
+    doc.setLineWidth(0.3);
+    doc.setDrawColor(200, 200, 200);
+    doc.line(margin, currentY, pageWidth - margin, currentY);
+    currentY += 5;
+
+    return currentY;
+}
+async function dibujarTablaColaboradores(doc, colaboradores, margin, currentY, pageWidth, pageHeight) {
+    const startY = currentY;
+    
+    // ===== USAR NUEVA CONFIGURACIÓN DE COLUMNAS =====
+    const columns = obtenerConfiguracionColumnas();
+
+    // Dibujar encabezados
+    currentY = dibujarEncabezadosTabla(doc, columns, margin, currentY);
+
+    // ===== DIBUJAR FILAS CON CORRELATIVO =====
+    for (let i = 0; i < colaboradores.length; i++) {
+        const colaborador = colaboradores[i];
+        const correlativo = i + 1; // Correlativo empezando en 1
+        
+        // Verificar si necesitamos nueva página
+        if (currentY > pageHeight - 50) {
+            doc.addPage();
+            currentY = margin;
+            currentY = dibujarEncabezadosTabla(doc, columns, margin, currentY);
+        }
+
+        currentY = dibujarFilaColaborador(doc, colaborador, columns, margin, currentY, correlativo);
+    }
+
+    // Dibujar totales
+    currentY = dibujarTotales(doc, colaboradores, columns, margin, currentY, pageWidth);
+
+    return currentY;
+}
+function dibujarEncabezadosTabla(doc, columns, margin, currentY) {
+    const rowHeight = 10;
+    let currentX = margin;
+
+    // ===== FONDO GRIS OSCURO PARA HEADER =====
+    doc.setFillColor(75, 85, 99); // Gris oscuro profesional (gray-600)
+    doc.rect(margin, currentY, columns.reduce((sum, col) => sum + col.width, 0), rowHeight, 'F');
+
+    // ===== TEXTO BLANCO PARA CONTRASTE =====
+    doc.setTextColor(255, 255, 255);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(10);
+
+    columns.forEach(col => {
+        // Centrar texto en cada columna
+        const textX = currentX + (col.width / 2);
+        doc.text(col.header, textX, currentY + 6.5, { align: 'center' });
+        
+        // Líneas separadoras verticales
+        if (currentX > margin) {
+            doc.setLineWidth(0.3);
+            doc.setDrawColor(255, 255, 255);
+            doc.line(currentX, currentY, currentX, currentY + rowHeight);
+        }
+        
+        currentX += col.width;
+    });
+
+    // Borde del encabezado
+    doc.setLineWidth(0.5);
+    doc.setDrawColor(55, 65, 81); // Gris más oscuro para borde
+    doc.rect(margin, currentY, columns.reduce((sum, col) => sum + col.width, 0), rowHeight);
+
+    // Restaurar color de texto
+    doc.setTextColor(0, 0, 0);
+    
+    return currentY + rowHeight;
+}
+function obtenerConfiguracionColumnas() {
+    return [
+        { header: 'No.', width: 15 },
+        { header: 'Colaborador', width: 45 },      // Reducido más
+        { header: 'T. Mañana', width: 18 },        // Reducido ligeramente
+        { header: 'T. Mixto', width: 18 },         // Reducido ligeramente
+        { header: 'T. 4 Horas', width: 20 },
+        { header: 'Total Turnos', width: 22 },     // Reducido ligeramente
+        { header: 'Total a Pagar', width: 28 },    // Reducido ligeramente
+        { header: 'Fechas Laboradas', width: 45 }, // Reducido ligeramente
+        { header: 'Firma', width: 50 }             // MUCHO MÁS ANCHO: de 35 a 50
+    ];
+}
+function dibujarFilaColaborador(doc, colaborador, columns, margin, currentY, correlativo) {
+    const rowHeight = 22; // Altura ligeramente aumentada para dos líneas de nombre
+    let currentX = margin;
+
+    // ===== FONDO ALTERNADO =====
+    const isEven = correlativo % 2 === 0;
+    if (isEven) {
+        doc.setFillColor(248, 250, 252);
+        doc.rect(margin, currentY, columns.reduce((sum, col) => sum + col.width, 0), rowHeight, 'F');
+    }
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(9);
+
+    // ===== DATOS DE LAS COLUMNAS =====
+    const datos = [
+        correlativo.toString(),
+        '', // Nombre se dibuja aparte con función especial
+        colaborador.turnos.manana.cantidad.toString(),
+        colaborador.turnos.mixto.cantidad.toString(),
+        colaborador.turnos.cuatroHoras.cantidad.toString(),
+        colaborador.totalTurnos.toString(),
+        `Q ${colaborador.totalMonto.toFixed(2)}`,
+        '', // Fechas (se dibuja aparte)
+        '' // Firma (vacía)
+    ];
+
+    // ===== DIBUJAR DATOS =====
+    columns.forEach((col, index) => {
+        const cellY = currentY + 6;
+        
+        if (index === 0) {
+            // Correlativo centrado y en negrita
+            doc.setFont('helvetica', 'bold');
+            doc.text(datos[index], currentX + (col.width / 2), cellY + 2, { align: 'center' });
+            doc.setFont('helvetica', 'normal');
+        } else if (index === 1) {
+            // ===== NOMBRE EN DOS LÍNEAS =====
+            dibujarNombreEnDosLineas(doc, colaborador.nombre, currentX, currentY, col.width);
+        } else if (index === 7) {
+            // Fechas laboradas
+            dibujarFechasLaboradas(doc, colaborador, currentX + 1, currentY + 2, col.width - 2);
+        } else if (index === 8) {
+            // Firma completamente vacía
+        } else if (index >= 2 && index <= 6) {
+            // Datos numéricos centrados (ajustado para altura mayor)
+            const align = 'center';
+            const x = currentX + (col.width / 2);
+            doc.text(datos[index], x, cellY + 2, { align: align });
+        }
+        
+        currentX += col.width;
+    });
+
+    // ===== BORDES DE LA FILA =====
+    currentX = margin;
+    columns.forEach(col => {
+        doc.setLineWidth(0.1);
+        doc.setDrawColor(200, 200, 200);
+        doc.rect(currentX, currentY, col.width, rowHeight);
+        currentX += col.width;
+    });
+
+    return currentY + rowHeight;
+}
+function dibujarFechasLaboradas(doc, colaborador, x, y, width) {
+    doc.setFontSize(7);
+    let offsetY = 0;
+    const lineHeight = 3.2;
+
+    // ===== ESTILO COMPACTO CON ETIQUETAS EN NEGRITA =====
+    const tiposTurno = [
+        { 
+            tipo: colaborador.turnos.manana, 
+            label: 'Mañ:', 
+            color: [219, 68, 55]  // Rojo más suave
+        },
+        { 
+            tipo: colaborador.turnos.mixto, 
+            label: 'Mix:', 
+            color: [66, 133, 244] // Azul más suave
+        },
+        { 
+            tipo: colaborador.turnos.cuatroHoras, 
+            label: '4H:', 
+            color: [52, 168, 83]  // Verde más suave
+        }
+    ];
+
+    tiposTurno.forEach(turno => {
+        if (turno.tipo.cantidad > 0) {
+            // ===== FORMATO: "Mañ: 15/07, 18/07" (más compacto) =====
+            
+            // ✅ Label del tipo de turno en color y NEGRITA (MÁS PRONUNCIADA)
+            doc.setTextColor(...turno.color);
+            doc.setFont('helvetica', 'bold'); // Ya estaba en negrita, pero ahora será más visible
+            doc.setFontSize(8); // ✅ AUMENTADO de 7 a 8 para mayor visibilidad
+            doc.text(turno.label, x + 1, y + offsetY + 2);
+            
+            // Fechas en color gris oscuro, formato normal pero más legible
+            doc.setTextColor(40, 40, 40); // ✅ OSCURECIDO: de (60,60,60) a (40,40,40)
+            doc.setFont('helvetica', 'normal');
+            doc.setFontSize(7); // Mantenemos tamaño original para las fechas
+            
+            // Formatear fechas más compactas (DD/MM)
+            const fechasCompactas = turno.tipo.fechas.map(fecha => {
+                // Convertir de "DD/MM/YYYY" a "DD/MM"
+                const partes = fecha.split('/');
+                return `${partes[0]}/${partes[1]}`;
+            });
+            
+            const fechasTexto = fechasCompactas.join(', ');
+            
+            // Usar splitTextToSize para manejar texto largo
+            const lineas = doc.splitTextToSize(fechasTexto, width - 15);
+            doc.text(lineas, x + 12, y + offsetY + 2); // ✅ Ajustado spacing: de x+10 a x+12
+            
+            offsetY += Math.max(lineas.length * lineHeight, lineHeight);
+        }
+    });
+    
+    // Restaurar color de texto
+    doc.setTextColor(0, 0, 0);
+    doc.setFont('helvetica', 'normal'); // ✅ Restaurar fuente normal
+    doc.setFontSize(9); // ✅ Restaurar tamaño original
+}
+function formatearFechasLaboradas(colaborador) {
+    let resultado = '';
+    
+    if (colaborador.turnos.manana.cantidad > 0) {
+        resultado += `M: ${colaborador.turnos.manana.fechas.join(', ')}\n`;
+    }
+    
+    if (colaborador.turnos.mixto.cantidad > 0) {
+        resultado += `X: ${colaborador.turnos.mixto.fechas.join(', ')}\n`;
+    }
+    
+    if (colaborador.turnos.cuatroHoras.cantidad > 0) {
+        resultado += `4H: ${colaborador.turnos.cuatroHoras.fechas.join(', ')}`;
+    }
+    
+    return resultado.trim();
+}
+function dibujarTotales(doc, colaboradores, columns, margin, currentY, pageWidth) {
+    currentY += 8;
+    
+    // Calcular totales
+    const totalColaboradores = colaboradores.length;
+    const totalMañana = colaboradores.reduce((sum, c) => sum + c.turnos.manana.cantidad, 0);
+    const totalMixto = colaboradores.reduce((sum, c) => sum + c.turnos.mixto.cantidad, 0);
+    const total4Horas = colaboradores.reduce((sum, c) => sum + c.turnos.cuatroHoras.cantidad, 0);
+    const totalTurnos = colaboradores.reduce((sum, c) => sum + c.totalTurnos, 0);
+    const totalGeneral = colaboradores.reduce((sum, c) => sum + c.totalMonto, 0);
+
+    // ===== FONDO GRIS CLARO =====
+    const totalRowHeight = 12;
+    doc.setFillColor(229, 231, 235);
+    doc.rect(margin, currentY, columns.reduce((sum, col) => sum + col.width, 0), totalRowHeight, 'F');
+
+    // ===== TEXTO SIMPLE Y CLARO =====
+    doc.setTextColor(0, 0, 0);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(11);
+
+    let currentX = margin;
+
+    // ===== DATOS SIMPLIFICADOS =====
+    columns.forEach((col, index) => {
+        let texto = '';
+        let align = 'center';
+        
+        switch(index) {
+            case 0: // No.
+                texto = ''; // Completamente vacío
+                break;
+            case 1: // Colaborador
+                texto = `TOTALES:`;
+                align = 'left';
+                break;
+            case 2: // T. Mañana
+                texto = totalMañana.toString();
+                break;
+            case 3: // T. Mixto
+                texto = totalMixto.toString();
+                break;
+            case 4: // T. 4 Horas
+                texto = total4Horas.toString();
+                break;
+            case 5: // Total Turnos
+                texto = totalTurnos.toString();
+                break;
+            case 6: // Total a Pagar
+                texto = `Q ${totalGeneral.toFixed(2)}`;
+                break;
+            case 7: // Fechas Laboradas
+                texto = ''; // Vacío
+                break;
+            case 8: // Firma
+                texto = ''; // Vacío
+                break;
+        }
+        
+        if (texto) {
+            const x = align === 'center' ? currentX + (col.width / 2) : currentX + 3;
+            doc.text(texto, x, currentY + 7.5, { align: align });
+        }
+        
+        currentX += col.width;
+    });
+
+    // ===== BORDE =====
+    doc.setLineWidth(1);
+    doc.setDrawColor(107, 114, 128);
+    doc.rect(margin, currentY, columns.reduce((sum, col) => sum + col.width, 0), totalRowHeight);
+
+    doc.setTextColor(0, 0, 0);
+    
+    return currentY + totalRowHeight;
+}
+function dibujarPiePagina(doc, datos, pageWidth, pageHeight, margin) {
+    const y = pageHeight - margin - 8;
+    
+    // Línea separadora
+    doc.setLineWidth(0.3);
+    doc.setDrawColor(200, 200, 200);
+    doc.line(margin, y - 3, pageWidth - margin, y - 3);
+    
+    // Texto del pie
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'italic');
+    doc.setTextColor(100, 100, 100);
+    doc.text('Generado automáticamente por Sistema de Recursos Humanos', pageWidth / 2, y, { align: 'center' });
+    
+    // Número de página (si se implementa paginación múltiple)
+    doc.setFont('helvetica', 'normal');
+    doc.text(`Página 1`, pageWidth - margin, y, { align: 'right' });
+}
+function generarNombreArchivo(planilla) {
+    const tipoCorto = planilla.IdTipoPago === 1 ? 'Quincenal' : 'FinMes';
+    const mes = planilla.Mes.toString().padStart(2, '0');
+    const fecha = new Date().toISOString().split('T')[0];
+    
+    return `Planilla_${tipoCorto}_${mes}_${planilla.Anyo}_${fecha}.pdf`;
+}
+function separarApellidosYNombres(nombreCompleto) {
+    const partes = nombreCompleto.trim().split(' ');
+    
+    if (partes.length >= 2) {
+        // Asumir que las últimas dos partes son apellidos y las primeras son nombres
+        if (partes.length >= 4) {
+            // Caso: "Juan Carlos Pérez García" 
+            const nombres = partes.slice(0, -2).join(' ');      // "Juan Carlos"
+            const apellidos = partes.slice(-2).join(' ');      // "Pérez García"
+            return {
+                apellidos: apellidos,
+                nombres: nombres
+            };
+        } else if (partes.length === 3) {
+            // Caso: "Juan Pérez García"
+            const nombres = partes[0];                          // "Juan"
+            const apellidos = partes.slice(1).join(' ');       // "Pérez García"
+            return {
+                apellidos: apellidos,
+                nombres: nombres
+            };
+        } else {
+            // Caso: "Juan Pérez"
+            const nombres = partes[0];                          // "Juan"
+            const apellidos = partes[1];                        // "Pérez"
+            return {
+                apellidos: apellidos,
+                nombres: nombres
+            };
+        }
+    }
+    
+    // Si no se puede separar, devolver todo como apellido
+    return {
+        apellidos: nombreCompleto,
+        nombres: ''
+    };
+}
+function dibujarNombreEnDosLineas(doc, nombreCompleto, x, y, width) {
+    const { apellidos, nombres } = separarApellidosYNombres(nombreCompleto);
+    
+    // ===== LÍNEA 1: APELLIDOS EN NEGRITA =====
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(10);
+    doc.setTextColor(0, 0, 0);
+    
+    // Usar splitTextToSize para manejar apellidos largos
+    const lineasApellidos = doc.splitTextToSize(apellidos.toUpperCase(), width - 4);
+    doc.text(lineasApellidos, x + 2, y + 4);
+    
+    // ===== LÍNEA 2: NOMBRES EN NORMAL =====
+    if (nombres && nombres.trim() !== '') {
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(11);
+        doc.setTextColor(60, 60, 60); // Gris más suave para nombres
+        
+        const lineasNombres = doc.splitTextToSize(nombres, width - 4);
+        const offsetY = lineasApellidos.length * 3.5; // Espacio entre líneas
+        doc.text(lineasNombres, x + 2, y + 4 + offsetY);
+    }
+    
+    // Restaurar configuración
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(9);
+    doc.setTextColor(0, 0, 0);
+}
+function dibujarSeccionFirmas(doc, datosCompletos, margin, currentY, pageWidth) {
+    const planilla = datosCompletos.planilla;
+    
+    // Espacio antes de las firmas (AUMENTADO)
+    currentY += 20; // Cambiado de 15 a 20
+    
+    // ===== TÍTULO DE LA SECCIÓN =====
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(12);
+    doc.setTextColor(55, 65, 81); // Gris oscuro
+    doc.text('FIRMAS DE RESPONSABILIDAD', pageWidth / 2, currentY, { align: 'center' });
+    currentY += 8;
+    
+    // Línea decorativa debajo del título
+    doc.setLineWidth(0.5);
+    doc.setDrawColor(200, 200, 200);
+    doc.line(margin + 50, currentY, pageWidth - margin - 50, currentY);
+    currentY += 15; // Cambiado de 12 a 15
+    
+    // ===== CONFIGURACIÓN DE FIRMAS =====
+    const firmaWidth = (pageWidth - (margin * 2) - 40) / 3; // Dividir en 3 columnas con espacios
+    const firmaHeight = 35; // AUMENTADO de 25 a 35 para más espacio de firma
+    const espacioEntreFirmas = 20;
+    
+    const firmas = [
+        {
+            titulo: 'ELABORÓ',
+            nombre: planilla.NombreUsuario || 'No disponible',
+            descripcion: 'Persona que realizó la planilla'
+        },
+        {
+            titulo: 'ENTREGÓ',
+            nombre: '', // ✅ ELIMINADO "Pendiente" - ahora está vacío
+            descripcion: 'Persona que entregó'
+        },
+        {
+            titulo: 'AUTORIZÓ',
+            nombre: planilla.NombreUsuarioAutoriza || '',  // ✅ También eliminado texto por defecto
+            descripcion: 'Persona que autorizó'
+        }
+    ];
+    
+    // ===== DIBUJAR CAJAS DE FIRMAS =====
+    let currentXFirma = margin;
+    
+    firmas.forEach((firma, index) => {
+        // ===== CAJA DE FIRMA =====
+        doc.setFillColor(248, 250, 252); // Fondo gris muy claro
+        doc.setLineWidth(1);
+        doc.setDrawColor(156, 163, 175); // Borde gris medio
+        doc.rect(currentXFirma, currentY, firmaWidth, firmaHeight, 'FD');
+        
+        // ===== TÍTULO DE LA FIRMA =====
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(10);
+        doc.setTextColor(55, 65, 81); // Gris oscuro
+        doc.text(firma.titulo, currentXFirma + (firmaWidth / 2), currentY + 6, { align: 'center' });
+        
+        // ===== NOMBRE DE LA PERSONA (solo si no está vacío) =====
+        if (firma.nombre && firma.nombre.trim() !== '') {
+            doc.setFont('helvetica', 'normal');
+            doc.setFontSize(9);
+            doc.setTextColor(0, 0, 0); // Negro
+            
+            // Usar splitTextToSize para nombres largos
+            const nombreLineas = doc.splitTextToSize(firma.nombre, firmaWidth - 6);
+            const nombreY = currentY + 12;
+            doc.text(nombreLineas, currentXFirma + (firmaWidth / 2), nombreY, { align: 'center' });
+        }
+        
+        // ===== LÍNEA PARA FIRMA (MÁS ABAJO PARA MÁS ESPACIO) =====
+        const lineaY = currentY + firmaHeight - 8; // Cambiado de -6 a -8
+        doc.setLineWidth(0.5);
+        doc.setDrawColor(107, 114, 128);
+        doc.line(currentXFirma + 8, lineaY, currentXFirma + firmaWidth - 8, lineaY);
+        
+        // ===== TEXTO "FIRMA" DEBAJO =====
+        doc.setFont('helvetica', 'italic');
+        doc.setFontSize(7);
+        doc.setTextColor(107, 114, 128);
+        doc.text('Firma', currentXFirma + (firmaWidth / 2), lineaY + 4, { align: 'center' });
+        
+        // Mover X para la siguiente caja
+        currentXFirma += firmaWidth + espacioEntreFirmas;
+    });
+    
+    currentY += firmaHeight + 10; // Cambiado de +8 a +10
+    
+    // ===== DESCRIPCIÓN ADICIONAL =====
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8);
+    doc.setTextColor(100, 100, 100);
+    currentXFirma = margin;
+    
+    firmas.forEach((firma, index) => {
+        doc.text(firma.descripcion, currentXFirma + (firmaWidth / 2), currentY, { align: 'center' });
+        currentXFirma += firmaWidth + espacioEntreFirmas;
+    });
+    
+    currentY += 10; // Cambiado de +8 a +10
+    
+    // Restaurar configuración
+    doc.setTextColor(0, 0, 0);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(9);
+    
+    return currentY;
+}
+window.seleccionarColaborador = seleccionarColaboradorConProgreso;
+window.agregarNuevoColaboradorAPlanilla = agregarNuevoColaboradorAPlanillaConProgreso;
+window.cambiarConfiguracionPlanilla = cambiarConfiguracionPlanillaConReset;
+window.cambiarConfiguracionDesdeHeader = cambiarConfiguracionPlanillaConReset;
+window.confirmarSeleccionPlanilla = confirmarSeleccionPlanillaConTransiciones;
+window.refrescarBotonPDF = actualizarVisibilidadBotonPDF;
 window.eliminarTurno = eliminarTurno;
 window.editarColaborador = editarColaborador; 
 window.eliminarColaboradorDePlanilla = eliminarColaboradorDePlanilla;
-window.cambiarConfiguracionDesdeHeader = cambiarConfiguracionDesdeHeader;
