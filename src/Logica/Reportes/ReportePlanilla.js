@@ -8,6 +8,7 @@ let empleadosFiltrados = [];
 let currentPage = 1;
 const itemsPerPage = 10;
 let currentSort = { field: null, order: 'asc' };
+let empleadoEditando = null;
 
 // Inicialización al cargar la página
 document.addEventListener('DOMContentLoaded', async () => {
@@ -80,6 +81,7 @@ function inicializarEventListeners() {
             }
         });
     }
+    inicializarEventListenersEdicion();
 }
 
 // Inicializar ordenamiento por headers de tabla
@@ -452,7 +454,11 @@ function renderizarTabla() {
         row.innerHTML = `
             <td class="text-center">${numeroFila}</td>
             <td class="font-weight-bold">${empleado.NombreCompleto}</td>
-            <td class="text-center">${empleado.CuentaBancaria || 'No asignada'}</td>
+            <td class="text-center">
+                <span class="bank-account-clickable" onclick="editarCuentaBancaria(${empleado.IdPersonal})" title="Click para editar">
+                    ${empleado.CuentaBancaria || 'No asignada'}
+                </span>
+            </td>
             <td>${empleado.NombreDepartamento}</td>
             <td>${empleado.NombrePuesto}</td>
             <td class="text-center">${formatearFecha(empleado.FechaPlanilla)}</td>
@@ -842,6 +848,225 @@ async function exportarAExcel() {
         });
     }
 }
+// Editar Cuenta Bancaria
+async function editarCuentaBancaria(idPersonal) {
+    const empleado = empleadosData.find(emp => emp.IdPersonal === idPersonal);
+    
+    if (!empleado) {
+        console.error('Empleado no encontrado');
+        return;
+    }
+    
+    empleadoEditando = empleado;
+    
+    // Llenar información del empleado
+    document.getElementById('editEmployeeName').textContent = empleado.NombreCompleto;
+    document.getElementById('editEmployeeDepartment').textContent = empleado.NombreDepartamento;
+    document.getElementById('editEmployeePosition').textContent = empleado.NombrePuesto;
+    
+    // Llenar campos actuales
+    document.getElementById('cuentaDivision1').value = empleado.CuentaDivision1 || '';
+    document.getElementById('cuentaDivision2').value = empleado.CuentaDivision2 || '';
+    document.getElementById('cuentaDivision3').value = empleado.CuentaDivision3 || '';
+    
+    // Mostrar modal
+    const modal = document.getElementById('editBankModal');
+    if (modal) {
+        modal.style.display = 'block';
+    }
+}
+// Función para cerrar modal de edición (AGREGAR)
+function cerrarModalEdicion() {
+    const modal = document.getElementById('editBankModal');
+    if (modal) {
+        modal.style.display = 'none';
+    }
+    empleadoEditando = null;
+}
+
+// Función para guardar cambios de cuenta bancaria (AGREGAR)
+async function guardarCambiosCuentaBancaria(event) {
+    event.preventDefault();
+    
+    if (!empleadoEditando) {
+        console.error('No hay empleado seleccionado para editar');
+        return;
+    }
+    
+    const cuentaDivision1 = document.getElementById('cuentaDivision1').value.trim();
+    const cuentaDivision2 = document.getElementById('cuentaDivision2').value.trim();
+    const cuentaDivision3 = document.getElementById('cuentaDivision3').value.trim();
+    
+    // Validar que al menos un campo tenga contenido
+    if (!cuentaDivision1 && !cuentaDivision2 && !cuentaDivision3) {
+        await Swal.fire({
+            icon: 'warning',
+            title: 'Campos vacíos',
+            text: 'Debe llenar al menos una división de cuenta bancaria'
+        });
+        return;
+    }
+    
+    // Mostrar confirmación
+    const confirmResult = await Swal.fire({
+        title: '¿Confirmar cambios?',
+        html: `
+            <div style="text-align: left; margin: 1rem 0;">
+                <p><strong>Empleado:</strong> ${empleadoEditando.NombreCompleto}</p>
+                <hr style="margin: 0.5rem 0;">
+                <p><strong>División 1:</strong> ${cuentaDivision1 || 'Sin asignar'}</p>
+                <p><strong>División 2:</strong> ${cuentaDivision2 || 'Sin asignar'}</p>
+                <p><strong>División 3:</strong> ${cuentaDivision3 || 'Sin asignar'}</p>
+            </div>
+        `,
+        icon: 'question',
+        showCancelButton: true,
+        confirmButtonColor: '#FF9800',
+        cancelButtonColor: '#6c757d',
+        confirmButtonText: 'Sí, actualizar',
+        cancelButtonText: 'Cancelar'
+    });
+    
+    if (!confirmResult.isConfirmed) {
+        return;
+    }
+    
+    try {
+        // Obtener datos del usuario actual
+        const userData = JSON.parse(localStorage.getItem('userData') || '{}');
+        
+        const connection = await connectionString();
+        
+        // Obtener valores anteriores para el historial
+        const valoresAnteriores = {
+            CuentaDivision1: empleadoEditando.CuentaDivision1 || '',
+            CuentaDivision2: empleadoEditando.CuentaDivision2 || '',
+            CuentaDivision3: empleadoEditando.CuentaDivision3 || ''
+        };
+        
+        // Actualizar personal
+        await connection.query(`
+            UPDATE personal 
+            SET CuentaDivision1 = ?, CuentaDivision2 = ?, CuentaDivision3 = ? 
+            WHERE IdPersonal = ?
+        `, [
+            cuentaDivision1 || null, 
+            cuentaDivision2 || null, 
+            cuentaDivision3 || null, 
+            empleadoEditando.IdPersonal
+        ]);
+        
+        // Registrar cambios en el historial para cada división que cambió
+        const cambios = [
+            {
+                division: 1,
+                valorAnterior: valoresAnteriores.CuentaDivision1,
+                valorNuevo: cuentaDivision1
+            },
+            {
+                division: 2,
+                valorAnterior: valoresAnteriores.CuentaDivision2,
+                valorNuevo: cuentaDivision2
+            },
+            {
+                division: 3,
+                valorAnterior: valoresAnteriores.CuentaDivision3,
+                valorNuevo: cuentaDivision3
+            }
+        ];
+        
+        for (const cambio of cambios) {
+            if (cambio.valorAnterior !== cambio.valorNuevo) {
+                await connection.query(`
+                    INSERT INTO CambiosPersonal 
+                    (IdPersonal, NombrePersonal, TipoCambio, Cambio, ValorAnterior, ValorNuevo, IdUsuario, NombreUsuario) 
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                `, [
+                    empleadoEditando.IdPersonal,
+                    empleadoEditando.NombreCompleto,
+                    4, // TipoCambio = 4 para cuenta bancaria
+                    `Cuenta Bancaria División ${cambio.division}`,
+                    cambio.valorAnterior || 'Sin asignar',
+                    cambio.valorNuevo || 'Sin asignar',
+                    userData.IdPersonal || null,
+                    userData.NombreCompleto || 'Usuario desconocido'
+                ]);
+            }
+        }
+        
+        await connection.close();
+        
+        // Actualizar datos locales
+        const empleadoIndex = empleadosData.findIndex(emp => emp.IdPersonal === empleadoEditando.IdPersonal);
+        if (empleadoIndex !== -1) {
+            empleadosData[empleadoIndex].CuentaDivision1 = cuentaDivision1;
+            empleadosData[empleadoIndex].CuentaDivision2 = cuentaDivision2;
+            empleadosData[empleadoIndex].CuentaDivision3 = cuentaDivision3;
+            empleadosData[empleadoIndex].CuentaBancaria = [cuentaDivision1, cuentaDivision2, cuentaDivision3]
+                .filter(cuenta => cuenta)
+                .join(' ');
+        }
+        
+        // Actualizar datos filtrados
+        const empleadoFiltradoIndex = empleadosFiltrados.findIndex(emp => emp.IdPersonal === empleadoEditando.IdPersonal);
+        if (empleadoFiltradoIndex !== -1) {
+            empleadosFiltrados[empleadoFiltradoIndex] = { ...empleadosData[empleadoIndex] };
+        }
+        
+        // Cerrar modal
+        cerrarModalEdicion();
+        
+        // Regenerar tabla
+        renderizarTabla();
+        
+        // Mostrar éxito
+        await Swal.fire({
+            icon: 'success',
+            title: '¡Actualización exitosa!',
+            text: 'La cuenta bancaria ha sido actualizada correctamente',
+            timer: 2000,
+            timerProgressBar: true
+        });
+        
+    } catch (error) {
+        console.error('Error al actualizar cuenta bancaria:', error);
+        await Swal.fire({
+            icon: 'error',
+            title: 'Error',
+            text: 'No se pudo actualizar la cuenta bancaria'
+        });
+    }
+}
+
+// Event listeners para el modal de edición (AGREGAR al final de inicializarEventListeners)
+function inicializarEventListenersEdicion() {
+    // Modal de edición - cerrar
+    const editBankModalClose = document.getElementById('editBankModalClose');
+    if (editBankModalClose) {
+        editBankModalClose.addEventListener('click', cerrarModalEdicion);
+    }
+    
+    const cancelBankEdit = document.getElementById('cancelBankEdit');
+    if (cancelBankEdit) {
+        cancelBankEdit.addEventListener('click', cerrarModalEdicion);
+    }
+    
+    const editBankModal = document.getElementById('editBankModal');
+    if (editBankModal) {
+        editBankModal.addEventListener('click', (e) => {
+            if (e.target.id === 'editBankModal') {
+                cerrarModalEdicion();
+            }
+        });
+    }
+    
+    // Formulario de edición
+    const bankAccountForm = document.getElementById('bankAccountForm');
+    if (bankAccountForm) {
+        bankAccountForm.addEventListener('submit', guardarCambiosCuentaBancaria);
+    }
+}
 // Exportar funciones globales para uso en HTML
 window.cambiarPagina = cambiarPagina;
 window.verDetallesEmpleado = verDetallesEmpleado;
+window.editarCuentaBancaria = editarCuentaBancaria;

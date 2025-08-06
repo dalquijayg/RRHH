@@ -1325,27 +1325,47 @@ function getFullName(employee) {
 function formatDate(dateString) {
     if (!dateString) return 'N/A';
     
-    // Crear la fecha sin ajuste de zona horaria
-    const date = new Date(dateString);
+    // Si ya es un objeto Date, convertirlo a string ISO primero
+    if (dateString instanceof Date) {
+        dateString = dateString.toISOString().split('T')[0];
+    }
     
-    // Verificar si la fecha es válida
-    if (isNaN(date)) return 'N/A';
+    // Parsear manualmente para evitar problemas de zona horaria
+    let dateParts;
     
-    // Si la fecha viene de la base de datos, ajustar para evitar problemas de zona horaria
-    // Obtener los componentes de la fecha original
-    const year = date.getUTCFullYear();
-    const month = date.getUTCMonth();
-    const day = date.getUTCDate();
+    // Detectar formato de entrada
+    if (dateString.includes('-')) {
+        // Formato YYYY-MM-DD (desde base de datos)
+        dateParts = dateString.split('-');
+        if (dateParts.length === 3) {
+            const year = parseInt(dateParts[0], 10);
+            const month = parseInt(dateParts[1], 10);
+            const day = parseInt(dateParts[2], 10);
+            
+            // Validar que los valores sean válidos
+            if (year && month && day && month >= 1 && month <= 12 && day >= 1 && day <= 31) {
+                return `${String(day).padStart(2, '0')}/${String(month).padStart(2, '0')}/${year}`;
+            }
+        }
+    } else if (dateString.includes('/')) {
+        // Si ya viene en formato DD/MM/YYYY, devolverlo tal como está
+        return dateString;
+    }
     
-    // Crear una nueva fecha con los componentes UTC
-    const localDate = new Date(year, month, day);
-    
-    // Formatear la fecha
-    const dayFormatted = String(localDate.getDate()).padStart(2, '0');
-    const monthFormatted = String(localDate.getMonth() + 1).padStart(2, '0');
-    const yearFormatted = localDate.getFullYear();
-    
-    return `${dayFormatted}/${monthFormatted}/${yearFormatted}`;
+    // Si no se pudo parsear manualmente, intentar con Date pero usando UTC
+    try {
+        const date = new Date(dateString + 'T00:00:00.000Z'); // Forzar UTC
+        if (isNaN(date)) return 'N/A';
+        
+        const day = String(date.getUTCDate()).padStart(2, '0');
+        const month = String(date.getUTCMonth() + 1).padStart(2, '0');
+        const year = date.getUTCFullYear();
+        
+        return `${day}/${month}/${year}`;
+    } catch (error) {
+        console.error('Error al formatear fecha:', dateString, error);
+        return 'N/A';
+    }
 }
 
 function formatFechaBaseDatos(fecha) {

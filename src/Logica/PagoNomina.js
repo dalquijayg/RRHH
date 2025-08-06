@@ -289,7 +289,9 @@ async function obtenerDatosNomina() {
                 personal.SalarioQuincenaFinMes,
                 personal.Bonificacion,
                 personal.SalarioBase,
-                personal.NoCuenta,
+                personal.CuentaDivision1,
+                personal.CuentaDivision2, 
+                personal.CuentaDivision3,
                 NULL AS FechaFinColaborador,
                 NULL AS TipoBaja
             FROM
@@ -355,7 +357,9 @@ async function obtenerDatosNomina() {
                 personal.SalarioQuincenaFinMes,
                 personal.Bonificacion,
                 personal.SalarioBase,
-                personal.NoCuenta,
+                personal.CuentaDivision1,
+                personal.CuentaDivision2, 
+                personal.CuentaDivision3,
                 dr.FechaFinColaborador,
                 CASE 
                     WHEN dr.IdEstadoPersonal = 2 THEN 'Despedido'
@@ -1539,9 +1543,10 @@ async function cargarDetallesAccordeon(idPagoPlanilla, detailCell) {
                 ppd.Bonificacion,
                 ppd.PagoIGSS,
                 ppd.MontoPagado,
-                ppd.NoCuenta
-            FROM 
-                PagoPlanillaDetalle ppd
+                ppd.NoCuentaDivision1,
+                ppd.NoCuentaDivision2,
+                ppd.NoCuentaDivision3
+            FROM PagoPlanillaDetalle ppd
             WHERE 
                 ppd.IdPagoPlanilla = ?
             ORDER BY 
@@ -2603,10 +2608,11 @@ async function mostrarDetallesPlanilla(idPlanilla) {
                 ppd.IdPersonal,
                 ppd.NombrePersonal,
                 ppd.MontoPagado,
-                ppd.NoCuenta,
+                ppd.NoCuentaDivision1,
+                ppd.NoCuentaDivision2,
+                ppd.NoCuentaDivision3,
                 ppd.NoAutorizacion
-            FROM 
-                PagoPlanillaDetalle ppd
+            FROM PagoPlanillaDetalle ppd
             WHERE 
                 ppd.IdPagoPlanilla = ?
             ORDER BY 
@@ -2683,8 +2689,14 @@ function mostrarModalDetalles(idPlanilla, detalles) {
             
             // Verificar si el número de cuenta existe
             let noCuentaCell = '';
-            if (detalle.NoCuenta && detalle.NoCuenta.trim() !== '') {
-                noCuentaCell = detalle.NoCuenta;
+            const cuentas = [
+                detalle.NoCuentaDivision1 || '',
+                detalle.NoCuentaDivision2 || '',
+                detalle.NoCuentaDivision3 || ''
+            ].filter(cuenta => cuenta.trim() !== '');
+
+            if (cuentas.length > 0) {
+                noCuentaCell = cuentas.join(' | ');
             } else {
                 noCuentaCell = '<span class="warning-text">Sin cuenta</span>';
             }
@@ -3949,9 +3961,10 @@ async function obtenerDatosPlanillasParaReporte() {
                     PPD.PagoIGSS,
                     PPD.NoAutorizacion,
                     p.Sexo,
-                    COALESCE(PPD.NoCuenta, p.NoCuenta) AS NoCuenta
-                FROM 
-                    PagoPlanillaDetalle PPD
+                    PPD.NoCuentaDivision1,
+                    PPD.NoCuentaDivision2,
+                    PPD.NoCuentaDivision3
+                FROM PagoPlanillaDetalle PPD
                     LEFT JOIN personal p ON PPD.IdPersonal = p.IdPersonal
                 WHERE 
                     PPD.IdPagoPlanilla = ?
@@ -4158,7 +4171,9 @@ async function guardarPlanilla() {
                     Bonificacion: bonificacion,              // 0 para quincena, calculado para fin de mes
                     PagoIGSS: pagoIGSS,                      // 0 para quincena, calculado para fin de mes
                     DiasLaborados: diasLaborados,
-                    NoCuenta: empleado.NoCuenta || ''
+                    NoCuentaDivision1: empleado.CuentaDivision1 || '',
+                    NoCuentaDivision2: empleado.CuentaDivision2 || '',
+                    NoCuentaDivision3: empleado.CuentaDivision3 || ''
                 };
                 
                 await insertarDetallePlanilla(detallePlanilla);
@@ -4178,7 +4193,7 @@ async function guardarPlanilla() {
             icon: 'success',
             title: 'Planilla guardada',
             html: `
-                <p>La planilla ha sido guardada exitosamente con <strong>Estado = 0</strong> (Editable).</p>
+                <p>La planilla ha sido guardada exitosamente</p>
                 <p>Puede modificarla desde la pestaña "Modificar Nómina".</p>
                 ${tipoQuincena === 'finMes' ? 
                     '<p><strong>Cálculos aplicados para Fin de Mes:</strong></p>' +
@@ -4389,8 +4404,10 @@ async function insertarDetallePlanilla(detalle) {
                 Bonificacion,
                 PagoIGSS,
                 DiasLaborados,
-                NoCuenta
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                NoCuentaDivision1,
+                NoCuentaDivision2,
+                NoCuentaDivision3
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `;
         
         const params = [
@@ -4400,11 +4417,13 @@ async function insertarDetallePlanilla(detalle) {
             detalle.SalarioQuincenal,
             detalle.SalarioDiario,
             detalle.MontoPagado,
-            detalle.SubTotalPagar,     // Nuevo campo
+            detalle.SubTotalPagar,
             detalle.Bonificacion || 0,
             detalle.PagoIGSS || 0,
             detalle.DiasLaborados,
-            detalle.NoCuenta
+            detalle.NoCuentaDivision1,
+            detalle.NoCuentaDivision2,
+            detalle.NoCuentaDivision3
         ];
         
         // Ejecutar la consulta
@@ -4927,7 +4946,6 @@ async function mostrarResumenGeneracion(archivosGenerados, carpeta) {
         `
     });
 }
-// Función actualizada para crear hoja de planilla (con columnas para Fin de Mes)
 async function crearHojaPlanilla(planilla, formValues, nombresMeses) {
     const data = [];
     let filaActual = 0;
@@ -4939,11 +4957,11 @@ async function crearHojaPlanilla(planilla, formValues, nombresMeses) {
     const tituloCompleto = planilla.NombreDivision 
         ? `${planilla.NombreDivision} - ${planilla.NombrePlanilla}`
         : planilla.NombrePlanilla;
-    data[filaActual++] = [tituloCompleto, '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', ''];
+    data[filaActual++] = [tituloCompleto, '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', ''];
     
     // Información de la planilla
     const tipoTexto = esFinDeMes ? 'Planilla Fin de Mes' : 'Planilla Quincenal';
-    data[filaActual++] = [`Tipo de Quincena: ${tipoTexto}`, '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', ''];
+    data[filaActual++] = [`Tipo de Quincena: ${tipoTexto}`, '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', ''];
     
     // Período
     const mesNombre = nombresMeses[planilla.Mes - 1];
@@ -4954,9 +4972,9 @@ async function crearHojaPlanilla(planilla, formValues, nombresMeses) {
     } else {
         periodo = `Del 1 al 15 de ${mesNombre} ${planilla.Anyo}`;
     }
-    data[filaActual++] = [`Período: ${periodo}`, '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', ''];
+    data[filaActual++] = [`Período: ${periodo}`, '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', ''];
     
-    data[filaActual++] = [`No. Centro de Trabajo: ${planilla.NoCentroTrabajo || 'No especificado'}`, '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', ''];
+    data[filaActual++] = [`No. Centro de Trabajo: ${planilla.NoCentroTrabajo || 'No especificado'}`, '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', ''];
     
     // CONTAR GÉNERO CON FORMATO COMPLETO
     let masculinos = 0;
@@ -4972,7 +4990,7 @@ async function crearHojaPlanilla(planilla, formValues, nombresMeses) {
         });
     }
     
-    data[filaActual++] = [`Cantidad de Colaboradores: ${planilla.CantColaboradores} (Masculino: ${masculinos}, Femenino: ${femeninos})`, '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', ''];
+    data[filaActual++] = [`Cantidad de Colaboradores: ${planilla.CantColaboradores} (Masculino: ${masculinos}, Femenino: ${femeninos})`, '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', ''];
     
     // Encabezados de la tabla
     if (esFinDeMes) {
@@ -4992,7 +5010,9 @@ async function crearHojaPlanilla(planilla, formValues, nombresMeses) {
             'IGSS',
             'Desc. Judicial Fin de Mes',
             'Total Pagado Fin de Mes Final',
-            'No. de Cuenta',
+            'Cuenta División 1',
+            'Cuenta División 2',
+            'Cuenta División 3',
             'Observaciones'
         ];
     } else {
@@ -5003,7 +5023,9 @@ async function crearHojaPlanilla(planilla, formValues, nombresMeses) {
             'Días Laborados', 
             'Descuento Judicial', 
             'Total a Pagar', 
-            'No. de Cuenta', 
+            'Cuenta División 1',
+            'Cuenta División 2', 
+            'Cuenta División 3',
             'Observaciones'
         ];
     }
@@ -5077,7 +5099,7 @@ async function crearHojaPlanilla(planilla, formValues, nombresMeses) {
                 totalPagadoFinalQ2 += totalPagadoFinalQ2Empleado;
                 totalPlanilla += totalPagadoMes;
                 
-                // Crear fila con datos FORMATEADOS A 2 DECIMALES
+                // Crear fila con datos FORMATEADOS A 2 DECIMALES (19 columnas)
                 data[filaActual++] = [
                     numeroConsecutivo,                              // No.
                     empleado.NombrePersonal,                        // Nombre Completo
@@ -5094,11 +5116,13 @@ async function crearHojaPlanilla(planilla, formValues, nombresMeses) {
                     igss,                                          // IGSS
                     descuentoJudicialQ2,                          // Desc. Judicial Fin de Mes
                     totalPagadoFinalQ2Empleado,                   // Total Pagado Fin de Mes Final
-                    empleado.NoCuenta || 'Sin cuenta',            // No. de Cuenta
+                    empleado.NoCuentaDivision1 || '',             // Cuenta División 1
+                    empleado.NoCuentaDivision2 || '',             // Cuenta División 2
+                    empleado.NoCuentaDivision3 || '',             // Cuenta División 3
                     observaciones                                  // Observaciones
                 ];
             } else {
-                // DATOS PARA QUINCENAL (FORMATEADOS A 2 DECIMALES)
+                // DATOS PARA QUINCENAL (FORMATEADOS A 2 DECIMALES) (10 columnas)
                 const salarioProporcional = formatearDecimales((empleado.SalarioQuincenal / 15) * empleado.DiasLaborados);
                 const descuentoJudicial = formatearDecimales(Math.max(0, salarioProporcional - empleado.MontoPagado));
                 
@@ -5112,7 +5136,9 @@ async function crearHojaPlanilla(planilla, formValues, nombresMeses) {
                     empleado.DiasLaborados,
                     descuentoJudicial,
                     formatearDecimales(empleado.MontoPagado),
-                    empleado.NoCuenta || 'Sin cuenta',
+                    empleado.NoCuentaDivision1 || '',             // Cuenta División 1
+                    empleado.NoCuentaDivision2 || '',             // Cuenta División 2
+                    empleado.NoCuentaDivision3 || '',             // Cuenta División 3
                     observaciones
                 ];
             }
@@ -5133,7 +5159,7 @@ async function crearHojaPlanilla(planilla, formValues, nombresMeses) {
     // =========== FILAS DE TOTALES CORREGIDAS ===========
     if (esFinDeMes) {
         // Fila vacía de separación
-        data[filaActual++] = ['', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', ''];
+        data[filaActual++] = ['', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', ''];
         
         // FILA DE TOTALES ALINEADA CORRECTAMENTE PARA FIN DE MES
         data[filaActual++] = [
@@ -5152,13 +5178,15 @@ async function crearHojaPlanilla(planilla, formValues, nombresMeses) {
             totalIGSS,                   // IGSS
             totalDescuentosQ2,           // Desc. Judicial Fin de Mes
             totalPagadoFinalQ2,          // Total Pagado Fin de Mes Final
-            '',                          // No. de Cuenta (vacío)
+            '',                          // Cuenta División 1 (vacío)
+            '',                          // Cuenta División 2 (vacío)
+            '',                          // Cuenta División 3 (vacío)
             `Masculino: ${masculinos}, Femenino: ${femeninos}` // Observaciones
         ];
         
     } else {
         // Fila vacía de separación
-        data[filaActual++] = ['', '', '', '', '', '', '', ''];
+        data[filaActual++] = ['', '', '', '', '', '', '', '', '', ''];
         
         // FILA DE TOTALES ALINEADA CORRECTAMENTE PARA QUINCENAL
         data[filaActual++] = [
@@ -5168,7 +5196,9 @@ async function crearHojaPlanilla(planilla, formValues, nombresMeses) {
             '',                          // Días Laborados (vacío)
             totalDescuentosQ1,           // Descuento Judicial
             totalPlanilla,               // Total a Pagar
-            '',                          // No. de Cuenta (vacío)
+            '',                          // Cuenta División 1 (vacío)
+            '',                          // Cuenta División 2 (vacío)
+            '',                          // Cuenta División 3 (vacío)
             `Masculino: ${masculinos}, Femenino: ${femeninos}` // Observaciones
         ];
     }
@@ -5184,19 +5214,16 @@ function aplicarEstilosExcel(worksheet, planilla) {
     
     // Configurar anchos de columna según el tipo
     if (esFinDeMes) {
-        // Anchos para FIN DE MES REORDENADO (17 columnas)
+        // Anchos para FIN DE MES (19 columnas)
         worksheet['!cols'] = [
             { wch: 6 },   // No.
             { wch: 25 },  // Nombre Completo
             { wch: 10 },  // Salario Diario
-            // QUINCENA 1 (1-15)
             { wch: 8 },   // Días Quincena
             { wch: 12 },  // Desc. Judicial Quincena
             { wch: 12 },  // Total Pagado Quincena
-            // FIN DE MES (16-fin)
             { wch: 8 },   // Días Fin de Mes
             { wch: 12 },  // Total Pagado Fin de Mes
-            // TOTALES
             { wch: 8 },   // Total Días
             { wch: 12 },  // Total Pagado Mes
             { wch: 12 },  // Bonificación
@@ -5204,19 +5231,23 @@ function aplicarEstilosExcel(worksheet, planilla) {
             { wch: 10 },  // IGSS
             { wch: 12 },  // Desc. Judicial Fin de Mes
             { wch: 14 },  // Total Pagado Fin de Mes Final
-            { wch: 15 },  // No. de Cuenta
+            { wch: 15 },  // Cuenta División 1
+            { wch: 15 },  // Cuenta División 2
+            { wch: 15 },  // Cuenta División 3
             { wch: 20 }   // Observaciones
         ];
     } else {
-        // Anchos para QUINCENAL (8 columnas) - sin cambios
+        // Anchos para QUINCENAL (10 columnas)
         worksheet['!cols'] = [
             { wch: 8 },   // No.
-            { wch: 40 },  // Nombre Completo
+            { wch: 35 },  // Nombre Completo
             { wch: 15 },  // Salario Diario
             { wch: 15 },  // Días Laborados
             { wch: 18 },  // Descuento Judicial
             { wch: 15 },  // Total a Pagar
-            { wch: 18 },  // No. de Cuenta
+            { wch: 18 },  // Cuenta División 1
+            { wch: 18 },  // Cuenta División 2
+            { wch: 18 },  // Cuenta División 3
             { wch: 25 }   // Observaciones
         ];
     }

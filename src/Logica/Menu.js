@@ -1925,19 +1925,15 @@ async function cargarNotificaciones() {
         
         // CÓDIGO ORIGINAL para otros usuarios (ID_Puesto = 140)
         if (userData.Id_Puesto !== 140) {
-            // Sin notificaciones para otros puestos
-            document.getElementById('notificationBadge').textContent = '0';
-            document.getElementById('notificationBadge').classList.remove('active');
+            // Cargar notificaciones específicas para usuarios básicos
+            const notificacionesBasicas = await cargarNotificacionesBasicas();
             
-            const container = document.getElementById('notificationsBody');
-            if (container) {
-                container.innerHTML = `
-                    <div class="empty-notifications">
-                        <i class="fas fa-bell-slash"></i>
-                        <p>No hay notificaciones disponibles para su rol</p>
-                    </div>
-                `;
-            }
+            // Actualizar el badge de notificaciones
+            actualizarBadgeNotificacionesBasicas(notificacionesBasicas);
+            
+            // Renderizar las notificaciones
+            renderizarNotificacionesBasicas(notificacionesBasicas);
+            
             return;
         }
         
@@ -2105,7 +2101,428 @@ async function cargarNotificaciones() {
         mostrarNotificacion('Error al cargar las notificaciones', 'error');
     }
 }
+async function cargarNotificacionesBasicas() {
+    try {
+        const userData = JSON.parse(localStorage.getItem('userData'));
+        const departamentoUsuario = userData.IdSucuDepa;
+        
+        const connection = await getConnection();
+        
+        // ===== CONSULTA 1: ANIVERSARIOS =====
+        const notificacionesQuery = `
+            SELECT 
+                p.IdPersonal,
+                CONCAT(p.PrimerNombre, ' ', IFNULL(p.SegundoNombre, ''), ' ', p.PrimerApellido, ' ', IFNULL(p.SegundoApellido, '')) AS NombreCompleto,
+                d.NombreDepartamento,
+                p.FechaPlanilla,
+                TIMESTAMPDIFF(YEAR, p.FechaPlanilla, CURDATE()) AS AniosActuales,
+                TIMESTAMPDIFF(YEAR, p.FechaPlanilla, CURDATE()) + 1 AS ProximosAnios,
+                DATEDIFF(
+                    DATE_ADD(p.FechaPlanilla, INTERVAL (TIMESTAMPDIFF(YEAR, p.FechaPlanilla, CURDATE()) + 1) YEAR),
+                    CURDATE()
+                ) AS DiasParaAniversario,
+                DATE_ADD(p.FechaPlanilla, INTERVAL (TIMESTAMPDIFF(YEAR, p.FechaPlanilla, CURDATE()) + 1) YEAR) AS FechaAniversario,
+                (TIMESTAMPDIFF(YEAR, p.FechaPlanilla, CURDATE()) * 15) - 
+                    IFNULL((SELECT COUNT(*) FROM vacacionestomadas WHERE IdPersonal = p.IdPersonal), 0) -
+                    IFNULL((SELECT SUM(CAST(DiasSolicitado AS UNSIGNED)) FROM vacacionespagadas 
+                            WHERE IdPersonal = p.IdPersonal AND Estado IN (1,2,3,4)), 0)
+                AS DiasVacacionesAcumulados,
+                puestos.Nombre AS NombrePuesto,
+                CASE 
+                    WHEN FotosPersonal.Foto IS NOT NULL THEN 1
+                    ELSE 0 
+                END AS TieneFoto
+            FROM 
+                personal p
+                INNER JOIN departamentos d ON p.IdSucuDepa = d.IdDepartamento
+                INNER JOIN Puestos puestos ON p.IdPuesto = puestos.IdPuesto
+                LEFT JOIN FotosPersonal ON p.IdPersonal = FotosPersonal.IdPersonal
+            WHERE 
+                p.IdSucuDepa = ?
+                AND p.Estado = 1
+                AND p.TipoPersonal = 1
+                AND p.FechaPlanilla IS NOT NULL
+                AND DATEDIFF(
+                    DATE_ADD(p.FechaPlanilla, INTERVAL (TIMESTAMPDIFF(YEAR, p.FechaPlanilla, CURDATE()) + 1) YEAR),
+                    CURDATE()
+                ) BETWEEN 1 AND 90
+            ORDER BY 
+                DiasParaAniversario ASC, p.PrimerNombre
+        `;
+        
+        const colaboradores = await connection.query(notificacionesQuery, [departamentoUsuario]);
+        
+        // ===== CONSULTA 2: PLANILLAS AUTORIZADAS =====
+        const planillasAutorizadasQuery = `
+            SELECT 
+                p.IdPlanillaParcial,
+                p.TipoPago,
+                p.Mes,
+                p.Anyo,
+                p.MontoPlanillaParcial,
+                p.CantidadColaboradores,
+                p.FechaRegistro,
+                p.FechaAutorizacion,
+                p.NombreUsuario,
+                d.NombreDepartamento,
+                DATEDIFF(CURDATE(), DATE(p.FechaAutorizacion)) AS DiasDesdeAutorizacion
+            FROM 
+                PagoPlanillaParcial p
+                INNER JOIN departamentos d ON p.IdDepartamentoSucursal = d.IdDepartamento
+            WHERE 
+                p.IdDepartamentoSucursal = ?
+                AND p.Estado = 1
+                AND p.FechaAutorizacion IS NOT NULL
+                AND DATEDIFF(CURDATE(), DATE(p.FechaAutorizacion)) <= 7
+            ORDER BY 
+                p.FechaAutorizacion DESC
+        `;
+        
+        const planillasAutorizadas = await connection.query(planillasAutorizadasQuery, [departamentoUsuario]);
+        
+        await connection.close();
+        
+        console.log('Aniversarios departamento cargados:', colaboradores.length);
+        console.log('Planillas autorizadas cargadas:', planillasAutorizadas.length);
+        
+        // ===== PROCESAR NOTIFICACIONES =====
+        const notificaciones = [];
+        
+        // 1. AGREGAR NOTIFICACIONES DE PLANILLAS AUTORIZADAS (PRIORIDAD ALTA)
+        if (planillasAutorizadas.length > 0) {
+            // Agrupar por urgencia
+            const planillasRecientes = planillasAutorizadas.filter(p => Number(p.DiasDesdeAutorizacion) <= 3);
+            const planillasNormales = planillasAutorizadas.filter(p => Number(p.DiasDesdeAutorizacion) > 3);
+            
+            // Planillas muy recientes (últimos 3 días)
+            if (planillasRecientes.length > 0) {
+                notificaciones.push({
+                    id: 'planillas_autorizadas_recientes',
+                    icon: 'check-circle',
+                    color: 'success',
+                    title: 'Planillas Autorizadas Recientemente',
+                    count: planillasRecientes.length,
+                    description: `${planillasRecientes.length} planilla${planillasRecientes.length !== 1 ? 's' : ''} parcial${planillasRecientes.length !== 1 ? 'es' : ''} autorizada${planillasRecientes.length !== 1 ? 's' : ''} lista${planillasRecientes.length !== 1 ? 's' : ''} para descargar`,
+                    data: planillasRecientes,
+                    tipo: 'planillas_autorizadas',
+                    urgencia: 'alta'
+                });
+            }
+            
+            // Planillas autorizadas (últimos 7 días)
+            if (planillasNormales.length > 0) {
+                notificaciones.push({
+                    id: 'planillas_autorizadas_normales',
+                    icon: 'file-check',
+                    color: 'info',
+                    title: 'Planillas Disponibles para Descarga',
+                    count: planillasNormales.length,
+                    description: `${planillasNormales.length} planilla${planillasNormales.length !== 1 ? 's' : ''} parcial${planillasNormales.length !== 1 ? 'es' : ''} autorizada${planillasNormales.length !== 1 ? 's' : ''} pendiente${planillasNormales.length !== 1 ? 's' : ''} de descarga`,
+                    data: planillasNormales,
+                    tipo: 'planillas_autorizadas',
+                    urgencia: 'normal'
+                });
+            }
+        }
+        
+        // 2. AGREGAR NOTIFICACIONES DE ANIVERSARIOS
+        if (colaboradores.length > 0) {
+            const notificacionesBasicas = {
+                proximos7Dias: colaboradores.filter(c => Number(c.DiasParaAniversario) <= 7),
+                proximos30Dias: colaboradores.filter(c => Number(c.DiasParaAniversario) <= 30 && Number(c.DiasParaAniversario) > 7),
+                proximos60Dias: colaboradores.filter(c => Number(c.DiasParaAniversario) <= 60 && Number(c.DiasParaAniversario) > 30),
+                proximos90Dias: colaboradores.filter(c => Number(c.DiasParaAniversario) <= 90 && Number(c.DiasParaAniversario) > 60)
+            };
+            
+            // Agregar notificaciones de aniversarios por prioridad
+            if (notificacionesBasicas.proximos7Dias.length > 0) {
+                notificaciones.push({
+                    id: 'aniversarios_dept_7_dias',
+                    icon: 'calendar-exclamation',
+                    color: 'danger',
+                    title: 'Aniversarios esta semana',
+                    count: notificacionesBasicas.proximos7Dias.length,
+                    description: `${notificacionesBasicas.proximos7Dias.length} compañero${notificacionesBasicas.proximos7Dias.length !== 1 ? 's' : ''} de tu departamento cumplirá${notificacionesBasicas.proximos7Dias.length !== 1 ? 'n' : ''} años esta semana`,
+                    data: notificacionesBasicas.proximos7Dias,
+                    tipo: 'aniversarios',
+                    periodo: '7 días'
+                });
+            }
+            
+            if (notificacionesBasicas.proximos30Dias.length > 0) {
+                notificaciones.push({
+                    id: 'aniversarios_dept_30_dias',
+                    icon: 'calendar-plus',
+                    color: 'warning',
+                    title: 'Aniversarios este mes',
+                    count: notificacionesBasicas.proximos30Dias.length,
+                    description: `${notificacionesBasicas.proximos30Dias.length} compañero${notificacionesBasicas.proximos30Dias.length !== 1 ? 's' : ''} de tu departamento cumplirá${notificacionesBasicas.proximos30Dias.length !== 1 ? 'n' : ''} años este mes`,
+                    data: notificacionesBasicas.proximos30Dias,
+                    tipo: 'aniversarios',
+                    periodo: '30 días'
+                });
+            }
+            
+            if (notificacionesBasicas.proximos60Dias.length > 0) {
+                notificaciones.push({
+                    id: 'aniversarios_dept_60_dias',
+                    icon: 'calendar-day',
+                    color: 'info',
+                    title: 'Aniversarios próximos 2 meses',
+                    count: notificacionesBasicas.proximos60Dias.length,
+                    description: `${notificacionesBasicas.proximos60Dias.length} compañero${notificacionesBasicas.proximos60Dias.length !== 1 ? 's' : ''} de tu departamento cumplirá${notificacionesBasicas.proximos60Dias.length !== 1 ? 'n' : ''} años en los próximos 2 meses`,
+                    data: notificacionesBasicas.proximos60Dias,
+                    tipo: 'aniversarios',
+                    periodo: '60 días'
+                });
+            }
+            
+            if (notificacionesBasicas.proximos90Dias.length > 0) {
+                notificaciones.push({
+                    id: 'aniversarios_dept_90_dias',
+                    icon: 'calendar',
+                    color: 'success',
+                    title: 'Aniversarios próximos 3 meses',
+                    count: notificacionesBasicas.proximos90Dias.length,
+                    description: `${notificacionesBasicas.proximos90Dias.length} compañero${notificacionesBasicas.proximos90Dias.length !== 1 ? 's' : ''} de tu departamento cumplirá${notificacionesBasicas.proximos90Dias.length !== 1 ? 'n' : ''} años en los próximos 3 meses`,
+                    data: notificacionesBasicas.proximos90Dias,
+                    tipo: 'aniversarios',
+                    periodo: '90 días'
+                });
+            }
+        }
+        
+        console.log('Notificaciones básicas procesadas:', notificaciones.length);
+        return notificaciones;
+        
+    } catch (error) {
+        console.error('Error al cargar notificaciones básicas:', error);
+        return [];
+    }
+}
 
+// Función para actualizar el badge de notificaciones básicas
+function actualizarBadgeNotificacionesBasicas(notificaciones) {
+    const badge = document.getElementById('notificationBadge');
+    
+    // Contar total de notificaciones
+    const totalNotificaciones = notificaciones.length;
+    
+    // Actualizar el badge
+    badge.textContent = totalNotificaciones;
+    
+    // Mostrar/ocultar el badge según si hay notificaciones
+    if (totalNotificaciones > 0) {
+        badge.classList.add('active');
+    } else {
+        badge.classList.remove('active');
+    }
+}
+
+// Función para renderizar notificaciones básicas
+function renderizarNotificacionesBasicas(notificaciones) {
+    const container = document.getElementById('notificationsBody');
+    
+    // Limpiar el contenedor
+    container.innerHTML = '';
+    
+    // Si no hay notificaciones, mostrar mensaje
+    if (notificaciones.length === 0) {
+        container.innerHTML = `
+            <div class="empty-notifications">
+                <i class="fas fa-bell-slash"></i>
+                <p>No hay notificaciones pendientes para tu departamento</p>
+            </div>
+        `;
+        return;
+    }
+    
+    // Crear elementos para cada notificación
+    notificaciones.forEach((notif, index) => {
+        const notifElement = document.createElement('div');
+        notifElement.className = `notification-item ${notif.color}`;
+        notifElement.setAttribute('data-id', notif.id);
+        notifElement.innerHTML = `
+            <div class="notification-icon">
+                <i class="fas fa-${notif.icon}"></i>
+            </div>
+            <div class="notification-content">
+                <div class="notification-title">${notif.title}</div>
+                <div class="notification-description">${notif.description}</div>
+            </div>
+            <button class="notification-action" data-notif-id="${notif.id}" title="Ver detalles">
+                <i class="fas fa-eye"></i>
+            </button>
+        `;
+        
+        // Añadir animación con delay
+        notifElement.style.animationDelay = `${index * 0.1}s`;
+        
+        container.appendChild(notifElement);
+    });
+    
+    // Agregar event listeners para ver detalles
+    document.querySelectorAll('.notification-action').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            const notifId = e.currentTarget.dataset.notifId;
+            const notificacion = notificaciones.find(n => n.id === notifId);
+            if (notificacion) {
+                // Determinar qué tipo de modal mostrar
+                if (notificacion.tipo === 'planillas_autorizadas') {
+                    mostrarDetallesPlanillasAutorizadas(notificacion);
+                } else {
+                    mostrarDetallesAniversarios(notificacion);
+                }
+            }
+        });
+    });
+}
+function mostrarDetallesPlanillasAutorizadas(notificacion) {
+    const planillas = notificacion.data;
+    
+    // Calcular estadísticas
+    const totalMonto = planillas.reduce((sum, p) => sum + Number(p.MontoPlanillaParcial), 0);
+    const totalColaboradores = planillas.reduce((sum, p) => sum + Number(p.CantidadColaboradores), 0);
+    
+    // Crear contenido del modal
+    const modalContent = `
+        <div class="planillas-modal-header">
+            <div class="modal-header-icon ${notificacion.color}">
+                <i class="fas fa-${notificacion.icon}"></i>
+            </div>
+            <div class="modal-header-info">
+                <h3>${notificacion.title}</h3>
+                <p>${planillas.length} planilla${planillas.length !== 1 ? 's' : ''} lista${planillas.length !== 1 ? 's' : ''} para descarga</p>
+            </div>
+            <div class="modal-header-stats">
+                <div class="header-stat">
+                    <span class="stat-number">${planillas.length}</span>
+                    <span class="stat-label">Planillas</span>
+                </div>
+                <div class="header-stat">
+                    <span class="stat-number">Q${totalMonto.toFixed(0)}</span>
+                    <span class="stat-label">Total</span>
+                </div>
+            </div>
+        </div>
+        
+        <div class="planillas-content">
+            <div class="planillas-summary">
+                <div class="summary-stats">
+                    <div class="summary-stat">
+                        <i class="fas fa-check-circle"></i>
+                        <span><strong>${planillas.length}</strong> planilla${planillas.length !== 1 ? 's' : ''} autorizada${planillas.length !== 1 ? 's' : ''}</span>
+                    </div>
+                    <div class="summary-stat">
+                        <i class="fas fa-users"></i>
+                        <span><strong>${totalColaboradores}</strong> colaborador${totalColaboradores !== 1 ? 'es' : ''} en total</span>
+                    </div>
+                    <div class="summary-stat">
+                        <i class="fas fa-download"></i>
+                        <span>Dirigete a <strong>Pago de Planilla Parcial</strong> para descargar</span>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="planillas-table-container">
+                <table class="planillas-table">
+                    <thead>
+                        <tr>
+                            <th>Tipo</th>
+                            <th>Período</th>
+                            <th>Colaboradores</th>
+                            <th>Monto</th>
+                            <th>Fecha Autorización</th>
+                            <th>Días</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${planillas.map((planilla, index) => {
+                            const diasDesdeAutorizacion = Number(planilla.DiasDesdeAutorizacion);
+                            
+                            // Corregir fecha de autorización
+                            const fechaAutorizacion = parseFechaSinZonaHoraria(planilla.FechaAutorizacion);
+                            
+                            // Crear fecha para el mes/año de la planilla
+                            const mesNombre = new Date(planilla.Anyo, planilla.Mes - 1)
+                                .toLocaleDateString('es-GT', { month: 'short' });
+                            
+                            // Determinar urgencia por días
+                            let urgenciaClass = 'success';
+                            let urgenciaIcon = 'check-circle';
+                            if (diasDesdeAutorizacion <= 1) {
+                                urgenciaClass = 'success';
+                                urgenciaIcon = 'star';
+                            } else if (diasDesdeAutorizacion <= 3) {
+                                urgenciaClass = 'info';
+                                urgenciaIcon = 'info-circle';
+                            }
+                            
+                            return `
+                                <tr class="planilla-row" style="animation-delay: ${index * 0.1}s">
+                                    <td>
+                                        <div class="tipo-planilla ${planilla.TipoPago.includes('Quincenal') ? 'quincenal' : 'fin-mes'}">
+                                            ${planilla.TipoPago.includes('Quincenal') ? 'Quincenal' : 'Fin de Mes'}
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <div class="periodo-cell">
+                                            <span class="mes">${mesNombre} ${planilla.Anyo}</span>
+                                        </div>
+                                    </td>
+                                    <td class="text-center">
+                                        <span class="colaboradores-count">${planilla.CantidadColaboradores}</span>
+                                    </td>
+                                    <td class="text-right">
+                                        <span class="monto">Q${Number(planilla.MontoPlanillaParcial).toFixed(2)}</span>
+                                    </td>
+                                    <td class="text-center">
+                                        <span class="fecha-autorizacion">${formatFechaParaUsuario(fechaAutorizacion)}</span>
+                                    </td>
+                                    <td class="text-center">
+                                        <div class="dias-autorizacion ${urgenciaClass}">
+                                            <i class="fas fa-${urgenciaIcon}"></i>
+                                            <span>${diasDesdeAutorizacion} día${diasDesdeAutorizacion !== 1 ? 's' : ''}</span>
+                                        </div>
+                                    </td>
+                                </tr>
+                            `;
+                        }).join('')}
+                    </tbody>
+                </table>
+            </div>
+            
+            <div class="planillas-action-info">
+                <div class="action-info-card">
+                    <div class="action-icon">
+                        <i class="fas fa-download"></i>
+                    </div>
+                    <div class="action-content">
+                        <h4>¿Cómo descargar las planillas?</h4>
+                        <p>Ve al menú <strong>Nómina y Planilla</strong> → <strong>Planilla Tiempo Parcial</strong> para descargar los documentos autorizados.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    // Mostrar modal con SweetAlert2
+    Swal.fire({
+        html: modalContent,
+        width: '1000px',
+        showCloseButton: true,
+        showConfirmButton: false,
+        customClass: {
+            popup: 'planillas-modal-popup'
+        },
+        didOpen: () => {
+            // Agregar animaciones a las filas
+            document.querySelectorAll('.planilla-row').forEach(row => {
+                row.classList.add('fade-in-row');
+            });
+        }
+    });
+}
 // Función para actualizar el contador de notificaciones
 function actualizarBadgeNotificaciones() {
     const badge = document.getElementById('notificationBadge');
@@ -2179,36 +2596,20 @@ function verificarPermisosDashboard() {
     return true;
 }
 function ocultarDashboardCompleto() {
-    // Ocultar las tarjetas de estadísticas
+    // Ocultar las tarjetas de estadísticas del dashboard principal
     const statsContainer = document.querySelector('.stats-container');
     if (statsContainer) {
         statsContainer.style.display = 'none';
     }
     
-    // Ocultar las filas del dashboard (gráficos y estado)
+    // Ocultar las filas del dashboard principal
     const dashboardRows = document.querySelectorAll('.dashboard-row');
     dashboardRows.forEach(row => {
         row.style.display = 'none';
     });
     
-    // Mostrar mensaje informativo en su lugar
-    const mainContent = document.querySelector('.main-content');
-    const contentAfterHeader = mainContent.querySelector('.content-header').nextElementSibling;
-    
-    const messageContainer = document.createElement('div');
-    messageContainer.className = 'dashboard-restricted-message';
-    messageContainer.innerHTML = `
-        <div class="restricted-content">
-            <div class="restricted-icon">
-                <i class="fas fa-lock"></i>
-            </div>
-            <h3>Acceso Restringido</h3>
-            <p>No tienes permisos para visualizar el dashboard completo.</p>
-            <p>Utiliza el menú lateral para acceder a las funciones disponibles para tu rol.</p>
-        </div>
-    `;
-    
-    mainContent.insertBefore(messageContainer, contentAfterHeader);
+    // Mostrar dashboard básico para colaboradores
+    mostrarDashboardBasico();
 }
 function verificarPermisosEncargadoRegional() {
     const userData = JSON.parse(localStorage.getItem('userData'));
@@ -3996,6 +4397,315 @@ async function guardarCambiosColaborador(idPersonal, selectDepartamento, selectP
         // Restaurar botón
         btnGuardar.disabled = false;
         btnGuardar.innerHTML = originalText;
+    }
+}
+// dashhboad para usuarios basicos
+async function mostrarDashboardBasico() {
+    const userData = JSON.parse(localStorage.getItem('userData'));
+    
+    // Crear el contenedor del dashboard básico
+    const mainContent = document.querySelector('.main-content');
+    const contentAfterHeader = mainContent.querySelector('.content-header').nextElementSibling;
+    
+    const dashboardBasico = document.createElement('div');
+    dashboardBasico.className = 'dashboard-basico-container';
+    dashboardBasico.innerHTML = `
+        <div class="stats-basico-container">
+            <div class="stat-card-basico fijos">
+                <div class="stat-icon-basico">
+                    <i class="fas fa-user-tie"></i>
+                </div>
+                <div class="stat-details-basico">
+                    <div class="stat-title-basico">Personal Fijo</div>
+                    <div class="stat-value-basico" id="personalFijoDept">0</div>
+                </div>
+            </div>
+            
+            <div class="stat-card-basico parciales">
+                <div class="stat-icon-basico">
+                    <i class="fas fa-user-clock"></i>
+                </div>
+                <div class="stat-details-basico">
+                    <div class="stat-title-basico">Personal Parcial</div>
+                    <div class="stat-value-basico" id="personalParcialDept">0</div>
+                </div>
+            </div>
+            
+            <div class="stat-card-basico vacacionistas">
+                <div class="stat-icon-basico">
+                    <i class="fas fa-umbrella-beach"></i>
+                </div>
+                <div class="stat-details-basico">
+                    <div class="stat-title-basico">Vacacionistas</div>
+                    <div class="stat-value-basico" id="vacacionistasDept">0</div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="colaboradores-basico-card">
+            <div class="colaboradores-basico-header">
+                <div class="card-title">
+                    <i class="fas fa-list"></i>
+                    <span>Lista de Colaboradores</span>
+                </div>
+                <div class="filtros-basico">
+                    <select id="filtroTipoPersonal" class="filtro-select">
+                        <option value="">Todos los tipos</option>
+                        <option value="1">Personal Fijo</option>
+                        <option value="2">Personal Parcial</option>
+                        <option value="3">Vacacionistas</option>
+                    </select>
+                    <input type="text" id="filtroNombre" placeholder="Buscar por nombre..." class="filtro-input">
+                    <button class="btn-refresh-basico" id="refreshBasicoBtn" title="Actualizar datos">
+                        <i class="fas fa-sync-alt"></i>
+                    </button>
+                </div>
+            </div>
+            
+            <div class="colaboradores-basico-container">
+                <div class="colaboradores-basico-loading" id="colaboradoresBasicoLoading">
+                    <div class="loading-spinner">
+                        <i class="fas fa-spinner fa-spin"></i>
+                    </div>
+                    <span>Cargando colaboradores...</span>
+                </div>
+                
+                <div class="colaboradores-basico-table-container" id="colaboradoresBasicoTableContainer" style="display: none;">
+                    <table class="colaboradores-basico-table">
+                        <thead>
+                            <tr>
+                                <th>Colaborador</th>
+                                <th>Puesto</th>
+                                <th>Tipo de Personal</th>
+                                <th>Fecha Ingreso</th>
+                            </tr>
+                        </thead>
+                        <tbody id="colaboradoresBasicoBody">
+                            <!-- Datos se cargarán dinámicamente -->
+                        </tbody>
+                    </table>
+                </div>
+                
+                <div class="colaboradores-basico-empty" id="colaboradoresBasicoEmpty" style="display: none;">
+                    <div class="empty-icon">
+                        <i class="fas fa-users"></i>
+                    </div>
+                    <h4>No hay colaboradores</h4>
+                    <p>No se encontraron colaboradores en tu departamento</p>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    mainContent.insertBefore(dashboardBasico, contentAfterHeader);
+    
+    // Inicializar funcionalidades
+    inicializarDashboardBasico();
+}
+async function inicializarDashboardBasico() {
+    // Cargar datos iniciales
+    await cargarDatosDepartamentoBasico();
+    
+    // Event listeners
+    document.getElementById('refreshBasicoBtn').addEventListener('click', cargarDatosDepartamentoBasico);
+    document.getElementById('filtroTipoPersonal').addEventListener('change', filtrarColaboradoresBasico);
+    document.getElementById('filtroNombre').addEventListener('input', filtrarColaboradoresBasico);
+}
+async function cargarDatosDepartamentoBasico() {
+    const userData = JSON.parse(localStorage.getItem('userData'));
+    const loadingElement = document.getElementById('colaboradoresBasicoLoading');
+    const tableContainer = document.getElementById('colaboradoresBasicoTableContainer');
+    const emptyElement = document.getElementById('colaboradoresBasicoEmpty');
+    const refreshBtn = document.getElementById('refreshBasicoBtn');
+    
+    try {
+        // Mostrar loading
+        loadingElement.style.display = 'flex';
+        tableContainer.style.display = 'none';
+        emptyElement.style.display = 'none';
+        
+        // Spinner en botón de refresh
+        if (refreshBtn) {
+            refreshBtn.querySelector('i').classList.add('fa-spin');
+        }
+        
+        const connection = await getConnection();
+        
+        // Obtener el departamento del usuario
+        const departamentoUsuario = userData.IdSucuDepa;
+        
+        // Query para obtener colaboradores del mismo departamento
+        const colaboradores = await connection.query(`
+            SELECT
+                p.IdPersonal,
+                CONCAT(p.PrimerNombre, ' ', IFNULL(p.SegundoNombre, ''), ' ', p.PrimerApellido, ' ', IFNULL(p.SegundoApellido, '')) AS NombreCompleto,
+                pu.Nombre AS NombrePuesto,
+                tp.TipoPersonal AS TipoPersonalNombre,
+                p.TipoPersonal AS IdTipoPersonal,
+                p.InicioLaboral,
+                p.FechaPlanilla
+            FROM
+                personal p
+                INNER JOIN Puestos pu ON p.IdPuesto = pu.IdPuesto
+                INNER JOIN TipoPersonal tp ON p.TipoPersonal = tp.IdTipo
+            WHERE
+                p.IdSucuDepa = ? AND
+                p.Estado = 1
+            ORDER BY
+                p.PrimerNombre ASC
+        `, [departamentoUsuario]);
+        
+        await connection.close();
+        
+        // Procesar datos
+        const stats = {
+            total: colaboradores.length,
+            fijos: colaboradores.filter(c => c.IdTipoPersonal === 1).length,
+            parciales: colaboradores.filter(c => c.IdTipoPersonal === 2).length,
+            vacacionistas: colaboradores.filter(c => c.IdTipoPersonal === 3).length
+        };
+        
+        // Actualizar estadísticas en las tarjetas (solo si existen los elementos)
+        const personalFijoElement = document.getElementById('personalFijoDept');
+        const personalParcialElement = document.getElementById('personalParcialDept');
+        const vacacionistasElement = document.getElementById('vacacionistasDept');
+        
+        if (personalFijoElement) personalFijoElement.textContent = stats.fijos;
+        if (personalParcialElement) personalParcialElement.textContent = stats.parciales;
+        if (vacacionistasElement) vacacionistasElement.textContent = stats.vacacionistas;
+        
+        // Guardar datos para filtros
+        window.colaboradoresBasicoData = colaboradores;
+        
+        // Mostrar tabla
+        if (colaboradores.length === 0) {
+            loadingElement.style.display = 'none';
+            emptyElement.style.display = 'flex';
+        } else {
+            renderizarColaboradoresBasico(colaboradores);
+            loadingElement.style.display = 'none';
+            tableContainer.style.display = 'block';
+        }
+        
+        // Detener spinner
+        if (refreshBtn) {
+            refreshBtn.querySelector('i').classList.remove('fa-spin');
+        }
+        
+        // Mostrar notificación de éxito si fue un refresh manual
+        if (refreshBtn && refreshBtn.querySelector('i').classList.contains('fa-spin')) {
+            mostrarNotificacion('Datos actualizados correctamente', 'success');
+        }
+        
+    } catch (error) {
+        console.error('Error al cargar datos del departamento:', error);
+        
+        // Mostrar error
+        loadingElement.style.display = 'none';
+        emptyElement.style.display = 'flex';
+        emptyElement.innerHTML = `
+            <div class="empty-icon">
+                <i class="fas fa-exclamation-triangle"></i>
+            </div>
+            <h4>Error al cargar datos</h4>
+            <p>No se pudieron cargar los datos del departamento</p>
+        `;
+        
+        // Detener spinner
+        if (refreshBtn) {
+            refreshBtn.querySelector('i').classList.remove('fa-spin');
+        }
+        
+        mostrarNotificacion('Error al cargar los datos del departamento', 'error');
+    }
+}
+function renderizarColaboradoresBasico(colaboradores) {
+    const tbody = document.getElementById('colaboradoresBasicoBody');
+    tbody.innerHTML = '';
+    
+    colaboradores.forEach((colaborador, index) => {
+        const fechaIngreso = colaborador.InicioLaboral ? 
+            new Date(colaborador.InicioLaboral).toLocaleDateString('es-GT') : 'N/A';
+        
+        // Determinar clase de tipo de personal
+        let tipoClase = 'tipo-fijo';
+        if (colaborador.IdTipoPersonal === 2) tipoClase = 'tipo-parcial';
+        else if (colaborador.IdTipoPersonal === 3) tipoClase = 'tipo-vacacionista';
+        
+        const row = document.createElement('tr');
+        row.className = 'colaborador-basico-row';
+        row.style.animationDelay = `${index * 0.05}s`;
+        row.innerHTML = `
+            <td>
+                <div class="colaborador-basico-info">
+                    <div class="colaborador-basico-avatar">
+                        <i class="fas fa-user"></i>
+                    </div>
+                    <div class="colaborador-basico-details">
+                        <span class="colaborador-basico-name">${colaborador.NombreCompleto}</span>
+                        <span class="colaborador-basico-id">ID: ${colaborador.IdPersonal}</span>
+                    </div>
+                </div>
+            </td>
+            <td>
+                <span class="puesto-basico-badge">${colaborador.NombrePuesto}</span>
+            </td>
+            <td>
+                <span class="tipo-personal-badge ${tipoClase}">
+                    ${colaborador.TipoPersonalNombre}
+                </span>
+            </td>
+            <td>
+                <span class="fecha-basico">${fechaIngreso}</span>
+            </td>
+        `;
+        
+        tbody.appendChild(row);
+    });
+    
+    // Agregar animación
+    document.querySelectorAll('.colaborador-basico-row').forEach(row => {
+        row.classList.add('fade-in-basico');
+    });
+}
+
+function filtrarColaboradoresBasico() {
+    const filtroTipo = document.getElementById('filtroTipoPersonal').value;
+    const filtroNombre = document.getElementById('filtroNombre').value.toLowerCase().trim();
+    
+    if (!window.colaboradoresBasicoData) return;
+    
+    let colaboradoresFiltrados = window.colaboradoresBasicoData;
+    
+    // Filtrar por tipo
+    if (filtroTipo) {
+        colaboradoresFiltrados = colaboradoresFiltrados.filter(c => 
+            c.IdTipoPersonal.toString() === filtroTipo
+        );
+    }
+    
+    // Filtrar por nombre
+    if (filtroNombre) {
+        colaboradoresFiltrados = colaboradoresFiltrados.filter(c => 
+            c.NombreCompleto.toLowerCase().includes(filtroNombre)
+        );
+    }
+    
+    // Renderizar resultados filtrados
+    if (colaboradoresFiltrados.length === 0) {
+        document.getElementById('colaboradoresBasicoTableContainer').style.display = 'none';
+        document.getElementById('colaboradoresBasicoEmpty').style.display = 'flex';
+        document.getElementById('colaboradoresBasicoEmpty').innerHTML = `
+            <div class="empty-icon">
+                <i class="fas fa-search"></i>
+            </div>
+            <h4>No se encontraron resultados</h4>
+            <p>Intenta ajustar los filtros de búsqueda</p>
+        `;
+    } else {
+        document.getElementById('colaboradoresBasicoEmpty').style.display = 'none';
+        document.getElementById('colaboradoresBasicoTableContainer').style.display = 'block';
+        renderizarColaboradoresBasico(colaboradoresFiltrados);
     }
 }
 personalNuevoBtn.addEventListener('click', abrirVentanaPersonalNuevo);

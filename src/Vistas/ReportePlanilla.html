@@ -154,6 +154,73 @@
         </div>
     </div>
 
+    <!-- Modal para editar cuenta bancaria -->
+    <div class="modal" id="editBankModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3><i class="fas fa-university"></i> Actualizar Cuenta Bancaria</h3>
+                <button class="modal-close" id="editBankModalClose">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body" id="editBankModalBody">
+                <div class="employee-info-header">
+                    <div class="employee-avatar">
+                        <i class="fas fa-user-circle"></i>
+                    </div>
+                    <div class="employee-details">
+                        <h4 id="editEmployeeName">Nombre del Empleado</h4>
+                        <p id="editEmployeeDepartment">Departamento</p>
+                        <p id="editEmployeePosition">Puesto</p>
+                    </div>
+                </div>
+
+                <form id="bankAccountForm" class="bank-form">
+                    <div class="form-section">
+                        <h5><i class="fas fa-credit-card"></i> Divisiones de Cuenta Bancaria</h5>
+                        <p class="form-description">Ingrese los números de cuenta para cada división:</p>
+                        
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="cuentaDivision1">
+                                    <i class="fas fa-building"></i> División 1:
+                                </label>
+                                <input type="text" id="cuentaDivision1" name="cuentaDivision1" class="form-input" placeholder="Ej: 1234567890">
+                            </div>
+                        </div>
+
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="cuentaDivision2">
+                                    <i class="fas fa-building"></i> División 2:
+                                </label>
+                                <input type="text" id="cuentaDivision2" name="cuentaDivision2" class="form-input" placeholder="Ej: 0987654321">
+                            </div>
+                        </div>
+
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="cuentaDivision3">
+                                    <i class="fas fa-building"></i> División 3:
+                                </label>
+                                <input type="text" id="cuentaDivision3" name="cuentaDivision3" class="form-input" placeholder="Ej: 1122334455">
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="form-actions">
+                        <button type="button" class="btn-cancel" id="cancelBankEdit">
+                            <i class="fas fa-times"></i> Cancelar
+                        </button>
+                        <button type="submit" class="btn-save">
+                            <i class="fas fa-save"></i> Guardar Cambios
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
     <script src="../Logica/Reportes/ReportePlanilla.js"></script>
 </body>
 </html>
