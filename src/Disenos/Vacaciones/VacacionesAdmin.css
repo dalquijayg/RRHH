@@ -418,26 +418,6 @@ body {
     transition: background-color 0.2s;
 }
 
-/* Columna de foto */
-.photo-column {
-    width: 60px;
-}
-
-.employee-photo-cell {
-    width: 40px;
-    height: 40px;
-    border-radius: 50%;
-    overflow: hidden;
-    border: 2px solid var(--color-secondary);
-    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-}
-
-.employee-photo-cell img {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-}
-
 /* Contador de días */
 .days-count {
     padding: 5px 14px;
@@ -866,21 +846,6 @@ body {
     gap: 15px;
     padding-bottom: 18px;
     border-bottom: 1px solid var(--color-light-gray);
-}
-
-.employee-photo {
-    width: 85px;
-    height: 85px;
-    border-radius: 50%;
-    overflow: hidden;
-    border: 4px solid var(--color-secondary);
-    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
-}
-
-.employee-photo img {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
 }
 
 .employee-info {
@@ -1324,62 +1289,6 @@ body {
 .btn-submit:active {
    transform: scale(0.98);
 }
-
-/* Información de días mínimos */
-.min-days-info {
-   background-color: #E3F2FD;
-   color: #1976D2;
-   padding: 10px 14px;
-   border-radius: var(--radius-md);
-   font-size: 13px;
-   margin: 15px 0;
-   display: flex;
-   align-items: center;
-   gap: 10px;
-   border-left: 4px solid #1976D2;
-}
-
-.min-days-info i {
-   color: #1976D2;
-   font-size: 16px;
-}
-
-.min-days-note {
-   font-size: 12px;
-   color: var(--color-secondary);
-   margin-top: 8px;
-   padding-top: 8px;
-   border-top: 1px dashed #E0E0E0;
-}
-
-/* Advertencia de días mínimos */
-.date-value.highlight.days-warning {
-   background-color: var(--color-secondary);
-   position: relative;
-}
-
-.date-value.highlight.days-warning:after {
-   content: attr(data-tooltip);
-   position: absolute;
-   background-color: rgba(0, 0, 0, 0.8);
-   color: white;
-   padding: 6px 12px;
-   border-radius: 4px;
-   font-size: 12px;
-   bottom: calc(100% + 10px);
-   left: 50%;
-   transform: translateX(-50%);
-   white-space: nowrap;
-   visibility: hidden;
-   opacity: 0;
-   transition: opacity 0.3s;
-}
-
-.date-value.highlight.days-warning:hover:after {
-   visibility: visible;
-   opacity: 1;
-}
-
 /* Modal de información del empleado */
 .info-details {
    margin-top: 22px;
@@ -1813,15 +1722,6 @@ body {
    background-color: #FFE0B2;
 }
 
-.result-photo {
-   width: 38px;
-   height: 38px;
-   border-radius: 50%;
-   object-fit: cover;
-   margin-right: 12px;
-   border: 2px solid var(--color-secondary);
-}
-
 .result-info {
    flex: 1;
 }
@@ -1868,14 +1768,6 @@ body {
    display: flex;
    align-items: center;
    gap: 14px;
-}
-
-.selected-employee-photo {
-   width: 45px;
-   height: 45px;
-   border-radius: 50%;
-   object-fit: cover;
-   border: 3px solid #4CAF50;
 }
 
 .selected-employee-details {
@@ -2219,14 +2111,6 @@ body {
 .modal-search-item:hover, 
 .modal-search-item.selected {
     background-color: #f5f5f5;
-}
-
-.search-result-photo {
-    width: 45px;
-    height: 45px;
-    border-radius: 50%;
-    object-fit: cover;
-    border: 2px solid var(--color-accent-5);
 }
 
 .search-result-info {
@@ -2764,11 +2648,6 @@ body {
        gap: 10px;
    }
    
-   .selected-employee-photo {
-       width: 40px;
-       height: 40px;
-   }
-   
    .selected-employee-name {
        font-size: 13px;
    }
@@ -2929,16 +2808,6 @@ body {
    .days-count {
        box-shadow: none;
        border: 1px solid #ddd;
-   }
-}
-
-/* Animaciones adicionales */
-@keyframes shimmer {
-   0% {
-       background-position: -500px 0;
-   }
-   100% {
-       background-position: 500px 0;
    }
 }
 
@@ -3225,4 +3094,65 @@ textarea:focus {
         width: 100%;
         justify-content: center;
     }
+}
+
+/* Animación sutil para carga de fotos */
+.employee-photo-cell img {
+    transition: opacity 0.3s ease, filter 0.3s ease;
+}
+.fc-day.fc-day-past {
+    background-color: rgba(0, 0, 0, 0.05) !important;
+    opacity: 0.8;
+}
+.search-result-item {
+    display: flex;
+    align-items: center;
+    padding: 10px 14px;
+    cursor: pointer;
+    transition: background-color 0.2s;
+    border-bottom: 1px solid #f0f0f0;
+}
+.selected-employee-info {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+.result-info {
+    flex: 1;
+}
+.fc-day.fc-day-past .fc-daygrid-day-number {
+    color: #888 !important;
+}
+.fc-day.fc-day-past:hover {
+    background-color: rgba(255, 152, 0, 0.1) !important;
+}
+#vacationCalendar {
+    transition: opacity 0.3s ease;
+    min-height: 400px;
+}
+
+#vacationCalendar .fc {
+    transition: all 0.3s ease;
+}
+
+/* Indicador de carga mejorado */
+.calendar-loading {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 400px;
+    flex-direction: column;
+    gap: 15px;
+    background-color: #f9f9f9;
+    border-radius: 8px;
+    border: 1px solid #e0e0e0;
+}
+
+.calendar-loading .spinner {
+    width: 40px;
+    height: 40px;
+    border: 4px solid #f3f3f3;
+    border-top: 4px solid var(--color-secondary);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
 }

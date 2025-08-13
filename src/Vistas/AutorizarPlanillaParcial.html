@@ -17,7 +17,7 @@
                 <img src="../Imagenes/Logo Recursos Humanos new.png" alt="Logo RRHH" class="header-logo">
                 <div class="header-info">
                     <h1>Autorización de Planillas</h1>
-                    <p>Gestión y autorización de planillas regionales</p>
+                    <p>Gestión y autorización de planillas por período</p>
                 </div>
             </div>
             
@@ -161,8 +161,8 @@
                     <h3>Detalle de Planilla</h3>
                 </div>
                 <div class="modal-planilla-info" id="modalPlanillaInfo">
-                    <div class="planilla-type-badge" id="modalPlanillaBadge">Planilla Quincenal</div>
-                    <div class="planilla-period" id="modalPlanillaPeriod">Julio 2025</div>
+                    <div class="planilla-type-badge" id="modalPlanillaBadge">Por Período</div>
+                    <div class="planilla-period" id="modalPlanillaPeriod">01/08/2025 a 15/08/2025</div>
                 </div>
                 <button type="button" class="modal-close" id="closeDetailModal">
                     <i class="fas fa-times"></i>
@@ -170,101 +170,7 @@
             </div>
             
             <div class="modal-body">
-                <!-- Información general de la planilla -->
-                <div class="planilla-summary">
-                    <div class="summary-card">
-                        <div class="summary-icon">
-                            <i class="fas fa-building"></i>
-                        </div>
-                        <div class="summary-content">
-                            <div class="summary-label">Departamento</div>
-                            <div class="summary-value" id="modalDepartment">Nombre del Departamento</div>
-                        </div>
-                    </div>
-                    
-                    <div class="summary-card">
-                        <div class="summary-icon">
-                            <i class="fas fa-users"></i>
-                        </div>
-                        <div class="summary-content">
-                            <div class="summary-label">Colaboradores</div>
-                            <div class="summary-value" id="modalCollaborators">0</div>
-                        </div>
-                    </div>
-                    
-                    <div class="summary-card">
-                        <div class="summary-icon">
-                            <i class="fas fa-clock"></i>
-                        </div>
-                        <div class="summary-content">
-                            <div class="summary-label">Total Turnos</div>
-                            <div class="summary-value" id="modalTotalShifts">0</div>
-                        </div>
-                    </div>
-                    
-                    <div class="summary-card total-card">
-                        <div class="summary-icon">
-                            <i class="fas fa-dollar-sign"></i>
-                        </div>
-                        <div class="summary-content">
-                            <div class="summary-label">Monto Total</div>
-                            <div class="summary-value" id="modalTotalAmount">Q 0.00</div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Desglose de turnos -->
-                <div class="shifts-breakdown">
-                    <h4><i class="fas fa-chart-pie"></i> Desglose de Turnos</h4>
-                    <div class="breakdown-cards">
-                        <div class="breakdown-card morning">
-                            <div class="breakdown-icon">☀️</div>
-                            <div class="breakdown-content">
-                                <div class="breakdown-count" id="modalMorningShifts">0</div>
-                                <div class="breakdown-label">Turnos Mañana</div>
-                            </div>
-                        </div>
-                        
-                        <div class="breakdown-card mixed">
-                            <div class="breakdown-icon">🌙</div>
-                            <div class="breakdown-content">
-                                <div class="breakdown-count" id="modalMixedShifts">0</div>
-                                <div class="breakdown-label">Turnos Mixtos</div>
-                            </div>
-                        </div>
-                        
-                        <div class="breakdown-card hours">
-                            <div class="breakdown-icon">🕐</div>
-                            <div class="breakdown-content">
-                                <div class="breakdown-count" id="modalHoursShifts">0</div>
-                                <div class="breakdown-label">Turnos 4 Horas</div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Tabla de colaboradores detallada -->
-                <div class="collaborators-detail">
-                    <h4><i class="fas fa-users-cog"></i> Detalle de Colaboradores</h4>
-                    <div class="collaborators-table-container">
-                        <table class="collaborators-table" id="collaboratorsDetailTable">
-                            <thead>
-                                <tr>
-                                    <th>Colaborador</th>
-                                    <th style="text-align: center;">T. Mañana</th>
-                                    <th style="text-align: center;">T. Mixtos</th>
-                                    <th style="text-align: center;">T. 4 Horas</th>
-                                    <th style="text-align: center;">Total</th>
-                                    <th style="text-align: right;">Monto</th>
-                                    <th style="text-align: center;">Fechas Trabajadas</th>
-                                </tr>
-                            </thead>
-                            <tbody id="collaboratorsDetailBody">
-                                <!-- Filas dinámicas -->
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
+                <!-- El contenido se genera dinámicamente con JavaScript -->
             </div>
             
             <div class="modal-footer">
@@ -288,81 +194,6 @@
                         Autorizar
                     </button>
                 </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Modal de Confirmación de Autorización -->
-    <div class="modal-overlay" id="confirmAuthModal">
-        <div class="modal-container modal-confirm">
-            <div class="modal-header">
-                <div class="modal-title">
-                    <i class="fas fa-check-circle"></i>
-                    <h3>Confirmar Autorización</h3>
-                </div>
-            </div>
-            <div class="modal-body">
-                <div class="confirm-message">
-                    <div class="confirm-icon success">
-                        <i class="fas fa-check-circle"></i>
-                    </div>
-                    <h4>¿Autorizar esta planilla?</h4>
-                    <p>Una vez autorizada, la planilla pasará al siguiente estado del proceso y no podrá ser modificada.</p>
-                    
-                    <div class="confirm-details" id="confirmAuthDetails">
-                        <!-- Detalles de la planilla a autorizar -->
-                    </div>
-                </div>
-            </div>
-            <div class="modal-footer">
-                <button type="button" id="cancelAuth" class="btn btn-secondary">
-                    <i class="fas fa-times"></i>
-                    Cancelar
-                </button>
-                <button type="button" id="confirmAuth" class="btn btn-success">
-                    <i class="fas fa-check-circle"></i>
-                    Confirmar Autorización
-                </button>
-            </div>
-        </div>
-    </div>
-
-    <!-- Modal de Confirmación de Rechazo -->
-    <div class="modal-overlay" id="confirmRejectModal">
-        <div class="modal-container modal-confirm">
-            <div class="modal-header">
-                <div class="modal-title">
-                    <i class="fas fa-times-circle"></i>
-                    <h3>Confirmar Rechazo</h3>
-                </div>
-            </div>
-            <div class="modal-body">
-                <div class="confirm-message">
-                    <div class="confirm-icon danger">
-                        <i class="fas fa-times-circle"></i>
-                    </div>
-                    <h4>¿Rechazar esta planilla?</h4>
-                    <p>La planilla será marcada como rechazada y deberá ser revisada nuevamente.</p>
-                    
-                    <div class="reject-reason">
-                        <label for="rejectReason">Motivo del rechazo (opcional):</label>
-                        <textarea id="rejectReason" class="reason-textarea" placeholder="Describa el motivo del rechazo..."></textarea>
-                    </div>
-                    
-                    <div class="confirm-details" id="confirmRejectDetails">
-                        <!-- Detalles de la planilla a rechazar -->
-                    </div>
-                </div>
-            </div>
-            <div class="modal-footer">
-                <button type="button" id="cancelReject" class="btn btn-secondary">
-                    <i class="fas fa-times"></i>
-                    Cancelar
-                </button>
-                <button type="button" id="confirmReject" class="btn btn-danger">
-                    <i class="fas fa-times-circle"></i>
-                    Confirmar Rechazo
-                </button>
             </div>
         </div>
     </div>

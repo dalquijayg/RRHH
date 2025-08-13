@@ -4,8 +4,13 @@ const { json } = require('stream/consumers');
 const { authenticator } = require('otplib');
 const qrcode = require('qrcode');
 const Swal = require('sweetalert2');
-const conexion = 'DSN=recursos2'; // Asegúrate de tener configurado el DSN correctamente
+const conexion = 'DSN=recursos2';
 
+// Configurar otplib con parámetros más tolerantes
+authenticator.options = {
+    step: 30,    // Período de 30 segundos
+    window: 2    // Ventana de tolerancia de ±60 segundos
+};
 
 async function verificarDPI(dpi) {
     try {
@@ -67,37 +72,123 @@ async function guardarSecret2FA(id, secret) {
     }
 }
 
+// Función mejorada para verificar códigos 2FA con mayor tolerancia
+function verificarCodigo2FA(code, secret) {
+    try {
+        // Verificación principal con ventana de tolerancia
+        const isValid = authenticator.verify({
+            token: code,
+            secret: secret,
+            window: 2 // ±60 segundos de tolerancia
+        });
+        
+        if (isValid) {
+            console.log('Código verificado exitosamente con método principal');
+            return true;
+        }
+
+        // Verificación alternativa manual para mayor compatibilidad
+        const currentTime = Math.floor(Date.now() / 1000);
+        
+        // Probar diferentes ventanas de tiempo
+        for (let window = -3; window <= 3; window++) {
+            const timeStep = Math.floor(currentTime / 30) + window;
+            const expectedToken = authenticator.generate(secret, { 
+                epoch: timeStep * 30 
+            });
+            
+            if (code === expectedToken) {
+                console.log(`Código verificado exitosamente con ventana ${window}`);
+                return true;
+            }
+        }
+        
+        console.log('Código no válido después de todas las verificaciones');
+        return false;
+    } catch (error) {
+        console.error('Error en verificación 2FA:', error);
+        return false;
+    }
+}
+
 async function mostrarConfiguracion2FA(userData) {
     const secret = authenticator.generateSecret();
-    const otpauth = authenticator.keyuri(userData.NombreCompleto, 'Sistema RRHH', secret);
+    const otpauth = authenticator.keyuri(
+        userData.NombreCompleto, 
+        'Sistema RRHH New Technology', 
+        secret
+    );
     
-    // Preparar la imagen del usuario para el modal
     const userImage = userData.FotoBase64 || '../Imagenes/user-default.png';
+    const horaActual = new Date().toLocaleString('es-GT', {
+        timeZone: 'America/Guatemala',
+        hour: '2-digit',
+        minute: '2-digit'
+    });
     
     try {
-        const qrCodeUrl = await qrcode.toDataURL(otpauth);
+        const qrCodeUrl = await qrcode.toDataURL(otpauth, {
+            width: 200,
+            margin: 1,
+            color: {
+                dark: '#000000',
+                light: '#FFFFFF'
+            }
+        });
         
         const result = await Swal.fire({
-            title: 'Configuración de Autenticación de Dos Factores',
+            title: 'Autenticación de Dos Factores',
             html: `
                 <div style="text-align: center;">
-                    <!-- Foto del usuario -->
-                    <div style="width: 100px; height: 100px; border-radius: 50%; overflow: hidden; margin: 0 auto 15px; border: 3px solid #FF9800; box-shadow: 0 4px 10px rgba(0,0,0,0.1);">
-                        <img src="${userImage}" style="width: 100%; height: 100%; object-fit: cover;">
+                    <!-- Usuario compacto -->
+                    <div style="display: flex; align-items: center; justify-content: center; gap: 12px; margin-bottom: 15px;">
+                        <div style="width: 50px; height: 50px; border-radius: 50%; overflow: hidden; border: 2px solid #FF9800; flex-shrink: 0;">
+                            <img src="${userImage}" style="width: 100%; height: 100%; object-fit: cover;">
+                        </div>
+                        <div style="text-align: left;">
+                            <h4 style="margin: 0; color: #654321; font-size: 1rem;">${userData.NombreCompleto}</h4>
+                            <p style="margin: 0; color: #777; font-size: 0.8rem;">${userData.NombreDepartamento}</p>
+                        </div>
                     </div>
-                    <h3 style="margin-bottom: 5px; color: #654321; font-size: 1.2rem;">${userData.NombreCompleto}</h3>
-                    <p style="margin-bottom: 20px; color: #777; font-size: 0.9rem;">${userData.NombreDepartamento}</p>
-                    <hr style="margin-bottom: 20px; border: none; height: 1px; background: #eee;">
                     
-                    <p>Para comenzar a usar la autenticación de dos factores, sigue estos pasos:</p>
-                    <ol style="text-align: left;">
-                        <li>Descarga una aplicación de autenticación como Google Authenticator o Authy</li>
-                        <li>Escanea el siguiente código QR con la aplicación:</li>
-                    </ol>
-                    <img src="${qrCodeUrl}" style="margin: 20px auto;">
-                    <p>O ingresa este código manualmente en tu aplicación:</p>
-                    <code style="background: #f0f0f0; padding: 10px; display: block; word-break: break-all;">${secret}</code>
-                    <p>Una vez configurado, ingresa el código de 6 dígitos que aparece en tu aplicación:</p>
+                    <!-- Layout en dos columnas -->
+                    <div style="display: flex; gap: 20px; align-items: flex-start; justify-content: center; flex-wrap: wrap;">
+                        
+                        <!-- Columna izquierda: QR y código -->
+                        <div style="flex: 1; min-width: 200px; max-width: 250px;">
+                            <img src="${qrCodeUrl}" style="width: 100%; max-width: 200px; border: 1px solid #eee; border-radius: 8px; margin-bottom: 10px;">
+                            
+                            <div style="background: #f8f9fa; padding: 8px; border-radius: 6px; margin-bottom: 15px;">
+                                <p style="margin: 0; font-size: 0.75rem; color: #666; margin-bottom: 4px;">Código manual:</p>
+                                <div style="font-family: monospace; font-size: 0.7rem; word-break: break-all; color: #333; line-height: 1.2;">${secret}</div>
+                            </div>
+                        </div>
+                        
+                        <!-- Columna derecha: Instrucciones -->
+                        <div style="flex: 1; min-width: 200px; max-width: 250px; text-align: left;">
+                            <div style="background: #e3f2fd; padding: 12px; border-radius: 6px; margin-bottom: 12px;">
+                                <h4 style="color: #1976d2; margin: 0 0 8px 0; font-size: 0.9rem;">📱 Pasos:</h4>
+                                <ol style="color: #424242; font-size: 0.8rem; margin: 0; padding-left: 16px; line-height: 1.3;">
+                                    <li style="margin-bottom: 3px;">Descarga Google Authenticator</li>
+                                    <li style="margin-bottom: 3px;">Escanea el código QR</li>
+                                    <li style="margin-bottom: 3px;">Ingresa el código de 6 dígitos</li>
+                                </ol>
+                            </div>
+                            
+                            <div style="background: #fff3e0; padding: 10px; border-radius: 6px;">
+                                <h4 style="color: #f57c00; margin: 0 0 5px 0; font-size: 0.85rem;">⏰ Importante:</h4>
+                                <p style="color: #424242; font-size: 0.75rem; margin: 0; line-height: 1.3;">
+                                    Hora: <strong>${horaActual}</strong><br>
+                                    Sincroniza la hora de tu dispositivo
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Campo de entrada -->
+                    <div style="margin-top: 20px;">
+                        <p style="color: #424242; font-size: 0.9rem; margin-bottom: 8px;">Código de 6 dígitos:</p>
+                    </div>
                 </div>
             `,
             input: 'text',
@@ -106,46 +197,87 @@ async function mostrarConfiguracion2FA(userData) {
                 maxlength: 6,
                 inputmode: 'numeric',
                 pattern: '[0-9]*',
-                style: 'text-align: center; letter-spacing: 5px; font-size: 1.2rem;'
+                style: 'text-align: center; letter-spacing: 6px; font-size: 1.3rem; font-weight: bold; border: 2px solid #ddd; border-radius: 8px; padding: 12px; width: 200px;',
+                placeholder: '000000'
             },
             showCancelButton: true,
-            confirmButtonText: 'Verificar y Activar',
+            confirmButtonText: 'Verificar',
             confirmButtonColor: '#FF9800',
             cancelButtonText: 'Cancelar',
-            allowOutsideClick: false
+            allowOutsideClick: false,
+            width: '600px',
+            customClass: {
+                popup: 'swal2-no-scroll'
+            },
+            showLoaderOnConfirm: true,
+            preConfirm: (code) => {
+                if (!/^\d{6}$/.test(code)) {
+                    Swal.showValidationMessage('El código debe tener exactamente 6 dígitos numéricos');
+                    return false;
+                }
+                
+                const isValid = verificarCodigo2FA(code, secret);
+                
+                if (isValid) {
+                    return guardarSecret2FA(userData.IdPersonal, secret);
+                } else {
+                    Swal.showValidationMessage('Código incorrecto. Usa el código más reciente de la app.');
+                    return false;
+                }
+            }
         });
 
         if (result.isConfirmed) {
-            const code = result.value;
-            const isValid = authenticator.verify({
-                token: code,
-                secret: secret
-            });
-
-            if (isValid) {
-                const saved = await guardarSecret2FA(userData.IdPersonal, secret);
-                if (saved) {
-                    await Swal.fire({
-                        icon: 'success',
-                        title: '¡Configuración exitosa!',
-                        text: 'La autenticación de dos factores ha sido activada correctamente.'
-                    });
-                    userData.Secret_2FA = secret;
-                    return userData;
-                } else {
-                    throw new Error('Error al guardar la configuración');
-                }
+            if (result.value) {
+                await Swal.fire({
+                    icon: 'success',
+                    title: '¡Configuración exitosa!',
+                    html: `
+                        <div style="text-align: center;">
+                            <div style="font-size: 3rem; margin-bottom: 15px;">🎉</div>
+                            <p>La autenticación de dos factores ha sido activada correctamente.</p>
+                            <div style="background: #e8f5e8; padding: 15px; border-radius: 8px; margin: 20px 0;">
+                                <p style="color: #2e7d32; font-size: 0.9rem; margin: 0;">
+                                    <strong>Tu cuenta ahora está más segura.</strong><br>
+                                    Necesitarás tu aplicación autenticadora cada vez que ingreses al sistema.
+                                </p>
+                            </div>
+                        </div>
+                    `,
+                    confirmButtonColor: '#4CAF50',
+                    timer: 3000,
+                    timerProgressBar: true,
+                    width: '450px'
+                });
+                userData.Secret_2FA = secret;
+                return userData;
             } else {
-                throw new Error('Código incorrecto');
+                throw new Error('Error al guardar la configuración en la base de datos');
             }
         } else {
-            throw new Error('Configuración cancelada');
+            throw new Error('Configuración cancelada por el usuario');
         }
     } catch (error) {
+        console.error('Error en configuración 2FA:', error);
         await Swal.fire({
             icon: 'error',
             title: 'Error en la configuración',
-            text: error.message || 'No se pudo completar la configuración de 2FA'
+            html: `
+                <div>
+                    <p>${error.message || 'No se pudo completar la configuración de 2FA'}</p>
+                    <div style="background: #ffebee; padding: 12px; border-radius: 8px; margin: 15px 0; text-align: left;">
+                        <h4 style="color: #c62828; margin-bottom: 8px; font-size: 0.9rem;">💡 Posibles soluciones:</h4>
+                        <ul style="color: #424242; font-size: 0.8rem; margin: 0; padding-left: 18px; line-height: 1.4;">
+                            <li>Verifica que la hora de tu dispositivo esté correcta</li>
+                            <li>Asegúrate de usar el código más reciente</li>
+                            <li>Intenta cerrar y abrir la app autenticadora</li>
+                            <li>Verifica tu conexión a internet</li>
+                        </ul>
+                    </div>
+                </div>
+            `,
+            confirmButtonColor: '#FF9800',
+            width: '480px'
         });
         throw error;
     }
@@ -153,16 +285,15 @@ async function mostrarConfiguracion2FA(userData) {
 
 function validarEntrada(event) {
     const input = event.target;
-    input.value = input.value.replace(/[^0-9]/g, ''); // Eliminar cualquier carácter que no sea un número
+    input.value = input.value.replace(/[^0-9]/g, '');
 }
 
 function habilitarBoton() {
     const input = document.getElementById('dpi');
     const boton = document.querySelector('.btn');
-    boton.disabled = input.value.length !== 13; // Habilitar el botón solo si hay 13 dígitos
+    boton.disabled = input.value.length !== 13;
 }
 
-// Función para mostrar una animación de carga
 function mostrarCargando(mensaje = "Verificando...") {
     return Swal.fire({
         title: mensaje,
@@ -180,23 +311,15 @@ document.getElementById('loginForm').addEventListener('submit', async (event) =>
     event.preventDefault();
     const dpi = document.getElementById('dpi').value;
     
-    // Agregar clase "submitting" para efectos visuales
     document.querySelector('.login-box').classList.add('submitting');
-    
-    // Mostrar animación de carga
     const loadingSwal = mostrarCargando('Verificando DPI...');
 
     try {
         let userData = await verificarDPI(dpi);
-        
-        // Cerrar la animación de carga
         loadingSwal.close();
-        
-        // Quitar clase "submitting"
         document.querySelector('.login-box').classList.remove('submitting');
         
         if (userData) {
-            // Verificar si el usuario tiene acceso al sistema
             if (userData.IngresoSistema !== 1 && userData.IngresoSistema !== '1') {
                 document.querySelector('.login-box').classList.add('error');
                 
@@ -214,13 +337,9 @@ document.getElementById('loginForm').addEventListener('submit', async (event) =>
                 return;
             }
             
-            // Preparar la imagen del usuario
             const userImage = userData.FotoBase64 || '../Imagenes/user-default.png';
-            
-            // Agregar clase "success" para efectos visuales
             document.querySelector('.login-box').classList.add('success');
             
-            // Si no tiene 2FA configurado, mostrar configuración
             if (!userData.Secret_2FA) {
                 try {
                     userData = await mostrarConfiguracion2FA(userData);
@@ -231,20 +350,29 @@ document.getElementById('loginForm').addEventListener('submit', async (event) =>
                 }
             }
 
-            // Solicitar código 2FA con la imagen del usuario
+            // Solicitar código 2FA mejorado
             const result = await Swal.fire({
                 title: 'Verificación de Identidad',
                 html: `
                     <div style="text-align: center;">
-                        <!-- Foto del usuario -->
-                        <div style="width: 100px; height: 100px; border-radius: 50%; overflow: hidden; margin: 0 auto 15px; border: 3px solid #FF9800; box-shadow: 0 4px 10px rgba(0,0,0,0.1);">
-                            <img src="${userImage}" style="width: 100%; height: 100%; object-fit: cover;">
+                        <!-- Usuario compacto -->
+                        <div style="display: flex; align-items: center; justify-content: center; gap: 15px; margin-bottom: 20px;">
+                            <div style="width: 60px; height: 60px; border-radius: 50%; overflow: hidden; border: 3px solid #FF9800; flex-shrink: 0;">
+                                <img src="${userImage}" style="width: 100%; height: 100%; object-fit: cover;">
+                            </div>
+                            <div style="text-align: left;">
+                                <h3 style="margin: 0; color: #654321; font-size: 1.1rem;">${userData.NombreCompleto}</h3>
+                                <p style="margin: 0; color: #777; font-size: 0.85rem;">${userData.NombreDepartamento}</p>
+                            </div>
                         </div>
-                        <h3 style="margin-bottom: 5px; color: #654321; font-size: 1.2rem;">${userData.NombreCompleto}</h3>
-                        <p style="margin-bottom: 20px; color: #777; font-size: 0.9rem;">${userData.NombreDepartamento}</p>
-                        <hr style="margin-bottom: 20px; border: none; height: 1px; background: #eee;">
                         
-                        <p style="margin-bottom: 15px;">Ingrese el código de 6 dígitos de su aplicación autenticadora:</p>
+                        <div style="background: #e3f2fd; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
+                            <p style="margin: 0; color: #1976d2; font-size: 0.95rem;">
+                                <strong>🔐 Ingresa el código de tu aplicación autenticadora</strong>
+                            </p>
+                        </div>
+                        
+                        <p style="margin-bottom: 15px; color: #424242; font-size: 0.9rem;">Código de 6 dígitos:</p>
                     </div>
                 `,
                 input: 'text',
@@ -253,42 +381,42 @@ document.getElementById('loginForm').addEventListener('submit', async (event) =>
                     maxlength: 6,
                     inputmode: 'numeric',
                     pattern: '[0-9]*',
-                    style: 'text-align: center; letter-spacing: 5px; font-size: 1.2rem;'
+                    style: 'text-align: center; letter-spacing: 6px; font-size: 1.4rem; font-weight: bold; border: 2px solid #ddd; border-radius: 8px; padding: 12px; width: 200px;',
+                    placeholder: '000000'
                 },
                 showCancelButton: true,
                 confirmButtonText: 'Verificar',
                 confirmButtonColor: '#FF9800',
                 cancelButtonText: 'Cancelar',
                 showLoaderOnConfirm: true,
+                width: '450px', // Ancho más compacto
+                customClass: {
+                    popup: 'swal2-no-scroll'
+                },
                 preConfirm: (code) => {
                     if (!/^\d{6}$/.test(code)) {
-                        Swal.showValidationMessage('El código debe tener 6 dígitos numéricos');
+                        Swal.showValidationMessage('El código debe tener exactamente 6 dígitos numéricos');
                         return false;
                     }
                     
-                    const isValid = authenticator.verify({
-                        token: code,
-                        secret: userData.Secret_2FA
-                    });
+                    const isValid = verificarCodigo2FA(code, userData.Secret_2FA);
 
                     if (isValid) {
                         localStorage.setItem('userData', JSON.stringify(userData));
                         return true;
                     } else {
-                        Swal.showValidationMessage('Código incorrecto o expirado');
+                        Swal.showValidationMessage('Código incorrecto. Verifica la hora de tu dispositivo y usa el código más reciente.');
                         return false;
                     }
                 }
             });
 
             if (result.isConfirmed) {
-                // Mostrar mensaje de bienvenida con foto antes de redirigir
                 await Swal.fire({
                     icon: 'success',
                     title: '¡Bienvenido!',
                     html: `
                         <div style="text-align: center; animation: fadeIn 0.5s;">
-                            <!-- Foto del usuario más grande -->
                             <div style="width: 120px; height: 120px; border-radius: 50%; overflow: hidden; margin: 0 auto 20px; border: 4px solid #FF9800; box-shadow: 0 8px 15px rgba(0,0,0,0.2);">
                                 <img src="${userImage}" style="width: 100%; height: 100%; object-fit: cover;">
                             </div>
@@ -326,10 +454,7 @@ document.getElementById('loginForm').addEventListener('submit', async (event) =>
             }, 1000);
         }
     } catch (error) {
-        // Cerrar la animación de carga en caso de error
         loadingSwal.close();
-        
-        // Quitar clase "submitting"
         document.querySelector('.login-box').classList.remove('submitting');
         document.querySelector('.login-box').classList.add('error');
         
@@ -347,7 +472,6 @@ document.getElementById('loginForm').addEventListener('submit', async (event) =>
     }
 });
 
-// Función para determinar el rol basado en el ID del puesto
 function determinarRol(idPuesto) {
     if (idPuesto == 5) {
         return 'Administrador RRHH';
@@ -363,11 +487,9 @@ document.getElementById('dpi').addEventListener('input', (event) => {
     habilitarBoton();
 });
 
-// Inicializar el estado del botón al cargar la página
 document.addEventListener('DOMContentLoaded', () => {
     habilitarBoton();
     
-    // Agregar estilos para animaciones
     document.head.insertAdjacentHTML('beforeend', `
         <style>
             @keyframes spin {
@@ -387,6 +509,80 @@ document.addEventListener('DOMContentLoaded', () => {
                     opacity: 1;
                     transform: translateY(0);
                 }
+            }
+            
+            /* Estilos para modales optimizados */
+            .swal2-popup.swal2-no-scroll {
+                max-height: 90vh !important;
+                overflow: hidden !important;
+            }
+
+            .swal2-popup.swal2-no-scroll .swal2-content {
+                max-height: calc(90vh - 200px) !important;
+                overflow-y: auto !important;
+                padding: 0 !important;
+            }
+
+            @media screen and (max-width: 768px) {
+                .swal2-popup {
+                    width: 95% !important;
+                    max-width: 95% !important;
+                    margin: 10px !important;
+                }
+                
+                .swal2-popup.swal2-no-scroll {
+                    max-height: 95vh !important;
+                }
+                
+                .swal2-popup.swal2-no-scroll .swal2-content {
+                    max-height: calc(95vh - 150px) !important;
+                }
+            }
+
+            @media screen and (max-width: 480px) {
+                .swal2-popup {
+                    width: 98% !important;
+                    max-width: 98% !important;
+                    margin: 5px !important;
+                    padding: 15px !important;
+                }
+                
+                .swal2-title {
+                    font-size: 1.2rem !important;
+                    padding: 0 0 15px 0 !important;
+                }
+                
+                /* Layout vertical en móviles */
+                .swal2-content div[style*="display: flex"] {
+                    flex-direction: column !important;
+                    gap: 15px !important;
+                }
+                
+                .swal2-content div[style*="flex: 1"] {
+                    max-width: 100% !important;
+                }
+            }
+
+            .swal2-input {
+                font-family: 'Poppins', sans-serif !important;
+            }
+
+            .swal2-content::-webkit-scrollbar {
+                width: 6px;
+            }
+
+            .swal2-content::-webkit-scrollbar-track {
+                background: #f1f1f1;
+                border-radius: 3px;
+            }
+
+            .swal2-content::-webkit-scrollbar-thumb {
+                background: #c1c1c1;
+                border-radius: 3px;
+            }
+
+            .swal2-content::-webkit-scrollbar-thumb:hover {
+                background: #a1a1a1;
             }
         </style>
     `);

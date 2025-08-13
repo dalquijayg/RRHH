@@ -107,7 +107,7 @@ async function obtenerInfoCompleta(idPersonal) {
                 personal.IdSucuDepa,
                 personal.IdPlanilla,
                 personal.FechaPlanilla,
-                personal.SalarioBase,
+                IFNULL(personal.SalarioBase, 0) AS SalarioBase,
                 personal.DPI,
                 personal.IdDepartamentoOrigen,
                 personal.IdMunicipioOrigen,
@@ -125,6 +125,9 @@ async function obtenerInfoCompleta(idPersonal) {
         }
         
         const datosColaborador = colaborador[0];
+        
+        // Asegurar que SalarioBase sea un número válido
+        datosColaborador.SalarioBase = parseFloat(datosColaborador.SalarioBase) || 0;
         
         // Verificar si tiene despido/renuncia
         const estadoSalida = await verificarDespidoRenuncia(idPersonal);
@@ -251,63 +254,37 @@ function calcularTiempoLaborado(fechaPlanilla, estadoSalida = null) {
         // Usar fecha actual
         const fechaActual = new Date();
         añoFinal = fechaActual.getFullYear();
-        mesFinal = fechaActual.getMonth() + 1; // getMonth() es 0-indexed
+        mesFinal = fechaActual.getMonth() + 1;
         diaFinal = fechaActual.getDate();
     }
     
-    // Calcular años completos
-    let años = añoFinal - añoInicio;
-    let meses = mesFinal - mesInicio;
-    let dias = diaFinal - diaInicio + 1; // +1 para incluir el día inicial
+    // Calcular usando año comercial
+    const fechaInicio = { año: añoInicio, mes: mesInicio, dia: diaInicio };
+    const fechaFin = { año: añoFinal, mes: mesFinal, dia: diaFinal };
     
-    // Ajustar si los días son negativos
-    if (dias < 0) {
-        meses--;
-        dias += 30; // Siempre 30 días por mes en año comercial
-    }
-    
-    // Ajustar si los meses son negativos
-    if (meses < 0) {
-        años--;
-        meses += 12;
-    }
-    
-    // Si los días pasan de 30, ajustar al siguiente mes
-    if (dias > 30) {
-        meses++;
-        dias -= 30;
-    }
-    
-    // Si los meses pasan de 12, ajustar al siguiente año
-    if (meses >= 12) {
-        años++;
-        meses -= 12;
-    }
-    
-    // Calcular días laborales totales usando año comercial
-    const diasLaborales = (años * 360) + (meses * 30) + dias;
+    const diferencia = calcularDiferenciasComerciales(fechaInicio, fechaFin);
     
     let resultado = '';
     
-    if (años > 0) {
-        resultado += `${años} año${años > 1 ? 's' : ''}`;
+    if (diferencia.años > 0) {
+        resultado += `${diferencia.años} año${diferencia.años > 1 ? 's' : ''}`;
     }
     
-    if (meses > 0) {
+    if (diferencia.meses > 0) {
         if (resultado) resultado += ', ';
-        resultado += `${meses} mes${meses > 1 ? 'es' : ''}`;
+        resultado += `${diferencia.meses} mes${diferencia.meses > 1 ? 'es' : ''}`;
     }
     
-    if (dias > 0) {
+    if (diferencia.dias > 0) {
         if (resultado) resultado += ', ';
-        resultado += `${dias} día${dias > 1 ? 's' : ''}`;
+        resultado += `${diferencia.dias} día${diferencia.dias > 1 ? 's' : ''}`;
     }
     
     if (!resultado) {
         resultado = 'Menos de 1 día';
     }
     
-    resultado += ` (${diasLaborales} días laborales)`;
+    resultado += ` (${diferencia.diasTotales} días laborales)`;
     
     // Agregar información sobre el tipo de cálculo
     if (estadoSalida && estadoSalida.tieneRegistro) {
@@ -358,7 +335,6 @@ function obtenerNombreMes(numeroMes) {
     ];
     return meses[numeroMes];
 }
-// Liquidacion.js - PARTE 2
 
 // Función para calcular días de aguinaldo usando año comercial (30 días por mes)
 function calcularDiasAguinaldo(fechaPlanilla, estadoSalida = null) {
@@ -368,11 +344,9 @@ function calcularDiasAguinaldo(fechaPlanilla, estadoSalida = null) {
     let añoFinal, mesFinal, diaFinal;
     
     if (estadoSalida && estadoSalida.tieneRegistro && estadoSalida.fechaFin) {
-        // Usar fecha de salida
         const fechaFinString = estadoSalida.fechaFin.split('T')[0];
         [añoFinal, mesFinal, diaFinal] = fechaFinString.split('-').map(Number);
     } else {
-        // Usar fecha actual
         const fechaActual = new Date();
         añoFinal = fechaActual.getFullYear();
         mesFinal = fechaActual.getMonth() + 1;
@@ -381,7 +355,7 @@ function calcularDiasAguinaldo(fechaPlanilla, estadoSalida = null) {
     
     // Fecha de inicio de aguinaldo: 1 de diciembre del año anterior
     const añoInicioAguinaldo = añoFinal - 1;
-    const mesInicioAguinaldo = 12; // Diciembre
+    const mesInicioAguinaldo = 12;
     const diaInicioAguinaldo = 1;
     
     // Fecha de ingreso del colaborador
@@ -389,67 +363,34 @@ function calcularDiasAguinaldo(fechaPlanilla, estadoSalida = null) {
     const [añoIngreso, mesIngreso, diaIngreso] = fechaString.split('-').map(Number);
     
     // Determinar fecha de inicio real (la más tardía)
-    let añoInicioReal, mesInicioReal, diaInicioReal;
+    let fechaInicioReal, fechaFinalReal;
     
     if (añoIngreso > añoInicioAguinaldo || 
         (añoIngreso === añoInicioAguinaldo && mesIngreso > mesInicioAguinaldo) ||
         (añoIngreso === añoInicioAguinaldo && mesIngreso === mesInicioAguinaldo && diaIngreso > diaInicioAguinaldo)) {
-        // Fecha de ingreso es posterior al 1 de diciembre del año anterior
-        añoInicioReal = añoIngreso;
-        mesInicioReal = mesIngreso;
-        diaInicioReal = diaIngreso;
+        fechaInicioReal = { año: añoIngreso, mes: mesIngreso, dia: diaIngreso };
     } else {
-        // Usar 1 de diciembre del año anterior
-        añoInicioReal = añoInicioAguinaldo;
-        mesInicioReal = mesInicioAguinaldo;
-        diaInicioReal = diaInicioAguinaldo;
+        fechaInicioReal = { año: añoInicioAguinaldo, mes: mesInicioAguinaldo, dia: diaInicioAguinaldo };
     }
     
-    // Calcular diferencia usando año comercial (30 días por mes)
-    let años = añoFinal - añoInicioReal;
-    let meses = mesFinal - mesInicioReal;
-    let dias = diaFinal - diaInicioReal + 1; // +1 para incluir el día inicial
+    fechaFinalReal = { año: añoFinal, mes: mesFinal, dia: diaFinal };
     
-    // Ajustar si los días son negativos
-    if (dias < 0) {
-        meses--;
-        dias += 30;
-    }
+    // Calcular usando año comercial
+    const diferencia = calcularDiferenciasComerciales(fechaInicioReal, fechaFinalReal);
     
-    // Ajustar si los meses son negativos
-    if (meses < 0) {
-        años--;
-        meses += 12;
-    }
+    // Máximo 360 días para aguinaldo
+    const diasFinales = Math.min(diferencia.diasTotales, 360);
     
-    // Si los días pasan de 30, ajustar al siguiente mes
-    if (dias > 30) {
-        meses++;
-        dias -= 30;
-    }
-    
-    // Si los meses pasan de 12, ajustar al siguiente año
-    if (meses >= 12) {
-        años++;
-        meses -= 12;
-    }
-    
-    // Calcular días totales usando año comercial
-    const diasTotales = (años * 360) + (meses * 30) + dias;
-    
-    // Máximo 360 días para aguinaldo (1 año comercial)
-    const diasFinales = Math.min(diasTotales, 360);
-    
-    // Formatear periodo para mostrar
-    const fechaInicioTexto = `${diaInicioReal} de ${obtenerNombreMes(mesInicioReal)} de ${añoInicioReal}`;
-    const fechaFinalTexto = `${diaFinal} de ${obtenerNombreMes(mesFinal)} de ${añoFinal}`;
+    // Formatear periodo
+    const fechaInicioTexto = `${fechaInicioReal.dia} de ${obtenerNombreMes(fechaInicioReal.mes)} de ${fechaInicioReal.año}`;
+    const fechaFinalTexto = `${fechaFinalReal.dia} de ${obtenerNombreMes(fechaFinalReal.mes)} de ${fechaFinalReal.año}`;
     const periodo = `${fechaInicioTexto} al ${fechaFinalTexto}`;
     
     return {
         dias: diasFinales,
         periodo: periodo,
-        fechaInicio: { año: añoInicioReal, mes: mesInicioReal, dia: diaInicioReal },
-        fechaFin: { año: añoFinal, mes: mesFinal, dia: diaFinal }
+        fechaInicio: fechaInicioReal,
+        fechaFin: fechaFinalReal
     };
 }
 
@@ -457,83 +398,48 @@ function calcularDiasAguinaldo(fechaPlanilla, estadoSalida = null) {
 function calcularDiasVacaciones(fechaPlanilla, estadoSalida = null) {
     if (!fechaPlanilla) return { dias: 0, periodo: 'No disponible' };
     
-    // Determinar fecha final (fecha de salida o fecha actual)
+    // Determinar fecha final
     let añoFinal, mesFinal, diaFinal;
     
     if (estadoSalida && estadoSalida.tieneRegistro && estadoSalida.fechaFin) {
-        // Usar fecha de salida
         const fechaFinString = estadoSalida.fechaFin.split('T')[0];
         [añoFinal, mesFinal, diaFinal] = fechaFinString.split('-').map(Number);
     } else {
-        // Usar fecha actual
         const fechaActual = new Date();
         añoFinal = fechaActual.getFullYear();
         mesFinal = fechaActual.getMonth() + 1;
         diaFinal = fechaActual.getDate();
     }
     
-    // Fecha de ingreso del colaborador
+    // Fecha de ingreso
     const fechaString = fechaPlanilla.split('T')[0];
     const [añoIngreso, mesIngreso, diaIngreso] = fechaString.split('-').map(Number);
     
-    // Calcular la fecha del último aniversario (mismo día y mes del año actual o anterior)
+    // Calcular la fecha del último aniversario
     let añoAniversario = añoFinal;
-    
-    // Si aún no ha llegado el aniversario este año, usar el año anterior
     if (mesFinal < mesIngreso || (mesFinal === mesIngreso && diaFinal < diaIngreso)) {
         añoAniversario = añoFinal - 1;
     }
     
-    // La fecha de inicio para vacaciones es el aniversario
-    const añoInicioVacaciones = añoAniversario;
-    const mesInicioVacaciones = mesIngreso;
-    const diaInicioVacaciones = diaIngreso;
+    const fechaInicioVacaciones = { año: añoAniversario, mes: mesIngreso, dia: diaIngreso };
+    const fechaFinalVacaciones = { año: añoFinal, mes: mesFinal, dia: diaFinal };
     
-    // Calcular diferencia usando año comercial (30 días por mes)
-    let años = añoFinal - añoInicioVacaciones;
-    let meses = mesFinal - mesInicioVacaciones;
-    let dias = diaFinal - diaInicioVacaciones + 1; // +1 para incluir el día inicial
+    // Calcular usando año comercial
+    const diferencia = calcularDiferenciasComerciales(fechaInicioVacaciones, fechaFinalVacaciones);
     
-    // Ajustar si los días son negativos
-    if (dias < 0) {
-        meses--;
-        dias += 30;
-    }
+    // Máximo 360 días para vacaciones
+    const diasFinales = Math.min(diferencia.diasTotales, 360);
     
-    // Ajustar si los meses son negativos
-    if (meses < 0) {
-        años--;
-        meses += 12;
-    }
-    
-    // Si los días pasan de 30, ajustar al siguiente mes
-    if (dias > 30) {
-        meses++;
-        dias -= 30;
-    }
-    
-    // Si los meses pasan de 12, ajustar al siguiente año
-    if (meses >= 12) {
-        años++;
-        meses -= 12;
-    }
-    
-    // Calcular días totales usando año comercial
-    const diasTotales = (años * 360) + (meses * 30) + dias;
-    
-    // Máximo 360 días para vacaciones (1 año comercial)
-    const diasFinales = Math.min(diasTotales, 360);
-    
-    // Formatear periodo para mostrar
-    const fechaInicioTexto = `${diaInicioVacaciones} de ${obtenerNombreMes(mesInicioVacaciones)} de ${añoInicioVacaciones}`;
-    const fechaFinalTexto = `${diaFinal} de ${obtenerNombreMes(mesFinal)} de ${añoFinal}`;
+    // Formatear periodo
+    const fechaInicioTexto = `${fechaInicioVacaciones.dia} de ${obtenerNombreMes(fechaInicioVacaciones.mes)} de ${fechaInicioVacaciones.año}`;
+    const fechaFinalTexto = `${fechaFinalVacaciones.dia} de ${obtenerNombreMes(fechaFinalVacaciones.mes)} de ${fechaFinalVacaciones.año}`;
     const periodo = `${fechaInicioTexto} al ${fechaFinalTexto}`;
     
     return {
         dias: diasFinales,
         periodo: periodo,
-        fechaInicio: { año: añoInicioVacaciones, mes: mesInicioVacaciones, dia: diaInicioVacaciones },
-        fechaFin: { año: añoFinal, mes: mesFinal, dia: diaFinal }
+        fechaInicio: fechaInicioVacaciones,
+        fechaFin: fechaFinalVacaciones
     };
 }
 
@@ -541,54 +447,120 @@ function calcularDiasVacaciones(fechaPlanilla, estadoSalida = null) {
 function calcularDiasBono14(fechaPlanilla, estadoSalida = null) {
     if (!fechaPlanilla) return { dias: 0, periodo: 'No disponible' };
     
-    // Determinar fecha final (fecha de salida o fecha actual)
+    // Determinar fecha final
     let añoFinal, mesFinal, diaFinal;
     
     if (estadoSalida && estadoSalida.tieneRegistro && estadoSalida.fechaFin) {
-        // Usar fecha de salida
         const fechaFinString = estadoSalida.fechaFin.split('T')[0];
         [añoFinal, mesFinal, diaFinal] = fechaFinString.split('-').map(Number);
     } else {
-        // Usar fecha actual
         const fechaActual = new Date();
         añoFinal = fechaActual.getFullYear();
         mesFinal = fechaActual.getMonth() + 1;
         diaFinal = fechaActual.getDate();
     }
     
-    // Fecha de inicio de Bono 14: 1 de julio del año anterior
-    const añoInicioBono14 = añoFinal - 1;
-    const mesInicioBono14 = 7; // Julio
-    const diaInicioBono14 = 1;
+    // Determinar el período de Bono 14 aplicable
+    let añoInicioBono14, añoFinBono14;
+    
+    if (mesFinal >= 7) {
+        // Período actual: 1 julio año actual → 30 junio año siguiente
+        añoInicioBono14 = añoFinal;
+        añoFinBono14 = añoFinal + 1;
+    } else {
+        // Período anterior: 1 julio año anterior → 30 junio año actual
+        añoInicioBono14 = añoFinal - 1;
+        añoFinBono14 = añoFinal;
+    }
+    
+    // Fechas del período de Bono 14
+    const fechaInicioPeriodo = { año: añoInicioBono14, mes: 7, dia: 1 };
+    const fechaFinPeriodo = { año: añoFinBono14, mes: 6, dia: 30 };
     
     // Fecha de ingreso del colaborador
     const fechaString = fechaPlanilla.split('T')[0];
     const [añoIngreso, mesIngreso, diaIngreso] = fechaString.split('-').map(Number);
     
     // Determinar fecha de inicio real (la más tardía)
-    let añoInicioReal, mesInicioReal, diaInicioReal;
+    let fechaInicioReal;
+    const fechaIngresoComparable = añoIngreso * 10000 + mesIngreso * 100 + diaIngreso;
+    const fechaInicioPeriodoComparable = fechaInicioPeriodo.año * 10000 + fechaInicioPeriodo.mes * 100 + fechaInicioPeriodo.dia;
     
-    if (añoIngreso > añoInicioBono14 || 
-        (añoIngreso === añoInicioBono14 && mesIngreso > mesInicioBono14) ||
-        (añoIngreso === añoInicioBono14 && mesIngreso === mesInicioBono14 && diaIngreso > diaInicioBono14)) {
-        // Fecha de ingreso es posterior al 1 de julio del año anterior
-        añoInicioReal = añoIngreso;
-        mesInicioReal = mesIngreso;
-        diaInicioReal = diaIngreso;
+    if (fechaIngresoComparable > fechaInicioPeriodoComparable) {
+        fechaInicioReal = { año: añoIngreso, mes: mesIngreso, dia: diaIngreso };
     } else {
-        // Usar 1 de julio del año anterior
-        añoInicioReal = añoInicioBono14;
-        mesInicioReal = mesInicioBono14;
-        diaInicioReal = diaInicioBono14;
+        fechaInicioReal = fechaInicioPeriodo;
     }
     
-    // Calcular diferencia usando año comercial (30 días por mes)
-    let años = añoFinal - añoInicioReal;
-    let meses = mesFinal - mesInicioReal;
-    let dias = diaFinal - diaInicioReal + 1; // +1 para incluir el día inicial
+    // Determinar fecha final real (la más temprana entre salida y fin del período)
+    let fechaFinalReal;
+    const fechaFinalComparable = añoFinal * 10000 + mesFinal * 100 + diaFinal;
+    const fechaFinPeriodoComparable = fechaFinPeriodo.año * 10000 + fechaFinPeriodo.mes * 100 + fechaFinPeriodo.dia;
+    
+    if (fechaFinalComparable <= fechaFinPeriodoComparable) {
+        fechaFinalReal = { año: añoFinal, mes: mesFinal, dia: diaFinal };
+    } else {
+        fechaFinalReal = fechaFinPeriodo;
+    }
+    
+    // Verificar que hay días trabajados
+    const fechaInicioRealComparable = fechaInicioReal.año * 10000 + fechaInicioReal.mes * 100 + fechaInicioReal.dia;
+    const fechaFinalRealComparable = fechaFinalReal.año * 10000 + fechaFinalReal.mes * 100 + fechaFinalReal.dia;
+    
+    if (fechaInicioRealComparable > fechaFinalRealComparable) {
+        return {
+            dias: 0,
+            periodo: `Sin días trabajados en el período del Bono 14`,
+            fechaInicio: fechaInicioPeriodo,
+            fechaFin: fechaFinPeriodo
+        };
+    }
+    
+    // Calcular usando año comercial
+    const diferencia = calcularDiferenciasComerciales(fechaInicioReal, fechaFinalReal);
+    
+    // Máximo 360 días para Bono 14
+    const diasFinales = Math.min(diferencia.diasTotales, 360);
+    
+    // Formatear periodo
+    const fechaInicioTexto = `${fechaInicioReal.dia} de ${obtenerNombreMes(fechaInicioReal.mes)} de ${fechaInicioReal.año}`;
+    const fechaFinalTexto = `${fechaFinalReal.dia} de ${obtenerNombreMes(fechaFinalReal.mes)} de ${fechaFinalReal.año}`;
+    const periodo = `${fechaInicioTexto} al ${fechaFinalTexto}`;
+    
+    const periodoOficial = `Período oficial: 1 de julio de ${fechaInicioPeriodo.año} al 30 de junio de ${fechaFinPeriodo.año}`;
+    
+    return {
+        dias: diasFinales,
+        periodo: periodo,
+        periodoOficial: periodoOficial,
+        fechaInicio: fechaInicioReal,
+        fechaFin: fechaFinalReal,
+        fechaInicioPeriodo: fechaInicioPeriodo,
+        fechaFinPeriodo: fechaFinPeriodo
+    };
+}
+function normalizarFechaComercial(año, mes, dia) {
+    // En año comercial, todos los meses tienen 30 días máximo
+    const diaComercial = Math.min(dia, 30);
+    
+    return {
+        año: año,
+        mes: mes,
+        dia: diaComercial
+    };
+}
+function calcularDiferenciasComerciales(fechaInicio, fechaFin) {
+    // Normalizar ambas fechas al año comercial
+    const inicio = normalizarFechaComercial(fechaInicio.año, fechaInicio.mes, fechaInicio.dia);
+    const fin = normalizarFechaComercial(fechaFin.año, fechaFin.mes, fechaFin.dia);
+    
+    // Calcular diferencia
+    let años = fin.año - inicio.año;
+    let meses = fin.mes - inicio.mes;
+    let dias = fin.dia - inicio.dia + 1; // +1 para incluir el día inicial
     
     // Ajustar si los días son negativos
-    if (dias < 0) {
+    if (dias <= 0) {
         meses--;
         dias += 30;
     }
@@ -601,35 +573,30 @@ function calcularDiasBono14(fechaPlanilla, estadoSalida = null) {
     
     // Si los días pasan de 30, ajustar al siguiente mes
     if (dias > 30) {
-        meses++;
-        dias -= 30;
+        meses += Math.floor(dias / 30);
+        dias = dias % 30;
+        if (dias === 0) {
+            dias = 30;
+            meses--;
+        }
     }
     
     // Si los meses pasan de 12, ajustar al siguiente año
     if (meses >= 12) {
-        años++;
-        meses -= 12;
+        años += Math.floor(meses / 12);
+        meses = meses % 12;
     }
     
     // Calcular días totales usando año comercial
     const diasTotales = (años * 360) + (meses * 30) + dias;
     
-    // Máximo 360 días para Bono 14 (1 año comercial)
-    const diasFinales = Math.min(diasTotales, 360);
-    
-    // Formatear periodo para mostrar
-    const fechaInicioTexto = `${diaInicioReal} de ${obtenerNombreMes(mesInicioReal)} de ${añoInicioReal}`;
-    const fechaFinalTexto = `${diaFinal} de ${obtenerNombreMes(mesFinal)} de ${añoFinal}`;
-    const periodo = `${fechaInicioTexto} al ${fechaFinalTexto}`;
-    
     return {
-        dias: diasFinales,
-        periodo: periodo,
-        fechaInicio: { año: añoInicioReal, mes: mesInicioReal, dia: diaInicioReal },
-        fechaFin: { año: añoFinal, mes: mesFinal, dia: diaFinal }
+        años: años,
+        meses: meses,
+        dias: dias,
+        diasTotales: diasTotales
     };
 }
-
 function redondearDosDecimales(numero) {
     return Math.round((numero + Number.EPSILON) * 100) / 100;
 }
@@ -671,7 +638,7 @@ function formatearMoneda(valor) {
 }
 
 // Función para calcular la liquidación completa (CORREGIDA)
-function calcularLiquidacion(colaborador) {
+function calcularLiquidacion(colaborador, descuentos = null, indemnizacionActiva = true, observaciones = '') {
     const salarioBase = parseFloat(colaborador.SalarioBase) || 0;
     const estadoSalida = colaborador.EstadoSalida;
     const tiempoLaborado = calcularTiempoLaborado(colaborador.FechaPlanilla, estadoSalida);
@@ -688,9 +655,15 @@ function calcularLiquidacion(colaborador) {
     let liquidacion = {
         salarioBase: redondearDosDecimales(salarioBase),
         indemnizacion: 0,
+        indemnizacionCalculada: 0, // Nuevo campo para mostrar el cálculo siempre
+        indemnizacionActiva: indemnizacionActiva, // Nuevo campo para saber si está activa
+        observaciones: observaciones, // Nuevo campo para observaciones
         aguinaldo: 0,
         vacaciones: 0,
         bono14: 0,
+        subtotal: 0,
+        descuentoVale: 0,
+        numeroVale: '',
         total: 0,
         diasLaborados: diasLaboradosTotales,
         diasAguinaldo: aguinaldoInfo.dias,
@@ -700,16 +673,19 @@ function calcularLiquidacion(colaborador) {
         esRenuncia: estadoSalida.tieneRegistro && estadoSalida.idEstado === 3
     };
     
-    // Calcular indemnización (TODOS reciben indemnización)
+    // Calcular indemnización (SIEMPRE calcular para mostrar)
     if (liquidacion.esDespido) {
         // Despido: ((SalarioBase / 6) + SalarioBase) / 360 * días laborados
         const salarioBaseSexta = salarioBase / 6;
         const sumaSalarios = salarioBaseSexta + salarioBase;
-        liquidacion.indemnizacion = redondearDosDecimales((sumaSalarios / 360) * diasLaboradosTotales);
+        liquidacion.indemnizacionCalculada = redondearDosDecimales((sumaSalarios / 360) * diasLaboradosTotales);
     } else {
         // Renuncia o cualquier otro caso: SalarioBase / 360 * días laborados
-        liquidacion.indemnizacion = redondearDosDecimales((salarioBase / 360) * diasLaboradosTotales);
+        liquidacion.indemnizacionCalculada = redondearDosDecimales((salarioBase / 360) * diasLaboradosTotales);
     }
+    
+    // Aplicar indemnización solo si está activa
+    liquidacion.indemnizacion = indemnizacionActiva ? liquidacion.indemnizacionCalculada : 0;
     
     // Calcular aguinaldo = SalarioBase / 360 * días de aguinaldo
     liquidacion.aguinaldo = redondearDosDecimales((salarioBase / 360) * aguinaldoInfo.dias);
@@ -720,13 +696,22 @@ function calcularLiquidacion(colaborador) {
     // Calcular Bono 14 = SalarioBase / 360 * días de Bono 14
     liquidacion.bono14 = redondearDosDecimales((salarioBase / 360) * bono14Info.dias);
     
-    // Calcular total (redondeando también el total)
-    liquidacion.total = redondearDosDecimales(
+    // Calcular subtotal (con o sin indemnización según esté activa)
+    liquidacion.subtotal = redondearDosDecimales(
         liquidacion.indemnizacion + 
         liquidacion.aguinaldo + 
         liquidacion.vacaciones + 
         liquidacion.bono14
     );
+    
+    // Aplicar descuentos si existen
+    if (descuentos && descuentos.monto > 0) {
+        liquidacion.descuentoVale = redondearDosDecimales(parseFloat(descuentos.monto));
+        liquidacion.numeroVale = descuentos.numeroVale || '';
+    }
+    
+    // Calcular total final (redondeando también el total)
+    liquidacion.total = redondearDosDecimales(liquidacion.subtotal - liquidacion.descuentoVale);
     
     return liquidacion;
 }
@@ -750,9 +735,13 @@ async function guardarLiquidacion(colaborador, liquidacion) {
                 MontoAguinaldo, 
                 MontoVacaciones, 
                 MontoBono14, 
+                NoVale,
+                DescuentoInterno,
+                IndemnizacionSiNo,
+                Observaciones,
                 IdUsuario, 
                 NombreUsuario
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `, [
             colaborador.IdPersonal,
             colaborador.NombreCompleto,
@@ -761,6 +750,10 @@ async function guardarLiquidacion(colaborador, liquidacion) {
             redondearDosDecimales(liquidacion.aguinaldo),
             redondearDosDecimales(liquidacion.vacaciones),
             redondearDosDecimales(liquidacion.bono14),
+            liquidacion.numeroVale || null,
+            redondearDosDecimales(liquidacion.descuentoVale),
+            liquidacion.indemnizacionActiva ? 1 : 0,
+            liquidacion.observaciones || null, // Nuevo campo
             idUsuario,
             nombreUsuario
         ]);
@@ -1250,7 +1243,7 @@ async function seleccionarColaborador(idPersonal) {
 }
 
 // Función para mostrar información del colaborador (ACTUALIZADA)
-function mostrarInfoColaborador(colaborador) {
+async function mostrarInfoColaborador(colaborador) {
     const contenedor = document.getElementById('infoColaborador');
     
     // Actualizar foto
@@ -1263,7 +1256,8 @@ function mostrarInfoColaborador(colaborador) {
     document.getElementById('departamentoColaborador').textContent = colaborador.NombreDepartamento;
     
     // Actualizar salario base
-    document.getElementById('salarioBase').textContent = formatearMoneda(colaborador.SalarioBase);
+    const salarioBase = parseFloat(colaborador.SalarioBase) || 0;
+    document.getElementById('salarioBase').textContent = formatearMoneda(salarioBase);
     
     // Actualizar planilla con estado de salida
     const planillaElement = document.getElementById('planillaInfo');
@@ -1271,7 +1265,7 @@ function mostrarInfoColaborador(colaborador) {
     
     if (colaborador.EstadoSalida.tieneRegistro) {
         planillaTexto += ` - ${colaborador.EstadoSalida.tipoSalida}`;
-        planillaElement.className = 'badge badge-warning'; // Cambiar color para indicar salida
+        planillaElement.className = 'badge badge-warning';
     } else {
         planillaElement.className = 'badge badge-primary';
     }
@@ -1281,7 +1275,7 @@ function mostrarInfoColaborador(colaborador) {
     // Actualizar fecha de planilla
     document.getElementById('fechaPlanilla').textContent = formatearFecha(colaborador.FechaPlanilla);
     
-    // Actualizar tiempo laborado (pasando la información de salida)
+    // Actualizar tiempo laborado
     document.getElementById('tiempoLaborado').textContent = calcularTiempoLaborado(colaborador.FechaPlanilla, colaborador.EstadoSalida);
     
     // Calcular y mostrar días de aguinaldo
@@ -1289,7 +1283,7 @@ function mostrarInfoColaborador(colaborador) {
     document.getElementById('diasAguinaldo').textContent = `${aguinaldoInfo.dias} días`;
     document.getElementById('periodoAguinaldo').textContent = aguinaldoInfo.periodo;
     
-    // Calcular y mostrar días de vacaciones
+    // Calcular y mostrar días de vacaciones para liquidación
     const vacacionesInfo = calcularDiasVacaciones(colaborador.FechaPlanilla, colaborador.EstadoSalida);
     document.getElementById('diasVacaciones').textContent = `${vacacionesInfo.dias} días`;
     document.getElementById('periodoVacaciones').textContent = vacacionesInfo.periodo;
@@ -1298,6 +1292,49 @@ function mostrarInfoColaborador(colaborador) {
     const bono14Info = calcularDiasBono14(colaborador.FechaPlanilla, colaborador.EstadoSalida);
     document.getElementById('diasBono14').textContent = `${bono14Info.dias} días`;
     document.getElementById('periodoBono14').textContent = bono14Info.periodo;
+    
+    // Calcular y mostrar días de vacaciones disponibles (CORREGIDO)
+    try {
+        const vacacionesDisponibles = await calcularDiasVacacionesDisponibles(colaborador);
+        document.getElementById('diasVacacionesDisponibles').textContent = `${vacacionesDisponibles.totalDisponibles} días`;
+        
+        // Crear texto solo para períodos con días disponibles
+        let periodoTexto = '';
+        if (vacacionesDisponibles.cantidadPeriodos > 0) {
+            periodoTexto = `${vacacionesDisponibles.cantidadPeriodos} período${vacacionesDisponibles.cantidadPeriodos > 1 ? 's' : ''} con días disponibles`;
+            
+            // Agregar desglose resumido solo de períodos con días
+            const periodosTexto = vacacionesDisponibles.periodosConDias.map(item => 
+                `${item.disponibles} días (${item.periodo.split(' al ')[0].split('/').reverse().join('/')}-${item.periodo.split(' al ')[1].split('/').reverse().join('/')})`
+            ).join(', ');
+            
+            if (periodosTexto.length < 50) { // Solo mostrar si no es muy largo
+                periodoTexto = periodosTexto;
+            }
+        } else {
+            periodoTexto = 'Sin días disponibles';
+        }
+        
+        document.getElementById('periodoVacacionesDisponibles').textContent = periodoTexto;
+        
+        // Actualizar estilo según disponibilidad
+        const vacacionesCard = document.querySelector('.vacaciones-disponibles-card');
+        if (vacacionesDisponibles.totalDisponibles === 0) {
+            vacacionesCard.style.borderColor = '#FF5252';
+            vacacionesCard.style.background = 'linear-gradient(135deg, #fff5f5 0%, #ffffff 100%)';
+        } else if (vacacionesDisponibles.totalDisponibles < 15) {
+            vacacionesCard.style.borderColor = '#FF9800';
+            vacacionesCard.style.background = 'linear-gradient(135deg, #fff8e1 0%, #ffffff 100%)';
+        } else {
+            vacacionesCard.style.borderColor = '#00BCD4';
+            vacacionesCard.style.background = 'linear-gradient(135deg, #f0fdff 0%, #ffffff 100%)';
+        }
+        
+    } catch (error) {
+        console.error('Error al calcular vacaciones disponibles:', error);
+        document.getElementById('diasVacacionesDisponibles').textContent = 'Error';
+        document.getElementById('periodoVacacionesDisponibles').textContent = 'No se pudo calcular';
+    }
     
     // Actualizar división y departamento
     document.getElementById('divisionInfo').textContent = colaborador.NombreDivision;
@@ -1394,21 +1431,49 @@ function mostrarModalLiquidacion(liquidacion, colaborador) {
                 </div>
             </div>
             
+            <!-- Formulario de descuentos -->
+            <div style="background: #fff3cd; border: 1px solid #ffeeba; border-radius: 10px; padding: 15px; margin-bottom: 15px;">
+                <h4 style="margin: 0 0 15px 0; color: #856404; font-size: 1rem;">💳 Descuento Interno</h4>
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                    <div>
+                        <label style="display: block; margin-bottom: 5px; font-size: 0.9rem; color: #856404; font-weight: 600;">No. de Vale:</label>
+                        <input type="text" id="numeroVale" placeholder="Ej: V-2025-001" style="width: 100%; padding: 8px 12px; border: 1px solid #ffeeba; border-radius: 5px; font-size: 0.9rem;">
+                    </div>
+                    <div>
+                        <label style="display: block; margin-bottom: 5px; font-size: 0.9rem; color: #856404; font-weight: 600;">Descuento Interno:</label>
+                        <input type="number" id="montoDescuento" placeholder="0.00" step="0.01" min="0" style="width: 100%; padding: 8px 12px; border: 1px solid #ffeeba; border-radius: 5px; font-size: 0.9rem;">
+                    </div>
+                </div>
+                <button type="button" id="btnAplicarDescuento" style="margin-top: 10px; background: #ffc107; color: #212529; border: none; padding: 8px 16px; border-radius: 5px; font-size: 0.9rem; cursor: pointer; font-weight: 600;">
+                    <i class="fas fa-calculator"></i> Recalcular con Descuento
+                </button>
+            </div>
+            
             <div style="background: white; border: 1px solid #e9ecef; border-radius: 10px; overflow: hidden;">
                 <div style="background: #FF9800; color: white; padding: 10px; text-align: center;">
                     <h4 style="margin: 0; font-size: 1rem;">💰 Cálculo de Liquidación</h4>
                 </div>
                 
-                <div style="padding: 15px;">
-                    <div style="display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid #f0f0f0;">
-                        <div>
-                            <strong style="color: ${isDespido ? '#FF5252' : '#6c757d'};">${indemnizacionTipo}</strong>
+                <div style="padding: 15px;" id="calculosLiquidacion">
+                    <!-- Indemnización con toggle -->
+                    <div style="display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid #f0f0f0; background: ${liquidacion.indemnizacionActiva ? '#fff' : '#f8f9fa'}; margin: 0 -15px; padding-left: 15px; padding-right: 15px;">
+                        <div style="flex: 1;">
+                            <div style="display: flex; align-items: center; gap: 10px;">
+                                <strong style="color: ${isDespido ? '#FF5252' : '#6c757d'};">${indemnizacionTipo}</strong>
+                                <button type="button" id="btnToggleIndemnizacion" style="background: ${liquidacion.indemnizacionActiva ? '#dc3545' : '#28a745'}; color: white; border: none; padding: 4px 8px; border-radius: 4px; font-size: 0.75rem; cursor: pointer; font-weight: 600;">
+                                    ${liquidacion.indemnizacionActiva ? '✕ Quitar' : '✓ Agregar'}
+                                </button>
+                            </div>
                             <div style="font-size: 0.8rem; color: #666; margin-top: 2px;">
                                 ${indemnizacionFormula}
                             </div>
+                            ${!liquidacion.indemnizacionActiva ? '<div style="font-size: 0.75rem; color: #dc3545; margin-top: 2px; font-style: italic;"></div>' : ''}
                         </div>
-                        <div style="font-weight: bold; color: ${isDespido ? '#FF5252' : '#6c757d'}; font-size: 1.1rem;">
-                            ${formatearMoneda(liquidacion.indemnizacion)}
+                        <div style="text-align: right;">
+                            <div style="font-weight: bold; color: ${isDespido ? '#FF5252' : '#6c757d'}; font-size: 1.1rem;" id="indemnizacionMonto">
+                                ${formatearMoneda(liquidacion.indemnizacion)}
+                            </div>
+                            ${!liquidacion.indemnizacionActiva ? `<div style="font-size: 0.8rem; color: #666; text-decoration: line-through;">Calculado: ${formatearMoneda(liquidacion.indemnizacionCalculada)}</div>` : ''}
                         </div>
                     </div>
                     
@@ -1448,11 +1513,35 @@ function mostrarModalLiquidacion(liquidacion, colaborador) {
                         </div>
                     </div>
                     
+                    <!-- Subtotal -->
+                    <div style="display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid #f0f0f0; background: #f8f9fa; margin: 10px -15px 0 -15px; padding-left: 15px; padding-right: 15px;">
+                        <div>
+                            <strong style="color: #6c757d; font-size: 1.1rem;">💵 SUBTOTAL</strong>
+                        </div>
+                        <div style="font-weight: bold; color: #6c757d; font-size: 1.2rem;" id="subtotalMonto">
+                            ${formatearMoneda(liquidacion.subtotal)}
+                        </div>
+                    </div>
+                    
+                    <!-- Descuento (solo si hay) -->
+                    <div id="descuentoSection" style="display: ${liquidacion.descuentoVale > 0 ? 'flex' : 'none'}; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 2px solid #dc3545; background: #fff5f5; margin: 0 -15px; padding-left: 15px; padding-right: 15px;">
+                        <div>
+                            <strong style="color: #dc3545; font-size: 1.1rem;">💳 Descuento Interno</strong>
+                            <div style="font-size: 0.8rem; color: #666; margin-top: 2px;" id="numeroValeDisplay">
+                                Vale No: ${liquidacion.numeroVale}
+                            </div>
+                        </div>
+                        <div style="font-weight: bold; color: #dc3545; font-size: 1.2rem;" id="descuentoMonto">
+                            -${formatearMoneda(liquidacion.descuentoVale)}
+                        </div>
+                    </div>
+                    
+                    <!-- Total final -->
                     <div style="display: flex; justify-content: space-between; align-items: center; padding: 15px 0; background: linear-gradient(135deg, #f8f9fa, #e9ecef); margin: 10px -15px -15px -15px; padding-left: 15px; padding-right: 15px;">
                         <div>
                             <strong style="color: #654321; font-size: 1.2rem;">💵 TOTAL A PAGAR</strong>
                         </div>
-                        <div style="font-weight: bold; color: #654321; font-size: 1.4rem; text-shadow: 1px 1px 2px rgba(0,0,0,0.1);">
+                        <div style="font-weight: bold; color: #654321; font-size: 1.4rem; text-shadow: 1px 1px 2px rgba(0,0,0,0.1);" id="totalFinalMonto">
                             ${formatearMoneda(liquidacion.total)}
                         </div>
                     </div>
@@ -1472,6 +1561,161 @@ function mostrarModalLiquidacion(liquidacion, colaborador) {
         cancelButtonColor: '#6c757d',
         customClass: {
             popup: 'liquidacion-modal'
+        },
+        didOpen: () => {
+            // Event listener para toggle de indemnización
+            document.getElementById('btnToggleIndemnizacion').addEventListener('click', function() {
+                // Cambiar estado de indemnización
+                liquidacion.indemnizacionActiva = !liquidacion.indemnizacionActiva;
+                
+                // Obtener observaciones actuales si existen
+                const observacionesInput = document.getElementById('observacionesIndemnizacion');
+                const observacionesActuales = observacionesInput ? observacionesInput.value : '';
+                
+                // Recalcular liquidación
+                const numeroVale = document.getElementById('numeroVale').value.trim();
+                const montoDescuento = parseFloat(document.getElementById('montoDescuento').value) || 0;
+                
+                const descuentos = montoDescuento > 0 ? {
+                    numeroVale: numeroVale,
+                    monto: montoDescuento
+                } : null;
+                
+                const liquidacionActualizada = calcularLiquidacion(colaborador, descuentos, liquidacion.indemnizacionActiva, observacionesActuales);
+                Object.assign(liquidacion, liquidacionActualizada);
+                
+                // Reconstruir completamente la sección de indemnización
+                const indemnizacionRow = this.closest('div[style*="border-bottom"]');
+                
+                // Determinar el tipo de indemnización
+                const isDespido = liquidacion.esDespido;
+                const indemnizacionTipo = isDespido ? '🚫 Indemnización (Despido)' : '💼 Indemnización (Renuncia)';
+                const indemnizacionFormula = isDespido ? 
+                    `((${formatearMoneda(liquidacion.salarioBase)} ÷ 6) + ${formatearMoneda(liquidacion.salarioBase)}) ÷ 360 × ${liquidacion.diasLaborados} días` :
+                    `${formatearMoneda(liquidacion.salarioBase)} ÷ 360 × ${liquidacion.diasLaborados} días`;
+                
+                // Reconstruir HTML completo con campo de observaciones
+                indemnizacionRow.innerHTML = `
+                    <div style="flex: 1;">
+                        <div style="display: flex; align-items: center; gap: 10px;">
+                            <strong style="color: ${isDespido ? '#FF5252' : '#6c757d'};">${indemnizacionTipo}</strong>
+                            <button type="button" id="btnToggleIndemnizacion" style="background: ${liquidacion.indemnizacionActiva ? '#dc3545' : '#28a745'}; color: white; border: none; padding: 4px 8px; border-radius: 4px; font-size: 0.75rem; cursor: pointer; font-weight: 600;">
+                                ${liquidacion.indemnizacionActiva ? '✕ Quitar' : '✓ Agregar'}
+                            </button>
+                        </div>
+                        <div style="font-size: 0.8rem; color: #666; margin-top: 2px;">
+                            ${indemnizacionFormula}
+                        </div>
+                        ${!liquidacion.indemnizacionActiva ? `
+                            <div style="font-size: 0.75rem; color: #dc3545; margin-top: 2px; font-style: italic;"></div>
+                            <div style="margin-top: 8px;">
+                                <label style="display: block; font-size: 0.75rem; color: #856404; font-weight: 600; margin-bottom: 4px;">
+                                    Observación (máx. 255 caracteres):
+                                </label>
+                                <textarea 
+                                    id="observacionesIndemnizacion" 
+                                    placeholder="Motivo por el cual se excluye la indemnización..."
+                                    maxlength="255"
+                                    style="width: 100%; padding: 6px 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 0.8rem; resize: vertical; min-height: 50px; max-height: 80px;"
+                                >${liquidacion.observaciones}</textarea>
+                                <div style="text-align: right; font-size: 0.7rem; color: #666; margin-top: 2px;">
+                                    <span id="contadorCaracteres">${liquidacion.observaciones.length}</span>/255 caracteres
+                                </div>
+                            </div>
+                        ` : ''}
+                    </div>
+                    <div style="text-align: right;">
+                        <div style="font-weight: bold; color: ${isDespido ? '#FF5252' : '#6c757d'}; font-size: 1.1rem;" id="indemnizacionMonto">
+                            ${formatearMoneda(liquidacion.indemnizacion)}
+                        </div>
+                        ${!liquidacion.indemnizacionActiva ? `<div style="font-size: 0.8rem; color: #666; text-decoration: line-through;">Calculado: ${formatearMoneda(liquidacion.indemnizacionCalculada)}</div>` : ''}
+                    </div>
+                `;
+                
+                // Actualizar el fondo
+                indemnizacionRow.style.background = liquidacion.indemnizacionActiva ? '#fff' : '#f8f9fa';
+                
+                // Re-asignar el event listener al nuevo botón
+                indemnizacionRow.querySelector('#btnToggleIndemnizacion').addEventListener('click', arguments.callee);
+                
+                // Agregar event listener para el contador de caracteres si el campo existe
+                const observacionesTextarea = document.getElementById('observacionesIndemnizacion');
+                if (observacionesTextarea) {
+                    observacionesTextarea.addEventListener('input', function() {
+                        const contador = document.getElementById('contadorCaracteres');
+                        const caracteresActuales = this.value.length;
+                        contador.textContent = caracteresActuales;
+                        
+                        // Cambiar color si se acerca al límite
+                        if (caracteresActuales > 240) {
+                            contador.style.color = '#dc3545';
+                        } else if (caracteresActuales > 200) {
+                            contador.style.color = '#ffc107';
+                        } else {
+                            contador.style.color = '#666';
+                        }
+                        
+                        // Actualizar observaciones en la liquidación
+                        liquidacion.observaciones = this.value;
+                    });
+                    
+                    // Enfocar el textarea si se acaba de quitar la indemnización
+                    if (!liquidacion.indemnizacionActiva) {
+                        setTimeout(() => observacionesTextarea.focus(), 100);
+                    }
+                }
+                
+                // Actualizar totales
+                document.getElementById('subtotalMonto').textContent = formatearMoneda(liquidacion.subtotal);
+                document.getElementById('totalFinalMonto').textContent = formatearMoneda(liquidacion.total);
+            });
+            
+            // Event listener para recalcular con descuento
+            document.getElementById('btnAplicarDescuento').addEventListener('click', function() {
+                const numeroVale = document.getElementById('numeroVale').value.trim();
+                const montoDescuento = parseFloat(document.getElementById('montoDescuento').value) || 0;
+                
+                if (montoDescuento < 0) {
+                    Swal.showValidationMessage('El monto del descuento no puede ser negativo');
+                    return;
+                }
+                
+                // Obtener observaciones actuales si existen
+                const observacionesInput = document.getElementById('observacionesIndemnizacion');
+                const observacionesActuales = observacionesInput ? observacionesInput.value : liquidacion.observaciones;
+                
+                // Recalcular liquidación con descuento
+                const descuentos = {
+                    numeroVale: numeroVale,
+                    monto: montoDescuento
+                };
+                
+                const liquidacionActualizada = calcularLiquidacion(colaborador, descuentos, liquidacion.indemnizacionActiva, observacionesActuales);
+                
+                // Actualizar los montos en el modal
+                document.getElementById('subtotalMonto').textContent = formatearMoneda(liquidacionActualizada.subtotal);
+                
+                const descuentoSection = document.getElementById('descuentoSection');
+                const numeroValeDisplay = document.getElementById('numeroValeDisplay');
+                const descuentoMonto = document.getElementById('descuentoMonto');
+                const totalFinalMonto = document.getElementById('totalFinalMonto');
+                
+                if (liquidacionActualizada.descuentoVale > 0) {
+                    descuentoSection.style.display = 'flex';
+                    numeroValeDisplay.textContent = `Vale No: ${liquidacionActualizada.numeroVale}`;
+                    descuentoMonto.textContent = `-${formatearMoneda(liquidacionActualizada.descuentoVale)}`;
+                } else {
+                    descuentoSection.style.display = 'none';
+                }
+                
+                totalFinalMonto.textContent = formatearMoneda(liquidacionActualizada.total);
+                
+                // Actualizar la variable liquidacion para el guardado
+                Object.assign(liquidacion, liquidacionActualizada);
+                
+                Swal.showValidationMessage('Liquidación recalculada correctamente');
+                setTimeout(() => Swal.resetValidationMessage(), 2000);
+            });
         }
     }).then(async (result) => {
         if (result.isConfirmed) {
@@ -1505,6 +1749,9 @@ function mostrarModalLiquidacion(liquidacion, colaborador) {
                             <p><strong>Liquidación guardada exitosamente</strong></p>
                             <p>ID de registro: <span style="color: #FF9800; font-weight: bold;">#${idLiquidacion}</span></p>
                             <p>El documento PDF se ha generado correctamente</p>
+                            ${!liquidacion.indemnizacionActiva ? `<p><span style="color: #dc3545; font-weight: bold;">⚠️ Sin indemnización</span></p>` : ''}
+                            ${liquidacion.observaciones ? `<p><small style="color: #666;">Observación: ${liquidacion.observaciones.substring(0, 50)}${liquidacion.observaciones.length > 50 ? '...' : ''}</small></p>` : ''}
+                            ${liquidacion.descuentoVale > 0 ? `<p>Descuento aplicado: <span style="color: #dc3545; font-weight: bold;">${formatearMoneda(liquidacion.descuentoVale)}</span></p>` : ''}
                         </div>
                     `,
                     confirmButtonColor: '#FF9800',
@@ -1599,8 +1846,8 @@ document.addEventListener('DOMContentLoaded', function() {
             return;
         }
         
-        // Calcular liquidación
-        const liquidacion = calcularLiquidacion(colaboradorSeleccionado);
+        // Calcular liquidación inicial (con indemnización activa por defecto)
+        const liquidacion = calcularLiquidacion(colaboradorSeleccionado, null, true);
         
         // Mostrar modal con resultados
         mostrarModalLiquidacion(liquidacion, colaboradorSeleccionado);
@@ -1636,6 +1883,202 @@ document.addEventListener('DOMContentLoaded', function() {
     // Enfocar en el input al cargar
     inputBusqueda.focus();
 });
-
+//Vacaciones 
+async function obtenerPeriodosConDiasDisponibles(empleado) {
+    try {
+        const connection = await connectionString();
+        
+        // Obtener la fecha actual sin problemas de zona horaria
+        const fechaActual = new Date();
+        fechaActual.setHours(0, 0, 0, 0);
+        
+        // Parsear fecha de planilla correctamente
+        let fechaPlanilla;
+        if (typeof empleado.FechaPlanilla === 'string') {
+            const parts = empleado.FechaPlanilla.split('T')[0].split('-');
+            fechaPlanilla = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
+        } else {
+            fechaPlanilla = new Date(empleado.FechaPlanilla);
+        }
+        
+        const aniosCumplidos = Math.floor((fechaActual - fechaPlanilla) / (365.25 * 24 * 60 * 60 * 1000));
+        let periodosDisponibles = [];
+        
+        // Iterar por cada año desde el ingreso
+        for (let i = 0; i <= aniosCumplidos; i++) {
+            // Calcular fecha de inicio del período (mismo día de ingreso)
+            const fechaInicioPeriodo = new Date(fechaPlanilla);
+            fechaInicioPeriodo.setFullYear(fechaPlanilla.getFullYear() + i);
+            
+            // Calcular fecha de fin del período
+            const fechaFinPeriodo = new Date(fechaInicioPeriodo);
+            fechaFinPeriodo.setFullYear(fechaFinPeriodo.getFullYear() + 1);
+            fechaFinPeriodo.setDate(fechaFinPeriodo.getDate() - 1);
+            
+            // Solo considerar períodos que ya hayan iniciado
+            if (fechaInicioPeriodo <= fechaActual) {
+                const periodo = calcularPeriodoVacaciones(empleado.FechaPlanilla, i);
+                
+                // Verificar días utilizados en vacaciones tomadas
+                const queryDiasTomados = `
+                    SELECT COUNT(*) as DiasUtilizados
+                    FROM vacacionestomadas
+                    WHERE IdPersonal = ? AND Periodo = ?
+                `;
+                
+                const resultDiasTomados = await connection.query(queryDiasTomados, [empleado.IdPersonal, periodo]);
+                
+                // Verificar días pagados
+                const queryDiasPagados = `
+                    SELECT IFNULL(SUM(CAST(DiasSolicitado AS UNSIGNED)), 0) as DiasPagados
+                    FROM vacacionespagadas
+                    WHERE IdPersonal = ? AND Periodo = ? AND Estado IN (1,2,3,4)
+                `;
+                
+                const resultDiasPagados = await connection.query(queryDiasPagados, [empleado.IdPersonal, periodo]);
+                
+                // Convertir valores de manera segura
+                let diasUtilizados = 0;
+                if (resultDiasTomados && resultDiasTomados.length > 0) {
+                    const valor = resultDiasTomados[0].DiasUtilizados;
+                    if (valor !== null && valor !== undefined) {
+                        diasUtilizados = typeof valor === 'bigint' ? Number(valor) : parseInt(valor) || 0;
+                    }
+                }
+                
+                let diasPagados = 0;
+                if (resultDiasPagados && resultDiasPagados.length > 0) {
+                    const valor = resultDiasPagados[0].DiasPagados;
+                    if (valor !== null && valor !== undefined) {
+                        diasPagados = typeof valor === 'bigint' ? Number(valor) : parseInt(valor) || 0;
+                    }
+                }
+                
+                // Calcular días disponibles
+                const diasDisponibles = Math.max(0, 15 - diasUtilizados - diasPagados);
+                
+                // Solo agregar períodos completados
+                if (fechaFinPeriodo <= fechaActual) {
+                    periodosDisponibles.push({
+                        periodo: periodo,
+                        diasDisponibles: diasDisponibles,
+                        diasUtilizados: diasUtilizados,
+                        diasPagados: diasPagados,
+                        totalDiasPeriodo: 15,
+                        esPeriodoCompleto: true,
+                        fechaInicio: fechaInicioPeriodo,
+                        fechaFin: fechaFinPeriodo
+                    });
+                }
+            }
+        }
+        
+        await connection.close();
+        return periodosDisponibles;
+    } catch (error) {
+        console.error('Error al obtener períodos:', error);
+        return [];
+    }
+}
+function calcularPeriodoVacaciones(fechaPlanilla, offsetAnios = 0) {
+    // Convertir la fecha de planilla a un objeto Date manejando UTC
+    let fechaInicioPlanilla;
+    
+    if (typeof fechaPlanilla === 'string') {
+        // Crear fecha desde string evitando ajuste de zona horaria
+        const parts = fechaPlanilla.split('T')[0].split('-');
+        fechaInicioPlanilla = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
+    } else {
+        fechaInicioPlanilla = new Date(fechaPlanilla);
+    }
+    
+    // El período inicia el mismo día de ingreso
+    const fechaInicioPeriodo = new Date(fechaInicioPlanilla);
+    fechaInicioPeriodo.setFullYear(fechaInicioPlanilla.getFullYear() + offsetAnios);
+    
+    // El período termina un día antes del siguiente año
+    const fechaFinPeriodo = new Date(fechaInicioPeriodo);
+    fechaFinPeriodo.setFullYear(fechaFinPeriodo.getFullYear() + 1);
+    fechaFinPeriodo.setDate(fechaFinPeriodo.getDate() - 1);
+    
+    // Formatear las fechas
+    const formatoInicio = formatFechaBaseDatos(fechaInicioPeriodo);
+    const formatoFin = formatFechaBaseDatos(fechaFinPeriodo);
+    
+    return `${formatoInicio} al ${formatoFin}`;
+}
+function formatFechaBaseDatos(fecha) {
+    if (!fecha) return '';
+    
+    // Si es string, crear fecha sin ajuste de zona horaria
+    if (typeof fecha === 'string') {
+        fecha = new Date(fecha);
+        // Ajustar para UTC
+        const utcDate = new Date(fecha.getUTCFullYear(), fecha.getUTCMonth(), fecha.getUTCDate());
+        fecha = utcDate;
+    }
+    
+    if (!(fecha instanceof Date) || isNaN(fecha)) {
+        console.error('Fecha inválida:', fecha);
+        return '';
+    }
+    
+    const year = fecha.getFullYear();
+    const month = String(fecha.getMonth() + 1).padStart(2, '0');
+    const day = String(fecha.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+}
+async function calcularDiasVacacionesDisponibles(empleado) {
+    try {
+        const periodos = await obtenerPeriodosConDiasDisponibles(empleado);
+        
+        let totalDisponibles = 0;
+        let periodosConDias = [];
+        
+        // Solo agregar períodos que tienen días disponibles
+        periodos.forEach(periodo => {
+            if (periodo.diasDisponibles > 0) {
+                totalDisponibles += periodo.diasDisponibles;
+                periodosConDias.push({
+                    periodo: formatPeriodoUsuario(periodo.periodo),
+                    disponibles: periodo.diasDisponibles,
+                    esPeriodoCompleto: periodo.esPeriodoCompleto
+                });
+            }
+        });
+        
+        return {
+            totalDisponibles: totalDisponibles,
+            periodosConDias: periodosConDias,
+            cantidadPeriodos: periodosConDias.length
+        };
+    } catch (error) {
+        console.error('Error al calcular días de vacaciones:', error);
+        return {
+            totalDisponibles: 0,
+            periodosConDias: [],
+            cantidadPeriodos: 0
+        };
+    }
+}
+function formatPeriodoUsuario(periodo) {
+    if (!periodo) return '';
+    
+    const partes = periodo.split(' al ');
+    if (partes.length === 2) {
+        try {
+            const fechaInicio = new Date(partes[0]);
+            const fechaFin = new Date(partes[1]);
+            
+            if (!isNaN(fechaInicio) && !isNaN(fechaFin)) {
+                return `${formatearFecha(fechaInicio)} al ${formatearFecha(fechaFin)}`;
+            }
+        } catch (error) {
+            console.error('Error al formatear período:', error);
+        }
+    }
+    
+    return periodo;
+}
 // Función global para ser llamada desde el HTML
 window.seleccionarColaborador = seleccionarColaborador;

@@ -202,15 +202,10 @@ async function loadEmployees() {
                     IFNULL((SELECT SUM(CAST(DiasSolicitado AS UNSIGNED)) FROM vacacionespagadas 
                             WHERE IdPersonal = personal.IdPersonal AND Estado IN (1,2,3,4)), 0)
                 AS DiasVacaciones,
-                Puestos.Nombre,
-                CASE 
-                    WHEN FotosPersonal.Foto IS NOT NULL THEN CONCAT('data:image/jpeg;base64,', TO_BASE64(FotosPersonal.Foto))
-                    ELSE NULL 
-                END AS FotoBase64
+                Puestos.Nombre
             FROM
                 personal
                 INNER JOIN Puestos ON personal.IdPuesto = Puestos.IdPuesto
-                LEFT JOIN FotosPersonal ON personal.IdPersonal = FotosPersonal.IdPersonal
             WHERE
                 personal.IdSucuDepa = ? AND
                 personal.Estado IN (1, 5) AND
@@ -266,7 +261,6 @@ function renderEmployeesTable() {
     currentPageData.forEach(employee => {
         const fullName = getFullName(employee);
         const hireDate = formatDate(employee.FechaPlanilla);
-        const photoSrc = employee.FotoBase64 || '../Imagenes/user-default.png';
         const isCurrentUser = employee.IdPersonal === userData.IdPersonal;
         
         const row = document.createElement('tr');
@@ -316,11 +310,6 @@ function renderEmployeesTable() {
         }
         
         row.innerHTML = `
-            <td>
-                <div class="employee-photo-cell">
-                    <img src="${photoSrc}" alt="${fullName}" loading="lazy">
-                </div>
-            </td>
             <td>${fullName}${isCurrentUser ? ' <span class="current-user-badge">Usted</span>' : ''}</td>
             <td>${hireDate}</td>
             <td>${employee.AniosCumplidos} años</td>
@@ -517,13 +506,6 @@ async function openPaymentModal(employeeId) {
         document.getElementById('modalEmployeeHireDate').textContent = formatDate(employee.FechaPlanilla);
         document.getElementById('modalEmployeeYears').textContent = employee.AniosCumplidos;
         
-        const photoSrc = employee.FotoBase64 || '../Imagenes/user-default.png';
-        document.getElementById('modalEmployeePhoto').src = photoSrc;
-        
-        // Calcular total de días disponibles
-        const totalDiasDisponibles = periodosDisponibles.reduce((sum, periodo) => sum + periodo.diasDisponibles, 0);
-        document.getElementById('totalAvailableDays').textContent = totalDiasDisponibles;
-        
         // Renderizar períodos disponibles
         renderPeriodos(periodosDisponibles);
         
@@ -531,9 +513,6 @@ async function openPaymentModal(employeeId) {
         if (currentPaymentData.diasMinimoPago > 0) {
             mostrarInfoDiasMinimos(currentPaymentData.diasMinimoPago);
         }
-        
-        // Resetear formulario
-        updatePaymentSummary();
         
         // Mostrar el modal
         paymentModal.style.display = 'block';
@@ -682,9 +661,6 @@ function handlePeriodInputChange(event) {
     } else {
         delete currentPaymentData.diasSolicitados[periodo];
     }
-    
-    // Actualizar resumen
-    updatePaymentSummary();
 }
 
 // Validar input de período
@@ -712,37 +688,6 @@ function validatePeriodInput(event) {
         input.classList.add('valid');
     }
 }
-
-// Actualizar resumen del pago
-function updatePaymentSummary() {
-    let totalDias = 0;
-    
-    // Calcular total de días solicitados
-    for (const periodo in currentPaymentData.diasSolicitados) {
-        totalDias += currentPaymentData.diasSolicitados[periodo];
-    }
-    
-    document.getElementById('totalRequestedDays').textContent = totalDias;
-    
-    // Verificar si cumple con el mínimo
-    const diasMinimos = currentPaymentData.diasMinimoPago;
-    const totalDaysElement = document.getElementById('totalRequestedDays');
-    
-    if (diasMinimos > 0) {
-        if (totalDias < diasMinimos) {
-            totalDaysElement.classList.add('invalid-amount');
-            totalDaysElement.classList.remove('valid-amount');
-        } else {
-            totalDaysElement.classList.add('valid-amount');
-            totalDaysElement.classList.remove('invalid-amount');
-        }
-    }
-    
-    // Calcular monto estimado
-    const montoEstimado = calcularMontoEstimado(currentPaymentData.employee, totalDias);
-    document.getElementById('estimatedAmount').textContent = `Q ${montoEstimado.toFixed(2)}`;
-}
-
 // Calcular monto estimado (función de ejemplo)
 function calcularMontoEstimado(empleado, dias) {
     // Esta es una función de ejemplo. Deberás implementar la lógica real
@@ -925,9 +870,6 @@ function openInfoModal(employeeId) {
     document.getElementById('infoYearsService').textContent = `${employee.AniosCumplidos} años`;
     document.getElementById('infoAvailableDays').textContent = `${employee.DiasVacaciones} días`;
     document.getElementById('infoEmployeeId').textContent = employee.IdPersonal;
-    
-    const photoSrc = employee.FotoBase64 || '../Imagenes/user-default.png';
-    document.getElementById('infoEmployeePhoto').src = photoSrc;
     
     infoModal.style.display = 'block';
     setTimeout(() => {

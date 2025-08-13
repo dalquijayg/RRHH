@@ -3219,3 +3219,75 @@ body {
     transform: none !important;
     box-shadow: var(--shadow-soft) !important;
 }
+.btn-help {
+    background: linear-gradient(135deg, #059669 0%, #10b981 100%);
+    color: white;
+    border: none;
+    border-radius: var(--radius-xl);
+    padding: var(--spacing-md) var(--spacing-lg);
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    box-shadow: var(--shadow-medium);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.25);
+}
+
+.btn-help:hover {
+    background: linear-gradient(135deg, #047857 0%, #059669 100%);
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-large);
+}
+
+.btn-help i {
+    font-size: 1.1rem;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .btn-help span {
+        display: none;
+    }
+    .btn-help {
+        padding: var(--spacing-sm);
+        border-radius: 50%;
+        width: 44px;
+        height: 44px;
+        justify-content: center;
+    }
+}
+/* ===== ESTILOS PARA MODAL DE AYUDA ===== */
+.help-modal {
+    font-family: 'Inter', sans-serif !important;
+}
+
+.help-content {
+    text-align: left !important;
+}
+
+.help-content h3 {
+    margin-top: 0 !important;
+}
+
+.help-content p {
+    margin-bottom: 10px !important;
+}
+
+/* Scroll personalizado para el modal de ayuda */
+.help-content::-webkit-scrollbar {
+    width: 6px;
+}
+
+.help-content::-webkit-scrollbar-track {
+    background: #f1f5f9;
+    border-radius: 3px;
+}
+
+.help-content::-webkit-scrollbar-thumb {
+    background: #10b981;
+    border-radius: 3px;
+}

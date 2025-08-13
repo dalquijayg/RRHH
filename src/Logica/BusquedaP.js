@@ -8,8 +8,7 @@ const fotoCache = new Map();
 // Variables globales
 let currentPage = 1;
 let totalPages = 1;
-let itemsPerPage = 12;
-let currentView = 'grid';
+let itemsPerPage = 20;
 let allEmployees = [];
 let filteredEmployees = [];
 let filtersCollapsed = false;
@@ -26,7 +25,6 @@ const searchButton = document.getElementById('searchButton');
 const resetFiltersButton = document.getElementById('resetFilters');
 const clearSearchButton = document.getElementById('clearSearch');
 const resultsCount = document.getElementById('resultsCount');
-const gridView = document.getElementById('gridView');
 const tableView = document.getElementById('tableView');
 const tableResults = document.getElementById('tableResults');
 const loadingIndicator = document.getElementById('loadingIndicator');
@@ -37,7 +35,6 @@ const currentPageSpan = document.getElementById('currentPage');
 const totalPagesSpan = document.getElementById('totalPages');
 const employeeModal = document.getElementById('employeeModal');
 const btnBack = document.getElementById('btnVolver');
-const viewToggleBtns = document.querySelectorAll('.view-toggle-btn');
 const filtersToggle = document.getElementById('filtersToggle');
 const filtersContainer = document.getElementById('filtersContainer');
 const filtersSummary = document.getElementById('filtersSummary');
@@ -200,7 +197,7 @@ async function buscarPersonal() {
                 personal.Fechahoraregistro,
                 CONCAT(usuarioRegistro.PrimerNombre, ' ', IFNULL(usuarioRegistro.SegundoNombre, ''), ' ', IFNULL(usuarioRegistro.TercerNombre, ''), ' ', usuarioRegistro.PrimerApellido, ' ', IFNULL(usuarioRegistro.SegundoApellido, '')) AS UsuarioRegistro,
                 -- INDICADOR DE SI TIENE FOTO (sin cargar la foto)
-                CASE WHEN FotosPersonal.Foto IS NOT NULL THEN 1 ELSE 0 END AS TieneFoto
+                CASE WHEN FotosPersonal.Foto IS NOT NULL AND LENGTH(FotosPersonal.Foto) > 0 THEN 1 ELSE 0 END AS TieneFoto
             FROM
                 personal 
                 LEFT JOIN departamentos ON personal.IdSucuDepa = departamentos.IdDepartamento
@@ -428,8 +425,6 @@ function mostrarCargando(mostrar, mensaje = 'Cargando personal...') {
         if (mensaje.includes('Excel')) {
             loadingIndicator.querySelector('p').classList.add('export-loading');
         }
-        
-        gridView.style.display = 'none';
         tableView.style.display = 'none';
         noResults.style.display = 'none';
     } else {
@@ -460,26 +455,18 @@ function actualizarResultados() {
     const endIndex = Math.min(startIndex + itemsPerPage, filteredEmployees.length);
     const currentItems = filteredEmployees.slice(startIndex, endIndex);
     
-    // Mostrar resultados según la vista actual
+    // Mostrar solo vista de tabla
     if (filteredEmployees.length === 0) {
         noResults.style.display = 'flex';
-        gridView.style.display = 'none';
         tableView.style.display = 'none';
     } else {
         noResults.style.display = 'none';
-        
-        if (currentView === 'grid') {
-            renderizarGridView(currentItems);
-            gridView.style.display = 'grid';
-            tableView.style.display = 'none';
-        } else {
-            renderizarTableView(currentItems);
-            gridView.style.display = 'none';
-            tableView.style.display = 'block';
-        }
+        renderizarTableView(currentItems);
+        tableView.style.display = 'block';
     }
 }
 async function cargarFotoEmpleado(idPersonal) {
+    
     // Si ya está en cache, devolverla
     if (fotoCache.has(idPersonal)) {
         return fotoCache.get(idPersonal);
@@ -489,7 +476,7 @@ async function cargarFotoEmpleado(idPersonal) {
         const connection = await getConnection();
         const result = await connection.query(`
             SELECT CASE 
-                WHEN Foto IS NOT NULL THEN CONCAT('data:image/jpeg;base64,', TO_BASE64(Foto))
+                WHEN Foto IS NOT NULL AND LENGTH(Foto) > 0 THEN CONCAT('data:image/jpeg;base64,', TO_BASE64(Foto))
                 ELSE NULL 
             END AS FotoBase64
             FROM FotosPersonal 
@@ -497,137 +484,29 @@ async function cargarFotoEmpleado(idPersonal) {
         `, [idPersonal]);
         await connection.close();
         
-        const fotoUrl = result.length > 0 && result[0].FotoBase64 ? 
-            result[0].FotoBase64 : '../Imagenes/user-default.png';
+        let fotoUrl = '../Imagenes/user-default.png';
+        
+        if (result.length > 0 && result[0].FotoBase64 && result[0].FotoBase64.trim() !== '') {
+            fotoUrl = result[0].FotoBase64;
+        } else {
+            console.log(`No se encontró foto real para ID: ${idPersonal}, usando imagen por defecto`);
+        }
         
         // Guardar en cache
         fotoCache.set(idPersonal, fotoUrl);
         
         return fotoUrl;
     } catch (error) {
-        console.error('Error al cargar foto:', error);
-        return '../Imagenes/user-default.png';
+        console.error(`Error al cargar foto para ID: ${idPersonal}:`, error);
+        
+        // Guardar error en cache para evitar reintentos
+        const defaultPhoto = '../Imagenes/user-default.png';
+        fotoCache.set(idPersonal, defaultPhoto);
+        
+        return defaultPhoto;
     }
 }
-// Renderizar vista de tarjetas (MODIFICADA PARA INCLUIR INFO DE REGISTRO)
-function renderizarGridView(empleados) {
-    let html = '';
-    
-    empleados.forEach(empleado => {
-        html += `
-            <div class="employee-card" data-id="${empleado.id}">
-                <div class="card-status ${empleado.estadoId === 1 ? 'status-active' : 'status-inactive'}">
-                    ${empleado.estado}
-                </div>
-                <div class="card-photo">
-                    <img src="${empleado.foto}" alt="${empleado.nombre}" 
-                         data-id="${empleado.id}" 
-                         data-tiene-foto="${empleado.tieneFoto}"
-                         class="lazy-foto"
-                         onerror="this.src='../Imagenes/user-default.png'">
-                </div>
-                <div class="card-info">
-                    <h3 class="card-name">${empleado.nombre}</h3>
-                    <div class="card-position">${empleado.puesto} - ${empleado.departamento}</div>
-                    <div class="card-details">
-                        <div class="card-detail-item">
-                            <span class="detail-label">Tipo:</span>
-                            <span class="detail-value">${empleado.tipoPersonal}</span>
-                        </div>
-                        <div class="card-detail-item">
-                            <span class="detail-label">Planilla:</span>
-                            <span class="detail-value">${empleado.planilla}</span>
-                        </div>
-                        <div class="card-detail-item">
-                            <span class="detail-label">Registrado por:</span>
-                            <span class="detail-value" title="${empleado.usuarioRegistro}">${empleado.usuarioRegistro.length > 15 ? empleado.usuarioRegistro.substring(0, 15) + '...' : empleado.usuarioRegistro}</span>
-                        </div>
-                        <div class="card-detail-item">
-                            <span class="detail-label">Fecha registro:</span>
-                            <span class="detail-value">${empleado.fechaHoraRegistro}</span>
-                        </div>
-                    </div>
-                    <div class="card-actions">
-                        <button class="card-btn view-btn" title="Ver detalles" onclick="mostrarDetallesEmpleado(${empleado.id})">
-                            <i class="fas fa-eye"></i>
-                        </button>
-                        <button class="card-btn edit-btn" title="Editar empleado" onclick="editarEmpleado(${empleado.id})">
-                            <i class="fas fa-edit"></i>
-                        </button>
-                    </div>
-                </div>
-            </div>
-        `;
-    });
-    
-    gridView.innerHTML = html;
-    
-    // CARGAR FOTOS DE FORMA LAZY (solo las visibles)
-    cargarFotosLazy();
-    
-    // Eventos para el visor de fotos
-    document.querySelectorAll('.card-photo img').forEach(img => {
-        img.style.cursor = 'zoom-in';
-        img.addEventListener('click', async function() {
-            const empleadoCard = this.closest('.employee-card');
-            const id = parseInt(empleadoCard.dataset.id);
-            const empleado = filteredEmployees.find(emp => emp.id === id);
-            
-            if (empleado) {
-                // Cargar foto real si no está cargada
-                if (empleado.tieneFoto && !empleado.fotoReal) {
-                    const fotoReal = await cargarFotoEmpleado(id);
-                    empleado.fotoReal = fotoReal;
-                }
-                abrirVisorFoto(empleado.fotoReal || empleado.foto, empleado.nombre);
-            }
-        });
-    });
-}
-function cargarFotosLazy() {
-    const imagenes = document.querySelectorAll('.lazy-foto');
-    
-    const imageObserver = new IntersectionObserver((entries, observer) => {
-        entries.forEach(async (entry) => {
-            if (entry.isIntersecting) {
-                const img = entry.target;
-                const idPersonal = parseInt(img.dataset.id);
-                const tieneFoto = img.dataset.tieneFoto === 'true';
-                
-                if (tieneFoto) {
-                    try {
-                        // Mostrar indicador de carga
-                        img.style.opacity = '0.5';
-                        
-                        // Cargar foto real
-                        const fotoReal = await cargarFotoEmpleado(idPersonal);
-                        
-                        // Actualizar empleado en el array
-                        const empleado = filteredEmployees.find(emp => emp.id === idPersonal);
-                        if (empleado) {
-                            empleado.fotoReal = fotoReal;
-                        }
-                        
-                        // Cambiar src de la imagen
-                        img.src = fotoReal;
-                        img.style.opacity = '1';
-                        
-                    } catch (error) {
-                        console.error('Error cargando foto:', error);
-                        img.style.opacity = '1';
-                    }
-                }
-                
-                // Dejar de observar esta imagen
-                observer.unobserve(img);
-            }
-        });
-    }, {
-        rootMargin: '50px' // Cargar cuando esté a 50px de ser visible
-    });
-    
-    imagenes.forEach(img => imageObserver.observe(img));
-}
+
 // Renderizar vista de tabla (MODIFICADA PARA INCLUIR INFO DE REGISTRO)
 function renderizarTableView(empleados) {
     let html = '';
@@ -635,13 +514,6 @@ function renderizarTableView(empleados) {
     empleados.forEach(empleado => {
         html += `
             <tr data-id="${empleado.id}">
-                <td>
-                    <img src="${empleado.foto}" alt="${empleado.nombre}" 
-                         data-id="${empleado.id}" 
-                         data-tiene-foto="${empleado.tieneFoto}"
-                         class="table-img lazy-foto"
-                         onerror="this.src='../Imagenes/user-default.png'">
-                </td>
                 <td>
                     <div class="table-name">${empleado.nombre}</div>
                 </td>
@@ -671,29 +543,7 @@ function renderizarTableView(empleados) {
     });
     
     tableResults.innerHTML = html;
-    
-    // CARGAR FOTOS LAZY PARA TABLA TAMBIÉN
-    cargarFotosLazy();
-    
-    // Eventos para el visor de fotos
-    document.querySelectorAll('.table-img').forEach(img => {
-        img.style.cursor = 'zoom-in';
-        img.addEventListener('click', async function() {
-            const row = this.closest('tr');
-            const id = parseInt(row.dataset.id);
-            const empleado = filteredEmployees.find(emp => emp.id === id);
-            
-            if (empleado) {
-                if (empleado.tieneFoto && !empleado.fotoReal) {
-                    const fotoReal = await cargarFotoEmpleado(id);
-                    empleado.fotoReal = fotoReal;
-                }
-                abrirVisorFoto(empleado.fotoReal || empleado.foto, empleado.nombre);
-            }
-        });
-    });
 }
-
 function initTabs() {
     const tabButtons = document.querySelectorAll('.tab-btn');
     const tabPanes = document.querySelectorAll('.tab-pane');
@@ -722,101 +572,176 @@ async function mostrarDetallesEmpleado(id) {
         return;
     }
     
-    // Actualizar el modal con los datos del empleado
-    document.getElementById('modalEmployeePhoto').src = empleado.foto;
-    document.getElementById('modalEmployeeName').textContent = empleado.nombre;
-    document.getElementById('modalEmployeePosition').textContent = empleado.puesto;
-    document.getElementById('modalEmployeeDepartment').textContent = empleado.departamento;
-    
-    const statusBadge = document.getElementById('modalEmployeeStatus');
-    statusBadge.textContent = empleado.estado;
-    statusBadge.className = `status-badge ${empleado.estadoId === 1 ? '' : 'inactive'}`;
-    
-    // Información Personal
-    document.getElementById('modalEmployeeId').textContent = empleado.id;
-    document.getElementById('modalEmployeeDpi').textContent = empleado.dpi;
-    document.getElementById('modalEmployeeCivilStatus').textContent = empleado.estadoCivil;
-    
-    // Corrección para la fecha de nacimiento
-    if (empleado.fechaNacimiento && empleado.fechaNacimiento !== 'No registrado') {
-        const fechaNacPartes = empleado.fechaNacimiento.split('/');
-        if (fechaNacPartes.length === 3) {
-            const fechaCorrecta = `${fechaNacPartes[0]}/${fechaNacPartes[1]}/${fechaNacPartes[2]}`;
-            document.getElementById('modalEmployeeBirthdate').textContent = fechaCorrecta;
-        } else {
-            document.getElementById('modalEmployeeBirthdate').textContent = empleado.fechaNacimiento;
-        }
-    } else {
-        document.getElementById('modalEmployeeBirthdate').textContent = 'No registrado';
-    }
-    
-    document.getElementById('modalEmployeeAge').textContent = empleado.edad;
-    document.getElementById('modalEmployeeChildren').textContent = empleado.hijos;
-    
-    // Lugar de Origen
-    document.getElementById('modalEmployeeOriginDept').textContent = empleado.departamentoOrigen;
-    document.getElementById('modalEmployeeOriginMuni').textContent = empleado.municipioOrigen;
-    
-    // Residencia Actual
-    document.getElementById('modalEmployeeAddress').textContent = empleado.direccionResidencia;
-    document.getElementById('modalEmployeeResidenceDept').textContent = empleado.departamentoResidencia;
-    document.getElementById('modalEmployeeResidenceMuni').textContent = empleado.municipioResidencia;
-    
-    // Información de Contacto
-    document.getElementById('modalEmployeePhone1').textContent = empleado.telefono1;
-    document.getElementById('modalEmployeePhone2').textContent = empleado.telefono2;
-    document.getElementById('modalEmployeeEmail').textContent = empleado.correoElectronico;
-    
-    // Contacto de Emergencia
-    document.getElementById('modalEmergencyContact').textContent = empleado.nombreContactoEmergencia;
-    document.getElementById('modalEmergencyPhone').textContent = empleado.telefonoContactoEmergencia;
-    document.getElementById('modalEmergencyRelationship').textContent = empleado.parentescoEmergencia;
-    
-    // Información Laboral
-    document.getElementById('modalEmployeeType').textContent = empleado.tipoPersonal;
-    document.getElementById('modalEmployeePayroll').textContent = empleado.planilla;
-    
-    // Corrección para la fecha de inicio laboral
-    if (empleado.inicioLaboral && empleado.inicioLaboral !== 'No registrado') {
-        const fechaInicioPartes = empleado.inicioLaboral.split('/');
-        if (fechaInicioPartes.length === 3) {
-            const fechaCorrecta = `${fechaInicioPartes[0]}/${fechaInicioPartes[1]}/${fechaInicioPartes[2]}`;
-            document.getElementById('modalEmployeeStartDate').textContent = fechaCorrecta;
-        } else {
-            document.getElementById('modalEmployeeStartDate').textContent = empleado.inicioLaboral;
-        }
-    } else {
-        document.getElementById('modalEmployeeStartDate').textContent = 'No registrado';
-    }
-    
-    document.getElementById('modalEmployeeWorkTime').textContent = empleado.tiempoTrabajado;
-    document.getElementById('modalEmployeeContractDate').textContent = empleado.fechaContrato;
-    document.getElementById('modalEmployeePayrollDate').textContent = empleado.fechaPlanilla;
-    
-    // NUEVA SECCIÓN: Información de Registro
-    document.getElementById('modalUsuarioRegistro').textContent = empleado.usuarioRegistro;
-    document.getElementById('modalFechaHoraRegistro').textContent = empleado.fechaHoraRegistro;
-    document.getElementById('modalIdUsuarioRegistro').textContent = empleado.idUsuarioRegistro || 'No registrado';
-    
-    // Cargar información académica
-    try {
-        const datosAcademicos = await cargarInfoAcademica(empleado.id);
-        mostrarDatosAcademicos(datosAcademicos);
-    } catch (error) {
-        console.error('Error al cargar datos académicos:', error);
-    }
-    
-    // Cargar resultados PMA
-    try {
-        const datosPMA = await cargarResultadosPMA(empleado.id);
-        mostrarResultadosPMA(datosPMA);
-    } catch (error) {
-        console.error('Error al cargar resultados PMA:', error);
-    }
-    
-    // Mostrar el modal
+    // MOSTRAR MODAL INMEDIATAMENTE CON INDICADOR DE CARGA
     employeeModal.classList.add('show');
-    initTabs();
+    
+    // Crear overlay de carga dentro del modal
+    const modalBody = document.querySelector('#employeeModal .modal-body');
+    const loadingOverlay = document.createElement('div');
+    loadingOverlay.className = 'modal-loading-overlay';
+    loadingOverlay.innerHTML = `
+        <div class="modal-loading-content">
+            <div class="modal-loading-spinner"></div>
+            <p class="modal-loading-text">Cargando información del colaborador...</p>
+            <div class="modal-loading-dots">
+                <span></span>
+                <span></span>
+                <span></span>
+            </div>
+        </div>
+    `;
+    modalBody.appendChild(loadingOverlay);
+    
+    try {
+        // Inicializar datos básicos inmediatamente
+        document.getElementById('modalEmployeeName').textContent = empleado.nombre;
+        document.getElementById('modalEmployeePosition').textContent = empleado.puesto;
+        document.getElementById('modalEmployeeDepartment').textContent = empleado.departamento;
+        
+        // Inicializar la foto por defecto
+        let fotoParaMostrar = '../Imagenes/user-default.png';
+        const modalPhoto = document.getElementById('modalEmployeePhoto');
+        modalPhoto.src = fotoParaMostrar;
+        
+        // Actualizar el texto de carga
+        const loadingText = loadingOverlay.querySelector('.modal-loading-text');
+        loadingText.textContent = 'Cargando foto del colaborador...';
+        
+        // CARGAR FOTO
+        try {
+            const fotoReal = await cargarFotoEmpleado(id);
+            
+            if (fotoReal && fotoReal !== '../Imagenes/user-default.png') {
+                empleado.fotoReal = fotoReal;
+                fotoParaMostrar = fotoReal;
+                modalPhoto.src = fotoParaMostrar;
+            }
+        } catch (error) {
+            console.error(`Error al cargar foto para empleado ID: ${id}:`, error);
+        }
+        
+        // Actualizar el texto de carga
+        loadingText.textContent = 'Cargando información académica...';
+        
+        // CARGAR DATOS ACADÉMICOS
+        let datosAcademicos = null;
+        try {
+            datosAcademicos = await cargarInfoAcademica(empleado.id);
+        } catch (error) {
+            console.error('Error al cargar datos académicos:', error);
+        }
+        
+        // Actualizar el texto de carga
+        loadingText.textContent = 'Cargando evaluación PMA...';
+        
+        // CARGAR DATOS PMA
+        let datosPMA = null;
+        try {
+            datosPMA = await cargarResultadosPMA(empleado.id);
+        } catch (error) {
+            console.error('Error al cargar resultados PMA:', error);
+        }
+        
+        // Actualizar el texto de carga
+        loadingText.textContent = 'Finalizando...';
+        
+        // Pequeña pausa para efecto visual
+        await new Promise(resolve => setTimeout(resolve, 300));
+        
+        // REMOVER INDICADOR DE CARGA
+        loadingOverlay.remove();
+        
+        // LLENAR TODOS LOS DATOS DEL MODAL
+        
+        const statusBadge = document.getElementById('modalEmployeeStatus');
+        statusBadge.textContent = empleado.estado;
+        statusBadge.className = `status-badge ${empleado.estadoId === 1 ? '' : 'inactive'}`;
+        
+        // Información Personal
+        document.getElementById('modalEmployeeId').textContent = empleado.id;
+        document.getElementById('modalEmployeeDpi').textContent = empleado.dpi;
+        document.getElementById('modalEmployeeCivilStatus').textContent = empleado.estadoCivil;
+        
+        // Corrección para la fecha de nacimiento
+        if (empleado.fechaNacimiento && empleado.fechaNacimiento !== 'No registrado') {
+            const fechaNacPartes = empleado.fechaNacimiento.split('/');
+            if (fechaNacPartes.length === 3) {
+                const fechaCorrecta = `${fechaNacPartes[0]}/${fechaNacPartes[1]}/${fechaNacPartes[2]}`;
+                document.getElementById('modalEmployeeBirthdate').textContent = fechaCorrecta;
+            } else {
+                document.getElementById('modalEmployeeBirthdate').textContent = empleado.fechaNacimiento;
+            }
+        } else {
+            document.getElementById('modalEmployeeBirthdate').textContent = 'No registrado';
+        }
+        
+        document.getElementById('modalEmployeeAge').textContent = empleado.edad;
+        document.getElementById('modalEmployeeChildren').textContent = empleado.hijos;
+        
+        // Lugar de Origen
+        document.getElementById('modalEmployeeOriginDept').textContent = empleado.departamentoOrigen;
+        document.getElementById('modalEmployeeOriginMuni').textContent = empleado.municipioOrigen;
+        
+        // Residencia Actual
+        document.getElementById('modalEmployeeAddress').textContent = empleado.direccionResidencia;
+        document.getElementById('modalEmployeeResidenceDept').textContent = empleado.departamentoResidencia;
+        document.getElementById('modalEmployeeResidenceMuni').textContent = empleado.municipioResidencia;
+        
+        // Información de Contacto
+        document.getElementById('modalEmployeePhone1').textContent = empleado.telefono1;
+        document.getElementById('modalEmployeePhone2').textContent = empleado.telefono2;
+        document.getElementById('modalEmployeeEmail').textContent = empleado.correoElectronico;
+        
+        // Contacto de Emergencia
+        document.getElementById('modalEmergencyContact').textContent = empleado.nombreContactoEmergencia;
+        document.getElementById('modalEmergencyPhone').textContent = empleado.telefonoContactoEmergencia;
+        document.getElementById('modalEmergencyRelationship').textContent = empleado.parentescoEmergencia;
+        
+        // Información Laboral
+        document.getElementById('modalEmployeeType').textContent = empleado.tipoPersonal;
+        document.getElementById('modalEmployeePayroll').textContent = empleado.planilla;
+        
+        // Corrección para la fecha de inicio laboral
+        if (empleado.inicioLaboral && empleado.inicioLaboral !== 'No registrado') {
+            const fechaInicioPartes = empleado.inicioLaboral.split('/');
+            if (fechaInicioPartes.length === 3) {
+                const fechaCorrecta = `${fechaInicioPartes[0]}/${fechaInicioPartes[1]}/${fechaInicioPartes[2]}`;
+                document.getElementById('modalEmployeeStartDate').textContent = fechaCorrecta;
+            } else {
+                document.getElementById('modalEmployeeStartDate').textContent = empleado.inicioLaboral;
+            }
+        } else {
+            document.getElementById('modalEmployeeStartDate').textContent = 'No registrado';
+        }
+        
+        document.getElementById('modalEmployeeWorkTime').textContent = empleado.tiempoTrabajado;
+        document.getElementById('modalEmployeeContractDate').textContent = empleado.fechaContrato;
+        document.getElementById('modalEmployeePayrollDate').textContent = empleado.fechaPlanilla;
+        
+        // Información de Registro
+        document.getElementById('modalUsuarioRegistro').textContent = empleado.usuarioRegistro;
+        document.getElementById('modalFechaHoraRegistro').textContent = empleado.fechaHoraRegistro;
+        document.getElementById('modalIdUsuarioRegistro').textContent = empleado.idUsuarioRegistro || 'No registrado';
+        
+        // Mostrar datos académicos
+        mostrarDatosAcademicos(datosAcademicos);
+        
+        // Mostrar resultados PMA
+        mostrarResultadosPMA(datosPMA);
+        
+        // Inicializar pestañas
+        initTabs();
+        
+    } catch (error) {
+        // En caso de error, remover el indicador de carga
+        const existingOverlay = modalBody.querySelector('.modal-loading-overlay');
+        if (existingOverlay) {
+            existingOverlay.remove();
+        }
+        
+        console.error('Error al cargar detalles del empleado:', error);
+        mostrarNotificacion('Error al cargar los detalles del empleado', 'error');
+    }
 }
 
 // Cerrar modal
@@ -1085,7 +1010,6 @@ async function cargarResultadosPMA(idPersonal) {
 // Función para mostrar datos académicos en el modal
 function mostrarDatosAcademicos(datosAcademicos) {
     if (!datosAcademicos) {
-        console.log('No hay datos académicos disponibles');
         // Ocultar todas las secciones académicas si no hay datos
         document.querySelectorAll('#tab-academic .details-section').forEach(section => {
             section.style.display = 'none';
@@ -1201,7 +1125,6 @@ function mostrarResultadosPMA(datosPMA) {
     const seccionPMA = document.querySelector('#tab-pma .details-section');
     
     if (!datosPMA) {
-        console.log('No hay datos PMA disponibles');
         
         // Mostrar mensaje de no hay datos
         seccionPMA.innerHTML = `
@@ -1416,9 +1339,6 @@ function mostrarResultadosPMA(datosPMA) {
 function mostrarInstruccionesBusqueda() {
     // Ocultar indicador de carga
     loadingIndicator.style.display = 'none';
-    
-    // Ocultar otras vistas
-    gridView.style.display = 'none';
     tableView.style.display = 'none';
     
     // Actualizar contador de resultados
@@ -1698,23 +1618,6 @@ document.addEventListener('DOMContentLoaded', () => {
             currentPage++;
             actualizarResultados();
         }
-    });
-    
-    // Event listener para cambiar vista
-    viewToggleBtns.forEach(btn => {
-        btn.addEventListener('click', () => {
-            const view = btn.dataset.view;
-            
-            // Actualizar botones
-            viewToggleBtns.forEach(b => {
-                b.classList.remove('active');
-            });
-            btn.classList.add('active');
-            
-            // Cambiar vista
-            currentView = view;
-            actualizarResultados();
-        });
     });
     
     // Event listener para cerrar modal

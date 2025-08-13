@@ -34,13 +34,10 @@
                 <!-- Se llena automáticamente con JavaScript -->
             </div>
             
-            <!-- Columna derecha: Fecha actual -->
-            <div class="header-actions">
-                <div class="current-date">
-                    <i class="fas fa-calendar-day"></i>
-                    <span id="currentDate"></span>
-                </div>
-            </div>
+            <button type="button" id="btnAyuda" class="btn-help" title="Ayuda del sistema">
+                <i class="fas fa-question-circle"></i>
+                <span>Ayuda</span>
+            </button>
         </div>
     </header>
 
@@ -55,39 +52,13 @@
         <div class="payroll-type-form" id="payrollTypeForm">
             <div class="form-row enhanced">
                 <div class="form-group enhanced">
-                    <label for="tipoQuincena">📋 Tipo</label>
-                    <select id="tipoQuincena" class="form-control enhanced">
-                        <option value="">Seleccione tipo...</option>
-                        <option value="quincenal">Planilla Quincenal (1-15)</option>
-                        <option value="fin_mes">Planilla Fin de Mes (16-último día)</option>
-                    </select>
+                    <label for="fechaInicio">📅 Fecha Inicio</label>
+                    <input type="date" id="fechaInicio" class="form-control enhanced">
                 </div>
                 
                 <div class="form-group enhanced">
-                    <label for="mesPlanilla">📅 Mes</label>
-                    <select id="mesPlanilla" class="form-control enhanced">
-                        <option value="">Seleccione mes...</option>
-                        <option value="1">Enero</option>
-                        <option value="2">Febrero</option>
-                        <option value="3">Marzo</option>
-                        <option value="4">Abril</option>
-                        <option value="5">Mayo</option>
-                        <option value="6">Junio</option>
-                        <option value="7">Julio</option>
-                        <option value="8">Agosto</option>
-                        <option value="9">Septiembre</option>
-                        <option value="10">Octubre</option>
-                        <option value="11">Noviembre</option>
-                        <option value="12">Diciembre</option>
-                    </select>
-                </div>
-                
-                <div class="form-group enhanced">
-                    <label for="anioPlanilla">🗓️ Año</label>
-                    <select id="anioPlanilla" class="form-control enhanced">
-                        <option value="">Seleccione año...</option>
-                        <!-- Se llena dinámicamente -->
-                    </select>
+                    <label for="fechaFin">📅 Fecha Fin</label>
+                    <input type="date" id="fechaFin" class="form-control enhanced">
                 </div>
                 
                 <!-- BOTONES MEJORADOS LADO A LADO -->
@@ -106,32 +77,41 @@
                 </div>
             </div>
             
-            <!-- Información compacta -->
+            <!-- Información actualizada -->
             <div class="config-info">
-                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: var(--spacing-sm);">
+                <div style="display: grid; grid-template-columns: 1fr; gap: var(--spacing-sm);">
                     <div class="info-card">
                         <h4 style="color: var(--trust-blue); margin-bottom: var(--spacing-xs); display: flex; align-items: center; gap: var(--spacing-xs);">
-                            <i class="fas fa-calendar-week"></i>
-                            Quincenal
+                            <i class="fas fa-calendar-alt"></i>
+                            Período Personalizado
                         </h4>
-                        <p>Del <strong>1 al 15</strong> del mes</p>
-                    </div>
-                    
-                    <div class="info-card">
-                        <h4 style="color: var(--success-emerald); margin-bottom: var(--spacing-xs); display: flex; align-items: center; gap: var(--spacing-xs);">
-                            <i class="fas fa-calendar-check"></i>
-                            Fin de Mes
-                        </h4>
-                        <p>Del <strong>16 al último día</strong> del mes</p>
+                        <p>Seleccione las fechas de <strong>inicio y fin</strong> para el período de pago</p>
                     </div>
                 </div>
                 
                 <div class="info-important">
                     <p>
                         <i class="fas fa-info-circle"></i>
-                        <strong>Importante:</strong> Una vez confirmada podrá gestionar colaboradores y turnos.
+                        <strong>Importante:</strong> Solo se podrán asignar turnos dentro del período seleccionado.
                     </p>
                 </div>
+            </div>
+        </div>
+
+        <!-- Vista confirmada actualizada -->
+        <div class="payroll-confirmed enhanced" id="payrollConfirmed" style="display: none;">
+            <div class="confirmed-info" style="background: linear-gradient(135deg, var(--success-emerald) 0%, var(--success-light) 100%); color: white; padding: var(--spacing-lg); border-radius: var(--radius-lg); display: flex; justify-content: space-between; align-items: center; box-shadow: var(--shadow-medium);">
+                <div class="confirmed-details">
+                    <div style="display: flex; align-items: center; gap: var(--spacing-sm); margin-bottom: var(--spacing-xs);">
+                        <i class="fas fa-check-circle" style="font-size: 1.2rem;"></i>
+                        <span class="confirmed-type" id="confirmedType" style="font-size: 1rem; font-weight: 700;">Período Configurado</span>
+                    </div>
+                    <span class="confirmed-period" id="confirmedPeriod" style="font-size: 0.8rem; opacity: 0.9;">Rango de fechas</span>
+                </div>
+                <button type="button" id="changePlanilla" class="btn-change" style="background: rgba(255, 255, 255, 0.2); border: 2px solid rgba(255, 255, 255, 0.5); color: white; padding: var(--spacing-xs) var(--spacing-md); border-radius: var(--radius-md); font-size: 0.75rem; font-weight: 600; cursor: pointer; transition: all 0.2s ease; backdrop-filter: blur(10px);">
+                    <i class="fas fa-edit"></i>
+                    Cambiar
+                </button>
             </div>
         </div>
         
@@ -164,7 +144,6 @@
                     <h3><i class="fas fa-users"></i> Colaboradores</h3>
                     <div class="collaborator-stats">
                         <span class="count-badge" id="collaboratorCount">0</span>
-                        <span class="count-label">encontrados</span>
                     </div>
                 </div>
                 <div class="search-box">

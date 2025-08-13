@@ -861,3 +861,44 @@ h2 i {
 .liquidacion-modal .swal2-html-container::-webkit-scrollbar-thumb:hover {
     background: #F57C00;
 }
+.vacaciones-disponibles-card {
+    border: 2px solid #00BCD4;
+    background: linear-gradient(135deg, #f0fdff 0%, #ffffff 100%);
+    transition: all 0.3s ease;
+}
+
+.vacaciones-disponibles-card:hover {
+    border-color: #00BCD4;
+    box-shadow: 0 4px 12px rgba(0, 188, 212, 0.2);
+    transform: translateY(-1px);
+}
+
+.vacaciones-disponibles-card .card-icon-small {
+    background: linear-gradient(135deg, #00BCD4, #0097A7);
+}
+
+.vacaciones-disponibles-card .periodo-texto {
+    color: #00BCD4 !important;
+    font-size: 10px !important;
+    line-height: 1.2;
+    font-weight: 500;
+}
+
+/* Estados según disponibilidad */
+.vacaciones-disponibles-card.sin-dias {
+    border-color: #FF5252 !important;
+    background: linear-gradient(135deg, #fff5f5 0%, #ffffff 100%) !important;
+}
+
+.vacaciones-disponibles-card.sin-dias .card-icon-small {
+    background: linear-gradient(135deg, #FF5252, #D32F2F) !important;
+}
+
+.vacaciones-disponibles-card.pocos-dias {
+    border-color: #FF9800 !important;
+    background: linear-gradient(135deg, #fff8e1 0%, #ffffff 100%) !important;
+}
+
+.vacaciones-disponibles-card.pocos-dias .card-icon-small {
+    background: linear-gradient(135deg, #FF9800, #F57C00) !important;
+}

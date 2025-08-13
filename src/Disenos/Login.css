@@ -685,3 +685,78 @@ h2::after {
         opacity: 0.05; /* Menos visible en móviles */
     }
 }
+.swal2-popup.swal2-no-scroll {
+    max-height: 90vh !important;
+    overflow: hidden !important;
+}
+
+.swal2-popup.swal2-no-scroll .swal2-content {
+    max-height: calc(90vh - 200px) !important;
+    overflow-y: auto !important;
+    padding: 0 !important;
+}
+
+/* Responsive para modales */
+@media screen and (max-width: 768px) {
+    .swal2-popup {
+        width: 95% !important;
+        max-width: 95% !important;
+        margin: 10px !important;
+    }
+    
+    .swal2-popup.swal2-no-scroll {
+        max-height: 95vh !important;
+    }
+    
+    .swal2-popup.swal2-no-scroll .swal2-content {
+        max-height: calc(95vh - 150px) !important;
+    }
+}
+
+@media screen and (max-width: 480px) {
+    .swal2-popup {
+        width: 98% !important;
+        max-width: 98% !important;
+        margin: 5px !important;
+        padding: 15px !important;
+    }
+    
+    .swal2-title {
+        font-size: 1.2rem !important;
+        padding: 0 0 15px 0 !important;
+    }
+    
+    /* Hacer el layout vertical en móviles */
+    .swal2-content div[style*="display: flex"] {
+        flex-direction: column !important;
+        gap: 15px !important;
+    }
+    
+    .swal2-content div[style*="flex: 1"] {
+        max-width: 100% !important;
+    }
+}
+
+/* Mejorar la visualización del input */
+.swal2-input {
+    font-family: 'Poppins', sans-serif !important;
+}
+
+/* Scrollbar personalizado para el contenido del modal */
+.swal2-content::-webkit-scrollbar {
+    width: 6px;
+}
+
+.swal2-content::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 3px;
+}
+
+.swal2-content::-webkit-scrollbar-thumb {
+    background: #c1c1c1;
+    border-radius: 3px;
+}
+
+.swal2-content::-webkit-scrollbar-thumb:hover {
+    background: #a1a1a1;
+}

@@ -23,7 +23,6 @@ let searchTimeout;
 let currentSearchResults = [];
 let isGeneratingPDF = false;
 let isClosingModal = false;
-const photoCache = new Map();
 
 // Variables para el calendario
 let calendar;
@@ -238,7 +237,6 @@ async function loadEmployees(deptId) {
                 personal.PrimerApellido, 
                 personal.SegundoApellido, 
                 personal.DPI,
-                -- Formatear fecha EXACTAMENTE como YYYY-MM-DD sin conversión de zona horaria
                 DATE_FORMAT(personal.FechaPlanilla, '%Y-%m-%d') AS FechaPlanilla,
                 personal.IdSucuDepa,
                 personal.IdPlanilla,
@@ -249,16 +247,10 @@ async function loadEmployees(deptId) {
                     IFNULL((SELECT SUM(CAST(DiasSolicitado AS UNSIGNED)) FROM vacacionespagadas 
                             WHERE IdPersonal = personal.IdPersonal AND Estado IN (1,2,3,4)), 0)
                 AS DiasVacaciones,
-                Puestos.Nombre,
-                -- Solo verificar SI EXISTE foto, no cargarla
-                CASE 
-                    WHEN FotosPersonal.Foto IS NOT NULL THEN 1
-                    ELSE 0 
-                END AS TieneFoto
+                Puestos.Nombre
             FROM
                 personal
                 INNER JOIN Puestos ON personal.IdPuesto = Puestos.IdPuesto
-                LEFT JOIN FotosPersonal ON personal.IdPersonal = FotosPersonal.IdPersonal
             WHERE
                 personal.IdSucuDepa = ? AND
                 personal.Estado IN (1, 5) AND
@@ -272,15 +264,12 @@ async function loadEmployees(deptId) {
         if (result.length > 0) {
             // Procesar datos con fechas corregidas
             employeesData = result.map(employee => {
-                // Verificar que la fecha esté en formato correcto
                 if (employee.FechaPlanilla && !isValidDate(employee.FechaPlanilla)) {
                     console.warn(`Fecha inválida para empleado ${employee.IdPersonal}:`, employee.FechaPlanilla);
                 }
                 
                 return {
                     ...employee,
-                    FotoBase64: null, // Se cargará bajo demanda
-                    FotoLoaded: false, // Flag para controlar si ya se cargó
                     _searchIndex: null // Se creará cuando sea necesario
                 };
             });
@@ -294,9 +283,6 @@ async function loadEmployees(deptId) {
             
             renderEmployeesTable();
             updatePagination();
-            
-            // CARGAR FOTOS DE LA PÁGINA ACTUAL en background
-            loadPhotosForCurrentPage();
         } else {
             employeesData = [];
             filteredData = [];
@@ -318,164 +304,7 @@ async function loadEmployees(deptId) {
         throw error;
     }
 }
-// Función para cargar foto individual
-async function loadEmployeePhoto(employeeId) {
-    // Verificar cache primero
-    if (photoCache.has(employeeId)) {
-        return photoCache.get(employeeId);
-    }
-    
-    try {
-        const connection = await connectionString();
-        const query = `
-            SELECT 
-                CASE 
-                    WHEN FotosPersonal.Foto IS NOT NULL THEN CONCAT('data:image/jpeg;base64,', TO_BASE64(FotosPersonal.Foto))
-                    ELSE NULL 
-                END AS FotoBase64
-            FROM 
-                FotosPersonal 
-            WHERE 
-                IdPersonal = ?
-        `;
-        
-        const result = await connection.query(query, [employeeId]);
-        await connection.close();
-        
-        const fotoBase64 = result.length > 0 ? result[0].FotoBase64 : null;
-        
-        // Guardar en cache
-        photoCache.set(employeeId, fotoBase64);
-        
-        return fotoBase64;
-    } catch (error) {
-        console.error('Error al cargar foto:', error);
-        return null;
-    }
-}
 
-// Función para cargar fotos de la página actual
-async function loadPhotosForCurrentPage() {
-    const start = (currentPage - 1) * itemsPerPage;
-    const end = start + itemsPerPage;
-    const currentPageData = filteredData.slice(start, end);
-    
-    // Cargar fotos en paralelo (máximo 3 a la vez para no sobrecargar)
-    const batchSize = 3;
-    
-    for (let i = 0; i < currentPageData.length; i += batchSize) {
-        const batch = currentPageData.slice(i, i + batchSize);
-        
-        const promises = batch.map(async (employee) => {
-            if (!employee.FotoLoaded && employee.TieneFoto === 1) {
-                try {
-                    const fotoBase64 = await loadEmployeePhoto(employee.IdPersonal);
-                    
-                    // Actualizar en employeesData
-                    const index = employeesData.findIndex(emp => emp.IdPersonal === employee.IdPersonal);
-                    if (index !== -1) {
-                        employeesData[index].FotoBase64 = fotoBase64;
-                        employeesData[index].FotoLoaded = true;
-                    }
-                    
-                    // Actualizar en filteredData
-                    const filteredIndex = filteredData.findIndex(emp => emp.IdPersonal === employee.IdPersonal);
-                    if (filteredIndex !== -1) {
-                        filteredData[filteredIndex].FotoBase64 = fotoBase64;
-                        filteredData[filteredIndex].FotoLoaded = true;
-                    }
-                    
-                    // Actualizar la imagen en el DOM si está visible
-                    updatePhotoInDOM(employee.IdPersonal, fotoBase64);
-                    
-                } catch (error) {
-                    console.error(`Error cargando foto de empleado ${employee.IdPersonal}:`, error);
-                }
-            }
-        });
-        
-        await Promise.all(promises);
-        
-        // Pequeña pausa entre lotes para no bloquear la UI
-        if (i + batchSize < currentPageData.length) {
-            await new Promise(resolve => setTimeout(resolve, 100));
-        }
-    }
-}
-
-// Función para actualizar foto en el DOM
-function updatePhotoInDOM(employeeId, fotoBase64) {
-    const photoElement = document.querySelector(`tr[data-id="${employeeId}"] .employee-photo-cell img`);
-    if (photoElement) {
-        const newSrc = fotoBase64 || '../Imagenes/user-default.png';
-        
-        // Agregar efecto de fade-in
-        photoElement.style.opacity = '0.5';
-        photoElement.src = newSrc;
-        
-        photoElement.onload = () => {
-            photoElement.style.transition = 'opacity 0.3s ease';
-            photoElement.style.opacity = '1';
-        };
-        
-        photoElement.onerror = () => {
-            photoElement.src = '../Imagenes/user-default.png';
-            photoElement.style.opacity = '1';
-        };
-    }
-}
-
-// Función para precargar fotos de páginas adyacentes
-async function preloadAdjacentPagesPhotos() {
-    const totalPages = Math.ceil(filteredData.length / itemsPerPage);
-    const pagesToPreload = [];
-    
-    // Página anterior
-    if (currentPage > 1) {
-        pagesToPreload.push(currentPage - 1);
-    }
-    
-    // Página siguiente
-    if (currentPage < totalPages) {
-        pagesToPreload.push(currentPage + 1);
-    }
-    
-    for (const page of pagesToPreload) {
-        const start = (page - 1) * itemsPerPage;
-        const end = start + itemsPerPage;
-        const pageData = filteredData.slice(start, end);
-        
-        // Cargar fotos en background con prioridad baja
-        setTimeout(async () => {
-            for (const employee of pageData) {
-                if (!employee.FotoLoaded && employee.TieneFoto === 1) {
-                    try {
-                        const fotoBase64 = await loadEmployeePhoto(employee.IdPersonal);
-                        
-                        // Actualizar datos
-                        const index = employeesData.findIndex(emp => emp.IdPersonal === employee.IdPersonal);
-                        if (index !== -1) {
-                            employeesData[index].FotoBase64 = fotoBase64;
-                            employeesData[index].FotoLoaded = true;
-                        }
-                        
-                        const filteredIndex = filteredData.findIndex(emp => emp.IdPersonal === employee.IdPersonal);
-                        if (filteredIndex !== -1) {
-                            filteredData[filteredIndex].FotoBase64 = fotoBase64;
-                            filteredData[filteredIndex].FotoLoaded = true;
-                        }
-                        
-                    } catch (error) {
-                        console.error(`Error precargando foto:`, error);
-                    }
-                    
-                    // Pausa entre precargas para no impactar rendimiento
-                    await new Promise(resolve => setTimeout(resolve, 200));
-                }
-            }
-        }, 500); // Esperar 500ms antes de empezar a precargar
-    }
-}
 // Función para cargar días especiales (modificada)
 async function loadSpecialDays() {
     try {
@@ -753,11 +582,6 @@ function renderEmployeesTable() {
         
         row.innerHTML = `
             <td>
-                <div class="employee-photo-cell">
-                    <img src="${photoSrc}" alt="${fullName}" loading="lazy" class="${photoClass}">
-                </div>
-            </td>
-            <td>
                 ${fullName}
                 ${isCurrentUser ? ' <span class="current-user-badge">Usted</span>' : ''}
             </td>
@@ -773,14 +597,6 @@ function renderEmployeesTable() {
     
     tbody.appendChild(fragment);
     updateSortIndicators();
-    
-    // Cargar fotos para la página actual
-    loadPhotosForCurrentPage();
-    
-    // Precargar fotos de páginas adyacentes en background
-    setTimeout(() => {
-        preloadAdjacentPagesPhotos();
-    }, 1000);
 }
 
 // Actualizar paginación
@@ -946,7 +762,6 @@ function updateSortIndicators() {
 // Función para refrescar datos
 async function refreshData() {
     try {
-        clearPhotoCache();
         // Agregar clase de loading al botón
         const refreshBtn = document.getElementById('refreshBtn');
         if (refreshBtn) {
@@ -1499,9 +1314,6 @@ async function openVacationModal(employeeId) {
         document.getElementById('modalEmployeeName').textContent = fullName;
         document.getElementById('modalEmployeePosition').textContent = employee.Nombre || 'Sin puesto asignado';
         document.getElementById('modalAvailableDays').textContent = totalDiasAcumulados;
-        
-        const photoSrc = employee.FotoBase64 || '../Imagenes/user-default.png';
-        document.getElementById('modalEmployeePhoto').src = photoSrc;
         
         const infoContainer = document.createElement('div');
         infoContainer.className = 'vacation-info-container';
@@ -2519,10 +2331,6 @@ async function openInfoModal(employeeId) {
         document.getElementById('infoAvailableDays').textContent = `${employee.DiasVacaciones || 0} días`;
         document.getElementById('infoEmployeeId').textContent = employee.IdPersonal;
         
-        // Foto del empleado
-        const photoSrc = employee.FotoBase64 || '../Imagenes/user-default.png';
-        document.getElementById('infoEmployeePhoto').src = photoSrc;
-        
         // Actualizar la tabla de historial con los datos obtenidos
         actualizarTablaHistorial(historialVacaciones);
         
@@ -3274,14 +3082,12 @@ function displaySearchResultsForPDF(results, query) {
     const resultsHTML = results.slice(0, 10).map(employee => {
         const fullName = getFullName(employee);
         const position = employee.Nombre || 'Sin puesto';
-        const photoSrc = employee.FotoBase64 || '../Imagenes/user-default.png';
         
         const highlightedName = highlightMatch(fullName, query);
         const highlightedPosition = highlightMatch(position, query);
         
         return `
             <div class="search-result-item" data-id="${employee.IdPersonal}">
-                <img src="${photoSrc}" alt="${fullName}" class="result-photo">
                 <div class="result-info">
                     <div class="result-name">${highlightedName}</div>
                     <div class="result-position">${highlightedPosition}</div>
@@ -3317,11 +3123,8 @@ function selectEmployeeForPDF(selectedEmployeeId) {
     if (selectedDisplay) {
         const photoSrc = employee.FotoBase64 || '../Imagenes/user-default.png';
         
-        const photoElement = selectedDisplay.querySelector('.selected-employee-photo');
         const nameElement = selectedDisplay.querySelector('.selected-employee-name');
         const positionElement = selectedDisplay.querySelector('.selected-employee-position');
-        
-        if (photoElement) photoElement.src = photoSrc;
         if (nameElement) nameElement.textContent = getFullName(employee);
         if (positionElement) positionElement.textContent = employee.Nombre || 'Sin puesto';
         
@@ -3797,10 +3600,6 @@ function initEvents() {
             refreshData();
         }
     });
-}
-function clearPhotoCache() {
-    photoCache.clear();
-    console.log('Cache de fotos limpiado');
 }
 // Funciones auxiliares finales
 window.openVacationModal = openVacationModal;

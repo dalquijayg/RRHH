@@ -189,7 +189,7 @@ function showInitialMessage() {
     const tbody = document.querySelector('#employeesTable tbody');
     tbody.innerHTML = `
         <tr>
-            <td colspan="7" class="no-department-message">
+            <td colspan="6" class="no-department-message">
                 <div class="empty-state">
                     <i class="fas fa-building"></i>
                     <h3>Seleccione un departamento</h3>
@@ -199,7 +199,6 @@ function showInitialMessage() {
         </tr>
     `;
     
-    // Deshabilitar controles hasta que se seleccione un departamento
     disableControls();
 }
 
@@ -283,22 +282,16 @@ async function loadEmployees(deptId) {
                 DATE_FORMAT(personal.FechaPlanilla, '%Y-%m-%d') AS FechaPlanilla,
                 personal.IdSucuDepa,
                 personal.IdPlanilla,
-                personal.DiasMinVacaciones,
                 TIMESTAMPDIFF(YEAR, personal.FechaPlanilla, CURDATE()) AS AniosCumplidos,
                 (TIMESTAMPDIFF(YEAR, personal.FechaPlanilla, CURDATE()) * 15) - 
                     IFNULL((SELECT COUNT(*) FROM vacacionestomadas WHERE IdPersonal = personal.IdPersonal), 0) -
                     IFNULL((SELECT SUM(CAST(DiasSolicitado AS UNSIGNED)) FROM vacacionespagadas 
                             WHERE IdPersonal = personal.IdPersonal AND Estado IN (1,2,3,4)), 0)
                 AS DiasVacaciones,
-                Puestos.Nombre,
-                CASE 
-                    WHEN FotosPersonal.Foto IS NOT NULL THEN CONCAT('data:image/jpeg;base64,', TO_BASE64(FotosPersonal.Foto))
-                    ELSE NULL 
-                END AS FotoBase64
+                Puestos.Nombre
             FROM
                 personal
                 INNER JOIN Puestos ON personal.IdPuesto = Puestos.IdPuesto
-                LEFT JOIN FotosPersonal ON personal.IdPersonal = FotosPersonal.IdPersonal
             WHERE
                 personal.IdSucuDepa = ? AND
                 personal.Estado IN (1, 5) AND
@@ -310,20 +303,21 @@ async function loadEmployees(deptId) {
         await connection.close();
         
         if (result.length > 0) {
-            employeesData = result;
-            filteredData = [...employeesData];
+            // ✅ AGREGAR ESTA LÍNEA QUE FALTABA:
+            employeesData = [...result];
             
-            // Resetear a la primera página
+            filteredData = [...employeesData];
             currentPage = 1;
             
             renderEmployeesTable();
             updatePagination();
+            
         } else {
             employeesData = [];
             filteredData = [];
             document.querySelector('#employeesTable tbody').innerHTML = `
                 <tr>
-                    <td colspan="7" style="text-align: center; padding: 20px;">
+                    <td colspan="6" style="text-align: center; padding: 20px;">
                         <i class="fas fa-info-circle" style="font-size: 24px; color: #FF9800; margin-bottom: 10px;"></i>
                         <p>No hay colaboradores registrados en este departamento.</p>
                     </td>
@@ -336,7 +330,6 @@ async function loadEmployees(deptId) {
         throw error;
     }
 }
-
 // Función para cargar días especiales (modificada)
 async function loadSpecialDays() {
     try {
@@ -503,7 +496,7 @@ function renderEmployeesTable() {
     if (currentPageData.length === 0) {
         tbody.innerHTML = `
             <tr>
-                <td colspan="7" style="text-align: center; padding: 20px;">
+                <td colspan="6" style="text-align: center; padding: 20px;">
                     <i class="fas fa-search" style="font-size: 24px; color: #FF9800; margin-bottom: 10px;"></i>
                     <p>No se encontraron colaboradores que coincidan con su búsqueda.</p>
                 </td>
@@ -515,7 +508,7 @@ function renderEmployeesTable() {
     currentPageData.forEach(employee => {
         const fullName = getFullName(employee);
         const hireDate = formatDate(employee.FechaPlanilla);
-        const photoSrc = employee.FotoBase64 || '../Imagenes/user-default.png';
+        
         const isCurrentUser = employee.IdPersonal === userData.IdPersonal;
         
         const row = document.createElement('tr');
@@ -531,7 +524,6 @@ function renderEmployeesTable() {
         let actionsCell = '';
                 
         if (isCurrentUser) {
-            // Para el usuario actual, mostrar un mensaje indicando que no puede solicitar vacaciones para sí mismo
             actionsCell = `
                 <div class="user-actions-disabled">
                     <span class="user-actions-message tooltip">
@@ -541,7 +533,6 @@ function renderEmployeesTable() {
                 </div>
             `;
         } else {
-            // Para otros usuarios, mostrar los botones de acción normales
             actionsCell = `
                 <div class="action-buttons">
                     <button class="btn-action btn-request" title="Solicitar vacaciones" onclick="openVacationModal(${employee.IdPersonal})">
@@ -566,12 +557,8 @@ function renderEmployeesTable() {
             diasDisponiblesStyle = `<div class="days-count" style="background-color: #4CAF50;">${employee.DiasVacaciones} días</div>`;
         }
         
+        // ✅ NUEVA ESTRUCTURA SIN COLUMNA DE FOTO:
         row.innerHTML = `
-            <td>
-                <div class="employee-photo-cell">
-                    <img src="${photoSrc}" alt="${fullName}" loading="lazy">
-                </div>
-            </td>
             <td>${fullName}${isCurrentUser ? ' <span class="current-user-badge">Usted</span>' : ''}</td>
             <td>${hireDate}</td>
             <td>${employee.AniosCumplidos} años</td>
@@ -712,7 +699,6 @@ function formatFechaBaseDatos(fecha) {
 // Función para limpiar el modal de elementos duplicados
 function clearVacationModal() {
     const elementsToRemove = [
-        '.min-days-info',
         '.periodos-container',
         '.days-note-container',
         '.vacation-info-container'
@@ -949,24 +935,8 @@ async function openVacationModal(employeeId) {
         document.getElementById('modalEmployeePosition').textContent = employee.Nombre || 'Sin puesto asignado';
         document.getElementById('modalAvailableDays').textContent = totalDiasAcumulados;
         
-        const photoSrc = employee.FotoBase64 || '../Imagenes/user-default.png';
-        document.getElementById('modalEmployeePhoto').src = photoSrc;
-        
         const infoContainer = document.createElement('div');
         infoContainer.className = 'vacation-info-container';
-        
-        const diasMinimos = parseInt(employee.DiasMinVacaciones || 0);
-        if (diasMinimos > 0) {
-            const minDaysInfo = document.createElement('div');
-            minDaysInfo.className = 'min-days-info';
-            minDaysInfo.innerHTML = `<i class="fas fa-info-circle"></i> Mínimo: ${diasMinimos} días por solicitud`;
-            
-            if (totalDiasDisponibles < diasMinimos) {
-                minDaysInfo.innerHTML += `<div class="min-days-note">Tiene menos días disponibles que el mínimo requerido. Se le permitirá tomar los ${totalDiasDisponibles} días restantes.</div>`;
-            }
-            
-            infoContainer.appendChild(minDaysInfo);
-        }
         
         if (periodosInfo.periodos.length > 0) {
             const periodosContainer = document.createElement('div');
@@ -1091,9 +1061,6 @@ function initCalendar() {
             
             handleDateSelection(info.start, info.end);
         },
-        selectAllow: function(selectInfo) {
-            return selectInfo.start >= new Date();
-        },
         dayCellClassNames: function(arg) {
             const date = arg.date;
             const day = date.getDay();
@@ -1143,6 +1110,7 @@ function handleDateSelection(start, end) {
         currentDate.setDate(currentDate.getDate() + 1);
     }
     
+    // Solo validar fechas ya registradas
     if (fechasInvalidas.length > 0) {
         Swal.fire({
             icon: 'warning',
@@ -1181,7 +1149,6 @@ function handleDateSelection(start, end) {
     
     calculateWorkingDays();
     renderDaysVisualization();
-    verificarDiasMinimos();
 }
 
 // Calcular días hábiles
@@ -1218,45 +1185,6 @@ function calculateWorkingDays() {
         !day.isWeekend && !day.isSpecial && !day.isHolyWeek && !day.isRegistered).length;
     
     document.getElementById('selectedDays').textContent = `${workingDays} días`;
-}
-
-// Función para verificar si se cumple el mínimo de días requeridos
-function verificarDiasMinimos() {
-    const employeeId = parseInt(document.getElementById('vacationForm').getAttribute('data-employee-id'));
-    
-    const employee = employeesData.find(emp => emp.IdPersonal === employeeId);
-    if (!employee) return;
-    
-    const diasMinimos = parseInt(employee.DiasMinVacaciones || 0);
-    if (diasMinimos <= 0) return;
-    
-    const workingDays = selectedDays.filter(day => 
-        !day.isWeekend && !day.isSpecial && !day.isHolyWeek && !day.isRegistered).length;
-    
-    const totalDaysElement = document.getElementById('selectedDays');
-    
-    const diasDisponibles = parseInt(document.getElementById('modalAvailableDays').textContent || 0);
-    
-    if (workingDays === 0) {
-        totalDaysElement.classList.remove('days-warning', 'days-success');
-        totalDaysElement.removeAttribute('data-tooltip');
-    } else if (workingDays < diasMinimos && diasDisponibles >= diasMinimos) {
-        totalDaysElement.classList.add('days-warning');
-        totalDaysElement.classList.remove('days-success');
-        totalDaysElement.setAttribute('data-tooltip', `Debe seleccionar al menos ${diasMinimos} días`);
-    } else if (workingDays < diasMinimos && diasDisponibles < diasMinimos && workingDays === diasDisponibles) {
-        totalDaysElement.classList.remove('days-warning');
-        totalDaysElement.classList.add('days-success');
-        totalDaysElement.setAttribute('data-tooltip', `Tomando todos los días disponibles`);
-    } else if (workingDays < diasMinimos && diasDisponibles < diasMinimos && workingDays < diasDisponibles) {
-        totalDaysElement.classList.add('days-warning');
-        totalDaysElement.classList.remove('days-success');
-        totalDaysElement.setAttribute('data-tooltip', `Debe tomar todos los ${diasDisponibles} días disponibles`);
-    } else {
-        totalDaysElement.classList.remove('days-warning');
-        totalDaysElement.classList.add('days-success');
-        totalDaysElement.setAttribute('data-tooltip', `Cumple con el mínimo requerido`);
-    }
 }
 // Crear visualización de días seleccionados
 function renderDaysVisualization() {
@@ -1510,38 +1438,6 @@ async function guardarSolicitudVacaciones(event) {
             `;
         }
         
-        const diasMinimos = parseInt(employee.DiasMinVacaciones || 0);
-        
-        if (diasMinimos > 0) {
-            if (workingDays < diasMinimos && periodosInfo.totalDiasDisponibles >= diasMinimos) {
-                Swal.fire({
-                    icon: 'warning',
-                    title: 'Días insuficientes',
-                    html: `
-                        <p>Este colaborador requiere tomar como mínimo <strong>${diasMinimos}</strong> días de vacaciones por solicitud.</p>
-                        <p>Actualmente solo ha seleccionado <strong>${workingDays}</strong> días.</p>
-                        <p>Por favor amplíe su selección.</p>
-                    `,
-                    confirmButtonColor: '#FF9800'
-                });
-                return;
-            }
-            
-            if (workingDays < diasMinimos && periodosInfo.totalDiasDisponibles < diasMinimos && workingDays < periodosInfo.totalDiasDisponibles) {
-                Swal.fire({
-                    icon: 'warning',
-                    title: 'Días insuficientes',
-                    html: `
-                        <p>Aunque el mínimo requerido es de <strong>${diasMinimos}</strong> días, solo tiene <strong>${periodosInfo.totalDiasDisponibles}</strong> días disponibles.</p>
-                        <p>Debe tomar todos los <strong>${periodosInfo.totalDiasDisponibles}</strong> días disponibles en esta solicitud.</p>
-                        <p>Actualmente solo ha seleccionado <strong>${workingDays}</strong> días.</p>
-                    `,
-                    confirmButtonColor: '#FF9800'
-                });
-                return;
-            }
-        }
-        
         const result = await Swal.fire({
             icon: 'question',
             title: '¿Enviar solicitud?',
@@ -1551,7 +1447,6 @@ async function guardarSolicitudVacaciones(event) {
                     <p><strong>Periodo:</strong> ${formatDate(selectedStartDate)} al ${formatDate(selectedEndDate)}</p>
                     <p><strong>Días para vacaciones:</strong> ${workingDays} días</p>
                     ${distribucionPeriodos}
-                    ${diasMinimos > 0 ? `<p><strong>Mínimo requerido:</strong> ${diasMinimos} días por solicitud</p>` : ''}
                 </div>
             `,
             showCancelButton: true,
@@ -1683,9 +1578,6 @@ function openInfoModal(employeeId) {
     document.getElementById('infoYearsService').textContent = `${employee.AniosCumplidos} años`;
     document.getElementById('infoAvailableDays').textContent = `${employee.DiasVacaciones} días`;
     document.getElementById('infoEmployeeId').textContent = employee.IdPersonal;
-    
-    const photoSrc = employee.FotoBase64 || '../Imagenes/user-default.png';
-    document.getElementById('infoEmployeePhoto').src = photoSrc;
     
     infoModal.style.display = 'block';
     setTimeout(() => {
@@ -2047,6 +1939,10 @@ async function exportToExcel() {
     try {
         const loadingSwal = mostrarCargando('Generando reporte...');
         
+        // ✅ OBTENER NOMBRE DEL DEPARTAMENTO:
+        const selectedDept = allDepartments.find(dept => dept.IdDepartamento === selectedDepartmentId);
+        const selectedDeptName = selectedDept ? selectedDept.NombreDepartamento : 'Departamento';
+        
         const workbook = new ExcelJS.Workbook();
         
         workbook.creator = userData.NombreCompleto;
@@ -2071,6 +1967,7 @@ async function exportToExcel() {
             fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF9F9F9' } }
         };
         
+        // ✅ COLUMNAS SIN FOTO:
         worksheet.columns = [
             { header: 'ID', key: 'idPersonal', width: 10 },
             { header: 'Nombre Completo', key: 'nombreCompleto', width: 30 },
@@ -2104,12 +2001,12 @@ async function exportToExcel() {
             }
         });
         
-        
         worksheet.spliceRows(1, 0, []);
         worksheet.spliceRows(1, 0, [`REPORTE DE VACACIONES - ${selectedDeptName.toUpperCase()}`]);
         worksheet.spliceRows(2, 0, [`Fecha de generación: ${new Date().toLocaleDateString('es-GT')} ${new Date().toLocaleTimeString('es-GT')}`]);
         worksheet.spliceRows(3, 0, []);
         
+        // ✅ ACTUALIZAR MERGE CELLS PARA 6 COLUMNAS:
         worksheet.mergeCells('A1:F1');
         worksheet.mergeCells('A2:F2');
         
@@ -2708,7 +2605,6 @@ function displaySearchResults(results, query) {
     const resultsHTML = results.slice(0, 10).map(employee => {
         const fullName = getFullName(employee);
         const position = employee.Nombre || 'Sin puesto';
-        const photoSrc = employee.FotoBase64 || '../Imagenes/user-default.png';
         
         // Destacar coincidencias
         const highlightedName = highlightMatch(fullName, query);
@@ -2716,7 +2612,6 @@ function displaySearchResults(results, query) {
         
         return `
             <div class="search-result-item" data-id="${employee.IdPersonal}">
-                <img src="${photoSrc}" alt="${fullName}" class="result-photo">
                 <div class="result-info">
                     <div class="result-name">${highlightedName}</div>
                     <div class="result-position">${highlightedPosition}</div>
@@ -2747,29 +2642,23 @@ function selectEmployee(selectedEmployeeId) {
     const employee = employeesData.find(emp => emp.IdPersonal === selectedEmployeeId);
     if (!employee) return;
     
-    // Guardar ID seleccionado
     const hiddenInput = document.getElementById('selectedEmployeeId');
     if (hiddenInput) {
         hiddenInput.value = selectedEmployeeId;
     }
     
-    // Mostrar empleado seleccionado
+    // Mostrar empleado seleccionado SIN FOTO
     const selectedDisplay = document.getElementById('selectedEmployeeDisplay');
     if (selectedDisplay) {
-        const photoSrc = employee.FotoBase64 || '../Imagenes/user-default.png';
-        
-        const photoElement = selectedDisplay.querySelector('.selected-employee-photo');
         const nameElement = selectedDisplay.querySelector('.selected-employee-name');
         const positionElement = selectedDisplay.querySelector('.selected-employee-position');
         
-        if (photoElement) photoElement.src = photoSrc;
         if (nameElement) nameElement.textContent = getFullName(employee);
         if (positionElement) positionElement.textContent = employee.Nombre || 'Sin puesto';
         
         selectedDisplay.style.display = 'flex';
     }
     
-    // Ocultar resultados de búsqueda
     const searchResults = document.getElementById('searchResults');
     if (searchResults) searchResults.style.display = 'none';
     
@@ -2779,7 +2668,6 @@ function selectEmployee(selectedEmployeeId) {
     const clearBtn = document.querySelector('.clear-search');
     if (clearBtn) clearBtn.style.display = 'none';
     
-    // Cargar períodos del empleado seleccionado
     handleEmployeeSelection(selectedEmployeeId);
 }
 
@@ -3280,7 +3168,6 @@ function mostrarBuscadorEmpleados() {
 function buscarEmpleadosModal(query) {
     const resultsContainer = document.getElementById('modalSearchResults');
     
-    // Mostrar estado de carga
     resultsContainer.innerHTML = `
         <div class="modal-search-loading">
             <div class="spinner small"></div>
@@ -3288,10 +3175,8 @@ function buscarEmpleadosModal(query) {
         </div>
     `;
     
-    // Filtrar empleados
     const searchLower = query.toLowerCase();
     const resultados = employeesData.filter(employee => {
-        // Excluir al usuario actual
         if (employee.IdPersonal === userData.IdPersonal) return false;
         
         const fullName = getFullName(employee).toLowerCase();
@@ -3303,19 +3188,16 @@ function buscarEmpleadosModal(query) {
                dpi.includes(searchLower);
     });
     
-    // Ordenar resultados por relevancia
     resultados.sort((a, b) => {
         const aName = getFullName(a).toLowerCase();
         const bName = getFullName(b).toLowerCase();
         
-        // Priorizar coincidencias al inicio del nombre
         if (aName.startsWith(searchLower) && !bName.startsWith(searchLower)) return -1;
         if (!aName.startsWith(searchLower) && bName.startsWith(searchLower)) return 1;
         
         return aName.localeCompare(bName);
     });
     
-    // Mostrar resultados
     if (resultados.length === 0) {
         resultsContainer.innerHTML = `
             <div class="no-modal-results">
@@ -3326,19 +3208,16 @@ function buscarEmpleadosModal(query) {
         return;
     }
     
-    // Generar HTML de resultados (limitar a 8 resultados para mejor rendimiento)
+    // ✅ GENERAR HTML SIN FOTO:
     const resultsHTML = resultados.slice(0, 8).map(employee => {
         const fullName = getFullName(employee);
         const position = employee.Nombre || 'Sin puesto';
-        const photoSrc = employee.FotoBase64 || '../Imagenes/user-default.png';
         
-        // Destacar coincidencias
         const highlightedName = highlightMatch(fullName, query);
         const highlightedPosition = highlightMatch(position, query);
         
         return `
             <div class="modal-search-item" data-id="${employee.IdPersonal}">
-                <img src="${photoSrc}" alt="${fullName}" class="search-result-photo">
                 <div class="search-result-info">
                     <div class="search-result-name">${highlightedName}</div>
                     <div class="search-result-position">${highlightedPosition}</div>
@@ -3352,7 +3231,6 @@ function buscarEmpleadosModal(query) {
     
     resultsContainer.innerHTML = resultsHTML;
     
-    // Agregar eventos a los resultados
     document.querySelectorAll('.modal-search-item').forEach(item => {
         item.addEventListener('click', function() {
             const employeeId = parseInt(this.dataset.id);
@@ -3490,7 +3368,6 @@ function highlightMatch(text, query) {
 
 // Modificar la función openInfoModal para incluir toda la funcionalidad necesaria
 async function openInfoModal(employeeId) {
-    // Verificar si es el usuario actual
     if (employeeId === userData.IdPersonal) {
         Swal.fire({
             icon: 'info',
@@ -3501,10 +3378,8 @@ async function openInfoModal(employeeId) {
         return;
     }
     
-    // Mostrar indicador de carga
     const loadingSwal = mostrarCargando('Cargando información...');
     
-    // Buscar empleado por ID
     const employee = employeesData.find(emp => emp.IdPersonal === employeeId);
     
     if (!employee) {
@@ -3519,34 +3394,26 @@ async function openInfoModal(employeeId) {
     }
     
     try {
-        // Obtener el historial de vacaciones del empleado
         const historialVacaciones = await obtenerHistorialVacaciones(employeeId);
         
-        // Cerrar el loading
         loadingSwal.close();
         
-        // Obtener el nombre completo
         const fullName = getFullName(employee);
         
-        // Actualizar datos en el modal
         document.getElementById('infoEmployeeName').textContent = fullName;
         document.getElementById('infoEmployeePosition').textContent = employee.Nombre || 'Sin puesto asignado';
         document.getElementById('infoAvailableDays').textContent = `${employee.DiasVacaciones} días`;
         document.getElementById('infoEmployeeId').textContent = employee.IdPersonal;
         
-        // Foto del empleado
-        const photoSrc = employee.FotoBase64 || '../Imagenes/user-default.png';
-        document.getElementById('infoEmployeePhoto').src = photoSrc;
+        // ✅ ELIMINAR ESTA LÍNEA DE FOTO:
+        // document.getElementById('infoEmployeePhoto').src = photoSrc;
         
-        // Actualizar la tabla de historial con los datos obtenidos
         actualizarTablaHistorial(historialVacaciones);
         
-        // Inicializar selectores de fecha con valores predeterminados
         const fechaInicio = document.getElementById('dateFilterStart');
         const fechaFin = document.getElementById('dateFilterEnd');
         
         if (fechaInicio && fechaFin) {
-            // Establecer fechas por defecto (6 meses atrás hasta hoy)
             const hoy = new Date();
             const seisMesesAtras = new Date();
             seisMesesAtras.setMonth(hoy.getMonth() - 6);
@@ -3555,20 +3422,16 @@ async function openInfoModal(employeeId) {
             fechaFin.value = formatFechaBaseDatosUTC(hoy);
         }
         
-        // Agregar evento al botón de búsqueda de empleados
         const searchEmployeeBtn = document.getElementById('searchEmployeeBtn');
         if (searchEmployeeBtn) {
-            // Eliminar eventos previos para evitar duplicados
             const newBtn = searchEmployeeBtn.cloneNode(true);
             searchEmployeeBtn.parentNode.replaceChild(newBtn, searchEmployeeBtn);
             
             newBtn.addEventListener('click', mostrarBuscadorEmpleados);
         }
         
-        // Agregar evento al botón de filtrar fechas
         const filterDatesBtn = document.getElementById('filterDatesBtn');
         if (filterDatesBtn) {
-            // Eliminar eventos previos para evitar duplicados
             const newBtn = filterDatesBtn.cloneNode(true);
             filterDatesBtn.parentNode.replaceChild(newBtn, filterDatesBtn);
             
@@ -3581,7 +3444,6 @@ async function openInfoModal(employeeId) {
             });
         }
         
-        // Mostrar el modal
         infoModal.style.display = 'block';
         setTimeout(() => {
             infoModal.classList.add('show');

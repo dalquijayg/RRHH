@@ -92,7 +92,6 @@
                 <table id="employeesTable" class="employees-table">
                     <thead>
                         <tr>
-                            <th class="photo-column">Foto</th>
                             <th class="sortable" data-sort="name">Nombre Completo</th>
                             <th class="sortable" data-sort="hireDate">Fecha de Ingreso</th>
                             <th class="sortable" data-sort="years">Años de Servicio</th>
@@ -104,7 +103,7 @@
                     <tbody>
                         <!-- Mensaje inicial -->
                         <tr>
-                            <td colspan="7" class="no-department-message">
+                            <td colspan="6" class="no-department-message">
                                 <div class="empty-state">
                                     <i class="fas fa-building"></i>
                                     <h3>Seleccione un departamento</h3>
@@ -147,9 +146,6 @@
                 <!-- Columna izquierda: Información del empleado -->
                 <div class="employee-info-column">
                     <div class="employee-profile">
-                        <div class="employee-photo">
-                            <img id="modalEmployeePhoto" src="../Imagenes/user-default.png" alt="Foto del colaborador">
-                        </div>
                         <div class="employee-info">
                             <h3 id="modalEmployeeName">Nombre del Colaborador</h3>
                             <p id="modalEmployeePosition">Puesto</p>
@@ -196,7 +192,7 @@
                 <div class="calendar-column">
                     <div class="instruction">
                         <i class="fas fa-info-circle"></i>
-                        <p>Seleccione las fechas de sus vacaciones <strong>arrastrando</strong> en el calendario</p>
+                        <p>Seleccione las fechas de vacaciones <strong>arrastrando</strong> en el calendario (puede seleccionar fechas pasadas y futuras)</p>
                     </div>
                     
                     <!-- Calendario completo -->
@@ -241,9 +237,6 @@
             <!-- Sección de información básica -->
             <div class="info-section">
                 <div class="employee-profile">
-                    <div class="employee-photo">
-                        <img id="infoEmployeePhoto" src="../Imagenes/user-default.png" alt="Foto del colaborador">
-                    </div>
                     <div class="employee-info">
                         <h3 id="infoEmployeeName">Nombre del Colaborador</h3>
                         <p id="infoEmployeePosition">Puesto</p>
@@ -364,7 +357,6 @@
                         <!-- Mostrar el colaborador seleccionado -->
                         <div class="selected-employee" id="selectedEmployeeDisplay" style="display: none;">
                             <div class="selected-employee-info">
-                                <img src="" alt="" class="selected-employee-photo">
                                 <div class="selected-employee-details">
                                     <span class="selected-employee-name"></span>
                                     <span class="selected-employee-position"></span>

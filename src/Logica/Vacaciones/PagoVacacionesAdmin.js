@@ -196,7 +196,7 @@ function showInitialMessage() {
     const tbody = document.querySelector('#employeesTable tbody');
     tbody.innerHTML = `
         <tr>
-            <td colspan="7" class="no-department-message">
+            <td colspan="6" class="no-department-message">
                 <div class="empty-state">
                     <i class="fas fa-building"></i>
                     <h3>Seleccione un departamento</h3>
@@ -206,7 +206,6 @@ function showInitialMessage() {
         </tr>
     `;
     
-    // Deshabilitar controles hasta que se seleccione un departamento
     disableControls();
 }
 
@@ -296,15 +295,10 @@ async function loadEmployees(deptId) {
                     IFNULL((SELECT SUM(CAST(DiasSolicitado AS UNSIGNED)) FROM vacacionespagadas 
                             WHERE IdPersonal = personal.IdPersonal AND Estado IN (1,2,3,4)), 0)
                 AS DiasVacaciones,
-                Puestos.Nombre,
-                CASE 
-                    WHEN FotosPersonal.Foto IS NOT NULL THEN CONCAT('data:image/jpeg;base64,', TO_BASE64(FotosPersonal.Foto))
-                    ELSE NULL 
-                END AS FotoBase64
+                Puestos.Nombre
             FROM
                 personal
                 INNER JOIN Puestos ON personal.IdPuesto = Puestos.IdPuesto
-                LEFT JOIN FotosPersonal ON personal.IdPersonal = FotosPersonal.IdPersonal
             WHERE
                 personal.IdSucuDepa = ? AND
                 personal.Estado IN (1, 5) AND
@@ -319,7 +313,6 @@ async function loadEmployees(deptId) {
             employeesData = result;
             filteredData = [...employeesData];
             
-            // Resetear a la primera página
             currentPage = 1;
             
             renderEmployeesTable();
@@ -329,7 +322,7 @@ async function loadEmployees(deptId) {
             filteredData = [];
             document.querySelector('#employeesTable tbody').innerHTML = `
                 <tr>
-                    <td colspan="7" style="text-align: center; padding: 20px;">
+                    <td colspan="6" style="text-align: center; padding: 20px;">
                         <i class="fas fa-info-circle" style="font-size: 24px; color: #FF9800; margin-bottom: 10px;"></i>
                         <p>No hay colaboradores registrados en este departamento.</p>
                     </td>
@@ -479,7 +472,7 @@ function renderEmployeesTable() {
     if (currentPageData.length === 0) {
         tbody.innerHTML = `
             <tr>
-                <td colspan="7" style="text-align: center; padding: 20px;">
+                <td colspan="6" style="text-align: center; padding: 20px;">
                     <i class="fas fa-search" style="font-size: 24px; color: #FF9800; margin-bottom: 10px;"></i>
                     <p>No se encontraron colaboradores que coincidan con su búsqueda.</p>
                 </td>
@@ -491,7 +484,6 @@ function renderEmployeesTable() {
     currentPageData.forEach(employee => {
         const fullName = getFullName(employee);
         const hireDate = formatDate(employee.FechaPlanilla);
-        const photoSrc = employee.FotoBase64 || '../Imagenes/user-default.png';
         const isCurrentUser = employee.IdPersonal === userData.IdPersonal;
         
         const row = document.createElement('tr');
@@ -540,12 +532,8 @@ function renderEmployeesTable() {
             diasDisponiblesStyle = `<div class="days-count" style="background-color: #4CAF50;">${employee.DiasVacaciones} días</div>`;
         }
         
+        // ✅ NUEVA ESTRUCTURA SIN COLUMNA DE FOTO:
         row.innerHTML = `
-            <td>
-                <div class="employee-photo-cell">
-                    <img src="${photoSrc}" alt="${fullName}" loading="lazy">
-                </div>
-            </td>
             <td>${fullName}${isCurrentUser ? ' <span class="current-user-badge">Usted</span>' : ''}</td>
             <td>${hireDate}</td>
             <td>${employee.AniosCumplidos} años</td>
@@ -588,7 +576,6 @@ async function openPaymentModal(employeeId) {
     const loadingSwal = mostrarCargando('Verificando información...');
     
     try {
-        // Obtener períodos con días disponibles
         const periodosDisponibles = await obtenerPeriodosConDiasDisponibles(employee);
         
         loadingSwal.close();
@@ -603,7 +590,6 @@ async function openPaymentModal(employeeId) {
             return;
         }
         
-        // Limpiar datos actuales
         currentPaymentData = {
             employeeId: employeeId,
             employee: employee,
@@ -612,32 +598,25 @@ async function openPaymentModal(employeeId) {
             diasMinimoPago: parseInt(employee.diasMiniPagoVacaciones || 0)
         };
         
-        // Actualizar datos en el modal
         const fullName = getFullName(employee);
         document.getElementById('modalEmployeeName').textContent = fullName;
         document.getElementById('modalEmployeePosition').textContent = employee.Nombre || 'Sin puesto asignado';
         document.getElementById('modalEmployeeHireDate').textContent = formatDate(employee.FechaPlanilla);
         document.getElementById('modalEmployeeYears').textContent = employee.AniosCumplidos;
         
-        const photoSrc = employee.FotoBase64 || '../Imagenes/user-default.png';
-        document.getElementById('modalEmployeePhoto').src = photoSrc;
+        // ❌ ELIMINAR esta línea:
+        // const photoSrc = employee.FotoBase64 || '../Imagenes/user-default.png';
+        // document.getElementById('modalEmployeePhoto').src = photoSrc;
         
-        // Calcular total de días disponibles
         const totalDiasDisponibles = periodosDisponibles.reduce((sum, periodo) => sum + periodo.diasDisponibles, 0);
         document.getElementById('totalAvailableDays').textContent = totalDiasDisponibles;
         
-        // Renderizar períodos disponibles
         renderPeriodos(periodosDisponibles);
         
-        // Si hay días mínimos, mostrar la información
         if (currentPaymentData.diasMinimoPago > 0) {
             mostrarInfoDiasMinimos(currentPaymentData.diasMinimoPago);
         }
         
-        // Resetear formulario
-        updatePaymentSummary();
-        
-        // Mostrar el modal
         paymentModal.style.display = 'block';
         setTimeout(() => {
             paymentModal.classList.add('show');
@@ -784,9 +763,6 @@ function handlePeriodInputChange(event) {
     } else {
         delete currentPaymentData.diasSolicitados[periodo];
     }
-    
-    // Actualizar resumen
-    updatePaymentSummary();
 }
 
 // Validar input de período
@@ -813,36 +789,6 @@ function validatePeriodInput(event) {
     } else if (value > 0) {
         input.classList.add('valid');
     }
-}
-
-// Actualizar resumen del pago
-function updatePaymentSummary() {
-    let totalDias = 0;
-    
-    // Calcular total de días solicitados
-    for (const periodo in currentPaymentData.diasSolicitados) {
-        totalDias += currentPaymentData.diasSolicitados[periodo];
-    }
-    
-    document.getElementById('totalRequestedDays').textContent = totalDias;
-    
-    // Verificar si cumple con el mínimo
-    const diasMinimos = currentPaymentData.diasMinimoPago;
-    const totalDaysElement = document.getElementById('totalRequestedDays');
-    
-    if (diasMinimos > 0) {
-        if (totalDias < diasMinimos) {
-            totalDaysElement.classList.add('invalid-amount');
-            totalDaysElement.classList.remove('valid-amount');
-        } else {
-            totalDaysElement.classList.add('valid-amount');
-            totalDaysElement.classList.remove('invalid-amount');
-        }
-    }
-    
-    // Calcular monto estimado
-    const montoEstimado = calcularMontoEstimado(currentPaymentData.employee, totalDias);
-    document.getElementById('estimatedAmount').textContent = `Q ${montoEstimado.toFixed(2)}`;
 }
 
 // Calcular monto estimado (función de ejemplo)
@@ -1027,9 +973,6 @@ function openInfoModal(employeeId) {
     document.getElementById('infoYearsService').textContent = `${employee.AniosCumplidos} años`;
     document.getElementById('infoAvailableDays').textContent = `${employee.DiasVacaciones} días`;
     document.getElementById('infoEmployeeId').textContent = employee.IdPersonal;
-    
-    const photoSrc = employee.FotoBase64 || '../Imagenes/user-default.png';
-    document.getElementById('infoEmployeePhoto').src = photoSrc;
     
     infoModal.style.display = 'block';
     setTimeout(() => {

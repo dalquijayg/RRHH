@@ -216,17 +216,14 @@ async function cargarPlanillasPendientes() {
         const departmentIds = userDepartments.map(d => d.IdDepartamento);
         const placeholders = departmentIds.map(() => '?').join(',');
         
-        // Query para obtener planillas pendientes (Estado = 0)
+        // ✅ CONSULTA ACTUALIZADA - Sin TipoPago, Mes, Anyo, IdTipoPago
         const result = await connection.query(`
             SELECT
                 p.IdPlanillaParcial,
                 p.IdDepartamentoSucursal,
                 p.MontoPlanillaParcial,
                 p.CantidadColaboradores,
-                p.IdTipoPago,
-                p.TipoPago,
-                p.Mes,
-                p.Anyo,
+                p.PeriodoPago,
                 p.IdUsuario,
                 p.NombreUsuario,
                 p.FechaRegistro,
@@ -249,15 +246,12 @@ async function cargarPlanillasPendientes() {
         
         allPlanillas = result.map(planilla => ({
             ...planilla,
-            // Formatear fechas
             FechaRegistroFormatted: corregirFechaSimple(planilla.FechaRegistro).toLocaleDateString('es-GT'),
             FechaRegistroISO: planilla.FechaRegistro,
-            // Formatear monto
             MontoFormatted: `Q ${parseFloat(planilla.MontoPlanillaParcial).toFixed(2)}`,
-            // Período formateado
-            PeriodoFormatted: formatearPeriodo(planilla.Mes, planilla.Anyo),
-            // Tipo formateado
-            TipoFormatted: planilla.IdTipoPago === 1 ? 'Quincenal' : 'Fin de Mes'
+            PeriodoData: parsearPeriodoDesdeBD(planilla.PeriodoPago),
+            PeriodoFormatted: formatearPeriodoDesdeString(planilla.PeriodoPago),
+            TipoFormatted: 'Por Período'
         }));
         
         filteredPlanillas = [...allPlanillas];
@@ -275,7 +269,30 @@ async function cargarPlanillasPendientes() {
         showLoadingState(false);
     }
 }
-
+function formatearPeriodoDesdeString(periodoString) {
+    try {
+        const periodo = parsearPeriodoDesdeBD(periodoString);
+        const fechaInicio = new Date(periodo.inicio + 'T00:00:00');
+        const fechaFin = new Date(periodo.fin + 'T00:00:00');
+        
+        const formatoFecha = { day: '2-digit', month: '2-digit', year: 'numeric' };
+        const inicioTexto = fechaInicio.toLocaleDateString('es-GT', formatoFecha);
+        const finTexto = fechaFin.toLocaleDateString('es-GT', formatoFecha);
+        
+        return `${inicioTexto} a ${finTexto}`;
+    } catch (error) {
+        console.error('Error al formatear período:', error);
+        return periodoString; // Devolver original si hay error
+    }
+}
+function parsearPeriodoDesdeBD(periodoBD) {
+    // Parsear: "2025-01-15 a 2025-01-31" -> {inicio: "2025-01-15", fin: "2025-01-31"}
+    const partes = periodoBD.split(' a ');
+    return {
+        inicio: partes[0].trim(),
+        fin: partes[1].trim()
+    };
+}
 // ===== UTILIDADES Y HELPERS =====
 function mostrarFechaActual() {
     const now = new Date();
@@ -310,15 +327,6 @@ function cargarAniosEnFiltros() {
         option.textContent = year;
         filterYear.appendChild(option);
     }
-}
-
-function formatearPeriodo(mes, anio) {
-    const meses = [
-        'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
-        'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'
-    ];
-    
-    return `${meses[mes - 1]} ${anio}`;
 }
 
 function actualizarContadorPendientes() {
@@ -568,7 +576,6 @@ function inicializarEventListeners() {
     if (filterDepartment) {
         filterDepartment.addEventListener('change', aplicarFiltros);
     }
-    
     // Botones de acción rápida
     const refreshBtn = document.getElementById('refreshData');
     if (refreshBtn) {
@@ -1122,29 +1129,27 @@ function cerrarModalFechas() {
 }
 
 // ===== EVENT LISTENERS PARA MODALES =====
-document.addEventListener('DOMContentLoaded', () => {
-    // Cerrar modal de detalle
-    const closeDetailBtn = document.getElementById('closeDetailModal');
-    if (closeDetailBtn) {
-        closeDetailBtn.addEventListener('click', cerrarModalDetalle);
+document.addEventListener('DOMContentLoaded', async () => {
+    try {
+        // Mostrar estado de carga
+        showLoadingState(true);
+        mostrarFechaActual();
+        await verificarUsuarioAutenticado();
+        await cargarInformacionUsuario();
+        await cargarDepartamentosDelUsuario();
+        inicializarEventListeners();
+        
+        // Cargar planillas pendientes
+        await cargarPlanillasPendientes();
+        
+        console.log('Aplicación inicializada correctamente');
+        
+    } catch (error) {
+        console.error('Error al inicializar la aplicación:', error);
+        mostrarErrorGeneral('Error al cargar la aplicación', error.message);
+    } finally {
+        showLoadingState(false);
     }
-    
-    // Cerrar modal de fechas
-    const closeWorkDatesBtn = document.getElementById('closeWorkDatesModal');
-    if (closeWorkDatesBtn) {
-        closeWorkDatesBtn.addEventListener('click', cerrarModalFechas);
-    }
-    
-    // Cerrar modales al hacer clic fuera
-    document.addEventListener('click', (e) => {
-        if (e.target.classList.contains('modal-overlay')) {
-            if (e.target.id === 'planillaDetailModal') {
-                cerrarModalDetalle();
-            } else if (e.target.id === 'workDatesModal') {
-                cerrarModalFechas();
-            }
-        }
-    });
 });
 
 // ===== ACCIONES RÁPIDAS DESDE BOTONES =====
@@ -1452,7 +1457,7 @@ async function actualizarEstadoPlanilla(idPlanilla, nuevoEstado, motivo, descrip
 
         // Verificar que la planilla existe y está en estado pendiente
         const verificacion = await connection.query(`
-            SELECT IdPlanillaParcial, Estado, NombreUsuario, TipoPago, Mes, Anyo 
+            SELECT IdPlanillaParcial, Estado, NombreUsuario, PeriodoPago 
             FROM PagoPlanillaParcial 
             WHERE IdPlanillaParcial = ?
         `, [idPlanilla]);
@@ -1696,6 +1701,27 @@ document.addEventListener('DOMContentLoaded', () => {
             detenerRefrescoAutomatico();
         } else {
             iniciarRefrescoAutomatico();
+        }
+    });
+    const closeDetailBtn = document.getElementById('closeDetailModal');
+    if (closeDetailBtn) {
+        closeDetailBtn.addEventListener('click', cerrarModalDetalle);
+    }
+    
+    // Cerrar modal de fechas
+    const closeWorkDatesBtn = document.getElementById('closeWorkDatesModal');
+    if (closeWorkDatesBtn) {
+        closeWorkDatesBtn.addEventListener('click', cerrarModalFechas);
+    }
+    
+    // Cerrar modales al hacer clic fuera
+    document.addEventListener('click', (e) => {
+        if (e.target.classList.contains('modal-overlay')) {
+            if (e.target.id === 'planillaDetailModal') {
+                cerrarModalDetalle();
+            } else if (e.target.id === 'workDatesModal') {
+                cerrarModalFechas();
+            }
         }
     });
 });

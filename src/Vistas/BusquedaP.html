@@ -106,14 +106,6 @@
                     <button id="exportToExcel" class="btn btn-export" title="Exportar a Excel">
                         <i class="fas fa-file-excel"></i> <span class="btn-text">Exportar a Excel</span>
                     </button>
-                    <div class="view-toggle">
-                        <button class="view-toggle-btn active" data-view="grid" title="Vista de tarjetas">
-                            <i class="fas fa-th"></i>
-                        </button>
-                        <button class="view-toggle-btn" data-view="table" title="Vista de tabla">
-                            <i class="fas fa-list"></i>
-                        </button>
-                    </div>
                 </div>
             </div>
             
@@ -125,18 +117,12 @@
                     <p>Cargando personal...</p>
                 </div>
                 
-                <!-- Vista de tarjetas (grid) -->
-                <div id="gridView" class="grid-view">
-                    <!-- Las tarjetas se cargarán dinámicamente aquí -->
-                </div>
-                
-                <!-- Vista de tabla -->
-                <div id="tableView" class="table-view" style="display: none;">
+                <!-- Solo vista de tabla -->
+                <div id="tableView" class="table-view">
                     <div class="table-responsive">
                         <table class="data-table">
                             <thead>
                                 <tr>
-                                    <th>Foto</th>
                                     <th>Nombre</th>
                                     <th>Departamento</th>
                                     <th>Puesto</th>

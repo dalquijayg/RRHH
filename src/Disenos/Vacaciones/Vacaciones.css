@@ -633,27 +633,6 @@ body {
 .employees-table tbody tr {
     transition: background-color 0.2s;
 }
-
-/* Columna de foto */
-.photo-column {
-    width: 60px;
-}
-
-.employee-photo-cell {
-    width: 40px;
-    height: 40px;
-    border-radius: 50%;
-    overflow: hidden;
-    border: 2px solid var(--color-secondary);
-    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-}
-
-.employee-photo-cell img {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-}
-
 /* Contador de días */
 .days-count {
     padding: 5px 14px;
@@ -989,15 +968,6 @@ body {
     gap: 15px;
     padding-bottom: 18px;
     border-bottom: 1px solid var(--color-light-gray);
-}
-
-.employee-photo {
-    width: 85px;
-    height: 85px;
-    border-radius: 50%;
-    overflow: hidden;
-    border: 4px solid var(--color-secondary);
-    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
 }
 
 .employee-photo img {
@@ -1947,16 +1917,6 @@ body {
 .search-result-item.selected {
    background-color: #FFE0B2;
 }
-
-.result-photo {
-   width: 38px;
-   height: 38px;
-   border-radius: 50%;
-   object-fit: cover;
-   margin-right: 12px;
-   border: 2px solid var(--color-secondary);
-}
-
 .result-info {
    flex: 1;
 }
@@ -2003,14 +1963,6 @@ body {
    display: flex;
    align-items: center;
    gap: 14px;
-}
-
-.selected-employee-photo {
-   width: 45px;
-   height: 45px;
-   border-radius: 50%;
-   object-fit: cover;
-   border: 3px solid #4CAF50;
 }
 
 .selected-employee-details {
@@ -2354,14 +2306,6 @@ body {
 .modal-search-item:hover, 
 .modal-search-item.selected {
     background-color: #f5f5f5;
-}
-
-.search-result-photo {
-    width: 45px;
-    height: 45px;
-    border-radius: 50%;
-    object-fit: cover;
-    border: 2px solid var(--color-accent-5);
 }
 
 .search-result-info {
@@ -2708,15 +2652,6 @@ textarea:focus {
        font-size: 11px;
    }
    
-   .photo-column {
-       width: 50px;
-   }
-   
-   .employee-photo-cell {
-       width: 32px;
-       height: 32px;
-   }
-   
    .btn-action {
        width: 28px;
        height: 28px;
@@ -2918,12 +2853,6 @@ textarea:focus {
    .search-result-item {
        padding: 8px 10px;
    }
-   
-   .result-photo {
-       width: 32px;
-       height: 32px;
-   }
-   
    .result-name {
        font-size: 13px;
    }
@@ -2936,11 +2865,6 @@ textarea:focus {
        padding: 10px;
        flex-direction: column;
        gap: 10px;
-   }
-   
-   .selected-employee-photo {
-       width: 40px;
-       height: 40px;
    }
    
    .selected-employee-name {
@@ -3154,16 +3078,6 @@ textarea:focus {
 .justify-center { justify-content: center; }
 .justify-between { justify-content: space-between; }
 
-.employee-photo-cell img.loading-photo {
-    background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
-    background-size: 200% 100%;
-    animation: shimmer 1.5s infinite;
-    opacity: 0.7;
-}
-
-.employee-photo-cell img {
-    transition: opacity 0.3s ease, transform 0.2s ease;
-}
 
 .employee-photo-cell img:hover {
     transform: scale(1.05);
@@ -3177,12 +3091,6 @@ textarea:focus {
     100% {
         background-position: 200% 0;
     }
-}
-
-/* Optimización para rendimiento */
-.employee-photo-cell {
-    will-change: transform;
-    backface-visibility: hidden;
 }
 
 /* Placeholders para datos que cargan */

@@ -57,7 +57,6 @@
                 <table id="employeesTable" class="employees-table">
                     <thead>
                         <tr>
-                            <th class="photo-column">Foto</th>
                             <th class="sortable" data-sort="name">Nombre Completo</th>
                             <th class="sortable" data-sort="hireDate">Fecha de Ingreso</th>
                             <th class="sortable" data-sort="years">Años de Servicio</th>
@@ -102,9 +101,6 @@
         <div class="modal-body compact-layout">
             <!-- Información del empleado (más compacta) -->
             <div class="employee-info-compact">
-                <div class="employee-photo-small">
-                    <img id="modalEmployeePhoto" src="../Imagenes/user-default.png" alt="Foto">
-                </div>
                 <div class="employee-details-compact">
                     <h3 id="modalEmployeeName">Nombre del Colaborador</h3>
                     <p id="modalEmployeePosition">Puesto</p>
@@ -122,36 +118,10 @@
                 <div class="periods-column">
                     <div class="section-header-compact">
                         <h4><i class="fas fa-calendar-check"></i> Períodos con Días Disponibles</h4>
-                        <div class="total-days-badge-compact">
-                            <span>Total disponible: <strong id="totalAvailableDays">0</strong> días</span>
-                        </div>
                     </div>
                     
                     <div id="periodsContainer" class="periods-container-compact">
                         <!-- Los períodos se cargarán dinámicamente -->
-                    </div>
-                </div>
-
-                <!-- Columna derecha: Resumen -->
-                <div class="summary-column">
-                    <div class="payment-summary-compact">
-                        <div class="summary-header-compact">
-                            <h4><i class="fas fa-file-invoice-dollar"></i> Resumen de Solicitud</h4>
-                        </div>
-                        <div class="summary-content-compact">
-                            <div class="summary-item-compact">
-                                <span class="summary-label">Total de días:</span>
-                                <span class="summary-value" id="totalRequestedDays">0</span>
-                            </div>
-                            <div class="summary-item-compact">
-                                <span class="summary-label">Monto estimado:</span>
-                                <span class="summary-value" id="estimatedAmount">Q 0.00</span>
-                            </div>
-                            <div class="summary-note-compact">
-                                <i class="fas fa-info-circle"></i>
-                                <p>El monto final será calculado por nómina.</p>
-                            </div>
-                        </div>
                     </div>
                 </div>
             </div>
@@ -178,9 +148,6 @@
             </div>
             <div class="modal-body">
                 <div class="employee-profile">
-                    <div class="employee-photo">
-                        <img id="infoEmployeePhoto" src="../Imagenes/user-default.png" alt="Foto del colaborador">
-                    </div>
                     <div class="employee-info">
                         <h3 id="infoEmployeeName">Nombre del Colaborador</h3>
                         <p id="infoEmployeePosition">Puesto</p>

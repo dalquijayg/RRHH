@@ -15,9 +15,8 @@ let diasEspeciales = [];
 let currentDepartamentoId = null;
 let fechasSemanaSanta = [];
 let planillaConfig = {
-    tipo: null,
-    mes: null,
-    anio: null,
+    fechaInicio: null,
+    fechaFin: null,
     confirmada: false
 };
 
@@ -27,7 +26,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     
     try {
         mostrarFechaActual();
-        cargarAnios();
         await cargarTarifasSalarios();
         generarFechasSemanaSanta();
         await cargarInformacionDepartamento();
@@ -40,6 +38,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (botonPDF) {
             botonPDF.addEventListener('click', generarPDFPlanilla);
         }
+        const btnAyuda = document.getElementById('btnAyuda');
+        if (btnAyuda) {
+            btnAyuda.addEventListener('click', mostrarAyudaSistema);
+        }
     } catch (error) {
         console.error('Error al inicializar la aplicación:', error);
         mostrarError('Error al inicializar la aplicación');
@@ -50,7 +52,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 function inicializarPlanillaConProgreso() {
     // Ocultar TODOS los elementos hasta que se configure
     ocultarElementosHastaConfigurar();
-    
+    configurarFechasMinimas();
     // Aplicar modo configuración al contenedor principal
     const mainContainer = document.querySelector('.main-container');
     if (mainContainer) {
@@ -195,17 +197,27 @@ function mejorarBotonConfirmacion() {
 
 // ⭐ VALIDACIÓN MEJORADA CON PROGRESO VISUAL
 function validarFormularioConProgreso() {
-    const tipo = document.getElementById('tipoQuincena').value;
-    const mes = document.getElementById('mesPlanilla').value;
-    const anio = document.getElementById('anioPlanilla').value;
+    const fechaInicio = document.getElementById('fechaInicio').value;
+    const fechaFin = document.getElementById('fechaFin').value;
     const confirmarBtn = document.getElementById('confirmarPlanilla');
     
-    const todosCompletos = tipo && mes && anio;
+    const todosCompletos = fechaInicio && fechaFin;
+    let esValido = false;
+    
+    if (todosCompletos) {
+        const validacion = validarRangoFechas(fechaInicio, fechaFin);
+        esValido = validacion.valido;
+        
+        if (!validacion.valido) {
+            // Mostrar error temporalmente
+            mostrarErrorTemporal(validacion.mensaje);
+        }
+    }
     
     if (confirmarBtn) {
-        confirmarBtn.disabled = !todosCompletos;
+        confirmarBtn.disabled = !esValido;
         
-        if (todosCompletos) {
+        if (esValido) {
             confirmarBtn.classList.add('ready');
             confirmarBtn.innerHTML = `
                 <i class="fas fa-rocket"></i>
@@ -215,30 +227,78 @@ function validarFormularioConProgreso() {
             confirmarBtn.classList.remove('ready');
             confirmarBtn.innerHTML = `
                 <i class="fas fa-cog"></i>
-                <span>Complete campos</span>
+                <span>${todosCompletos ? 'Fechas inválidas' : 'Seleccione fechas'}</span>
             `;
         }
     }
 }
-
-function cargarAnios() {
-    const select = document.getElementById('anioPlanilla');
-    const currentYear = new Date().getFullYear();
-    
-    select.innerHTML = '<option value="">Seleccione año...</option>';
-    
-    // Cargar desde año anterior hasta 2 años después
-    for (let year = currentYear - 1; year <= currentYear + 2; year++) {
-        const option = document.createElement('option');
-        option.value = year;
-        option.textContent = year;
-        if (year === currentYear) {
-            option.selected = true;
-        }
-        select.appendChild(option);
+function mostrarErrorTemporal(mensaje) {
+    const confirmarBtn = document.getElementById('confirmarPlanilla');
+    if (confirmarBtn) {
+        confirmarBtn.innerHTML = `
+            <i class="fas fa-exclamation-triangle"></i>
+            <span style="color: #ef4444;">${mensaje}</span>
+        `;
+        
+        setTimeout(() => {
+            validarFormularioConProgreso();
+        }, 3000);
+    }
+}
+function configurarFechasMinimas() {
+    const fechaInicio = document.getElementById('fechaInicio');
+    const fechaFin = document.getElementById('fechaFin');
+    if (fechaInicio && fechaFin) {
+        fechaInicio.addEventListener('change', () => {
+            if (fechaInicio.value) {
+                fechaFin.min = fechaInicio.value;
+                if (fechaFin.value && fechaFin.value < fechaInicio.value) {
+                    fechaFin.value = '';
+                }
+            }
+        });
     }
 }
 
+function validarRangoFechas(fechaInicio, fechaFin) {
+    const inicio = new Date(fechaInicio);
+    const fin = new Date(fechaFin);
+    const diferenciaDias = Math.ceil((fin - inicio) / (1000 * 60 * 60 * 24));
+    
+    if (inicio >= fin) {
+        return {
+            valido: false,
+            mensaje: 'La fecha de fin debe ser posterior a la fecha de inicio'
+        };
+    }
+    
+    if (diferenciaDias > 31) {
+        return {
+            valido: false,
+            mensaje: 'El período no puede ser mayor a 31 días'
+        };
+    }
+    
+    if (diferenciaDias < 1) {
+        return {
+            valido: false,
+            mensaje: 'El período debe ser de al menos 1 día'
+        };
+    }
+    
+    return { valido: true };
+}
+function formatearPeriodo(fechaInicio, fechaFin) {
+    // ✅ AGREGAR 'T00:00:00' para evitar problemas de zona horaria
+    const inicio = new Date(fechaInicio + 'T00:00:00');
+    const fin = new Date(fechaFin + 'T00:00:00');
+    
+    const formatoFecha = { day: '2-digit', month: '2-digit', year: 'numeric' };
+    const inicioTexto = inicio.toLocaleDateString('es-GT', formatoFecha);
+    const finTexto = fin.toLocaleDateString('es-GT', formatoFecha);
+    
+    return `${inicioTexto} a ${finTexto}`;
+}
 // Mostrar fecha actual en el header
 function mostrarFechaActual() {
     const now = new Date();
@@ -248,7 +308,6 @@ function mostrarFechaActual() {
         month: 'long', 
         day: 'numeric' 
     };
-    document.getElementById('currentDate').textContent = now.toLocaleDateString('es-GT', options);
 }
 
 async function cargarInformacionDepartamento() {
@@ -340,10 +399,6 @@ function mostrarInformacionDepartamento(departamentoInfo, userData) {
                 <span class="department-name">${departamentoInfo.NombreDepartamento}</span>
                 <span class="department-badge-header ${regionClass}">${regionTexto}</span>
             </div>
-            <div class="user-info">
-                <i class="fas fa-user"></i>
-                <span>${userData.NombreCompleto}</span>
-            </div>
         </div>
     `;
 }
@@ -392,17 +447,27 @@ async function cargarTarifasSalarios() {
 
 // ⭐ FUNCIÓN MEJORADA PARA CONFIRMAR CON TRANSICIONES
 async function confirmarSeleccionPlanillaConTransiciones() {
-    const tipo = document.getElementById('tipoQuincena').value;
-    const mes = document.getElementById('mesPlanilla').value;
-    const anio = document.getElementById('anioPlanilla').value;
+    const fechaInicio = document.getElementById('fechaInicio').value;
+    const fechaFin = document.getElementById('fechaFin').value;
     
     // Validaciones básicas
-    if (!tipo || !mes || !anio) {
+    if (!fechaInicio || !fechaFin) {
         Swal.fire({
             icon: 'warning',
-            title: 'Campos incompletos',
-            text: 'Por favor complete todos los campos antes de continuar.',
+            title: 'Fechas incompletas',
+            text: 'Por favor seleccione ambas fechas antes de continuar.',
             confirmButtonColor: '#1e40af'
+        });
+        return;
+    }
+    
+    const validacion = validarRangoFechas(fechaInicio, fechaFin);
+    if (!validacion.valido) {
+        Swal.fire({
+            icon: 'error',
+            title: 'Rango de fechas inválido',
+            text: validacion.mensaje,
+            confirmButtonColor: '#ef4444'
         });
         return;
     }
@@ -418,42 +483,43 @@ async function confirmarSeleccionPlanillaConTransiciones() {
         return;
     }
     
-    // Actualizar progreso a "verificando"
-    mostrarEstadoCarga('Verificando disponibilidad de planilla...');
+    // ✅ NUEVA VALIDACIÓN: Verificar planillas pendientes de subir comprobante
+    mostrarEstadoCarga('Verificando planillas pendientes...');
     
     try {
-        // Verificación de planilla existente
-        const planillaExistente = await verificarPlanillaExistente(tipo, mes, anio, currentDepartamentoId);
+        const planillaPendienteComprobante = await verificarPlanillasPendientesComprobante(currentDepartamentoId);
         
-        if (planillaExistente) {
-            // Ocultar estado de carga
+        if (planillaPendienteComprobante) {
             ocultarEstadoCarga();
-            
-            // Mostrar error de planilla duplicada
-            await mostrarErrorPlanillaDuplicada(planillaExistente, tipo, mes, anio);
+            await mostrarErrorPlanillaPendienteComprobante(planillaPendienteComprobante);
             return;
         }
         
-        // Si no existe, continuar con el proceso
+        // Continuar con la verificación de período existente
+        mostrarEstadoCarga('Verificando disponibilidad de período...');
+        
+        const periodoExistente = await verificarPeriodoExistente(fechaInicio, fechaFin, currentDepartamentoId);
+        
+        if (periodoExistente) {
+            ocultarEstadoCarga();
+            await mostrarErrorPeriodoDuplicado(periodoExistente, fechaInicio, fechaFin);
+            return;
+        }
+        
+        // Si todo está bien, continuar con el proceso normal...
         planillaConfig = {
-            tipo: tipo,
-            mes: parseInt(mes),
-            anio: parseInt(anio),
+            fechaInicio: fechaInicio,
+            fechaFin: fechaFin,
             confirmada: true
         };
         
-        // Actualizar progreso a "cargando colaboradores"
         actualizarProgresoVisual('collaborators');
         mostrarEstadoCarga('Configuración confirmada. Cargando colaboradores...');
         
-        // Transición suave a modo normal
         await transicionAModoNormal();
-        
-        // Actualizar interfaz
         actualizarVistaPlanillaConfirmada();
         mostrarInformacionEnHeader();
         
-        // Ocultar sección de configuración con animación
         const payrollTypeSection = document.querySelector('.payroll-type-section');
         if (payrollTypeSection) {
             payrollTypeSection.classList.add('panel-fade-out');
@@ -463,28 +529,482 @@ async function confirmarSeleccionPlanillaConTransiciones() {
             }, 500);
         }
         
-        // Cargar colaboradores
         await cargarColaboradoresConProgreso();
-        
-        // Ocultar estado de carga
         ocultarEstadoCarga();
         
     } catch (error) {
-        console.error('Error al verificar planilla:', error);
-        
-        // Ocultar estado de carga
+        console.error('Error al verificar restricciones:', error);
         ocultarEstadoCarga();
         
-        // Mostrar error
         Swal.fire({
             icon: 'error',
             title: 'Error de verificación',
-            text: 'No se pudo verificar la disponibilidad de la planilla. Intente nuevamente.',
+            text: 'No se pudo verificar las restricciones. Intente nuevamente.',
             confirmButtonColor: '#ef4444'
         });
     }
 }
+function formatearPeriodoDesdeString(periodoString) {
+    try {
+        const periodo = parsearPeriodoDesdeBD(periodoString);
+        const fechaInicio = new Date(periodo.inicio + 'T00:00:00');
+        const fechaFin = new Date(periodo.fin + 'T00:00:00');
+        
+        const formatoFecha = { day: '2-digit', month: '2-digit', year: 'numeric' };
+        const inicioTexto = fechaInicio.toLocaleDateString('es-GT', formatoFecha);
+        const finTexto = fechaFin.toLocaleDateString('es-GT', formatoFecha);
+        
+        return `${inicioTexto} a ${finTexto}`;
+    } catch (error) {
+        console.error('Error al formatear período:', error);
+        return periodoString; // Devolver original si hay error
+    }
+}
+async function mostrarErrorPlanillaPendienteComprobante(planillaPendiente) {
+    const periodoTexto = formatearPeriodoDesdeString(planillaPendiente.PeriodoPago);
+    
+    await Swal.fire({
+        icon: 'warning',
+        title: 'Comprobante Pendiente de Subir',
+        html: `
+            <div style="text-align: left; margin: 20px 0;">
+                <div style="background: linear-gradient(135deg, #fef3c7 0%, #fed7aa 100%); padding: 20px; border-radius: 12px; border: 2px solid #f59e0b; margin-bottom: 20px; box-shadow: var(--shadow-large);">
+                    <h4 style="color: #92400e; margin-bottom: 15px; text-align: center; display: flex; align-items: center; justify-content: center; gap: 8px;">
+                        <i class="fas fa-file-upload" style="font-size: 1.2rem;"></i>
+                        Planilla Requiere Comprobante
+                    </h4>
+                    
+                    <div style="display: grid; grid-template-columns: 1fr; gap: 10px; margin-bottom: 15px;">
+                        <div><strong style="color: #92400e;">📋 Planilla pendiente:</strong> ${periodoTexto}</div>
+                        <div><strong style="color: #92400e;">💰 Monto:</strong> Q ${parseFloat(planillaPendiente.MontoPlanillaParcial).toFixed(2)}</div>
+                        <div><strong style="color: #92400e;">👥 Colaboradores:</strong> ${planillaPendiente.CantidadColaboradores}</div>
+                        <div><strong style="color: #92400e;">👤 Creada por:</strong> ${planillaPendiente.NombreUsuario}</div>
+                    </div>
+                    
+                    <div style="text-align: center; padding: 15px; background: #fee2e2; border-radius: 8px; border: 2px solid #ef4444;">
+                        <div style="display: flex; align-items: center; justify-content: center; gap: 8px; margin-bottom: 5px;">
+                            <span style="font-size: 1.3rem;">📎</span>
+                            <strong style="color: #991b1b; font-size: 1.1rem;">Estado: Pendiente de Subir Comprobante</strong>
+                        </div>
+                        <div style="font-size: 0.85rem; color: #991b1b; opacity: 0.9;">
+                            Debe subir el comprobante de pago antes de crear una nueva planilla
+                        </div>
+                    </div>
+                </div>
 
+                <div style="background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%); padding: 15px; border-radius: 8px; border: 2px solid #ef4444; margin-bottom: 15px;">
+                    <p style="margin: 0; color: #991b1b; text-align: center;">
+                        <strong>🚫 No se puede crear una nueva planilla</strong><br>
+                        <span style="font-size: 0.9rem;">Primero debe completar el proceso de la planilla anterior</span>
+                    </p>
+                </div>
+                
+                <div style="background: #dbeafe; padding: 15px; border-radius: 8px; border-left: 4px solid #3b82f6;">
+                    <p style="margin: 0; color: #1e40af; text-align: center;">
+                        <strong>💡 Acción requerida:</strong> Vaya al módulo de gestión de comprobantes para subir el documento pendiente.
+                    </p>
+                </div>
+            </div>
+        `,
+        confirmButtonText: '📎 Ir a Subir Comprobante',
+        showCancelButton: true,
+        cancelButtonText: 'Entendido',
+        confirmButtonColor: '#3b82f6',
+        cancelButtonColor: '#6b7280',
+        width: '700px',
+        customClass: {
+            popup: 'pending-document-modal'
+        }
+    }).then((result) => {
+        if (result.isConfirmed) {
+            // Redirigir al módulo de subida de comprobantes
+            mostrarModuloSubidaComprobante(planillaPendiente);
+        }
+    });
+}
+function mostrarModuloSubidaComprobante(planillaPendiente) {
+    const periodoTexto = formatearPeriodoDesdeString(planillaPendiente.PeriodoPago);
+    
+    Swal.fire({
+        title: 'Subir Comprobante de Pago',
+        html: `
+            <div style="text-align: left; margin: 20px 0;">
+                <div style="background: #f0f9ff; padding: 15px; border-radius: 8px; margin-bottom: 20px; border-left: 4px solid #0891b2;">
+                    <h4 style="color: #0c5460; margin-bottom: 10px;">📋 Información de la Planilla</h4>
+                    <div><strong>Período:</strong> ${periodoTexto}</div>
+                    <div><strong>Monto:</strong> Q ${parseFloat(planillaPendiente.MontoPlanillaParcial).toFixed(2)}</div>
+                    <div><strong>Colaboradores:</strong> ${planillaPendiente.CantidadColaboradores}</div>
+                </div>
+                
+                <div style="margin-bottom: 20px;">
+                    <label style="display: block; font-weight: 600; color: var(--trust-navy); margin-bottom: 8px;">
+                        <i class="fas fa-file-pdf"></i> Seleccionar comprobante de pago (PDF):
+                    </label>
+                    <input type="file" id="comprobanteFile" accept=".pdf" style="
+                        width: 100%; 
+                        padding: 10px; 
+                        border: 2px dashed #3b82f6; 
+                        border-radius: 8px; 
+                        background: #f8fafc;
+                        cursor: pointer;
+                    ">
+                    <div style="font-size: 0.8rem; color: #6b7280; margin-top: 5px;">
+                        Solo archivos PDF. Tamaño máximo: 10MB
+                    </div>
+                </div>
+                
+                <div id="previewComprobante" style="display: none; background: #ecfdf5; padding: 10px; border-radius: 6px; border: 1px solid #22c55e;">
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        <i class="fas fa-file-pdf" style="color: #dc2626; font-size: 1.5rem;"></i>
+                        <div>
+                            <div id="fileName" style="font-weight: 600; color: #059669;"></div>
+                            <div id="fileSize" style="font-size: 0.8rem; color: #6b7280;"></div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div style="background: #fef3c7; padding: 15px; border-radius: 8px; margin-top: 15px; border-left: 4px solid #f59e0b;">
+                    <p style="margin: 0; color: #92400e; font-size: 0.9rem;">
+                        <strong>⚠️ Importante:</strong> Asegúrese de que el comprobante corresponde al período y monto mostrados arriba.
+                    </p>
+                </div>
+            </div>
+        `,
+        showCancelButton: true,
+        confirmButtonText: '📤 Subir Comprobante',
+        cancelButtonText: 'Cancelar',
+        confirmButtonColor: '#10b981',
+        cancelButtonColor: '#6b7280',
+        width: '600px',
+        preConfirm: () => {
+            const fileInput = document.getElementById('comprobanteFile');
+            const file = fileInput?.files[0];
+            
+            if (!file) {
+                Swal.showValidationMessage('Por favor seleccione un archivo PDF');
+                return false;
+            }
+            
+            if (file.type !== 'application/pdf') {
+                Swal.showValidationMessage('Solo se permiten archivos PDF');
+                return false;
+            }
+            
+            if (file.size > 10 * 1024 * 1024) { // 10MB
+                Swal.showValidationMessage('El archivo es demasiado grande (máximo 10MB)');
+                return false;
+            }
+            
+            return { file };
+        },
+        didOpen: () => {
+            // Agregar event listener para preview
+            const fileInput = document.getElementById('comprobanteFile');
+            if (fileInput) {
+                fileInput.addEventListener('change', (e) => {
+                    const file = e.target.files[0];
+                    const preview = document.getElementById('previewComprobante');
+                    const fileName = document.getElementById('fileName');
+                    const fileSize = document.getElementById('fileSize');
+                    
+                    if (file && preview && fileName && fileSize) {
+                        fileName.textContent = file.name;
+                        fileSize.textContent = `${(file.size / 1024 / 1024).toFixed(2)} MB`;
+                        preview.style.display = 'block';
+                    } else if (preview) {
+                        preview.style.display = 'none';
+                    }
+                });
+            }
+        }
+    }).then(async (result) => {
+        if (result.isConfirmed && result.value) {
+            await procesarSubidaComprobante(planillaPendiente.IdPlanillaParcial, result.value.file);
+        }
+    });
+}
+
+async function procesarSubidaComprobante(idPlanilla, archivo) {
+    try {
+        // Mostrar progreso de carga
+        Swal.fire({
+            title: 'Subiendo comprobante...',
+            html: `
+                <div style="display: flex; flex-direction: column; align-items: center; gap: 15px;">
+                    <div class="loading-spinner" style="border: 4px solid #f3f4f6; border-top: 4px solid #10b981; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite;"></div>
+                    <p style="color: #10b981; margin: 0;">Procesando archivo...</p>
+                    <div style="font-size: 0.8rem; color: #6b7280;">
+                        <div>📄 Archivo: ${archivo.name}</div>
+                        <div>📦 Tamaño: ${(archivo.size / 1024 / 1024).toFixed(2)} MB</div>
+                    </div>
+                </div>
+            `,
+            showConfirmButton: false,
+            allowOutsideClick: false
+        });
+
+        // Obtener datos del usuario
+        const userData = JSON.parse(localStorage.getItem('userData'));
+        if (!userData) {
+            throw new Error('No se encontraron datos del usuario');
+        }
+
+        // Convertir archivo a base64
+        const archivoBase64 = await convertirArchivoABase64(archivo);
+
+        // Subir a la base de datos
+        const connection = await connectionString();
+        
+        // Verificar que la planilla está en Estado 2
+        const verificacion = await connection.query(`
+            SELECT Estado FROM PagoPlanillaParcial WHERE IdPlanillaParcial = ?
+        `, [idPlanilla]);
+        
+        if (verificacion.length === 0 || verificacion[0].Estado !== 2) {
+            throw new Error('La planilla no está en el estado correcto para subir comprobante');
+        }
+
+        // Insertar documento
+        await connection.query(`
+            INSERT INTO DocumentosPlanillasParciales (
+                IdPlanillaParcial,
+                NombreArchivo,
+                DocumentoPDF,
+                IdUsuario,
+                NombreUsuario
+            ) VALUES (?, ?, ?, ?, ?)
+        `, [
+            idPlanilla,
+            archivo.name,
+            archivoBase64,
+            userData.IdPersonal,
+            userData.NombreCompleto
+        ]);
+
+        // Actualizar estado de la planilla a 3 (Documento Cargado)
+        await connection.query(`
+            UPDATE PagoPlanillaParcial 
+            SET 
+                Estado = 3
+            WHERE IdPlanillaParcial = ?
+        `, [idPlanilla]);
+
+        await connection.close();
+
+        // Cerrar loading
+        Swal.close();
+
+        // Mostrar éxito
+        await Swal.fire({
+            icon: 'success',
+            title: '¡Comprobante subido exitosamente!',
+            html: `
+                <div style="text-align: left; margin: 20px 0;">
+                    <div style="background: #ecfdf5; padding: 20px; border-radius: 8px; border: 2px solid #10b981;">
+                        <h4 style="color: #059669; margin-bottom: 15px; text-align: center;">✅ Proceso Completado</h4>
+                        
+                        <div style="margin-bottom: 10px;"><strong>📄 Archivo:</strong> ${archivo.name}</div>
+                        <div style="margin-bottom: 10px;"><strong>📦 Tamaño:</strong> ${(archivo.size / 1024 / 1024).toFixed(2)} MB</div>
+                        <div style="margin-bottom: 10px;"><strong>📅 Fecha subida:</strong> ${new Date().toLocaleDateString('es-GT')}</div>
+                        <div style="margin-bottom: 10px;"><strong>👤 Subido por:</strong> ${userData.NombreCompleto}</div>
+                        <div><strong>🔄 Nuevo estado:</strong> Documento Cargado</div>
+                    </div>
+                    
+                    <div style="background: #dbeafe; padding: 15px; border-radius: 8px; margin-top: 15px; border-left: 4px solid #3b82f6;">
+                        <p style="margin: 0; color: #1e40af;">
+                            <strong>ℹ️ Ahora puede crear nuevas planillas:</strong> El proceso anterior ha sido completado exitosamente.
+                        </p>
+                    </div>
+                </div>
+            `,
+            confirmButtonText: 'Perfecto',
+            confirmButtonColor: '#10b981',
+            width: '550px'
+        });
+
+        console.log(`Comprobante subido exitosamente para planilla ${idPlanilla}`);
+
+    } catch (error) {
+        console.error('Error al subir comprobante:', error);
+        
+        Swal.close();
+        
+        await Swal.fire({
+            icon: 'error',
+            title: 'Error al subir comprobante',
+            html: `
+                <div style="text-align: left; margin: 20px 0;">
+                    <div style="background: #fee2e2; padding: 15px; border-radius: 8px; border-left: 4px solid #ef4444;">
+                        <p style="margin-bottom: 10px; color: #991b1b;">
+                            <strong>❌ Error al procesar:</strong> ${error.message}
+                        </p>
+                    </div>
+                    
+                    <div style="background: #fef3c7; padding: 15px; border-radius: 8px; margin-top: 15px; border-left: 4px solid #f59e0b;">
+                        <p style="margin: 0; color: #92400e;">
+                            <strong>💡 Sugerencia:</strong> Verifique que el archivo sea un PDF válido e intente nuevamente.
+                        </p>
+                    </div>
+                </div>
+            `,
+            confirmButtonText: 'Entendido',
+            confirmButtonColor: '#ef4444',
+            width: '500px'
+        });
+    }
+}
+
+function convertirArchivoABase64(archivo) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        
+        reader.onload = () => {
+            // Remover el prefijo data:application/pdf;base64,
+            const base64 = reader.result.split(',')[1];
+            resolve(base64);
+        };
+        
+        reader.onerror = () => {
+            reject(new Error('Error al leer el archivo'));
+        };
+        
+        reader.readAsDataURL(archivo);
+    });
+}
+async function verificarPlanillasPendientesComprobante(departamentoId) {
+    try {
+        const connection = await connectionString();
+        
+        // Buscar planillas en Estado 2 (Pendiente de subir comprobante)
+        const result = await connection.query(`
+            SELECT 
+                p.IdPlanillaParcial,
+                p.PeriodoPago,
+                p.MontoPlanillaParcial,
+                p.CantidadColaboradores,
+                p.NombreUsuario,
+                p.FechaRegistro,
+                e.NombreEstado
+            FROM PagoPlanillaParcial p
+            INNER JOIN PagoPlanillaParcialEstados e ON p.Estado = e.IdEstadoPagoPlanillaParcial
+            WHERE 
+                p.IdDepartamentoSucursal = ? AND 
+                p.Estado = 2
+            ORDER BY p.FechaRegistro DESC
+            LIMIT 1
+        `, [departamentoId]);
+        
+        await connection.close();
+        
+        return result.length > 0 ? result[0] : null;
+        
+    } catch (error) {
+        console.error('Error al verificar planillas pendientes de comprobante:', error);
+        throw error;
+    }
+}
+async function mostrarErrorPeriodoDuplicado(periodoExistente, fechaInicio, fechaFin) {
+    const periodoNuevoTexto = formatearPeriodoSeguro(fechaInicio, fechaFin);
+    const fechaRegistro = new Date(periodoExistente.FechaRegistro).toLocaleDateString('es-GT');
+    
+    const estadoInfo = obtenerEstiloEstado(periodoExistente.IdEstado, periodoExistente.NombreEstado);
+    
+    // ✅ DETERMINAR TIPO DE CONFLICTO
+    let tituloConflicto, mensajeConflicto, colorFondo, colorBorde;
+    
+    if (periodoExistente.tipoConflicto === 'solapamiento') {
+        tituloConflicto = 'Conflicto de Fechas Detectado';
+        colorFondo = '#fee2e2';
+        colorBorde = '#ef4444';
+        
+        const periodoExistenteTexto = formatearPeriodoSeguro(
+            periodoExistente.periodoExistente.inicio, 
+            periodoExistente.periodoExistente.fin
+        );
+        
+        const diasConflictoTexto = periodoExistente.diasEnConflicto.length > 5 ? 
+            `${periodoExistente.diasEnConflicto.slice(0, 5).join(', ')}... (+${periodoExistente.diasEnConflicto.length - 5} más)` :
+            periodoExistente.diasEnConflicto.join(', ');
+        
+        mensajeConflicto = `
+            <div style="background: ${colorFondo}; padding: 15px; border-radius: 8px; border: 2px solid ${colorBorde}; margin-bottom: 15px;">
+                <h4 style="color: #991b1b; margin-bottom: 15px; text-align: center; display: flex; align-items: center; justify-content: center; gap: 8px;">
+                    <i class="fas fa-exclamation-triangle" style="font-size: 1.2rem;"></i>
+                    ${tituloConflicto}
+                </h4>
+                
+                <div style="display: grid; grid-template-columns: 1fr; gap: 10px; margin-bottom: 15px;">
+                    <div><strong style="color: #991b1b;">📅 Período que intenta crear:</strong> ${periodoNuevoTexto}</div>
+                    <div><strong style="color: #991b1b;">⚠️ Período existente en conflicto:</strong> ${periodoExistenteTexto}</div>
+                    <div><strong style="color: #991b1b;">📊 Días en conflicto:</strong> ${diasConflictoTexto}</div>
+                    <div><strong style="color: #991b1b;">👤 Creada por:</strong> ${periodoExistente.NombreUsuario}</div>
+                    <div><strong style="color: #991b1b;">📆 Fecha registro:</strong> ${fechaRegistro}</div>
+                </div>
+                
+                <div style="background: #fecaca; padding: 12px; border-radius: 6px; border-left: 4px solid #ef4444;">
+                    <p style="margin: 0; color: #991b1b; font-size: 0.9rem;">
+                        <strong>🚫 Las fechas se solapan:</strong> No se pueden crear dos planillas que cubran los mismos días laborales.
+                    </p>
+                </div>
+            </div>
+        `;
+    } else {
+        // Conflicto exacto (código original)
+        tituloConflicto = 'Período Duplicado Detectado';
+        colorFondo = '#fef3c7';
+        colorBorde = '#f59e0b';
+        
+        mensajeConflicto = `
+            <div style="background: ${colorFondo}; padding: 20px; border-radius: 12px; border: 2px solid ${colorBorde}; margin-bottom: 20px; box-shadow: var(--shadow-large);">
+                <h4 style="color: #92400e; margin-bottom: 15px; text-align: center; display: flex; align-items: center; justify-content: center; gap: 8px;">
+                    <i class="fas fa-exclamation-triangle" style="font-size: 1.2rem;"></i>
+                    ${tituloConflicto}
+                </h4>
+                
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px;">
+                    <div><strong style="color: #92400e;">📅 Período:</strong> ${periodoNuevoTexto}</div>
+                    <div><strong style="color: #92400e;">💰 Monto:</strong> Q ${parseFloat(periodoExistente.MontoPlanillaParcial).toFixed(2)}</div>
+                    <div><strong style="color: #92400e;">👥 Colaboradores:</strong> ${periodoExistente.CantidadColaboradores}</div>
+                    <div><strong style="color: #92400e;">👤 Creada por:</strong> ${periodoExistente.NombreUsuario}</div>
+                    <div style="grid-column: span 2;"><strong style="color: #92400e;">📆 Fecha registro:</strong> ${fechaRegistro}</div>
+                </div>
+            </div>
+        `;
+    }
+    
+    await Swal.fire({
+        icon: 'warning',
+        title: tituloConflicto,
+        html: `
+            <div style="text-align: left; margin: 20px 0;">
+                ${mensajeConflicto}
+                
+                <div style="text-align: center; padding: 15px; background: ${estadoInfo.fondo}; border-radius: 8px; border: 2px solid ${estadoInfo.borde};">
+                    <div style="display: flex; align-items: center; justify-content: center; gap: 8px; margin-bottom: 5px;">
+                        <span style="font-size: 1.3rem;">${estadoInfo.icono}</span>
+                        <strong style="color: ${estadoInfo.texto}; font-size: 1.1rem;">Estado: ${periodoExistente.NombreEstado}</strong>
+                    </div>
+                    <div style="font-size: 0.85rem; color: ${estadoInfo.texto}; opacity: 0.9;">
+                        ${estadoInfo.descripcion}
+                    </div>
+                </div>
+
+                <div style="background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%); padding: 15px; border-radius: 8px; border: 2px solid #ef4444; margin-top: 15px;">
+                    <p style="margin: 0; color: #991b1b; text-align: center;">
+                        <strong>🚫 No se puede crear la nueva planilla</strong><br>
+                        <span style="font-size: 0.9rem;">Los períodos no pueden tener fechas superpuestas</span>
+                    </p>
+                </div>
+            </div>
+        `,
+        confirmButtonText: 'Entendido',
+        confirmButtonColor: '#1e40af',
+        width: '800px',
+        customClass: {
+            popup: 'duplicate-planilla-modal'
+        }
+    });
+}
 // ⭐ FUNCIÓN PARA TRANSICIÓN SUAVE A MODO NORMAL
 async function transicionAModoNormal() {
     const mainContainer = document.querySelector('.main-container');
@@ -957,10 +1477,10 @@ function mostrarInformacionEnHeader() {
     const planillaInfo = document.getElementById('planillaInfo');
     const planillaBadge = document.getElementById('planillaBadge');
     
-    const tipoTexto = planillaConfig.tipo === 'quincenal' ? 'Quincenal' : 'Fin de Mes';
-    const mesNombre = new Date(planillaConfig.anio, planillaConfig.mes - 1).toLocaleDateString('es-GT', { month: 'short' });
+    // ✅ USAR FUNCIÓN SEGURA
+    const periodoTexto = formatearPeriodoSeguro(planillaConfig.fechaInicio, planillaConfig.fechaFin);
     
-    planillaBadge.textContent = `${tipoTexto} • ${mesNombre} ${planillaConfig.anio}`;
+    planillaBadge.textContent = `Período: ${periodoTexto}`;
     planillaInfo.style.display = 'flex';
 }
 
@@ -974,12 +1494,9 @@ function actualizarVistaPlanillaConfirmada() {
     form.style.display = 'none';
     confirmed.style.display = 'block';
     
-    // Actualizar textos
-    const tipoTexto = planillaConfig.tipo === 'quincenal' ? 'Planilla Quincenal' : 'Planilla Fin de Mes';
-    const mesNombre = new Date(planillaConfig.anio, planillaConfig.mes - 1).toLocaleDateString('es-GT', { month: 'long' });
-    
-    confirmedType.textContent = tipoTexto;
-    confirmedPeriod.textContent = `${mesNombre} ${planillaConfig.anio}`;
+    // ✅ USAR FUNCIÓN SEGURA
+    confirmedType.textContent = 'Período Configurado';
+    confirmedPeriod.textContent = formatearPeriodoSeguro(planillaConfig.fechaInicio, planillaConfig.fechaFin);
 }
 
 // Abrir modal del calendario
@@ -1105,13 +1622,12 @@ function actualizarCalendario() {
             }
             // ⭐ VALIDACIÓN 2: Verificar restricciones por tipo de planilla
             else {
-                const validacionPlanilla = validarFechaPorTipoPlanilla(dayDate);
+                const validacionPlanilla = validarFechaPorPeriodoConfiguracion(dayDate);
                 if (!validacionPlanilla.valida && validacionPlanilla.motivo !== 'no_configurada') {
                     dayElement.classList.add('planilla-restricted');
-                    if (validacionPlanilla.motivo === 'fuera_quincenal') {
-                        dayElement.title = `Día ${dayDate.getDate()} - Fuera del período quincenal (1-15)`;
-                    } else if (validacionPlanilla.motivo === 'fuera_fin_mes') {
-                        dayElement.title = `Día ${dayDate.getDate()} - Fuera del período fin de mes (${validacionPlanilla.rango})`;
+                    if (validacionPlanilla.motivo === 'fuera_periodo') {
+                        const periodoTexto = formatearPeriodo(validacionPlanilla.fechaInicio, validacionPlanilla.fechaFin);
+                        dayElement.title = `Día ${dayDate.getDate()} - Fuera del período configurado (${periodoTexto})`;
                     }
                     dayElement.addEventListener('click', () => seleccionarFecha(dayDate));
                 }
@@ -1176,89 +1692,46 @@ function actualizarCalendario() {
 }
 
 function validarMesActual(fecha) {
-    const fechaActual = new Date();
-    const mesActual = fechaActual.getMonth();
-    const anioActual = fechaActual.getFullYear();
+    // ✅ ELIMINAR VALIDACIÓN - Permitir cualquier fecha
+    return { valida: true };
     
-    const mesFecha = fecha.getMonth();
-    const anioFecha = fecha.getFullYear();
+    // ✅ ALTERNATIVA: Solo bloquear fechas muy antiguas (ej: más de 2 años)
+    /*
+    const fechaLimite = new Date();
+    fechaLimite.setFullYear(fechaLimite.getFullYear() - 2);
     
-    if (anioFecha < anioActual) {
+    if (fecha < fechaLimite) {
         return {
             valida: false,
-            motivo: 'anio_pasado',
-            mesActual: mesActual,
-            anioActual: anioActual,
-            mesFecha: mesFecha,
-            anioFecha: anioFecha
-        };
-    } else if (anioFecha > anioActual) {
-        return {
-            valida: false,
-            motivo: 'anio_futuro',
-            mesActual: mesActual,
-            anioActual: anioActual,
-            mesFecha: mesFecha,
-            anioFecha: anioFecha
-        };
-    } else if (mesFecha < mesActual) {
-        return {
-            valida: false,
-            motivo: 'mes_pasado',
-            mesActual: mesActual,
-            anioActual: anioActual,
-            mesFecha: mesFecha,
-            anioFecha: anioFecha
-        };
-    } else if (mesFecha > mesActual) {
-        return {
-            valida: false,
-            motivo: 'mes_futuro',
-            mesActual: mesActual,
-            anioActual: anioActual,
-            mesFecha: mesFecha,
-            anioFecha: anioFecha
+            motivo: 'muy_antigua',
+            fechaLimite: fechaLimite
         };
     }
     
     return { valida: true };
+    */
 }
 
-function validarFechaPorTipoPlanilla(fecha) {
+function validarFechaPorPeriodoConfiguracion(fecha) {
     if (!planillaConfig.confirmada) {
         return { valida: false, motivo: 'no_configurada' };
     }
     
-    const dia = fecha.getDate();
-    const ultimoDiaDelMes = new Date(fecha.getFullYear(), fecha.getMonth() + 1, 0).getDate();
+    const fechaSeleccionada = new Date(fecha);
+    const fechaInicio = new Date(planillaConfig.fechaInicio);
+    const fechaFin = new Date(planillaConfig.fechaFin);
     
-    if (planillaConfig.tipo === 'quincenal') {
-        // Planilla Quincenal: Solo días 1-15
-        if (dia >= 1 && dia <= 15) {
-            return { valida: true };
-        } else {
-            return { 
-                valida: false, 
-                motivo: 'fuera_quincenal',
-                rango: '1-15',
-                diaSeleccionado: dia
-            };
-        }
-    } else if (planillaConfig.tipo === 'fin_mes') {
-        // Planilla Fin de Mes: Solo días 16-último día
-        if (dia >= 16 && dia <= ultimoDiaDelMes) {
-            return { valida: true };
-        } else {
-            return { 
-                valida: false, 
-                motivo: 'fuera_fin_mes',
-                rango: `16-${ultimoDiaDelMes}`,
-                diaSeleccionado: dia
-            };
-        }
+    // Verificar si la fecha está dentro del rango configurado
+    if (fechaSeleccionada >= fechaInicio && fechaSeleccionada <= fechaFin) {
+        return { valida: true };
+    } else {
+        return { 
+            valida: false, 
+            motivo: 'fuera_periodo',
+            fechaInicio: planillaConfig.fechaInicio,
+            fechaFin: planillaConfig.fechaFin
+        };
     }
-    
-    return { valida: false, motivo: 'tipo_desconocido' };
 }
 
 function esDomingo(fecha) {
@@ -1268,7 +1741,7 @@ function esDomingo(fecha) {
 
 function seleccionarFecha(fecha) {
     const dateString = formatDate(fecha);
-    const validacionPlanilla = validarFechaPorTipoPlanilla(fecha);
+    const validacionPlanilla = validarFechaPorPeriodoConfiguracion(fecha);
     const validacionMesActual = validarMesActual(fecha);
     
     if (!validacionMesActual.valida) {
@@ -1277,7 +1750,7 @@ function seleccionarFecha(fecha) {
     }
     
     if (!validacionPlanilla.valida) {
-        mostrarErrorTipoPlanilla(fecha, validacionPlanilla);
+        mostrarErrorPeriodo(fecha, validacionPlanilla);
         return;
     }
     
@@ -2068,7 +2541,9 @@ function inicializarEventos() {
     addSafeEventListener('mesPlanilla', 'change', validarFormularioConProgreso);
     addSafeEventListener('anioPlanilla', 'change', validarFormularioConProgreso);
     addSafeEventListener('confirmarPlanilla', 'click', confirmarSeleccionPlanillaConTransiciones);
-    
+    addSafeEventListener('fechaInicio', 'change', validarFormularioConProgreso);
+    addSafeEventListener('fechaFin', 'change', validarFormularioConProgreso);
+
     // Resto de event listeners...
     addSafeEventListener('changePlanilla', 'click', cambiarConfiguracionPlanillaConReset);
     addSafeEventListener('searchCollaborator', 'input', filtrarColaboradores);
@@ -2154,7 +2629,7 @@ function inicializarEventos() {
             }
         });
     }
-    
+    configurarFechasMinimas();
     console.log('Event listeners inicializados correctamente');
 }
 
@@ -2201,8 +2676,8 @@ async function solicitarAutorizacionPlanilla() {
     const totalColaboradores = payrollCollaborators.length;
     const totalTurnos = payrollCollaborators.reduce((sum, c) => sum + c.totalTurnos, 0);
     const totalPago = payrollCollaborators.reduce((sum, c) => sum + c.totalPago, 0);
-    const tipoPlanillaTexto = planillaConfig.tipo === 'quincenal' ? 'Planilla Quincenal' : 'Planilla Fin de Mes';
-    const mesNombre = new Date(planillaConfig.anio, planillaConfig.mes - 1).toLocaleDateString('es-GT', { month: 'long' });
+    const tipoPlanillaTexto = 'Planilla por Período';
+    const periodoTexto = formatearPeriodoSeguro(planillaConfig.fechaInicio, planillaConfig.fechaFin);
     
     // Obtener nombre del departamento
     const nombreDepartamento = await obtenerInfoDepartamentoParaResumen();
@@ -2216,7 +2691,7 @@ async function solicitarAutorizacionPlanilla() {
                     
                     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px;">
                         <div><strong>Tipo:</strong> ${tipoPlanillaTexto}</div>
-                        <div><strong>Período:</strong> ${mesNombre} ${planillaConfig.anio}</div>
+                        <div><strong>Período:</strong> ${periodoTexto}</div>
                         <div><strong>Colaboradores:</strong> ${totalColaboradores}</div>
                         <div><strong>Total turnos:</strong> ${totalTurnos}</div>
                     </div>
@@ -2285,21 +2760,15 @@ async function guardarPlanillaEnBD() {
                 IdDepartamentoSucursal,
                 MontoPlanillaParcial,
                 CantidadColaboradores,
-                IdTipoPago,
-                TipoPago,
-                Mes,
-                Anyo,
+                PeriodoPago,
                 IdUsuario,
                 NombreUsuario
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?)
         `, [
             currentDepartamentoId,
-            totalPagoRedondeado, // ⭐ MONTO REDONDEADO
+            totalPagoRedondeado,
             totalColaboradores.toString(),
-            idTipoPago,
-            tipoPagoTexto,
-            planillaConfig.mes.toString(),
-            planillaConfig.anio.toString(),
+            formatearPeriodoParaBD(planillaConfig.fechaInicio, planillaConfig.fechaFin),
             idUsuario,
             nombreUsuario
         ]);
@@ -2454,9 +2923,8 @@ function limpiarTodaLaPlanillaCompleta() {
     
     // ===== PASO 2: RESETEAR CONFIGURACIÓN DE PLANILLA =====
     planillaConfig = {
-        tipo: null,
-        mes: null,
-        anio: null,
+        fechaInicio: null,
+        fechaFin: null,
         confirmada: false
     };
     
@@ -2465,7 +2933,11 @@ function limpiarTodaLaPlanillaCompleta() {
     const mesPlanilla = document.getElementById('mesPlanilla');
     const anioPlanilla = document.getElementById('anioPlanilla');
     const confirmarBtn = document.getElementById('confirmarPlanilla');
-    
+    const fechaInicio = document.getElementById('fechaInicio');
+    const fechaFin = document.getElementById('fechaFin');
+
+    if (fechaInicio) fechaInicio.value = '';
+    if (fechaFin) fechaFin.value = '';
     if (tipoQuincena) tipoQuincena.value = '';
     if (mesPlanilla) mesPlanilla.value = '';
     if (anioPlanilla) anioPlanilla.value = '';
@@ -2751,47 +3223,25 @@ function mostrarErrorMesActual(fecha, validacion) {
     });
 }
 
-function mostrarErrorTipoPlanilla(fecha, validacion) {
+function mostrarErrorPeriodo(fecha, validacion) {
     const fechaFormateada = formatDateDisplay(fecha);
-    const mesNombre = fecha.toLocaleDateString('es-GT', { month: 'long' });
-    const anio = fecha.getFullYear();
     
-    let titulo, mensaje, colorFondo, colorBorde, colorTexto, icono;
+    let titulo, mensaje, icono;
     
-    if (validacion.motivo === 'fuera_quincenal') {
-        titulo = 'Fuera del período quincenal';
+    if (validacion.motivo === 'fuera_periodo') {
+        titulo = 'Fuera del período configurado';
         icono = 'warning';
-        colorFondo = '#fef3c7';
-        colorBorde = '#f59e0b';
-        colorTexto = '#92400e';
+        
+        const periodoTexto = formatearPeriodo(validacion.fechaInicio, validacion.fechaFin);
+        
         mensaje = `
             <div style="text-align: left; margin: 20px 0;">
                 <p><strong>📅 Fecha seleccionada:</strong> ${fechaFormateada}</p>
-                <p><strong>📋 Tipo de planilla:</strong> Planilla Quincenal</p>
-                <p><strong>📊 Día seleccionado:</strong> ${validacion.diaSeleccionado}</p>
+                <p><strong>📋 Período configurado:</strong> ${periodoTexto}</p>
                 <br>
-                <div style="background: ${colorFondo}; padding: 15px; border-radius: 8px; border-left: 4px solid ${colorBorde};">
-                    <p style="margin: 0; color: ${colorTexto};">
-                        <strong>⚠️ Restricción de planilla:</strong> La planilla quincenal solo permite seleccionar días del <strong>1 al 15</strong> de ${mesNombre} ${anio}.
-                    </p>
-                </div>
-            </div>
-        `;
-    } else if (validacion.motivo === 'fuera_fin_mes') {
-        titulo = 'Fuera del período de fin de mes';
-        icono = 'warning';
-        colorFondo = '#fecaca';
-        colorBorde = '#ef4444';
-        colorTexto = '#991b1b';
-        mensaje = `
-            <div style="text-align: left; margin: 20px 0;">
-                <p><strong>📅 Fecha seleccionada:</strong> ${fechaFormateada}</p>
-                <p><strong>📋 Tipo de planilla:</strong> Planilla Fin de Mes</p>
-                <p><strong>📊 Día seleccionado:</strong> ${validacion.diaSeleccionado}</p>
-                <br>
-                <div style="background: ${colorFondo}; padding: 15px; border-radius: 8px; border-left: 4px solid ${colorBorde};">
-                    <p style="margin: 0; color: ${colorTexto};">
-                        <strong>🚫 Restricción de planilla:</strong> La planilla de fin de mes solo permite seleccionar días del <strong>${validacion.rango}</strong> de ${mesNombre} ${anio}.
+                <div style="background: #fef3c7; padding: 15px; border-radius: 8px; border-left: 4px solid #f59e0b;">
+                    <p style="margin: 0; color: #92400e;">
+                        <strong>⚠️ Restricción de período:</strong> Solo se pueden asignar turnos dentro del período configurado.
                     </p>
                 </div>
             </div>
@@ -2821,21 +3271,28 @@ function mostrarErrorTipoPlanilla(fecha, validacion) {
         width: '600px'
     });
 }
-
+function formatearPeriodoParaBD(fechaInicio, fechaFin) {
+    // Formato: "2025-01-15 a 2025-01-31"
+    return `${fechaInicio} a ${fechaFin}`;
+}
+function parsearPeriodoDesdeBD(periodoBD) {
+    // Parsear: "2025-01-15 a 2025-01-31" -> {inicio: "2025-01-15", fin: "2025-01-31"}
+    const partes = periodoBD.split(' a ');
+    return {
+        inicio: partes[0],
+        fin: partes[1]
+    };
+}
 //Valiación de planillas duplicadas
-async function verificarPlanillaExistente(tipo, mes, anio, departamentoId) {
+async function verificarPeriodoExistente(fechaInicio, fechaFin, departamentoId) {
     try {
         const connection = await connectionString();
         
-        // Determinar IdTipoPago basado en el tipo de planilla
-        const idTipoPago = tipo === 'quincenal' ? 1 : 2;
-        
+        // ✅ NUEVA CONSULTA: Obtener TODOS los períodos activos del departamento
         const result = await connection.query(`
             SELECT 
                 p.IdPlanillaParcial,
-                p.TipoPago,
-                p.Mes,
-                p.Anyo,
+                p.PeriodoPago,
                 p.MontoPlanillaParcial,
                 p.CantidadColaboradores,
                 p.NombreUsuario,
@@ -2845,34 +3302,50 @@ async function verificarPlanillaExistente(tipo, mes, anio, departamentoId) {
             FROM PagoPlanillaParcial p
             INNER JOIN PagoPlanillaParcialEstados e ON p.Estado = e.IdEstadoPagoPlanillaParcial
             WHERE 
-                p.IdDepartamentoSucursal = ? AND 
-                p.IdTipoPago = ? AND 
-                p.Mes = ? AND 
-                p.Anyo = ?
+                p.IdDepartamentoSucursal = ? AND
+                p.Estado != 6
             ORDER BY p.FechaRegistro DESC
-        `, [departamentoId, idTipoPago, mes.toString(), anio.toString()]);
+        `, [departamentoId]);
         
         await connection.close();
         
-        // ⭐ NUEVA LÓGICA: Si no hay resultados, no existe planilla
+        // Si no hay resultados, no existe conflicto
         if (result.length === 0) {
             return null;
         }
         
-        // ⭐ NUEVA LÓGICA: Filtrar planillas activas (excluir anuladas)
-        const planillasActivas = result.filter(planilla => planilla.IdEstado !== 6);
-        
-        // Si solo hay planillas anuladas, permitir crear nueva
-        if (planillasActivas.length === 0) {
-            console.log('Solo se encontraron planillas anuladas, permitiendo crear nueva planilla');
-            return null;
+        // ✅ NUEVA LÓGICA: Verificar solapamiento con cada período existente
+        for (const planillaExistente of result) {
+            const periodoExistente = parsearPeriodoDesdeBD(planillaExistente.PeriodoPago);
+            
+            // Verificar si hay solapamiento
+            const haySolapamiento = verificarSolapamientoFechas(
+                fechaInicio, fechaFin,
+                periodoExistente.inicio, periodoExistente.fin
+            );
+            
+            if (haySolapamiento) {
+                // ✅ AGREGAR información del conflicto
+                const diasConflicto = obtenerDiasEnConflicto(
+                    fechaInicio, fechaFin,
+                    periodoExistente.inicio, periodoExistente.fin
+                );
+                
+                return {
+                    ...planillaExistente,
+                    tipoConflicto: 'solapamiento',
+                    periodoExistente: periodoExistente,
+                    periodoNuevo: { inicio: fechaInicio, fin: fechaFin },
+                    diasEnConflicto: diasConflicto
+                };
+            }
         }
         
-        // Si hay planillas activas, devolver la más reciente
-        return planillasActivas[0];
+        // Si llegamos aquí, no hay conflictos
+        return null;
         
     } catch (error) {
-        console.error('Error al verificar planilla existente:', error);
+        console.error('Error al verificar período existente:', error);
         throw error;
     }
 }
@@ -2965,16 +3438,13 @@ async function verificarPlanillaEstado1() {
 
         const connection = await connectionString();
         
-        // Buscar planillas en Estado 1 (Autorizado) del departamento actual
+        // ✅ BUSCAR solo planillas en Estado 1 (Autorizado), no Estado 2 (Documento Descargado)
         const result = await connection.query(`
             SELECT 
                 p.IdPlanillaParcial,
-                p.TipoPago,
-                p.Mes,
-                p.Anyo,
+                p.PeriodoPago,
                 p.MontoPlanillaParcial,
                 p.CantidadColaboradores,
-                p.IdTipoPago,
                 p.FechaRegistro,
                 e.NombreEstado
             FROM PagoPlanillaParcial p
@@ -2989,7 +3459,7 @@ async function verificarPlanillaEstado1() {
         await connection.close();
         
         if (result.length > 0) {
-            console.log('Planilla encontrada en Estado 1:', result[0]);
+            console.log('Planilla encontrada en Estado 1 (Autorizado):', result[0]);
             return result[0];
         }
         
@@ -3019,17 +3489,16 @@ async function actualizarVisibilidadBotonPDF() {
             botonPDF.disabled = false;
             botonPDF.classList.add('ready');
             
-            // Actualizar tooltip con información de la planilla
-            const tipoTexto = planillaAutorizada.IdTipoPago === 1 ? 'Quincenal' : 'Fin de Mes';
-            const mesNombre = new Date(planillaAutorizada.Anyo, planillaAutorizada.Mes - 1)
-                .toLocaleDateString('es-GT', { month: 'long' });
+            // Actualizar tooltip con información del período
+            const periodo = parsearPeriodoDesdeBDSeguro(planillaAutorizada.PeriodoPago);
+            const periodoTexto = formatearPeriodoSeguro(periodo.inicio, periodo.fin);
             
-            botonPDF.title = `Descargar PDF - ${tipoTexto} ${mesNombre} ${planillaAutorizada.Anyo}`;
+            botonPDF.title = `Descargar PDF - Período ${periodoTexto}`;
             
             // Guardar datos de la planilla para el PDF
             window.planillaParaPDF = planillaAutorizada;
             
-            console.log('Botón PDF habilitado para planilla:', planillaAutorizada.IdPlanillaParcial);
+            console.log('✅ Botón PDF habilitado para planilla:', planillaAutorizada.IdPlanillaParcial);
             
         } else {
             // Ocultar botón PDF
@@ -3038,7 +3507,7 @@ async function actualizarVisibilidadBotonPDF() {
             botonPDF.classList.remove('ready');
             window.planillaParaPDF = null;
             
-            console.log('No hay planillas autorizadas - Botón PDF oculto');
+            console.log('ℹ️ No hay planillas en Estado 1 (Autorizado) - Botón PDF oculto');
         }
         
     } catch (error) {
@@ -3074,16 +3543,42 @@ async function generarPDFPlanilla() {
         // Generar el PDF
         await crearDocumentoPDF(datosCompletos);
 
+        // ✅ NUEVO: Actualizar estado a "Documento Descargado" (Estado 2)
+        await actualizarEstadoDespuesDeDescargarPDF(window.planillaParaPDF.IdPlanillaParcial);
+
         // Cerrar indicador de carga
         Swal.close();
 
-        // Mostrar confirmación
-        Swal.fire({
+        // Mostrar confirmación mejorada
+        await Swal.fire({
             icon: 'success',
-            title: '¡PDF Generado!',
-            text: 'El documento PDF ha sido generado exitosamente',
-            confirmButtonColor: '#10b981'
+            title: '¡PDF Generado y Descargado!',
+            html: `
+                <div style="text-align: left; margin: 20px 0;">
+                    <div style="background: #ecfdf5; padding: 20px; border-radius: 8px; border: 2px solid #10b981;">
+                        <h4 style="color: #059669; margin-bottom: 15px; text-align: center;">✅ Proceso Completado</h4>
+                        
+                        <div style="margin-bottom: 10px;"><strong>📄 Documento:</strong> PDF generado exitosamente</div>
+                        <div style="margin-bottom: 10px;"><strong>📥 Descarga:</strong> Archivo guardado en su dispositivo</div>
+                        <div style="margin-bottom: 10px;"><strong>📋 Planilla:</strong> ${datosCompletos.planilla.PeriodoPago}</div>
+                        <div style="margin-bottom: 10px;"><strong>👥 Colaboradores:</strong> ${datosCompletos.colaboradores.length}</div>
+                        <div><strong>🔄 Estado actualizado:</strong> Documento Descargado</div>
+                    </div>
+                    
+                    <div style="background: #dbeafe; padding: 15px; border-radius: 8px; margin-top: 15px; border-left: 4px solid #3b82f6;">
+                        <p style="margin: 0; color: #1e40af;">
+                            <strong>ℹ️ Siguiente paso:</strong> La planilla ahora está marcada como documento descargado y lista para el siguiente proceso.
+                        </p>
+                    </div>
+                </div>
+            `,
+            confirmButtonText: 'Perfecto',
+            confirmButtonColor: '#10b981',
+            width: '550px'
         });
+
+        // ✅ NUEVO: Actualizar visibilidad del botón PDF (ya no debería estar disponible)
+        await actualizarVisibilidadBotonPDF();
 
     } catch (error) {
         console.error('Error al generar PDF:', error);
@@ -3098,21 +3593,88 @@ async function generarPDFPlanilla() {
         });
     }
 }
+async function actualizarEstadoDespuesDeDescargarPDF(idPlanilla) {
+    try {
+        // Obtener datos del usuario logueado
+        const userData = JSON.parse(localStorage.getItem('userData'));
+        if (!userData) {
+            throw new Error('No se encontraron datos del usuario para actualizar el estado');
+        }
+
+        const connection = await connectionString();
+        
+        // Verificar que la planilla está en Estado 1 (Autorizado)
+        const verificacion = await connection.query(`
+            SELECT IdPlanillaParcial, Estado, PeriodoPago, NombreUsuario 
+            FROM PagoPlanillaParcial 
+            WHERE IdPlanillaParcial = ? AND Estado = 1
+        `, [idPlanilla]);
+
+        if (verificacion.length === 0) {
+            throw new Error('La planilla no está en estado autorizado o no existe');
+        }
+
+        // Actualizar el estado a 2 (Documento Descargado)
+        const updateResult = await connection.query(`
+            UPDATE PagoPlanillaParcial 
+            SET 
+                Estado = 2
+            WHERE IdPlanillaParcial = ? AND Estado = 1
+        `, [
+            idPlanilla
+        ]);
+
+        await connection.close();
+
+        if (updateResult.affectedRows === 0) {
+            throw new Error('No se pudo actualizar el estado de la planilla');
+        }
+
+        console.log(`Estado de planilla ${idPlanilla} actualizado a "Documento Descargado" por ${userData.NombreCompleto}`);
+
+    } catch (error) {
+        console.error('Error al actualizar estado después de descarga:', error);
+        
+        // ⚠️ IMPORTANTE: No lanzar error aquí para no interrumpir el flujo del PDF
+        // Solo registrar el error y continuar
+        console.warn('El PDF se generó correctamente, pero no se pudo actualizar el estado automáticamente');
+        
+        // Mostrar notificación no bloqueante
+        setTimeout(() => {
+            Swal.fire({
+                icon: 'warning',
+                title: 'Advertencia',
+                text: 'El PDF se generó correctamente, pero no se pudo actualizar el estado automáticamente. Contacte al administrador.',
+                timer: 5000,
+                toast: true,
+                position: 'top-end',
+                showConfirmButton: false
+            });
+        }, 2000);
+    }
+}
 async function obtenerDatosCompletosParaPDF(idPlanilla) {
     try {
         const connection = await connectionString();
+        const estadoCheck = await connection.query(`
+            SELECT Estado FROM PagoPlanillaParcial WHERE IdPlanillaParcial = ?
+        `, [idPlanilla]);
         
-        // ===== CONSULTA MODIFICADA PARA INCLUIR NOMBRE AUTORIZÓ =====
+        if (estadoCheck.length === 0) {
+            throw new Error('Planilla no encontrada');
+        }
+        
+        if (estadoCheck[0].Estado !== 1) {
+            throw new Error(`La planilla no está en estado autorizado (Estado actual: ${estadoCheck[0].Estado})`);
+        }
+        // ✅ CONSULTA ACTUALIZADA - Sin TipoPago, Mes, Anyo, IdTipoPago
         const planillaQuery = await connection.query(`
             SELECT 
                 p.IdPlanillaParcial,
-                p.TipoPago,
-                p.Mes,
-                p.Anyo,
+                p.PeriodoPago,
                 p.MontoPlanillaParcial,
                 p.CantidadColaboradores,
                 p.FechaRegistro,
-                p.IdTipoPago,
                 p.NombreUsuario,
                 p.NombreUsuarioAutoriza,
                 d.NombreDepartamento
@@ -3147,7 +3709,7 @@ async function obtenerDatosCompletosParaPDF(idPlanilla) {
         await connection.close();
 
         return {
-            planilla: planilla, // ✅ Ahora incluye NombreUsuario y NombreUsuarioAutorizo
+            planilla: planilla, // ✅ Ahora incluye PeriodoPago en lugar de TipoPago/Mes/Anyo
             colaboradores: colaboradoresProcesados,
             fechaGeneracion: new Date()
         };
@@ -3306,16 +3868,17 @@ function dibujarEncabezado(doc, datos, margin, currentY, pageWidth) {
     doc.setTextColor(0, 0, 0);
     doc.text(planilla.NombreDepartamento, col1X + 3, textY + 5);
 
+    // ✅ ACTUALIZAR PERÍODO EN LUGAR DE MES/AÑO
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(55, 65, 81);
     doc.text('PERÍODO:', col1X + 3, textY + 12);
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(0, 0, 0);
-    const mesNombre = new Date(planilla.Anyo, planilla.Mes - 1).toLocaleDateString('es-GT', { 
-        month: 'long', 
-        year: 'numeric' 
-    });
-    doc.text(mesNombre.toUpperCase(), col1X + 3, textY + 17);
+    
+    // ✅ PARSEAR Y FORMATEAR EL PERÍODO
+    const periodo = parsearPeriodoDesdeBDSeguro(planilla.PeriodoPago);
+    const periodoTexto = formatearPeriodoSeguro(periodo.inicio, periodo.fin);
+    doc.text(periodoTexto.toUpperCase(), col1X + 3, textY + 17);
 
     // Columna derecha
     doc.setFont('helvetica', 'bold');
@@ -3323,7 +3886,7 @@ function dibujarEncabezado(doc, datos, margin, currentY, pageWidth) {
     doc.text('TIPO DE PAGO:', col2X + 3, textY);
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(0, 0, 0);
-    doc.text(planilla.TipoPago.toUpperCase(), col2X + 3, textY + 5);
+    doc.text('PLANILLA POR PERÍODO', col2X + 3, textY + 5); // ✅ TEXTO FIJO
 
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(55, 65, 81);
@@ -3673,11 +4236,13 @@ function dibujarPiePagina(doc, datos, pageWidth, pageHeight, margin) {
     doc.text(`Página 1`, pageWidth - margin, y, { align: 'right' });
 }
 function generarNombreArchivo(planilla) {
-    const tipoCorto = planilla.IdTipoPago === 1 ? 'Quincenal' : 'FinMes';
-    const mes = planilla.Mes.toString().padStart(2, '0');
+    // ✅ USAR EL PERÍODO EN LUGAR DE TIPO/MES/AÑO
+    const periodo = parsearPeriodoDesdeBD(planilla.PeriodoPago);
+    const fechaInicio = periodo.inicio.replace(/-/g, ''); // 20250115
+    const fechaFin = periodo.fin.replace(/-/g, ''); // 20250131
     const fecha = new Date().toISOString().split('T')[0];
     
-    return `Planilla_${tipoCorto}_${mes}_${planilla.Anyo}_${fecha}.pdf`;
+    return `Planilla_Periodo_${fechaInicio}_${fechaFin}_${fecha}.pdf`;
 }
 function separarApellidosYNombres(nombreCompleto) {
     const partes = nombreCompleto.trim().split(' ');
@@ -3852,6 +4417,268 @@ function dibujarSeccionFirmas(doc, datosCompletos, margin, currentY, pageWidth) 
     doc.setFontSize(9);
     
     return currentY;
+}
+// Solapamiento en Rangos de Fecha
+function verificarSolapamientoFechas(inicio1, fin1, inicio2, fin2) {
+    // Convertir strings a objetos Date para comparación
+    const fechaInicio1 = new Date(inicio1);
+    const fechaFin1 = new Date(fin1);
+    const fechaInicio2 = new Date(inicio2);
+    const fechaFin2 = new Date(fin2);
+
+    return (
+        (fechaInicio1 <= fechaFin2 && fechaFin1 >= fechaInicio2) ||
+        (fechaInicio2 <= fechaFin1 && fechaFin2 >= fechaInicio1)
+    );
+}
+function obtenerDiasEnConflicto(inicio1, fin1, inicio2, fin2) {
+    const fechaInicio1 = new Date(inicio1);
+    const fechaFin1 = new Date(fin1);
+    const fechaInicio2 = new Date(inicio2);
+    const fechaFin2 = new Date(fin2);
+    
+    // Encontrar el rango de solapamiento
+    const inicioSolapamiento = new Date(Math.max(fechaInicio1.getTime(), fechaInicio2.getTime()));
+    const finSolapamiento = new Date(Math.min(fechaFin1.getTime(), fechaFin2.getTime()));
+    
+    const diasConflicto = [];
+    const fechaActual = new Date(inicioSolapamiento);
+    
+    while (fechaActual <= finSolapamiento) {
+        diasConflicto.push(new Date(fechaActual).toLocaleDateString('es-GT', {
+            day: '2-digit',
+            month: '2-digit',
+            year: 'numeric'
+        }));
+        fechaActual.setDate(fechaActual.getDate() + 1);
+    }
+    
+    return diasConflicto;
+}
+function formatearPeriodoSeguro(fechaInicio, fechaFin) {
+    // Crear fechas sin problemas de zona horaria
+    const inicio = new Date(fechaInicio + 'T00:00:00');
+    const fin = new Date(fechaFin + 'T00:00:00');
+    
+    const formatoFecha = { day: '2-digit', month: '2-digit', year: 'numeric' };
+    const inicioTexto = inicio.toLocaleDateString('es-GT', formatoFecha);
+    const finTexto = fin.toLocaleDateString('es-GT', formatoFecha);
+    
+    return `${inicioTexto} a ${finTexto}`;
+}
+function parsearPeriodoDesdeBDSeguro(periodoBD) {
+    // Parsear: "2025-01-15 a 2025-01-31" -> {inicio: "2025-01-15", fin: "2025-01-31"}
+    const partes = periodoBD.split(' a ');
+    return {
+        inicio: partes[0].trim(),
+        fin: partes[1].trim()
+    };
+}
+// ===== FUNCIÓN DE AYUDA DEL SISTEMA =====
+function mostrarAyudaSistema() {
+    Swal.fire({
+        title: '📋 Guía del Sistema de Planillas',
+        html: `
+            <div style="text-align: left; max-height: 70vh; overflow-y: auto; padding: 0 10px;">
+                
+                <!-- INTRODUCCIÓN -->
+                <div style="background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%); padding: 15px; border-radius: 8px; margin-bottom: 20px; border-left: 4px solid #3b82f6;">
+                    <h3 style="color: #1e40af; margin-bottom: 10px; display: flex; align-items: center; gap: 8px;">
+                        <i class="fas fa-info-circle"></i>
+                        ¿Qué es este sistema?
+                    </h3>
+                    <p style="margin: 0; color: #1e40af; line-height: 1.5;">
+                        Sistema para gestionar planillas de pago de <strong>colaboradores de tiempo parcial</strong>. 
+                        Permite asignar turnos, calcular pagos automáticamente y generar documentos oficiales.
+                    </p>
+                </div>
+
+                <!-- PASOS PRINCIPALES -->
+                <div style="background: #f0fdf4; padding: 15px; border-radius: 8px; margin-bottom: 20px; border-left: 4px solid #22c55e;">
+                    <h3 style="color: #15803d; margin-bottom: 15px; display: flex; align-items: center; gap: 8px;">
+                        <i class="fas fa-list-ol"></i>
+                        Pasos para usar el sistema
+                    </h3>
+                    
+                    <div style="display: grid; gap: 12px;">
+                        <div style="display: flex; align-items: start; gap: 10px;">
+                            <span style="background: #22c55e; color: white; border-radius: 50%; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; font-size: 0.8rem; font-weight: bold; flex-shrink: 0;">1</span>
+                            <div>
+                                <strong style="color: #15803d;">Configurar Planilla:</strong>
+                                <span style="color: #374151;">Seleccione las fechas de inicio y fin del período de pago.</span>
+                            </div>
+                        </div>
+                        
+                        <div style="display: flex; align-items: start; gap: 10px;">
+                            <span style="background: #22c55e; color: white; border-radius: 50%; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; font-size: 0.8rem; font-weight: bold; flex-shrink: 0;">2</span>
+                            <div>
+                                <strong style="color: #15803d;">Elegir Colaborador:</strong>
+                                <span style="color: #374151;">Busque y seleccione un colaborador de la lista.</span>
+                            </div>
+                        </div>
+                        
+                        <div style="display: flex; align-items: start; gap: 10px;">
+                            <span style="background: #22c55e; color: white; border-radius: 50%; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; font-size: 0.8rem; font-weight: bold; flex-shrink: 0;">3</span>
+                            <div>
+                                <strong style="color: #15803d;">Asignar Turnos:</strong>
+                                <span style="color: #374151;">Use el calendario para asignar turnos en las fechas deseadas.</span>
+                            </div>
+                        </div>
+                        
+                        <div style="display: flex; align-items: start; gap: 10px;">
+                            <span style="background: #22c55e; color: white; border-radius: 50%; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; font-size: 0.8rem; font-weight: bold; flex-shrink: 0;">4</span>
+                            <div>
+                                <strong style="color: #15803d;">Generar Planilla:</strong>
+                                <span style="color: #374151;">Agregue el colaborador a la planilla y repita con otros colaboradores.</span>
+                            </div>
+                        </div>
+                        
+                        <div style="display: flex; align-items: start; gap: 10px;">
+                            <span style="background: #22c55e; color: white; border-radius: 50%; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; font-size: 0.8rem; font-weight: bold; flex-shrink: 0;">5</span>
+                            <div>
+                                <strong style="color: #15803d;">Solicitar Autorización:</strong>
+                                <span style="color: #374151;">Una vez completa, solicite autorización para procesar la planilla.</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- TIPOS DE TURNOS -->
+                <div style="background: #fef3c7; padding: 15px; border-radius: 8px; margin-bottom: 20px; border-left: 4px solid #f59e0b;">
+                    <h3 style="color: #92400e; margin-bottom: 15px; display: flex; align-items: center; gap: 8px;">
+                        <i class="fas fa-clock"></i>
+                        Tipos de Turnos Disponibles
+                    </h3>
+                    
+                    <div style="display: grid; gap: 10px;">
+                        <div style="display: flex; align-items: center; gap: 10px; padding: 8px; background: rgba(251, 146, 60, 0.1); border-radius: 6px;">
+                            <span style="font-size: 1.2rem;">☀️</span>
+                            <div>
+                                <strong style="color: #ea580c;">Turno Mañana:</strong>
+                                <span style="color: #92400e;">Jornada matutina completa</span>
+                            </div>
+                        </div>
+                        
+                        <div style="display: flex; align-items: center; gap: 10px; padding: 8px; background: rgba(107, 114, 128, 0.1); border-radius: 6px;">
+                            <span style="font-size: 1.2rem;">🌙</span>
+                            <div>
+                                <strong style="color: #374151;">Turno Mixto:</strong>
+                                <span style="color: #6b7280;">Jornada tarde-noche</span>
+                            </div>
+                        </div>
+                        
+                        <div style="display: flex; align-items: center; gap: 10px; padding: 8px; background: rgba(34, 197, 94, 0.1); border-radius: 6px;">
+                            <span style="font-size: 1.2rem;">🕐</span>
+                            <div>
+                                <strong style="color: #16a34a;">Turno 4 Horas:</strong>
+                                <span style="color: #059669;">Jornada parcial (puede ser con tarifa de mañana o mixta)</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- VALIDACIONES Y RESTRICCIONES -->
+                <div style="background: #fee2e2; padding: 15px; border-radius: 8px; margin-bottom: 20px; border-left: 4px solid #ef4444;">
+                    <h3 style="color: #dc2626; margin-bottom: 15px; display: flex; align-items: center; gap: 8px;">
+                        <i class="fas fa-exclamation-triangle"></i>
+                        Validaciones y Restricciones
+                    </h3>
+                    
+                    <div style="display: grid; gap: 8px; font-size: 0.9rem;">
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <span style="color: #dc2626;">🚫</span>
+                            <span style="color: #7f1d1d;"><strong>Domingos:</strong> No se pueden asignar turnos los domingos</span>
+                        </div>
+                        
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <span style="color: #dc2626;">📅</span>
+                            <span style="color: #7f1d1d;"><strong>Límite semanal:</strong> Máximo 4 días laborables por semana</span>
+                        </div>
+                        
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <span style="color: #dc2626;">🎉</span>
+                            <span style="color: #7f1d1d;"><strong>Feriados:</strong> Se respetan feriados nacionales y departamentales</span>
+                        </div>
+                        
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <span style="color: #dc2626;">✝️</span>
+                            <span style="color: #7f1d1d;"><strong>Semana Santa:</strong> Días bloqueados automáticamente</span>
+                        </div>
+                        
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <span style="color: #dc2626;">📋</span>
+                            <span style="color: #7f1d1d;"><strong>Períodos:</strong> No se pueden crear planillas con fechas superpuestas</span>
+                        </div>
+                        
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <span style="color: #dc2626;">💰</span>
+                            <span style="color: #7f1d1d;"><strong>Cálculos:</strong> Los montos se redondean al múltiplo de Q 0.05 más cercano</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- FUNCIONES ADICIONALES -->
+                <div style="background: #f3e8ff; padding: 15px; border-radius: 8px; margin-bottom: 20px; border-left: 4px solid #8b5cf6;">
+                    <h3 style="color: #6b21a8; margin-bottom: 15px; display: flex; align-items: center; gap: 8px;">
+                        <i class="fas fa-tools"></i>
+                        Funciones Adicionales
+                    </h3>
+                    
+                    <div style="display: grid; gap: 8px; font-size: 0.9rem;">
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <span style="color: #8b5cf6;">🔍</span>
+                            <span style="color: #581c87;"><strong>Búsqueda:</strong> Filtre colaboradores por nombre, puesto o ID</span>
+                        </div>
+                        
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <span style="color: #8b5cf6;">✏️</span>
+                            <span style="color: #581c87;"><strong>Edición:</strong> Modifique turnos de colaboradores ya agregados</span>
+                        </div>
+                        
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <span style="color: #8b5cf6;">🗑️</span>
+                            <span style="color: #581c87;"><strong>Eliminación:</strong> Quite colaboradores o limpie toda la planilla</span>
+                        </div>
+                        
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <span style="color: #8b5cf6;">📄</span>
+                            <span style="color: #581c87;"><strong>PDF:</strong> Genere documentos una vez autorizada la planilla</span>
+                        </div>
+                        
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <span style="color: #8b5cf6;">📊</span>
+                            <span style="color: #581c87;"><strong>Totales:</strong> Vea resúmenes automáticos de turnos y pagos</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ESTADOS DE PLANILLA -->
+                <div style="background: #e0f2fe; padding: 15px; border-radius: 8px; margin-bottom: 10px; border-left: 4px solid #0891b2;">
+                    <h3 style="color: #0c5460; margin-bottom: 15px; display: flex; align-items: center; gap: 8px;">
+                        <i class="fas fa-list-check"></i>
+                        Estados de la Planilla
+                    </h3>
+                    
+                    <div style="display: grid; gap: 6px; font-size: 0.85rem;">
+                        <div><strong style="color: #f59e0b;">⏳ En espera:</strong> <span style="color: #0c5460;">Esperando autorización</span></div>
+                        <div><strong style="color: #10b981;">✅ Autorizado:</strong> <span style="color: #0c5460;">Aprobada para generar PDF</span></div>
+                        <div><strong style="color: #3b82f6;">📥 Documento descargado:</strong> <span style="color: #0c5460;">PDF generado</span></div>
+                        <div><strong style="color: #8b5cf6;">📎 Pendiente comprobante:</strong> <span style="color: #0c5460;">Esperando subir comprobante</span></div>
+                        <div><strong style="color: #059669;">🎉 Completado:</strong> <span style="color: #0c5460;">Proceso finalizado</span></div>
+                    </div>
+                </div>
+
+            </div>
+        `,
+        showConfirmButton: true,
+        confirmButtonText: '👍 ¡Entendido!',
+        confirmButtonColor: '#10b981',
+        width: '800px',
+        customClass: {
+            popup: 'help-modal',
+            htmlContainer: 'help-content'
+        }
+    });
 }
 window.seleccionarColaborador = seleccionarColaboradorConProgreso;
 window.agregarNuevoColaboradorAPlanilla = agregarNuevoColaboradorAPlanillaConProgreso;
