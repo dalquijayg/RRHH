@@ -25,6 +25,9 @@
                 <h1 class="page-title">Pago de Nómina</h1>
             </div>
             <div class="user-area">
+                <button class="help-btn" id="helpBtn" title="Ayuda y Manual de Usuario">
+                    <i class="fas fa-question-circle"></i>
+                </button>
                 <div class="theme-switch">
                     <span class="theme-switch-label">Tema</span>
                     <label class="switch">
@@ -576,7 +579,227 @@
             </div>
         </div>
     </div>
-
+    <div id="helpModal" class="modal" style="display: none;">
+        <div class="modal-content modal-help">
+            <div class="modal-header">
+                <h3><i class="fas fa-question-circle"></i> Manual de Usuario - Sistema de Nómina</h3>
+                <span class="close-modal-help">&times;</span>
+            </div>
+            <div class="modal-body help-content">
+                
+                <!-- Navegación de ayuda -->
+                <div class="help-nav">
+                    <button class="help-nav-btn active" data-help="general">
+                        <i class="fas fa-home"></i> General
+                    </button>
+                    <button class="help-nav-btn" data-help="crear">
+                        <i class="fas fa-file-invoice-dollar"></i> Crear Nómina
+                    </button>
+                    <button class="help-nav-btn" data-help="modificar">
+                        <i class="fas fa-edit"></i> Modificar
+                    </button>
+                    <button class="help-nav-btn" data-help="autorizar">
+                        <i class="fas fa-check-circle"></i> Autorizar
+                    </button>
+                    <button class="help-nav-btn" data-help="validaciones">
+                        <i class="fas fa-shield-alt"></i> Validaciones
+                    </button>
+                </div>
+                
+                <!-- Contenido de ayuda -->
+                <div class="help-sections">
+                    
+                    <!-- Sección General -->
+                    <div class="help-section active" id="help-general">
+                        <h4><i class="fas fa-info-circle"></i> Información General</h4>
+                        <div class="help-item">
+                            <h5>🎯 Propósito del Sistema</h5>
+                            <p>Este sistema permite gestionar el pago de nómina de manera integral, desde la creación hasta la autorización de planillas.</p>
+                        </div>
+                        
+                        <div class="help-item">
+                            <h5>📊 Tipos de Planilla</h5>
+                            <ul>
+                                <li><strong>Planilla Quincenal:</strong> Para pagos del 1 al 15 de cada mes</li>
+                                <li><strong>Planilla Fin de Mes:</strong> Para pagos del 16 al último día del mes (incluye bonificación e IGSS)</li>
+                            </ul>
+                        </div>
+                        
+                        <div class="help-item">
+                            <h5>🔄 Flujo de Trabajo</h5>
+                            <ol>
+                                <li><strong>Crear:</strong> Generar nuevas planillas con cálculos automáticos</li>
+                                <li><strong>Modificar:</strong> Editar planillas existentes en estado "Activo"</li>
+                                <li><strong>Autorizar:</strong> Aprobar planillas y asignar números de autorización</li>
+                            </ol>
+                        </div>
+                    </div>
+                    
+                    <!-- Sección Crear Nómina -->
+                    <div class="help-section" id="help-crear">
+                        <h4><i class="fas fa-file-invoice-dollar"></i> Crear Nómina</h4>
+                        
+                        <div class="help-item">
+                            <h5>🔍 Aplicar Filtros</h5>
+                            <ol>
+                                <li><strong>Planilla:</strong> Seleccione una planilla específica o "Todas las planillas"</li>
+                                <li><strong>Tipo de Quincena:</strong> Quincenal (1-15) o Fin de Mes (16-último día)</li>
+                                <li><strong>Mes y Año:</strong> Período a procesar</li>
+                                <li>Haga clic en <strong>"Aplicar Filtros"</strong> para cargar los datos</li>
+                            </ol>
+                        </div>
+                        
+                        <div class="help-item">
+                            <h5>💰 Cálculos Automáticos</h5>
+                            <ul>
+                                <li><strong>Días Laborados:</strong> Se calculan automáticamente considerando suspensiones y bajas</li>
+                                <li><strong>Salario Proporcional:</strong> (Salario Quincenal ÷ 15) × Días Laborados</li>
+                                <li><strong>Descuentos Judiciales:</strong> Solo se aplican si trabajó días completos</li>
+                                <li><strong>Fin de Mes:</strong> Incluye bonificación proporcional e IGSS (4.83%)</li>
+                            </ul>
+                        </div>
+                        
+                        <div class="help-item">
+                            <h5>💾 Guardar Planilla</h5>
+                            <p>Una vez revisados los datos, haga clic en <strong>"Guardar Planilla"</strong>. La planilla se guardará en estado "Activo" y podrá ser modificada posteriormente.</p>
+                        </div>
+                        
+                        <div class="help-item">
+                            <h5>📤 Exportar Datos</h5>
+                            <ul>
+                                <li><strong>Excel:</strong> Genera archivos .xlsx separados por planilla</li>
+                                <li><strong>PDF:</strong> Crea reportes imprimibles con formato profesional</li>
+                            </ul>
+                        </div>
+                    </div>
+                    
+                    <!-- Sección Modificar -->
+                    <div class="help-section" id="help-modificar">
+                        <h4><i class="fas fa-edit"></i> Modificar Nómina</h4>
+                        
+                        <div class="help-item">
+                            <h5>🔍 Buscar Planillas</h5>
+                            <p>Seleccione el período (Tipo, Mes, Año) y haga clic en <strong>"Buscar Planillas"</strong>. Solo aparecerán planillas en estado "Activo" (modificables).</p>
+                        </div>
+                        
+                        <div class="help-item">
+                            <h5>✏️ Editar Datos</h5>
+                            <ol>
+                                <li>Haga clic en una planilla para expandir sus detalles</li>
+                                <li>Haga clic en cualquier campo editable (marcado con línea punteada)</li>
+                                <li>Modifique el valor y presione Enter o haga clic fuera del campo</li>
+                                <li>Los cálculos se actualizarán automáticamente</li>
+                            </ol>
+                        </div>
+                        
+                        <div class="help-item">
+                            <h5>🔄 Campos Editables</h5>
+                            <ul>
+                                <li><strong>Días Laborados:</strong> Entre 0 y 15 días</li>
+                                <li><strong>Bonificación:</strong> Solo en planillas de fin de mes</li>
+                                <li><strong>IGSS:</strong> Solo en planillas de fin de mes</li>
+                                <li><strong>Descuento Judicial:</strong> Monto de descuentos aplicados</li>
+                                <li><strong>Monto a Pagar:</strong> Cantidad final a pagar al empleado</li>
+                            </ul>
+                        </div>
+                        
+                        <div class="help-item">
+                            <h5>📋 Historial de Cambios</h5>
+                            <p>Use el botón <strong>"Ver Historial"</strong> para revisar todos los cambios realizados en una planilla, incluyendo fecha, usuario y valores modificados.</p>
+                        </div>
+                    </div>
+                    
+                    <!-- Sección Autorizar -->
+                    <div class="help-section" id="help-autorizar">
+                        <h4><i class="fas fa-check-circle"></i> Autorizar Nómina</h4>
+                        
+                        <div class="help-item">
+                            <h5>📁 Cargar Archivo de Autorizaciones</h5>
+                            <ol>
+                                <li>Prepare un archivo Excel con columnas: <strong>NoCuenta</strong> y <strong>NoAutorizacion</strong></li>
+                                <li>Arrastre el archivo al área designada o haga clic para seleccionarlo</li>
+                                <li>El sistema procesará automáticamente las coincidencias</li>
+                                <li>Haga clic en <strong>"Procesar Autorizaciones"</strong> para aplicar los números</li>
+                            </ol>
+                        </div>
+                        
+                        <div class="help-item">
+                            <h5>✅ Autorizar Planillas</h5>
+                            <ol>
+                                <li>Seleccione las planillas que desea autorizar usando los checkboxes</li>
+                                <li>Revise el resumen de colaboradores autorizados vs pendientes</li>
+                                <li>Haga clic en <strong>"Autorizar Planillas"</strong></li>
+                                <li>Confirme la acción en el modal que aparece</li>
+                            </ol>
+                            <p><strong>Nota:</strong> Una vez autorizadas, las planillas cambian a estado "Autorizado" y no pueden modificarse.</p>
+                        </div>
+                        
+                        <div class="help-item">
+                            <h5>🔍 Ver Detalles</h5>
+                            <p>Use el botón de "Ver Detalles" para revisar colaborador por colaborador, editar números de autorización manualmente y buscar empleados específicos.</p>
+                        </div>
+                    </div>
+                    
+                    <!-- Sección Validaciones -->
+                    <div class="help-section" id="help-validaciones">
+                        <h4><i class="fas fa-shield-alt"></i> Validaciones y Reglas</h4>
+                        
+                        <div class="help-item">
+                            <h5>⚠️ Descuentos Judiciales</h5>
+                            <ul>
+                                <li>Solo se aplican si el empleado trabajó los 15 días completos</li>
+                                <li>Si hay días suspendidos o reducidos, NO se aplica descuento</li>
+                                <li>El sistema verifica automáticamente el saldo pendiente</li>
+                                <li>Si el saldo es menor al descuento, se aplica solo el saldo disponible</li>
+                            </ul>
+                        </div>
+                        
+                        <div class="help-item">
+                            <h5>📅 Días Laborados</h5>
+                            <ul>
+                                <li><strong>Suspensiones:</strong> Se restan automáticamente del período</li>
+                                <li><strong>Bajas:</strong> Se calculan desde fecha de baja hasta fin de quincena</li>
+                                <li><strong>Rango:</strong> Entre 0 y 15 días máximo</li>
+                            </ul>
+                        </div>
+                        
+                        <div class="help-item">
+                            <h5>💼 Estados de Planilla</h5>
+                            <ul>
+                                <li><strong>Estado 0 (Activo):</strong> Puede ser modificada y editada</li>
+                                <li><strong>Estado 1 (Autorizado):</strong> Solo lectura, no se puede modificar</li>
+                            </ul>
+                        </div>
+                        
+                        <div class="help-item">
+                            <h5>🚨 Mensajes de Error Comunes</h5>
+                            <ul>
+                                <li><strong>"Planilla ya guardada":</strong> Ya existe una planilla para ese período</li>
+                                <li><strong>"Sin datos disponibles":</strong> Verifique filtros y conexión a BD</li>
+                                <li><strong>"Error de autenticación":</strong> Inicie sesión nuevamente</li>
+                            </ul>
+                        </div>
+                        
+                        <div class="help-item">
+                            <h5>💡 Consejos de Uso</h5>
+                            <ul>
+                                <li>Siempre revise los cálculos antes de guardar</li>
+                                <li>Use el historial para rastrear cambios importantes</li>
+                                <li>Procese las autorizaciones antes de aprobar planillas</li>
+                                <li>Exporte reportes regularmente como respaldo</li>
+                            </ul>
+                        </div>
+                    </div>
+                    
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button id="closeHelpBtn" class="save-btn">
+                    <i class="fas fa-check"></i> Entendido
+                </button>
+            </div>
+        </div>
+    </div>
     <!-- Scripts -->
     <script src="../Logica/PagoNomina.js"></script>
 </body>

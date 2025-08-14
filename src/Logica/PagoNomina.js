@@ -260,7 +260,7 @@ async function obtenerDatosNomina() {
                          THEN CONCAT(' ', personal.SegundoApellido) 
                          ELSE '' 
                     END,
-                    ', ',
+                    ' ',
                     personal.PrimerNombre,
                     CASE WHEN personal.SegundoNombre IS NOT NULL AND personal.SegundoNombre != '' 
                          THEN CONCAT(' ', personal.SegundoNombre) 
@@ -328,7 +328,7 @@ async function obtenerDatosNomina() {
                          THEN CONCAT(' ', personal.SegundoApellido) 
                          ELSE '' 
                     END,
-                    ', ',
+                    ' ',
                     personal.PrimerNombre,
                     CASE WHEN personal.SegundoNombre IS NOT NULL AND personal.SegundoNombre != '' 
                          THEN CONCAT(' ', personal.SegundoNombre) 
@@ -1081,7 +1081,7 @@ async function obtenerBajasColaboradores(mes, anio, tipoQuincena) {
                          THEN CONCAT(' ', p.SegundoApellido) 
                          ELSE '' 
                     END,
-                    ', ',
+                    ' ',
                     p.PrimerNombre,
                     CASE WHEN p.SegundoNombre IS NOT NULL AND p.SegundoNombre != '' 
                          THEN CONCAT(' ', p.SegundoNombre) 
@@ -3992,13 +3992,6 @@ async function obtenerDatosPlanillasParaReporte() {
     }
 }
 
-// Función para formatear nombre con apellido primero
-function formatearNombreApellidoPrimero(nombreCompleto) {
-    // Como ya viene formateado desde la BD con el formato "Apellidos, Nombres", 
-    // solo lo retornamos tal como está
-    return nombreCompleto;
-}
-
 // Función para obtener UltimoDiaMes
 function obtenerUltimoDiaMes(mes, anio) {
     // El día 0 del mes siguiente es el último día del mes actual
@@ -4163,7 +4156,7 @@ async function guardarPlanilla() {
                 const detallePlanilla = {
                     IdPagoPlanilla: idPagoPlanilla,
                     IdPersonal: empleado.IdPersonal,
-                    NombrePersonal: formatearNombreApellidoPrimero(empleado.NombreCompleto),
+                    NombrePersonal: empleado.NombreCompleto,
                     SalarioQuincenal: salarioQuincenal,      // SE GUARDA TAL CUAL
                     SalarioDiario: salarioDiario,            // SE GUARDA TAL CUAL
                     MontoPagado: montoPagado,                // CALCULADO SEGÚN LÓGICA
@@ -5647,6 +5640,53 @@ async function obtenerDatosQuincenaAnterior(idPersonal, mes, anio) {
         };
     }
 }
+function inicializarSistemaAyuda() {
+    const helpBtn = document.getElementById('helpBtn');
+    const helpModal = document.getElementById('helpModal');
+    const closeHelpBtn = document.getElementById('closeHelpBtn');
+    const closeModalHelp = document.querySelector('.close-modal-help');
+    
+    // Abrir modal de ayuda
+    if (helpBtn) {
+        helpBtn.addEventListener('click', () => {
+            helpModal.style.display = 'block';
+        });
+    }
+    
+    // Cerrar modal de ayuda
+    [closeHelpBtn, closeModalHelp].forEach(btn => {
+        if (btn) {
+            btn.addEventListener('click', () => {
+                helpModal.style.display = 'none';
+            });
+        }
+    });
+    
+    // Cerrar al hacer clic fuera del modal
+    window.addEventListener('click', (e) => {
+        if (e.target === helpModal) {
+            helpModal.style.display = 'none';
+        }
+    });
+    
+    // Navegación entre secciones de ayuda
+    const helpNavBtns = document.querySelectorAll('.help-nav-btn');
+    const helpSections = document.querySelectorAll('.help-section');
+    
+    helpNavBtns.forEach(btn => {
+        btn.addEventListener('click', () => {
+            const targetSection = btn.getAttribute('data-help');
+            
+            // Remover clases activas
+            helpNavBtns.forEach(b => b.classList.remove('active'));
+            helpSections.forEach(s => s.classList.remove('active'));
+            
+            // Activar sección seleccionada
+            btn.classList.add('active');
+            document.getElementById(`help-${targetSection}`).classList.add('active');
+        });
+    });
+}
 // Eventos al cargar la página
 document.addEventListener('DOMContentLoaded', async function() {
     try {
@@ -5815,6 +5855,7 @@ document.addEventListener('DOMContentLoaded', async function() {
                 themeSwitchElement.checked = true;
             }
         }
+        inicializarSistemaAyuda();
     } catch (error) {
         console.error('Error al inicializar la página:', error);
     }

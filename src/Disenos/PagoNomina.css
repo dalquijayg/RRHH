@@ -2817,3 +2817,206 @@ tr:has(.descuento-judicial:not(:empty):not([data-tooltip=""])):hover {
     border-top-color: #333;
     z-index: 1000;
 }
+.help-btn {
+    background: none;
+    border: none;
+    color: var(--primary);
+    font-size: 18px;
+    cursor: pointer;
+    padding: 8px;
+    margin-right: 15px;
+    border-radius: 50%;
+    transition: all 0.3s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+}
+
+.help-btn:hover {
+    background-color: rgba(255, 152, 0, 0.1);
+    color: #F57C00;
+    transform: scale(1.1);
+}
+
+/* Modal de ayuda */
+.modal-help {
+    width: 90%;
+    max-width: 1000px;
+    max-height: 90vh;
+    display: flex;
+    flex-direction: column;
+}
+
+.help-content {
+    display: flex;
+    gap: 20px;
+    flex: 1;
+    min-height: 0;
+}
+
+/* Navegación de ayuda */
+.help-nav {
+    min-width: 200px;
+    border-right: 1px solid #eee;
+    padding-right: 20px;
+}
+
+.help-nav-btn {
+    width: 100%;
+    padding: 12px 15px;
+    margin-bottom: 8px;
+    border: none;
+    background: none;
+    text-align: left;
+    cursor: pointer;
+    border-radius: 6px;
+    transition: all 0.3s;
+    font-size: 14px;
+    color: var(--text-dark);
+    display: flex;
+    align-items: center;
+}
+
+.help-nav-btn i {
+    margin-right: 8px;
+    width: 16px;
+}
+
+.help-nav-btn:hover {
+    background-color: rgba(255, 152, 0, 0.1);
+    color: var(--primary);
+}
+
+.help-nav-btn.active {
+    background-color: var(--primary);
+    color: white;
+}
+
+/* Secciones de ayuda */
+.help-sections {
+    flex: 1;
+    padding-left: 20px;
+    overflow-y: auto;
+    max-height: 60vh;
+}
+
+.help-section {
+    display: none;
+}
+
+.help-section.active {
+    display: block;
+}
+
+.help-section h4 {
+    color: var(--primary);
+    margin-bottom: 20px;
+    font-size: 18px;
+    display: flex;
+    align-items: center;
+}
+
+.help-section h4 i {
+    margin-right: 10px;
+}
+
+.help-item {
+    margin-bottom: 25px;
+    padding: 15px;
+    background-color: #f9f9f9;
+    border-radius: 8px;
+    border-left: 4px solid var(--primary);
+}
+
+.help-item h5 {
+    color: var(--secondary);
+    margin-bottom: 10px;
+    font-size: 16px;
+}
+
+.help-item p {
+    margin-bottom: 10px;
+    line-height: 1.6;
+    color: var(--text-dark);
+}
+
+.help-item ul,
+.help-item ol {
+    margin: 10px 0;
+    padding-left: 20px;
+}
+
+.help-item li {
+    margin-bottom: 8px;
+    line-height: 1.5;
+    color: var(--text-dark);
+}
+
+.help-item strong {
+    color: var(--primary);
+    font-weight: 600;
+}
+
+/* Tema oscuro para ayuda */
+.dark-theme .help-nav {
+    border-color: #444;
+}
+
+.dark-theme .help-nav-btn {
+    color: #e0e0e0;
+}
+
+.dark-theme .help-nav-btn:hover {
+    background-color: rgba(255, 152, 0, 0.1);
+}
+
+.dark-theme .help-item {
+    background-color: #333;
+}
+
+.dark-theme .help-item p,
+.dark-theme .help-item li {
+    color: #e0e0e0;
+}
+
+.dark-theme .help-section h4 {
+    color: var(--primary);
+}
+
+.dark-theme .help-item h5 {
+    color: #e0e0e0;
+}
+
+/* Responsive para ayuda */
+@media screen and (max-width: 768px) {
+    .modal-help {
+        width: 95%;
+        max-width: none;
+    }
+    
+    .help-content {
+        flex-direction: column;
+    }
+    
+    .help-nav {
+        min-width: auto;
+        border-right: none;
+        border-bottom: 1px solid #eee;
+        padding-right: 0;
+        padding-bottom: 15px;
+        margin-bottom: 15px;
+    }
+    
+    .help-nav-btn {
+        display: inline-flex;
+        width: auto;
+        margin-right: 10px;
+        padding: 8px 12px;
+    }
+    
+    .help-sections {
+        padding-left: 0;
+    }
+}
