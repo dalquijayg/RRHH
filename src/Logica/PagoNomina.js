@@ -141,7 +141,7 @@ async function obtenerDiasSuspendidos(idPersonal, mes, anio, tipoQuincena) {
             finQuincena = `${anio}-${mes.padStart(2, '0')}-${ultimoDia}`;
         }
         
-        // Consulta para contar días suspendidos que se sobreponen con la quincena
+        // Consulta modificada para incluir tanto suspensiones como faltas
         const query = `
             SELECT 
                 IdPersonal,
@@ -157,6 +157,7 @@ async function obtenerDiasSuspendidos(idPersonal, mes, anio, tipoQuincena) {
                 IdPersonal = ? 
                 AND FechaInicio <= ? 
                 AND FechaFin >= ?
+                AND (EsFalta = 0 OR EsFalta = 1)
             GROUP BY 
                 IdPersonal
         `;
@@ -459,7 +460,12 @@ async function obtenerDatosNomina() {
                 diasLaborados, 
                 diasTotalesQuincena
             );
-            
+            const detallesSuspensionesFaltas = await obtenerDetallesSuspensionesFaltas(
+                empleado.IdPersonal, 
+                mesStr, 
+                anio, 
+                tipoQuincena
+            );
             const montoDescuentoJudicial = indicadoresDescuento.montoDescuento;
             
             // Calcular el salario final a pagar (salario proporcional - descuento judicial)
@@ -475,6 +481,8 @@ async function obtenerDatosNomina() {
             // Agregar los nuevos campos al objeto del empleado
             empleado.DiasLaborados = diasLaborados;
             empleado.DiasSuspendidos = diasSuspendidos;
+            empleado.DiasSuspension = detallesSuspensionesFaltas.diasSuspension;
+            empleado.DiasFalta = detallesSuspensionesFaltas.diasFalta;
             empleado.SalarioProporcional = salarioProporcional;
             empleado.DescuentoJudicial = montoDescuentoJudicial;
             empleado.NoDocumentoJudicial = descuentosJudiciales.NoDocumento;
@@ -655,6 +663,7 @@ function calcularDescuentoJudicialConIndicadores(descuentosJudiciales, tipoQuinc
 }
 
 // Función actualizada para renderizar la tabla con indicadores de descuentos
+// Función completa para renderizar la tabla con indicadores de suspensiones y faltas
 function renderizarTabla(datos) {
     const tbody = document.getElementById('nominaTableBody');
     const tipoQuincena = document.getElementById('tipoQuincenaFilter').value;
@@ -669,6 +678,7 @@ function renderizarTabla(datos) {
         return;
     }
     
+    calcularYMostrarTotal(datos);
     document.getElementById('noData').style.display = 'none';
     
     // Calcular indices para paginación
@@ -689,15 +699,47 @@ function renderizarTabla(datos) {
         const descuentoJudicial = formatearMoneda(empleado.DescuentoJudicial);
         const salarioFinalAPagar = formatearMoneda(empleado.SalarioFinalAPagar);
         
-        // Determinar la clase para los días laborados
+        // MODIFICADO: Determinar el tipo de indicador y clase según suspensiones/faltas
         let claseDiasLaborados = 'diasLaborados';
         let tooltipSuspension = '';
+        let iconoIndicador = '';
         
         // Días completos de una quincena
         const diasQuincenaCompleta = 15;
         
         if (empleado.DiasLaborados < diasQuincenaCompleta) {
-            // Si hay días suspendidos, agregar clase y tooltip
+            const diasSuspension = empleado.DiasSuspension || 0;
+            const diasFalta = empleado.DiasFalta || 0;
+            
+            // Determinar el tipo de indicador basado en suspensiones y faltas
+            if (diasFalta > 0 && diasSuspension > 0) {
+                // Tiene ambos: suspensiones y faltas
+                claseDiasLaborados += ' mixto';
+                iconoIndicador = '💎'; // Diamante para casos mixtos
+                tooltipSuspension = `data-tooltip="Suspensiones: ${diasSuspension} día(s), Faltas: ${diasFalta} día(s). Total días trabajados: ${empleado.DiasLaborados}"`;
+            } else if (diasFalta > 0) {
+                // Solo faltas
+                claseDiasLaborados += ' falta';
+                iconoIndicador = '🔴'; // Círculo rojo para faltas
+                tooltipSuspension = `data-tooltip="El colaborador tiene ${diasFalta} día(s) de falta. Días trabajados: ${empleado.DiasLaborados}"`;
+            } else if (diasSuspension > 0) {
+                // Solo suspensiones
+                claseDiasLaborados += ' suspension';
+                iconoIndicador = '⚠️'; // Triángulo amarillo para suspensiones
+                tooltipSuspension = `data-tooltip="El colaborador tiene ${diasSuspension} día(s) de suspensión. Días trabajados: ${empleado.DiasLaborados}"`;
+            } else if (empleado.TipoBaja && empleado.FechaFinColaboradorFormateada) {
+                // Es una baja
+                claseDiasLaborados += ' baja';
+                iconoIndicador = '👤'; // Persona para bajas
+                tooltipSuspension = `data-tooltip="${empleado.TipoBaja} el ${empleado.FechaFinColaboradorFormateada}. Días trabajados: ${empleado.DiasLaborados}"`;
+            } else {
+                // Caso genérico (no debería llegar aquí normalmente)
+                claseDiasLaborados += ' reducido-generico';
+                iconoIndicador = '⚠️';
+                tooltipSuspension = `data-tooltip="Días reducidos. Días trabajados: ${empleado.DiasLaborados}"`;
+            }
+            
+            // Agregar clase de severidad
             if (empleado.DiasLaborados === 0) {
                 claseDiasLaborados += ' peligro';
             } else {
@@ -705,13 +747,6 @@ function renderizarTabla(datos) {
             }
             
             claseDiasLaborados += ' reducido';
-            
-            // CORRECCIÓN AQUÍ: Agregar información específica al tooltip con fecha corregida
-            if (empleado.TipoBaja && empleado.FechaFinColaboradorFormateada) {
-                tooltipSuspension = `data-tooltip="${empleado.TipoBaja} el ${empleado.FechaFinColaboradorFormateada}. Días trabajados: ${empleado.DiasLaborados}"`;
-            } else if (empleado.DiasSuspendidos > 0) {
-                tooltipSuspension = `data-tooltip="El colaborador tiene ${empleado.DiasSuspendidos} día(s) suspendido(s)"`;
-            }
         }
         
         // Determinar si el salario es reducido
@@ -722,7 +757,7 @@ function renderizarTabla(datos) {
         let tooltipDescuento = '';
         let contenidoDescuento = descuentoJudicial;
         
-        // Usar los nuevos indicadores de descuento judicial
+        // Usar los indicadores de descuento judicial
         if (empleado.IndicadoresDescuento) {
             const indicadores = empleado.IndicadoresDescuento;
             
@@ -750,11 +785,16 @@ function renderizarTabla(datos) {
             clasesFila = 'empleado-baja';
         }
         
-        // CORRECCIÓN AQUÍ: Agregar indicador de tipo de baja en el nombre con fecha corregida
+        // Agregar indicador de tipo de baja en el nombre
         let nombreCompleto = empleado.NombreCompleto;
         if (empleado.TipoBaja && empleado.FechaFinColaboradorFormateada) {
             nombreCompleto += ` <span class="indicador-baja" title="Fecha de baja: ${empleado.FechaFinColaboradorFormateada}">[${empleado.TipoBaja}]</span>`;
         }
+        
+        // MODIFICADO: Mostrar días laborados con el nuevo indicador
+        const contenidoDiasLaborados = empleado.DiasLaborados < diasQuincenaCompleta 
+            ? `${iconoIndicador} ${empleado.DiasLaborados} / ${diasQuincenaCompleta}`
+            : `${empleado.DiasLaborados} / ${diasQuincenaCompleta}`;
         
         // Crear la fila
         const row = document.createElement('tr');
@@ -771,7 +811,7 @@ function renderizarTabla(datos) {
             </td>
             <td class="currency">${salarioDiario}</td>
             <td class="currency">${salarioQuincenal}</td>
-            <td class="${claseDiasLaborados}" ${tooltipSuspension}>${empleado.DiasLaborados} / ${diasQuincenaCompleta}</td>
+            <td class="${claseDiasLaborados}" ${tooltipSuspension}>${contenidoDiasLaborados}</td>
             <td class="${claseSalario}">${salarioProporcional}</td>
             <td class="${claseDescuentoJudicial}" ${tooltipDescuento}>${contenidoDescuento}</td>
             <td class="currency salario-final">${salarioFinalAPagar}</td>
@@ -941,7 +981,7 @@ async function cargarDatosNomina() {
         // Asignar los datos filtrados y renderizar la tabla
         filteredData = datosCompletos;
         renderizarTabla(filteredData);
-        
+        calcularYMostrarTotal(filteredData);
     } catch (error) {
         console.error('Error al cargar datos:', error);
         await Swal.fire({
@@ -949,6 +989,7 @@ async function cargarDatosNomina() {
             title: 'Error al cargar datos',
             text: 'Ocurrió un problema al obtener los datos de nómina. Detalles en la consola.'
         });
+        ocultarTotal();
     } finally {
         document.getElementById('loader').style.display = 'none';
     }
@@ -4317,7 +4358,7 @@ function limpiarPantalla() {
     
     // Limpiar la tabla
     renderizarTabla(filteredData);
-    
+    ocultarTotal();
     // Restablecer filtros a valores predeterminados
     document.getElementById('planillaFilter').value = 'todos';
     
@@ -5538,11 +5579,13 @@ async function obtenerObservacionesEmpleado(idPersonal, mes, anio, tipoQuincena)
             observaciones.push(`A.${fechaFormateada}`);
         }
         
-        // 3. VERIFICAR SUSPENSIONES - CORREGIDO
-        const querySuspensiones = `
+        // 3. VERIFICAR SUSPENSIONES Y FALTAS - MODIFICADO PARA DIFERENCIAR
+        const querySuspensionesFaltas = `
             SELECT 
                 DATE(FechaInicio) as FechaInicio,
-                DATE(FechaFin) as FechaFin
+                DATE(FechaFin) as FechaFin,
+                EsFalta,
+                ObservacionFalta
             FROM 
                 Suspensiones
             WHERE 
@@ -5553,13 +5596,13 @@ async function obtenerObservacionesEmpleado(idPersonal, mes, anio, tipoQuincena)
                 FechaInicio
         `;
         
-        const suspensiones = await connection.query(querySuspensiones, [idPersonal, finQuincena, inicioQuincena]);
+        const suspensionesFaltas = await connection.query(querySuspensionesFaltas, [idPersonal, finQuincena, inicioQuincena]);
         
-        if (suspensiones.length > 0) {
-            suspensiones.forEach(suspension => {
+        if (suspensionesFaltas.length > 0) {
+            suspensionesFaltas.forEach(item => {
                 // Crear fechas locales evitando problemas de zona horaria
-                const fechaInicioLocal = new Date(suspension.FechaInicio + 'T12:00:00');
-                const fechaFinLocal = new Date(suspension.FechaFin + 'T12:00:00');
+                const fechaInicioLocal = new Date(item.FechaInicio + 'T12:00:00');
+                const fechaFinLocal = new Date(item.FechaFin + 'T12:00:00');
                 const inicioQuincenaDate = new Date(inicioQuincena + 'T12:00:00');
                 const finQuincenaDate = new Date(finQuincena + 'T12:00:00');
                 
@@ -5570,7 +5613,26 @@ async function obtenerObservacionesEmpleado(idPersonal, mes, anio, tipoQuincena)
                 const fechaInicioFormateada = formatearFechaLocal(inicioEfectivo);
                 const fechaFinFormateada = formatearFechaLocal(finEfectivo);
                 
-                observaciones.push(`S-IGSS.${fechaInicioFormateada} al ${fechaFinFormateada}`);
+                // Diferenciar entre suspensión y falta
+                if (item.EsFalta === 1) {
+                    // Es una falta
+                    if (fechaInicioFormateada === fechaFinFormateada) {
+                        // Un solo día
+                        observaciones.push(`F.${fechaInicioFormateada}`);
+                    } else {
+                        // Rango de días
+                        observaciones.push(`F.${fechaInicioFormateada} al ${fechaFinFormateada}`);
+                    }
+                } else {
+                    // Es una suspensión (EsFalta = 0)
+                    if (fechaInicioFormateada === fechaFinFormateada) {
+                        // Un solo día
+                        observaciones.push(`S-IGSS.${fechaInicioFormateada}`);
+                    } else {
+                        // Rango de días
+                        observaciones.push(`S-IGSS.${fechaInicioFormateada} al ${fechaFinFormateada}`);
+                    }
+                }
             });
         }
         
@@ -5686,6 +5748,117 @@ function inicializarSistemaAyuda() {
             document.getElementById(`help-${targetSection}`).classList.add('active');
         });
     });
+}
+function calcularYMostrarTotal(datos) {
+    // Para opción 1
+    const btnTotal = document.getElementById('btnTotal');
+    
+    // Para opción 2
+    const totalBadge = document.getElementById('totalBadge');
+    
+    // Para opción 3
+    const totalText = document.getElementById('totalText');
+    
+    // Para opción 4
+    const totalIndicator = document.getElementById('totalIndicator');
+    const applyBtn = document.getElementById('applyFilters');
+    
+    const totalAmount = document.getElementById('totalPlanillaAmount');
+    
+    if (!datos || datos.length === 0) {
+        // Ocultar todos los elementos
+        [btnTotal, totalBadge, totalText, totalIndicator].forEach(el => {
+            if (el) el.style.display = 'none';
+        });
+        if (applyBtn) applyBtn.removeAttribute('data-tooltip');
+        return;
+    }
+    
+    // Calcular total
+    const total = datos.reduce((sum, emp) => sum + parseFloat(emp.SalarioFinalAPagar || 0), 0);
+    const totalFormateado = formatearMoneda(total);
+    
+    // Actualizar display según la opción elegida
+    if (totalAmount) {
+        totalAmount.textContent = totalFormateado;
+    }
+    
+    // Mostrar el elemento correspondiente a la opción elegida
+    if (btnTotal) btnTotal.style.display = 'flex';           // Opción 1
+    
+    // Para opción 4
+    if (totalIndicator && applyBtn) {
+        totalIndicator.style.display = 'inline';
+        applyBtn.setAttribute('data-tooltip', `Total: ${totalFormateado} (${datos.length} empleados)`);
+    }
+}
+function ocultarTotal() {
+    const totalContainer = document.getElementById('totalPlanillaContainer');
+    if (totalContainer) {
+        totalContainer.style.display = 'none';
+    }
+}
+async function obtenerDetallesSuspensionesFaltas(idPersonal, mes, anio, tipoQuincena) {
+    try {
+        const connection = await connectionString();
+        
+        // Determinar fechas de inicio y fin de la quincena
+        let inicioQuincena, finQuincena;
+        
+        if (tipoQuincena === 'normal') {
+            inicioQuincena = `${anio}-${mes.padStart(2, '0')}-01`;
+            finQuincena = `${anio}-${mes.padStart(2, '0')}-15`;
+        } else {
+            inicioQuincena = `${anio}-${mes.padStart(2, '0')}-16`;
+            const ultimoDia = new Date(anio, parseInt(mes), 0).getDate();
+            finQuincena = `${anio}-${mes.padStart(2, '0')}-${ultimoDia}`;
+        }
+        
+        // Consulta para obtener detalles separados de suspensiones y faltas
+        const query = `
+            SELECT 
+                EsFalta,
+                SUM(
+                    DATEDIFF(
+                        LEAST(FechaFin, ?), 
+                        GREATEST(FechaInicio, ?)
+                    ) + 1
+                ) AS Dias
+            FROM 
+                Suspensiones
+            WHERE 
+                IdPersonal = ? 
+                AND FechaInicio <= ? 
+                AND FechaFin >= ?
+            GROUP BY 
+                EsFalta
+        `;
+        
+        const params = [finQuincena, inicioQuincena, idPersonal, finQuincena, inicioQuincena];
+        const results = await connection.query(query, params);
+        await connection.close();
+        
+        let diasSuspension = 0;
+        let diasFalta = 0;
+        
+        results.forEach(row => {
+            if (row.EsFalta === 0) {
+                diasSuspension = parseInt(row.Dias) || 0;
+            } else if (row.EsFalta === 1) {
+                diasFalta = parseInt(row.Dias) || 0;
+            }
+        });
+        
+        return {
+            diasSuspension,
+            diasFalta,
+            totalDias: diasSuspension + diasFalta
+        };
+        
+    } catch (error) {
+        console.error('Error al obtener detalles de suspensiones y faltas:', error);
+        return { diasSuspension: 0, diasFalta: 0, totalDias: 0 };
+    }
 }
 // Eventos al cargar la página
 document.addEventListener('DOMContentLoaded', async function() {

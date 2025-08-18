@@ -30,7 +30,79 @@ async function connectionString() {
         throw error;
     }
 }
-
+function manejarCambioTipo() {
+    const esFaltaToggle = document.getElementById('esFaltaToggle');
+    const esFalta = esFaltaToggle.checked;
+    
+    // Elementos de la interfaz
+    const formTypeTitle = document.getElementById('formTypeTitle');
+    const toggleText = document.getElementById('toggleText');
+    const toggleTextRight = document.querySelector('.toggle-text-right');
+    const saveButtonText = document.getElementById('saveButtonText');
+    
+    // Contenedores de campos
+    const tipoSuspensionContainer = document.getElementById('tipoSuspensionContainer');
+    const motivoSuspensionContainer = document.getElementById('motivoSuspensionContainer');
+    const observacionFaltaContainer = document.getElementById('observacionFaltaContainer');
+    
+    // Campos de entrada
+    const tipoSuspensionSelect = document.getElementById('tipoSuspension');
+    const motivoSuspensionTextarea = document.getElementById('motivoSuspension');
+    const observacionFaltaTextarea = document.getElementById('observacionFalta');
+    
+    if (esFalta) {
+        // Configurar para FALTA
+        formTypeTitle.innerHTML = '<i class="fas fa-exclamation-triangle"></i> Datos de la Falta';
+        saveButtonText.textContent = 'Guardar Falta';
+        
+        // Actualizar estilos del toggle
+        toggleText.className = 'toggle-text toggle-inactive';
+        toggleTextRight.className = 'toggle-text-right toggle-active';
+        
+        // Mostrar campos de falta y ocultar de suspensión
+        tipoSuspensionContainer.style.display = 'none';
+        motivoSuspensionContainer.style.display = 'none';
+        observacionFaltaContainer.style.display = 'block';
+        observacionFaltaContainer.classList.add('field-fade-in');
+        
+        // Limpiar y quitar required de campos de suspensión
+        tipoSuspensionSelect.value = '';
+        tipoSuspensionSelect.removeAttribute('required');
+        motivoSuspensionTextarea.value = '';
+        motivoSuspensionTextarea.removeAttribute('required');
+        
+        // Agregar required al campo de falta
+        observacionFaltaTextarea.setAttribute('required', 'required');
+        
+    } else {
+        // Configurar para SUSPENSIÓN
+        formTypeTitle.innerHTML = '<i class="fas fa-calendar-times"></i> Datos de la Suspensión';
+        saveButtonText.textContent = 'Guardar Suspensión';
+        
+        // Actualizar estilos del toggle
+        toggleText.className = 'toggle-text toggle-active';
+        toggleTextRight.className = 'toggle-text-right toggle-inactive';
+        
+        // Mostrar campos de suspensión y ocultar de falta
+        tipoSuspensionContainer.style.display = 'block';
+        tipoSuspensionContainer.classList.add('field-fade-in');
+        motivoSuspensionContainer.style.display = 'block';
+        motivoSuspensionContainer.classList.add('field-fade-in');
+        observacionFaltaContainer.style.display = 'none';
+        
+        // Limpiar y quitar required del campo de falta
+        observacionFaltaTextarea.value = '';
+        observacionFaltaTextarea.removeAttribute('required');
+        
+        // Agregar required a campos de suspensión
+        tipoSuspensionSelect.setAttribute('required', 'required');
+        motivoSuspensionTextarea.setAttribute('required', 'required');
+    }
+    
+    // Limpiar contador de caracteres
+    document.getElementById('charCount').textContent = '0';
+    document.getElementById('charCountFalta').textContent = '0';
+}
 // Función para buscar colaboradores
 async function buscarColaboradores(termino) {
     try {
@@ -213,31 +285,58 @@ async function guardarDescuentoJudicial(datos, archivo) {
 // Función para guardar la suspensión
 async function guardarSuspension(datos) {
     try {
-        // Obtenemos el ID del usuario actual
         const usuarioActual = obtenerUsuarioActual();
-        
         const connection = await connectionString();
         
-        // Guardamos los datos de la suspensión
-        const query = `
-            INSERT INTO Suspensiones 
-            (IdPersonal, FechaInicio, FechaFin, MotivoSuspension, IdUsuario)
-            VALUES (?, ?, ?, ?, ?)
-        `;
+        let query, params;
         
-        await connection.query(query, [
-            datos.idPersonal,
-            datos.fechaInicio,
-            datos.fechaFin,
-            datos.motivo,
-            usuarioActual.id
-        ]);
+        if (datos.esFalta) {
+            // Guardar como FALTA
+            query = `
+                INSERT INTO Suspensiones 
+                (IdPersonal, FechaInicio, FechaFin, TipoSuspension, MotivoSuspension, 
+                 EsFalta, ObservacionFalta, IdUsuario)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            `;
+            
+            params = [
+                datos.idPersonal,
+                datos.fechaInicio,
+                datos.fechaFin,
+                0,  // TipoSuspension = 0 para faltas
+                '', // MotivoSuspension vacío para faltas
+                1,  // EsFalta = 1
+                datos.observacionFalta,
+                usuarioActual.id
+            ];
+        } else {
+            // Guardar como SUSPENSIÓN
+            query = `
+                INSERT INTO Suspensiones 
+                (IdPersonal, FechaInicio, FechaFin, TipoSuspension, MotivoSuspension, 
+                 EsFalta, ObservacionFalta, IdUsuario)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            `;
+            
+            params = [
+                datos.idPersonal,
+                datos.fechaInicio,
+                datos.fechaFin,
+                datos.tipoSuspension,
+                datos.motivo,
+                0,  // EsFalta = 0
+                '', // ObservacionFalta vacío para suspensiones
+                usuarioActual.id
+            ];
+        }
         
+        await connection.query(query, params);
         await connection.close();
         return true;
+        
     } catch (error) {
-        console.error('Error al guardar suspensión:', error);
-        mostrarError('Error al guardar', 'No se pudo guardar la suspensión. Por favor intente nuevamente.');
+        console.error('Error al guardar:', error);
+        mostrarError('Error al guardar', 'No se pudo guardar el registro. Por favor intente nuevamente.');
         return false;
     }
 }
@@ -394,14 +493,19 @@ function limpiarFormularioSuspensiones() {
     document.getElementById('searchResultsSuspension').innerHTML = '';
     document.getElementById('fechaInicio').value = '';
     document.getElementById('fechaFin').value = '';
+    document.getElementById('tipoSuspension').value = '';
     document.getElementById('motivoSuspension').value = '';
+    document.getElementById('observacionFalta').value = '';
+    document.getElementById('esFaltaToggle').checked = false;
     document.getElementById('duracionSuspension').textContent = '0 días';
     document.getElementById('charCount').textContent = '0';
+    document.getElementById('charCountFalta').textContent = '0';
     
-    // Eliminar el empleado seleccionado para suspensiones
+    // Resetear la vista a suspensión por defecto
+    manejarCambioTipo();
+    
     selectedEmployeeSuspension = null;
 }
-
 // Función para formatear moneda
 function formatearMoneda(valor) {
     return new Intl.NumberFormat('es-GT', { 
@@ -680,7 +784,7 @@ function cambiarPestana(tabId) {
         document.getElementById('formTitle').textContent = 'Descuentos Judiciales';
     } else {
         iconWrapper.className = 'fas fa-calendar-times';
-        document.getElementById('formTitle').textContent = 'Suspensiones';
+        document.getElementById('formTitle').textContent = 'Suspensiones & Faltas';
     }
 }
 
@@ -759,7 +863,43 @@ function mostrarAyuda() {
         confirmButtonText: 'Entendido'
     });
 }
-
+async function cargarTiposSuspension() {
+    try {
+        const connection = await connectionString();
+        
+        const query = `
+            SELECT 
+                TipoSuspensiones.IdTipoSuspension, 
+                TipoSuspensiones.TipoSuspensiones
+            FROM 
+                TipoSuspensiones
+            ORDER BY TipoSuspensiones.TipoSuspensiones ASC
+        `;
+        
+        const result = await connection.query(query);
+        await connection.close();
+        
+        // Llenar el select
+        const selectElement = document.getElementById('tipoSuspension');
+        
+        // Limpiar opciones existentes (mantener la primera opción)
+        selectElement.innerHTML = '<option value="">Seleccione un tipo de suspensión</option>';
+        
+        // Agregar las opciones de la base de datos
+        result.forEach(tipo => {
+            const option = document.createElement('option');
+            option.value = tipo.IdTipoSuspension;
+            option.textContent = tipo.TipoSuspensiones;
+            selectElement.appendChild(option);
+        });
+        
+        console.log(`Cargados ${result.length} tipos de suspensión`);
+        
+    } catch (error) {
+        console.error('Error al cargar tipos de suspensión:', error);
+        mostrarError('Error', 'No se pudieron cargar los tipos de suspensión');
+    }
+}
 // Eventos al cargar el documento
 document.addEventListener('DOMContentLoaded', () => {
     // Configuración general de la interfaz
@@ -776,14 +916,11 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     
     // Iniciar con la pestaña de descuentos activa
-    cambiarPestana('descuentos');
-    
+    cambiarPestana('suspensiones');
+    cargarTiposSuspension();
     // Evento para el botón de ayuda
     document.getElementById('helpButton').addEventListener('click', mostrarAyuda);
-    
-    // EVENTOS PARA DESCUENTOS JUDICIALES
-    // -----------------------------------
-    
+
     // Evento para el botón de búsqueda de descuentos
     document.getElementById('searchButton').addEventListener('click', async () => {
         const termino = document.getElementById('searchInput').value.trim();
@@ -811,7 +948,19 @@ document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('searchButton').click();
         }
     });
+    document.getElementById('esFaltaToggle').addEventListener('change', manejarCambioTipo);
     
+    // Contador de caracteres para observación de falta
+    document.getElementById('observacionFalta').addEventListener('input', function() {
+        const contador = document.getElementById('charCountFalta');
+        contador.textContent = this.value.length;
+        
+        if (this.value.length > 230) {
+            contador.style.color = '#FF9800';
+        } else if (this.value.length > 200) {
+            contador.style.color = '';
+        }
+    })
     // Eventos para calcular el monto de liquidación automáticamente
     document.getElementById('montoEmbargo').addEventListener('input', calcularMontoLiquidacion);
     document.getElementById('porcentajeLiquidacion').addEventListener('input', calcularMontoLiquidacion);
@@ -931,10 +1080,6 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('fileScaner').addEventListener('change', function() {
         manejarVistaPrevia(this, 'filePreview');
     });
-    
-    // EVENTOS PARA SUSPENSIONES
-    // -------------------------
-    
     // Evento para el botón de búsqueda de suspensiones
     document.getElementById('searchButtonSuspension').addEventListener('click', async () => {
         const termino = document.getElementById('searchInputSuspension').value.trim();
@@ -1010,35 +1155,56 @@ document.addEventListener('DOMContentLoaded', () => {
         
         const fechaInicio = document.getElementById('fechaInicio').value;
         const fechaFin = document.getElementById('fechaFin').value;
-        const motivo = document.getElementById('motivoSuspension').value.trim();
+        const esFalta = document.getElementById('esFaltaToggle').checked;
         
-        // Validaciones
+        // Validaciones básicas
         if (!fechaInicio || !fechaFin) {
             mostrarError('Datos incompletos', 'Debe seleccionar las fechas de inicio y fin');
             return;
         }
         
-        // Validar que la fecha de fin no sea anterior a la de inicio
         if (new Date(fechaFin) < new Date(fechaInicio)) {
             mostrarError('Fechas inválidas', 'La fecha de finalización no puede ser anterior a la fecha de inicio');
             return;
         }
         
-        if (!motivo) {
-            mostrarError('Datos incompletos', 'Debe ingresar el motivo de la suspensión');
-            return;
-        }
-        
-        // Preparar los datos
-        const datos = {
+        let datos = {
             idPersonal: selectedEmployeeSuspension.IdPersonal,
             fechaInicio: fechaInicio,
             fechaFin: fechaFin,
-            motivo: motivo
+            esFalta: esFalta
         };
         
+        if (esFalta) {
+            // Validaciones para FALTA
+            const observacionFalta = document.getElementById('observacionFalta').value.trim();
+            if (!observacionFalta) {
+                mostrarError('Datos incompletos', 'Debe ingresar la observación de la falta');
+                return;
+            }
+            datos.observacionFalta = observacionFalta;
+            
+        } else {
+            // Validaciones para SUSPENSIÓN
+            const tipoSuspension = document.getElementById('tipoSuspension').value;
+            const motivo = document.getElementById('motivoSuspension').value.trim();
+            
+            if (!tipoSuspension) {
+                mostrarError('Datos incompletos', 'Debe seleccionar el tipo de suspensión');
+                return;
+            }
+            
+            if (!motivo) {
+                mostrarError('Datos incompletos', 'Debe ingresar el motivo de la suspensión');
+                return;
+            }
+            
+            datos.tipoSuspension = tipoSuspension;
+            datos.motivo = motivo;
+        }
+        
         // Mostrar cargando
-        const loadingSwal = mostrarCargando('Guardando suspensión...');
+        const loadingSwal = mostrarCargando(`Guardando ${esFalta ? 'falta' : 'suspensión'}...`);
         
         try {
             const resultado = await guardarSuspension(datos);
@@ -1048,7 +1214,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (resultado) {
                 await mostrarExito(
                     '¡Guardado exitoso!', 
-                    `La suspensión para ${selectedEmployeeSuspension.NombreCompleto} ha sido registrada correctamente.`
+                    `${esFalta ? 'La falta' : 'La suspensión'} para ${selectedEmployeeSuspension.NombreCompleto} ha sido registrada correctamente.`
                 );
                 
                 limpiarFormularioSuspensiones();

@@ -8,8 +8,6 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
 </head>
 <body>
-    <!-- Elementos decorativos eliminados para mejorar rendimiento -->
-    
     <div class="container">
         <div class="form-card">
             <button id="helpButton" class="help-button" title="Ayuda">
@@ -31,11 +29,11 @@
             
             <!-- Selector de tipo de registro -->
             <div class="tab-selector">
+                <button class="tab-button" data-form="suspensiones">
+                    <i class="fas fa-calendar-times"></i> Suspensiones & Faltas
+                </button>
                 <button class="tab-button active" data-form="descuentos">
                     <i class="fas fa-gavel"></i> Descuentos Judiciales
-                </button>
-                <button class="tab-button" data-form="suspensiones">
-                    <i class="fas fa-calendar-times"></i> Suspensiones
                 </button>
                 <div class="tab-slider"></div>
             </div>
@@ -245,9 +243,23 @@
                     </div>
                 </div>
                 
-                <!-- Sección de datos de la suspensión -->
+                <!-- Sección de datos de la suspensión/falta -->
                 <div class="suspension-data" id="suspensionForm" style="display: none;">
-                    <h3><i class="fas fa-calendar-times"></i> Datos de la Suspensión</h3>
+                    <h3><i class="fas fa-calendar-times"></i> <span id="formTypeTitle">Datos de la Suspensión</span></h3>
+                    
+                    <!-- Toggle para seleccionar entre Suspensión y Falta -->
+                    <div class="form-row">
+                        <div class="toggle-container">
+                            <label class="toggle-label">
+                                <span class="toggle-text toggle-active" id="toggleText">Suspensión</span>
+                                <label class="switch">
+                                    <input type="checkbox" id="esFaltaToggle">
+                                    <span class="slider"></span>
+                                </label>
+                                <span class="toggle-text-right toggle-inactive">Falta</span>
+                            </label>
+                        </div>
+                    </div>
                     
                     <div class="form-row two-columns">
                         <div class="input-container">
@@ -270,11 +282,34 @@
                         </div>
                     </div>
                     
-                    <div class="form-row">
+                    <!-- Campo de tipo de suspensión (solo visible para suspensiones) -->
+                    <div class="form-row" id="tipoSuspensionContainer">
+                        <div class="input-container">
+                            <label for="tipoSuspension">Tipo de Suspensión</label>
+                            <select id="tipoSuspension" required>
+                                <option value="">Seleccione un tipo de suspensión</option>
+                                <!-- Las opciones se cargarán dinámicamente -->
+                            </select>
+                            <span class="input-focus-effect"></span>
+                        </div>
+                    </div>
+                    
+                    <!-- Campo de motivo de suspensión (solo visible para suspensiones) -->
+                    <div class="form-row" id="motivoSuspensionContainer">
                         <div class="input-container">
                             <label for="motivoSuspension">Motivo de la Suspensión</label>
                             <textarea id="motivoSuspension" rows="4" maxlength="255" required></textarea>
                             <div class="character-counter"><span id="charCount">0</span>/255</div>
+                            <span class="input-focus-effect"></span>
+                        </div>
+                    </div>
+                    
+                    <!-- Campo de observación de falta (solo visible para faltas) -->
+                    <div class="form-row" id="observacionFaltaContainer" style="display: none;">
+                        <div class="input-container">
+                            <label for="observacionFalta">Observación de la Falta</label>
+                            <textarea id="observacionFalta" rows="4" maxlength="255"></textarea>
+                            <div class="character-counter"><span id="charCountFalta">0</span>/255</div>
                             <span class="input-focus-effect"></span>
                         </div>
                     </div>
@@ -284,7 +319,7 @@
                             <i class="fas fa-times"></i> Cancelar
                         </button>
                         <button type="submit" id="saveButtonSuspension" class="save-button">
-                            <i class="fas fa-save"></i> Guardar
+                            <i class="fas fa-save"></i> <span id="saveButtonText">Guardar</span>
                         </button>
                     </div>
                 </div>

@@ -983,23 +983,21 @@ body.dark-theme {
 .diasLaborados[data-tooltip]:hover::after {
     content: attr(data-tooltip);
     position: absolute;
-    bottom: 100%;
+    bottom: 130%;
     left: 50%;
     transform: translateX(-50%);
     background-color: #333;
     color: white;
-    padding: 5px 10px;
-    border-radius: 4px;
+    padding: 12px 16px;
+    border-radius: 8px;
     font-size: 12px;
     white-space: nowrap;
-    z-index: 10;
-}
-
-/* Agregar un indicador visual para días reducidos */
-.diasLaborados.reducido::before {
-    content: "⚠️";
-    margin-right: 5px;
-    font-size: 12px;
+    z-index: 1000;
+    max-width: 350px;
+    white-space: normal;
+    word-wrap: break-word;
+    text-align: left;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
 }
 
 /* Resaltar el salario proporcional cuando es diferente del base */
@@ -3018,5 +3016,150 @@ tr:has(.descuento-judicial:not(:empty):not([data-tooltip=""])):hover {
     
     .help-sections {
         padding-left: 0;
+    }
+}
+.apply-filters {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    position: relative;
+    min-width: 200px;
+    justify-content: flex-start;
+}
+
+.btn-total {
+    display: flex;
+    align-items: center;
+    margin-left: auto;
+    font-weight: 600;
+    animation: fadeInScale 0.4s ease-out;
+}
+
+.total-separator {
+    margin: 0 8px;
+    opacity: 0.6;
+}
+
+.total-amount {
+    background-color: rgba(255, 255, 255, 0.2);
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: 13px;
+    font-weight: 700;
+}
+
+@keyframes fadeInScale {
+    from {
+        opacity: 0;
+        transform: scale(0.8);
+    }
+    to {
+        opacity: 1;
+        transform: scale(1);
+    }
+}
+
+
+.diasLaborados.suspension {
+    color: var(--warning);
+    background-color: rgba(255, 193, 7, 0.1);
+    border-left: 3px solid var(--warning);
+}
+
+/* Indicador de Falta - Círculo rojo */
+.diasLaborados.falta {
+    color: var(--danger);
+    background-color: rgba(255, 82, 82, 0.1);
+    border-left: 3px solid var(--danger);
+}
+
+/* Indicador Mixto - Diamante naranja (suspensiones + faltas) */
+.diasLaborados.mixto {
+    color: #FF5722;
+    background-color: rgba(255, 87, 34, 0.1);
+    border-left: 3px solid #FF5722;
+}
+
+/* Indicador de Baja - Persona */
+.diasLaborados.baja {
+    color: #9C27B0;
+    background-color: rgba(156, 39, 176, 0.1);
+    border-left: 3px solid #9C27B0;
+}
+
+/* Mejoras generales para todos los indicadores */
+.diasLaborados.reducido {
+    font-weight: 600;
+    text-align: center;
+    position: relative;
+    padding: 8px 12px;
+    border-radius: 6px;
+    transition: all 0.3s ease;
+    font-size: 13px;
+    letter-spacing: 0.5px;
+}
+
+.diasLaborados.reducido:hover {
+    transform: scale(1.05);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+/* Animación sutil para llamar la atención */
+.diasLaborados.peligro {
+    animation: pulseAlert 2s infinite;
+}
+
+@keyframes pulseAlert {
+    0%, 100% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0.7;
+    }
+}
+
+/* Estilos para tema oscuro */
+.dark-theme .diasLaborados.suspension {
+    color: #FFD54F;
+    background-color: rgba(255, 193, 7, 0.15);
+}
+
+.dark-theme .diasLaborados.falta {
+    color: #FF8A80;
+    background-color: rgba(255, 82, 82, 0.15);
+}
+
+.dark-theme .diasLaborados.mixto {
+    color: #FFAB91;
+    background-color: rgba(255, 87, 34, 0.15);
+}
+
+.dark-theme .diasLaborados.baja {
+    color: #CE93D8;
+    background-color: rgba(156, 39, 176, 0.15);
+}
+
+.diasLaborados[data-tooltip]:hover::before {
+    content: '';
+    position: absolute;
+    bottom: 125%;
+    left: 50%;
+    transform: translateX(-50%);
+    border: 6px solid transparent;
+    border-top-color: #333;
+    z-index: 1000;
+}
+
+/* Responsive para pantallas pequeñas */
+@media screen and (max-width: 768px) {
+    .diasLaborados.reducido {
+        padding: 6px 8px;
+        font-size: 11px;
+    }
+    
+    .diasLaborados[data-tooltip]:hover::after {
+        max-width: 250px;
+        font-size: 11px;
+        padding: 8px 12px;
     }
 }
