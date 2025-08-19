@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Autorizar Liquidaciones - Recursos Humanos</title>
+    <link rel="stylesheet" href="../Disenos/Planilla/AutorizarLiquidacion.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+</head>
+<body>
+    
+    <!-- Elementos decorativos de fondo -->
+    <div class="bg-decoration bubble bubble1"></div>
+    <div class="bg-decoration bubble bubble2"></div>
+    <div class="bg-decoration bubble bubble3"></div>
+    <div class="bg-decoration bubble bubble4"></div>
+    <div class="bg-decoration bubble bubble5"></div>
+    
+    <div class="bg-decoration pattern pattern1"></div>
+    <div class="bg-decoration pattern pattern2"></div>
+    
+    <div class="bg-decoration wave wave1"></div>
+    <div class="bg-decoration wave wave2"></div>
+    
+    <!-- Contenedor principal que ocupa toda la pantalla -->
+    <div class="main-container">
+        
+        <!-- Header de la página -->
+        <header class="page-header">
+            <div class="header-content">
+                <div class="header-left">
+                    <img src="../Imagenes/Logo Recursos Humanos new.png" alt="Logo" class="logo">
+                    <div class="header-title">
+                        <h1><i class="fas fa-check-circle"></i> Autorización de Liquidaciones</h1>
+                        <p>Gestión y aprobación de liquidaciones pendientes</p>
+                    </div>
+                </div>
+                
+                <!-- Franja de colores -->
+                <div class="color-strip-header">
+                    <div class="color-strip-item color-red"></div>
+                    <div class="color-strip-item color-blue"></div>
+                    <div class="color-strip-item color-green"></div>
+                    <div class="color-strip-item color-yellow"></div>
+                    <div class="color-strip-item color-orange"></div>
+                </div>
+            </div>
+        </header>
+        
+        <!-- Contenedor de contenido -->
+        <main class="content-container">
+            
+            <!-- Filtros y controles superiores -->
+            <div class="controls-section">
+                <div class="search-controls">
+                    <div class="search-box">
+                        <i class="fas fa-search search-icon"></i>
+                        <input type="text" id="buscarLiquidacion" placeholder="Buscar por nombre, ID o cualquier campo..." class="search-input">
+                        <button type="button" id="btnLimpiarBusqueda" class="btn-clear-search" title="Limpiar búsqueda">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
+                    
+                    <div class="filter-controls">
+                        <button type="button" id="btnRefrescar" class="btn btn-secondary">
+                            <i class="fas fa-sync-alt"></i>
+                            Actualizar
+                        </button>
+                        
+                        <div class="results-count">
+                            <span id="contadorResultados">Cargando...</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Tabla de liquidaciones -->
+            <div class="table-container">
+                
+                <!-- Indicador de carga -->
+                <div id="loadingIndicator" class="loading-indicator">
+                    <div class="spinner"></div>
+                    <p>Cargando liquidaciones...</p>
+                </div>
+                
+                <!-- Mensaje sin resultados -->
+                <div id="noResultsMessage" class="no-results" style="display: none;">
+                    <i class="fas fa-inbox"></i>
+                    <h3>No hay liquidaciones pendientes</h3>
+                    <p>No se encontraron liquidaciones que requieran autorización</p>
+                </div>
+                
+                <!-- Tabla principal -->
+                <table id="tablaLiquidaciones" class="liquidaciones-table" style="display: none;">
+                    <thead>
+                        <tr>
+                            <th data-column="IdLiquidacion" class="sortable">
+                                <div class="th-content">
+                                    <span>ID</span>
+                                    <i class="fas fa-sort sort-icon"></i>
+                                </div>
+                            </th>
+                            <th data-column="NombrePersonal" class="sortable">
+                                <div class="th-content">
+                                    <span>Colaborador</span>
+                                    <i class="fas fa-sort sort-icon"></i>
+                                </div>
+                            </th>
+                            <th data-column="FechaPlanilla" class="sortable">
+                                <div class="th-content">
+                                    <span>Fecha Ingreso</span>
+                                    <i class="fas fa-sort sort-icon"></i>
+                                </div>
+                            </th>
+                            <th data-column="MontoIndemnizacion" class="sortable text-right">
+                                <div class="th-content">
+                                    <span>Indemnización</span>
+                                    <i class="fas fa-sort sort-icon"></i>
+                                </div>
+                            </th>
+                            <th data-column="MontoAguinaldo" class="sortable text-right">
+                                <div class="th-content">
+                                    <span>Aguinaldo</span>
+                                    <i class="fas fa-sort sort-icon"></i>
+                                </div>
+                            </th>
+                            <th data-column="MontoVacaciones" class="sortable text-right">
+                                <div class="th-content">
+                                    <span>Vacaciones</span>
+                                    <i class="fas fa-sort sort-icon"></i>
+                                </div>
+                            </th>
+                            <th data-column="MontoBono14" class="sortable text-right">
+                                <div class="th-content">
+                                    <span>Bono 14</span>
+                                    <i class="fas fa-sort sort-icon"></i>
+                                </div>
+                            </th>
+                            <th data-column="total" class="sortable text-right">
+                                <div class="th-content">
+                                    <span>Total</span>
+                                    <i class="fas fa-sort sort-icon"></i>
+                                </div>
+                            </th>
+                            <th data-column="NombreUsuario" class="sortable">
+                                <div class="th-content">
+                                    <span>Creado por</span>
+                                    <i class="fas fa-sort sort-icon"></i>
+                                </div>
+                            </th>
+                            <th data-column="FechaHoraRegistro" class="sortable">
+                                <div class="th-content">
+                                    <span>Fecha Registro</span>
+                                    <i class="fas fa-sort sort-icon"></i>
+                                </div>
+                            </th>
+                            <th class="actions-column">
+                                <div class="th-content">
+                                    <span>Acciones</span>
+                                </div>
+                            </th>
+                        </tr>
+                    </thead>
+                    <tbody id="tablaLiquidacionesBody">
+                        <!-- Las filas se cargarán dinámicamente -->
+                    </tbody>
+                </table>
+                
+                <!-- Paginación (para futuro uso) -->
+                <div class="pagination-container" id="paginationContainer" style="display: none;">
+                    <div class="pagination-info">
+                        <span id="paginationInfo">Mostrando 1-10 de 25 registros</span>
+                    </div>
+                    <div class="pagination-controls">
+                        <button type="button" id="btnPrevPage" class="btn-pagination" disabled>
+                            <i class="fas fa-chevron-left"></i>
+                        </button>
+                        <span id="currentPage">1</span>
+                        <button type="button" id="btnNextPage" class="btn-pagination">
+                            <i class="fas fa-chevron-right"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+            
+        </main>
+        
+        <!-- Footer -->
+        <footer class="page-footer">
+            <div class="footer-content">
+                <p>Sistema de Recursos Humanos - Autorización de Liquidaciones</p>
+                <p>© New Technology 2025</p>
+            </div>
+        </footer>
+        
+    </div>
+    
+    <!-- Modal de detalles de liquidación -->
+    <div id="modalDetalles" class="modal" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3><i class="fas fa-info-circle"></i> Detalles de Liquidación</h3>
+                <button type="button" class="modal-close" id="cerrarModal">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body" id="modalDetallesBody">
+                <!-- El contenido se carga dinámicamente -->
+            </div>
+            <div class="modal-footer">
+                <button type="button" id="btnRechazar" class="btn btn-danger">
+                    <i class="fas fa-times-circle"></i>
+                    Rechazar
+                </button>
+                <button type="button" id="btnAutorizar" class="btn btn-success">
+                    <i class="fas fa-check-circle"></i>
+                    Autorizar
+                </button>
+                <button type="button" id="btnCerrarModal" class="btn btn-secondary">
+                    <i class="fas fa-times"></i>
+                    Cerrar
+                </button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Overlay del modal -->
+    <div id="modalOverlay" class="modal-overlay" style="display: none;"></div>
+    
+    <script src="../Logica/Planillas/AutorizarLiquidacion.js"></script>
+</body>
+</html>

@@ -25,7 +25,13 @@
     
     <div class="container">
         <div class="liquidacion-box">
-            <img src="../Imagenes/Logo Recursos Humanos new.png" alt="Logo" class="logo">
+            <div class="header-section">
+                <img src="../Imagenes/Logo Recursos Humanos new.png" alt="Logo" class="logo">
+                <button id="btnVerAutorizadas" class="btn-ver-autorizadas" title="Ver Liquidaciones Autorizadas">
+                    <i class="fas fa-check-circle"></i>
+                    <span>Ver Autorizadas</span>
+                </button>
+            </div>
             
             <!-- Franja de colores -->
             <div class="color-strip">
@@ -167,7 +173,60 @@
                     </button>
                 </div>
             </div>
-            
+            <div id="modalAutorizadas" class="modal-autorizadas">
+                <div class="modal-autorizadas-content">
+                    <div class="modal-autorizadas-header">
+                        <h3><i class="fas fa-check-circle"></i> Liquidaciones Autorizadas</h3>
+                        <button type="button" class="modal-close-autorizadas" id="cerrarModalAutorizadas">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
+                    <div class="modal-autorizadas-body">
+                        <!-- Controles de filtro -->
+                        <div class="controles-autorizadas">
+                            <div class="busqueda-autorizadas">
+                                <input type="text" id="buscarAutorizadas" placeholder="Buscar liquidaciones autorizadas...">
+                                <i class="fas fa-search search-icon"></i>
+                            </div>
+                            <div class="contador-autorizadas" id="contadorAutorizadas">
+                                Cargando...
+                            </div>
+                        </div>
+                        
+                        <!-- Indicador de carga -->
+                        <div id="loadingAutorizadas" class="loading-autorizadas">
+                            <div class="spinner"></div>
+                            <p>Cargando liquidaciones autorizadas...</p>
+                        </div>
+                        
+                        <!-- Mensaje sin resultados -->
+                        <div id="sinAutorizadas" class="sin-autorizadas" style="display: none;">
+                            <i class="fas fa-inbox"></i>
+                            <h3>No hay liquidaciones autorizadas</h3>
+                            <p>No se encontraron liquidaciones autorizadas</p>
+                        </div>
+                        
+                        <!-- Tabla de liquidaciones autorizadas -->
+                        <table id="tablaAutorizadas" class="tabla-autorizadas" style="display: none;">
+                            <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Colaborador</th>
+                                    <th>Fecha Ingreso</th>
+                                    <th>Total</th>
+                                    <th>Autorizado por</th>
+                                    <th>Fecha Autorización</th>
+                                    <th>Estado</th>
+                                    <th>Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tablaAutorizadasBody">
+                                <!-- Se llena dinámicamente -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
             <div class="footer-text">
                 <p>Sistema de Recursos Humanos - Liquidaciones</p>
                 <p>© New Technology 2025</p>

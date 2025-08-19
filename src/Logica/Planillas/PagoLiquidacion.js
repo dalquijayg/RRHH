@@ -4,6 +4,10 @@ const Swal = require('sweetalert2');
 
 let colaboradorSeleccionado = null;
 let timeoutBusqueda = null;
+let liquidacionesAutorizadas = [];
+let liquidacionesAutorizadasFiltradas = [];
+let timeoutBusquedaAutorizadas = null;
+let liquidacionesAutorizadasManager;
 
 // Función para verificar despido/renuncia del colaborador
 async function verificarDespidoRenuncia(idPersonal) {
@@ -821,36 +825,16 @@ async function generarPDFLiquidacion(colaborador, liquidacion, infoCompleta) {
         // Logo en header (optimizado para reducir peso)
         if (infoCompleta.LogoDivision) {
             try {
-                // Crear canvas temporal para redimensionar y comprimir la imagen
-                const canvas = document.createElement('canvas');
-                const ctx = canvas.getContext('2d');
-                const img = new Image();
-                
-                img.onload = function() {
-                    // Redimensionar a un tamaño óptimo
-                    canvas.width = 120; // Ancho máximo
-                    canvas.height = 60;  // Alto máximo
-                    
-                    // Dibujar imagen redimensionada
-                    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-                    
-                    // Convertir a JPEG con compresión
-                    const imagenOptimizada = canvas.toDataURL('image/jpeg', 0.7); // 70% calidad
-                    
-                    // Agregar al PDF
-                    doc.addImage(imagenOptimizada, 'JPEG', margin, yPosition, 40, 20);
-                };
-                
-                img.src = infoCompleta.LogoDivision;
-                
-                // Fallback: usar imagen original pero más pequeña
+                // Agregar logo directamente sin optimización compleja
                 doc.addImage(infoCompleta.LogoDivision, 'JPEG', margin, yPosition, 40, 20, undefined, 'MEDIUM');
-                
             } catch (e) {
-                console.log('Logo no disponible o error de optimización:', e);
+                console.log('Logo no disponible:', e);
                 // Crear logo de texto como alternativa
                 textoIzq('LOGO', margin, yPosition + 12, 10, grisTexto, 'bold');
             }
+        } else {
+            // Si no hay logo, mostrar texto
+            textoIzq('LOGO', margin, yPosition + 12, 10, grisTexto, 'bold');
         }
         
         // Texto del header (solo una vez)
@@ -885,7 +869,9 @@ async function generarPDFLiquidacion(colaborador, liquidacion, infoCompleta) {
         const tiempoLaboradoTexto = calcularTiempoLaborado(colaborador.FechaPlanilla, colaborador.EstadoSalida);
         const diasLaboradosMatch = tiempoLaboradoTexto.match(/\((\d+) días laborales\)/);
         const diasLaborados = diasLaboradosMatch ? diasLaboradosMatch[1] : liquidacion.diasLaborados;
-        const salarioDiario = (liquidacion.salarioBase / 30).toFixed(2);
+        const salarioDiario = (colaborador.SalarioDiario && colaborador.SalarioDiario > 0) ? 
+            parseFloat(colaborador.SalarioDiario).toFixed(2) : 
+            (liquidacion.salarioBase / 30).toFixed(2);
         
         // Caja gris para información (más compacta y optimizada)
         doc.setFillColor(240, 240, 240);
@@ -1151,7 +1137,7 @@ async function generarPDFLiquidacion(colaborador, liquidacion, infoCompleta) {
         centrarTexto(`CUI No. ${infoCompleta.DPI || 'N/A'}`, yPosition, 8, grisTexto);
         
         // === PIE DE PÁGINA (AÚN MÁS ABAJO) ===
-        yPosition = pageHeight - 6; // Movido más abajo de 8 a 6
+        yPosition = pageHeight - 5; // Movido más abajo de 8 a 6
         doc.setLineWidth(0.3);
         doc.setDrawColor(200, 200, 200);
         doc.line(margin, yPosition - 3, pageWidth - margin, yPosition - 3); // Reducido de 4 a 3
@@ -1170,13 +1156,6 @@ async function generarPDFLiquidacion(colaborador, liquidacion, infoCompleta) {
         console.error('Error al generar PDF completo:', error);
         throw error;
     }
-}
-
-// Función fallback para generar HTML si jsPDF falla
-function generarHTMLParaImpresion(colaborador, liquidacion, infoCompleta) {
-    // ... (código HTML anterior como fallback)
-    console.log('Usando fallback HTML para impresión');
-    return true;
 }
 // Liquidacion.js - PARTE 2 FINAL (Continuación)
 
@@ -1555,7 +1534,7 @@ function mostrarModalLiquidacion(liquidacion, colaborador) {
         html: html,
         width: 700,
         showCancelButton: true,
-        confirmButtonText: '<i class="fas fa-print"></i> Imprimir y Guardar',
+        confirmButtonText: '<i class="fas fa-save"></i> Guardar Liquidación',
         cancelButtonText: '<i class="fas fa-times"></i> Cerrar',
         confirmButtonColor: '#FF9800',
         cancelButtonColor: '#6c757d',
@@ -1717,58 +1696,64 @@ function mostrarModalLiquidacion(liquidacion, colaborador) {
                 setTimeout(() => Swal.resetValidationMessage(), 2000);
             });
         }
-    }).then(async (result) => {
-        if (result.isConfirmed) {
-            try {
-                // Mostrar indicador de carga
-                Swal.fire({
-                    title: 'Procesando...',
-                    html: 'Guardando liquidación y generando documento...',
-                    showConfirmButton: false,
-                    allowOutsideClick: false,
-                    didOpen: () => {
-                        Swal.showLoading();
-                    }
-                });
+        }).then(async (result) => {
+            if (result.isConfirmed) {
+                try {
+                    // Mostrar indicador de carga
+                    Swal.fire({
+                        title: 'Guardando...',
+                        html: 'Guardando información de liquidación...',
+                        showConfirmButton: false,
+                        allowOutsideClick: false,
+                        didOpen: () => {
+                            Swal.showLoading();
+                        }
+                    });
 
-                // 1. Obtener información completa del colaborador
-                const infoCompleta = await obtenerInfoCompletaLiquidacion(colaborador.IdPersonal);
-                
-                // 2. Guardar en base de datos
-                const idLiquidacion = await guardarLiquidacion(colaborador, liquidacion);
-                
-                // 3. Generar PDF
-                await generarPDFLiquidacion(colaborador, liquidacion, infoCompleta);
-                
-                // Mostrar éxito
-                Swal.fire({
-                    icon: 'success',
-                    title: '¡Liquidación Procesada!',
-                    html: `
-                        <div style="text-align: center;">
-                            <p><strong>Liquidación guardada exitosamente</strong></p>
-                            <p>ID de registro: <span style="color: #FF9800; font-weight: bold;">#${idLiquidacion}</span></p>
-                            <p>El documento PDF se ha generado correctamente</p>
-                            ${!liquidacion.indemnizacionActiva ? `<p><span style="color: #dc3545; font-weight: bold;">⚠️ Sin indemnización</span></p>` : ''}
-                            ${liquidacion.observaciones ? `<p><small style="color: #666;">Observación: ${liquidacion.observaciones.substring(0, 50)}${liquidacion.observaciones.length > 50 ? '...' : ''}</small></p>` : ''}
-                            ${liquidacion.descuentoVale > 0 ? `<p>Descuento aplicado: <span style="color: #dc3545; font-weight: bold;">${formatearMoneda(liquidacion.descuentoVale)}</span></p>` : ''}
-                        </div>
-                    `,
-                    confirmButtonColor: '#FF9800',
-                    confirmButtonText: 'Entendido'
-                });
-                
-            } catch (error) {
-                console.error('Error al procesar liquidación:', error);
-                Swal.fire({
-                    icon: 'error',
-                    title: 'Error al Procesar',
-                    text: 'Hubo un problema al guardar la liquidación: ' + error.message,
-                    confirmButtonColor: '#FF9800'
-                });
+                    // Guardar en base de datos
+                    const idLiquidacion = await guardarLiquidacion(colaborador, liquidacion);
+
+                    // Guardar vacaciones pagadas si aplica
+                    let idVacacionesPagadas = null;
+                    if (liquidacion.diasVacaciones > 0) {
+                        try {
+                            idVacacionesPagadas = await guardarVacacionesPagadas(colaborador, liquidacion, idLiquidacion);
+                        } catch (vacacionesError) {
+                            console.warn('Error al guardar vacaciones pagadas:', vacacionesError);
+                            // Continúa sin fallar, solo registra el warning
+                        }
+                    }
+                    
+                    // Mostrar éxito
+                    Swal.fire({
+                        icon: 'success',
+                        title: '¡Liquidación Guardada!',
+                        html: `
+                            <div style="text-align: center;">
+                                <p><strong>Liquidación guardada exitosamente</strong></p>
+                                <p>ID de registro: <span style="color: #FF9800; font-weight: bold;">#${idLiquidacion}</span></p>
+                                <p style="color: #666; font-size: 0.9rem;">La información queda pendiente para generar el documento posteriormente</p>
+                                ${liquidacion.diasVacaciones > 0 && idVacacionesPagadas ? `<p style="color: #4CAF50; font-size: 0.9rem;">✓ Vacaciones registradas como pagadas (${liquidacion.diasVacaciones} días)</p>` : ''}
+                                ${!liquidacion.indemnizacionActiva ? `<p><span style="color: #dc3545; font-weight: bold;">⚠️ Sin indemnización</span></p>` : ''}
+                                ${liquidacion.observaciones ? `<p><small style="color: #666;">Observación: ${liquidacion.observaciones.substring(0, 50)}${liquidacion.observaciones.length > 50 ? '...' : ''}</small></p>` : ''}
+                                ${liquidacion.descuentoVale > 0 ? `<p>Descuento aplicado: <span style="color: #dc3545; font-weight: bold;">${formatearMoneda(liquidacion.descuentoVale)}</span></p>` : ''}
+                            </div>
+                        `,
+                        confirmButtonColor: '#FF9800',
+                        confirmButtonText: 'Entendido'
+                    });
+                    
+                } catch (error) {
+                    console.error('Error al guardar liquidación:', error);
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Error al Guardar',
+                        text: 'Hubo un problema al guardar la liquidación: ' + error.message,
+                        confirmButtonColor: '#FF9800'
+                    });
+                }
             }
-        }
-    });
+        });
 }
 
 // Event listeners
@@ -1879,7 +1864,9 @@ document.addEventListener('DOMContentLoaded', function() {
     `;
     
     document.head.insertAdjacentHTML('beforeend', styles);
-    
+    if (document.getElementById('btnVerAutorizadas')) {
+        liquidacionesAutorizadasManager = new LiquidacionesAutorizadas();
+    }
     // Enfocar en el input al cargar
     inputBusqueda.focus();
 });
@@ -2064,21 +2051,1036 @@ async function calcularDiasVacacionesDisponibles(empleado) {
 function formatPeriodoUsuario(periodo) {
     if (!periodo) return '';
     
-    const partes = periodo.split(' al ');
-    if (partes.length === 2) {
-        try {
-            const fechaInicio = new Date(partes[0]);
-            const fechaFin = new Date(partes[1]);
-            
-            if (!isNaN(fechaInicio) && !isNaN(fechaFin)) {
-                return `${formatearFecha(fechaInicio)} al ${formatearFecha(fechaFin)}`;
-            }
-        } catch (error) {
-            console.error('Error al formatear período:', error);
-        }
+    // Si ya está en formato "YYYY-MM-DD al YYYY-MM-DD", devolverlo tal como está
+    if (periodo.includes(' al ') && periodo.match(/\d{4}-\d{2}-\d{2}/)) {
+        return periodo; // Devolver "2024-04-01 al 2025-03-31"
     }
     
     return periodo;
 }
+// Función para guardar vacaciones pagadas
+async function guardarVacacionesPagadas(colaborador, liquidacion, idLiquidacion) {
+    try {
+        // Solo guardar si hay días de vacaciones en la liquidación
+        if (liquidacion.diasVacaciones <= 0) {
+            return null;
+        }
+
+        // Obtener datos del usuario actual
+        const userData = JSON.parse(localStorage.getItem('userData') || '{}');
+        const idUsuario = userData.IdPersonal || 1;
+        const nombreUsuario = userData.NombreCompleto || 'Usuario Sistema';
+        
+        const connection = await connectionString();
+        
+        // Obtener el período de vacaciones disponibles (no el de liquidación)
+        const vacacionesDisponibles = await calcularDiasVacacionesDisponibles(colaborador);
+        
+        // Si tiene períodos con días disponibles, tomar el primero (el más reciente con días)
+        let periodoParaBD = '';
+        if (vacacionesDisponibles.periodosConDias && vacacionesDisponibles.periodosConDias.length > 0) {
+            // Tomar el primer período que tiene días disponibles
+            const primerPeriodo = vacacionesDisponibles.periodosConDias[0].periodo;
+            // Convertir formato "1 de abril de 2024 al 31 de marzo de 2025" a "2024-04-01 al 2025-03-31"
+            periodoParaBD = convertirPeriodoAFormatoBD(primerPeriodo);
+        } else {
+            // Si no hay períodos disponibles, calcular el período actual del año laboral
+            const fechaIngreso = colaborador.FechaPlanilla.split('T')[0].split('-');
+            const añoIngreso = parseInt(fechaIngreso[0]);
+            const mesIngreso = parseInt(fechaIngreso[1]);
+            const diaIngreso = parseInt(fechaIngreso[2]);
+            
+            const fechaActual = new Date();
+            const añoActual = fechaActual.getFullYear();
+            
+            // Calcular el año laboral actual
+            let añoLaboralInicio = añoActual;
+            if (fechaActual.getMonth() + 1 < mesIngreso || 
+                (fechaActual.getMonth() + 1 === mesIngreso && fechaActual.getDate() < diaIngreso)) {
+                añoLaboralInicio = añoActual - 1;
+            }
+            
+            const fechaInicio = `${añoLaboralInicio}-${mesIngreso.toString().padStart(2, '0')}-${diaIngreso.toString().padStart(2, '0')}`;
+            const fechaFin = `${añoLaboralInicio + 1}-${mesIngreso.toString().padStart(2, '0')}-${(diaIngreso - 1).toString().padStart(2, '0')}`;
+            
+            periodoParaBD = `${fechaInicio} al ${fechaFin}`;
+        }
+        
+        // Asegurar que los días solicitados no excedan 15
+        const diasASolicitar = Math.min(liquidacion.diasVacaciones, 15);
+        
+        const result = await connection.query(`
+            INSERT INTO vacacionespagadas (
+                IdPersonal, 
+                NombreColaborador, 
+                DiasSolicitado, 
+                Periodo, 
+                IdPlanilla, 
+                IdDepartamento, 
+                IdUsuario, 
+                NombreUsuario,
+                IdLiquidacion
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `, [
+            colaborador.IdPersonal,
+            colaborador.NombreCompleto,
+            diasASolicitar.toString(),
+            periodoParaBD, // Formato: 2024-04-01 al 2025-03-31
+            colaborador.IdPlanilla || null,
+            colaborador.IdSucuDepa || null,
+            idUsuario,
+            nombreUsuario,
+            idLiquidacion
+        ]);
+        
+        await connection.close();
+        return result.insertId;
+        
+    } catch (error) {
+        console.error('Error al guardar vacaciones pagadas:', error);
+        throw error;
+    }
+}
+function convertirPeriodoAFormatoBD(periodoTexto) {
+    try {
+        // Ejemplo de entrada: "1 de abril de 2024 al 31 de marzo de 2025"
+        const partes = periodoTexto.split(' al ');
+        if (partes.length !== 2) return periodoTexto;
+        
+        const fechaInicio = partes[0].trim();
+        const fechaFin = partes[1].trim();
+        
+        // Convertir cada fecha
+        const fechaInicioBD = convertirFechaTextoABD(fechaInicio);
+        const fechaFinBD = convertirFechaTextoABD(fechaFin);
+        
+        return `${fechaInicioBD} al ${fechaFinBD}`;
+    } catch (error) {
+        console.error('Error al convertir período:', error);
+        return periodoTexto; // Devolver original si falla
+    }
+}
+
+// Función auxiliar para convertir fecha de texto a formato BD
+function convertirFechaTextoABD(fechaTexto) {
+    try {
+        // Ejemplo: "1 de abril de 2024" -> "2024-04-01"
+        const meses = {
+            'enero': '01', 'febrero': '02', 'marzo': '03', 'abril': '04',
+            'mayo': '05', 'junio': '06', 'julio': '07', 'agosto': '08',
+            'septiembre': '09', 'octubre': '10', 'noviembre': '11', 'diciembre': '12'
+        };
+        
+        const partes = fechaTexto.split(' de ');
+        if (partes.length !== 3) return fechaTexto;
+        
+        const dia = partes[0].trim().padStart(2, '0');
+        const mes = meses[partes[1].trim().toLowerCase()];
+        const año = partes[2].trim();
+        
+        return `${año}-${mes}-${dia}`;
+    } catch (error) {
+        console.error('Error al convertir fecha:', error);
+        return fechaTexto;
+    }
+}
+class LiquidacionesAutorizadas {
+    constructor() {
+        this.modal = document.getElementById('modalAutorizadas');
+        this.tabla = document.getElementById('tablaAutorizadas');
+        this.tbody = document.getElementById('tablaAutorizadasBody');
+        this.loadingIndicator = document.getElementById('loadingAutorizadas');
+        this.sinResultados = document.getElementById('sinAutorizadas');
+        this.contador = document.getElementById('contadorAutorizadas');
+        this.searchInput = document.getElementById('buscarAutorizadas');
+        
+        this.setupEventListeners();
+    }
+    
+    setupEventListeners() {
+        // Abrir modal
+        document.getElementById('btnVerAutorizadas').addEventListener('click', () => {
+            this.abrirModal();
+        });
+        
+        // Cerrar modal
+        document.getElementById('cerrarModalAutorizadas').addEventListener('click', () => {
+            this.cerrarModal();
+        });
+        
+        // Cerrar al hacer clic fuera
+        this.modal.addEventListener('click', (e) => {
+            if (e.target === this.modal) {
+                this.cerrarModal();
+            }
+        });
+        
+        // Búsqueda
+        this.searchInput.addEventListener('input', (e) => {
+            this.filtrarLiquidaciones(e.target.value);
+        });
+        
+        // Escape para cerrar
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape' && this.modal.classList.contains('show')) {
+                this.cerrarModal();
+            }
+        });
+    }
+    
+    async abrirModal() {
+        this.modal.style.display = 'block';
+        setTimeout(() => {
+            this.modal.classList.add('show');
+        }, 10);
+        
+        await this.cargarLiquidacionesAutorizadas();
+    }
+    
+    cerrarModal() {
+        this.modal.classList.remove('show');
+        setTimeout(() => {
+            this.modal.style.display = 'none';
+            this.limpiarBusqueda();
+        }, 300);
+    }
+    
+    limpiarBusqueda() {
+        this.searchInput.value = '';
+        liquidacionesAutorizadasFiltradas = [...liquidacionesAutorizadas];
+        this.actualizarContador();
+    }
+    
+    async cargarLiquidacionesAutorizadas() {
+        try {
+            this.mostrarCarga(true);
+            
+            const liquidaciones = await this.obtenerLiquidacionesAutorizadas();
+            liquidacionesAutorizadas = liquidaciones;
+            liquidacionesAutorizadasFiltradas = [...liquidaciones];
+            
+            this.renderizarTabla();
+            this.actualizarContador();
+            
+        } catch (error) {
+            console.error('Error al cargar liquidaciones autorizadas:', error);
+            await Swal.fire({
+                icon: 'error',
+                title: 'Error al cargar datos',
+                text: 'No se pudieron cargar las liquidaciones autorizadas: ' + error.message,
+                confirmButtonColor: '#FF9800'
+            });
+        } finally {
+            this.mostrarCarga(false);
+        }
+    }
+    
+    async obtenerLiquidacionesAutorizadas() {
+        try {
+            const connection = await connectionString();
+            
+            const result = await connection.query(`
+                SELECT
+                    l.IdLiquidacion, 
+                    l.IdPersonal,
+                    l.NombrePersonal, 
+                    l.FechaPlanilla, 
+                    l.MontoIndemnizacion, 
+                    l.MontoAguinaldo, 
+                    l.MontoVacaciones, 
+                    l.MontoBono14, 
+                    l.NombreUsuario, 
+                    l.FechaHoraRegistro, 
+                    l.Observaciones, 
+                    l.NoVale, 
+                    l.DescuentoInterno,
+                    l.IndemnizacionSiNo,
+                    l.NombreUsuarioAutoriza,
+                    l.FechaHoraAutoriza,
+                    l.Estado,
+                    -- Información adicional del colaborador
+                    p.DPI,
+                    p.IdDepartamentoOrigen,
+                    p.IdMunicipioOrigen,
+                    p.IdPlanilla,
+                    p.IdSucuDepa,
+                    p.SalarioDiario,
+                    dpto.NombreDepartamento,
+                    puestos.Nombre as NombrePuesto,
+                    planillas.Nombre_Planilla,
+                    planillas.Division,
+                    divisiones.Nombre as NombreDivision,
+                    CASE 
+                        WHEN divisiones.Logos IS NOT NULL THEN CONCAT('data:image/jpeg;base64,', TO_BASE64(divisiones.Logos))
+                        ELSE NULL 
+                    END AS LogoDivision,
+                    deptoOrigen.NombreDepartamento AS DepartamentoOrigen,
+                    municipios.NombreMunicipio AS MunicipioOrigen
+                FROM
+                    Liquidaciones l
+                    LEFT JOIN personal p ON l.IdPersonal = p.IdPersonal
+                    LEFT JOIN FotosPersonal ON p.IdPersonal = FotosPersonal.IdPersonal
+                    LEFT JOIN departamentos dpto ON p.IdSucuDepa = dpto.IdDepartamento
+                    LEFT JOIN planillas ON p.IdPlanilla = planillas.IdPlanilla
+                    LEFT JOIN Puestos puestos ON p.IdPuesto = puestos.IdPuesto
+                    LEFT JOIN divisiones ON planillas.Division = divisiones.IdDivision
+                    LEFT JOIN departamentosguatemala deptoOrigen ON p.IdDepartamentoOrigen = deptoOrigen.IdDepartamentoG
+                    LEFT JOIN municipios ON p.IdMunicipioOrigen = municipios.IdMunicipio
+                WHERE
+                    l.Estado = 1
+                ORDER BY 
+                    l.FechaHoraAutoriza DESC
+            `);
+            
+            await connection.close();
+            
+            // Calcular total para cada liquidación
+            return result.map(liquidacion => ({
+                ...liquidacion,
+                Total: this.calcularTotalAutorizada(liquidacion)
+            }));
+            
+        } catch (error) {
+            console.error('Error al obtener liquidaciones autorizadas:', error);
+            throw error;
+        }
+    }
+    
+    calcularTotalAutorizada(liquidacion) {
+        const indemnizacion = parseFloat(liquidacion.MontoIndemnizacion) || 0;
+        const aguinaldo = parseFloat(liquidacion.MontoAguinaldo) || 0;
+        const vacaciones = parseFloat(liquidacion.MontoVacaciones) || 0;
+        const bono14 = parseFloat(liquidacion.MontoBono14) || 0;
+        // No restar el descuento del total
+        
+        return indemnizacion + aguinaldo + vacaciones + bono14;
+    }
+    
+    filtrarLiquidaciones(termino) {
+        if (timeoutBusquedaAutorizadas) {
+            clearTimeout(timeoutBusquedaAutorizadas);
+        }
+        
+        timeoutBusquedaAutorizadas = setTimeout(() => {
+            if (!termino.trim()) {
+                liquidacionesAutorizadasFiltradas = [...liquidacionesAutorizadas];
+            } else {
+                const terminoLower = termino.toLowerCase();
+                liquidacionesAutorizadasFiltradas = liquidacionesAutorizadas.filter(liquidacion => {
+                    return (
+                        liquidacion.IdLiquidacion.toString().includes(terminoLower) ||
+                        liquidacion.NombrePersonal.toLowerCase().includes(terminoLower) ||
+                        liquidacion.NombreUsuario.toLowerCase().includes(terminoLower) ||
+                        liquidacion.NombreUsuarioAutoriza.toLowerCase().includes(terminoLower) ||
+                        this.formatearMoneda(liquidacion.Total).toLowerCase().includes(terminoLower)
+                    );
+                });
+            }
+            
+            this.renderizarTabla();
+            this.actualizarContador();
+        }, 300);
+    }
+    
+    renderizarTabla() {
+        if (liquidacionesAutorizadasFiltradas.length === 0) {
+            this.mostrarSinResultados(true);
+            return;
+        }
+        
+        this.mostrarSinResultados(false);
+        
+        let html = '';
+        liquidacionesAutorizadasFiltradas.forEach(liquidacion => {
+            html += this.crearFilaAutorizada(liquidacion);
+        });
+        
+        this.tbody.innerHTML = html;
+    }
+    
+    crearFilaAutorizada(liquidacion) {
+        const fechaIngreso = this.formatearFecha(liquidacion.FechaPlanilla);
+        const fechaAutoriza = this.formatearFechaHora(liquidacion.FechaHoraAutoriza);
+        
+        return `
+            <tr data-id="${liquidacion.IdLiquidacion}">
+                <td class="font-weight-bold">#${liquidacion.IdLiquidacion}</td>
+                <td class="text-truncate" title="${liquidacion.NombrePersonal}">
+                    <strong>${liquidacion.NombrePersonal}</strong>
+                </td>
+                <td>${fechaIngreso}</td>
+                <td class="text-right">
+                    <span class="monto total">${this.formatearMoneda(liquidacion.Total)}</span>
+                    ${liquidacion.DescuentoInterno > 0 ? 
+                        `<br><small class="text-muted" style="font-style: italic;">Descuento: ${this.formatearMoneda(liquidacion.DescuentoInterno)} (info)</small>` 
+                        : ''
+                    }
+                </td>
+                <td class="text-truncate" title="${liquidacion.NombreUsuarioAutoriza}">
+                    ${liquidacion.NombreUsuarioAutoriza}
+                </td>
+                <td>${fechaAutoriza}</td>
+                <td>
+                    <span class="estado-autorizado">
+                        <i class="fas fa-check"></i>
+                        Autorizada
+                    </span>
+                </td>
+                <td class="text-center">
+                    <button type="button" class="btn-pdf" 
+                            onclick="generarPDFAutorizada(${liquidacion.IdLiquidacion})" 
+                            title="Generar PDF">
+                        <i class="fas fa-file-pdf"></i>
+                        PDF
+                    </button>
+                </td>
+            </tr>
+        `;
+    }
+    
+    mostrarCarga(mostrar) {
+        if (mostrar) {
+            this.loadingIndicator.style.display = 'flex';
+            this.tabla.style.display = 'none';
+            this.sinResultados.style.display = 'none';
+        } else {
+            this.loadingIndicator.style.display = 'none';
+        }
+    }
+    
+    mostrarSinResultados(mostrar) {
+        if (mostrar) {
+            this.sinResultados.style.display = 'flex';
+            this.tabla.style.display = 'none';
+        } else {
+            this.sinResultados.style.display = 'none';
+            this.tabla.style.display = 'table';
+        }
+    }
+    
+    actualizarContador() {
+        const total = liquidacionesAutorizadas.length;
+        const filtrados = liquidacionesAutorizadasFiltradas.length;
+        
+        if (total === 0) {
+            this.contador.textContent = 'Sin liquidaciones autorizadas';
+        } else if (filtrados === total) {
+            this.contador.textContent = `${total} liquidación${total > 1 ? 'es' : ''} autorizada${total > 1 ? 's' : ''}`;
+        } else {
+            this.contador.textContent = `${filtrados} de ${total} liquidaciones`;
+        }
+    }
+    
+    formatearMoneda(valor) {
+        if (!valor || isNaN(valor)) return 'Q 0.00';
+        
+        const numero = parseFloat(valor);
+        return new Intl.NumberFormat('es-GT', {
+            style: 'currency',
+            currency: 'GTQ',
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2
+        }).format(numero);
+    }
+    
+    formatearFecha(fecha) {
+        if (!fecha) return 'N/A';
+        
+        try {
+            const fechaObj = new Date(fecha);
+            return fechaObj.toLocaleDateString('es-ES', {
+                year: 'numeric',
+                month: 'short',
+                day: 'numeric'
+            });
+        } catch (error) {
+            return 'Fecha inválida';
+        }
+    }
+    
+    formatearFechaHora(fechaHora) {
+        if (!fechaHora) return 'N/A';
+        
+        try {
+            const fechaObj = new Date(fechaHora);
+            return fechaObj.toLocaleString('es-ES', {
+                year: 'numeric',
+                month: 'short',
+                day: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+        } catch (error) {
+            return 'Fecha inválida';
+        }
+    }
+}
+async function generarPDFAutorizada(idLiquidacion) {
+    try {
+        // Mostrar indicador de carga
+        Swal.fire({
+            title: 'Validando...',
+            html: 'Verificando estado de vacaciones pagadas...',
+            showConfirmButton: false,
+            allowOutsideClick: false,
+            didOpen: () => {
+                Swal.showLoading();
+            }
+        });
+        
+        // Validar vacaciones pagadas primero
+        const validacionVacaciones = await validarVacacionesPagadas(idLiquidacion);
+        
+        if (!validacionVacaciones.puedeGenerar) {
+            Swal.close();
+            await Swal.fire({
+                icon: 'warning',
+                title: 'No se puede generar PDF',
+                text: validacionVacaciones.mensaje,
+                confirmButtonColor: '#FF9800'
+            });
+            return;
+        }
+        
+        // Actualizar mensaje de carga
+        Swal.update({
+            title: 'Generando PDFs...',
+            html: 'Preparando documentos de liquidación...'
+        });
+        
+        // Buscar la liquidación en los datos cargados
+        const liquidacion = liquidacionesAutorizadas.find(l => l.IdLiquidacion === idLiquidacion);
+        
+        if (!liquidacion) {
+            throw new Error('Liquidación no encontrada');
+        }
+        
+        // Preparar datos (código existente...)
+        const colaboradorData = {
+            IdPersonal: liquidacion.IdPersonal,
+            NombreCompleto: liquidacion.NombrePersonal,
+            FechaPlanilla: liquidacion.FechaPlanilla,
+            SalarioBase: calcularSalarioBase(liquidacion),
+            SalarioDiario: parseFloat(liquidacion.SalarioDiario) || 0,
+            FotoBase64: liquidacion.FotoBase64,
+            EstadoSalida: {
+                tieneRegistro: false,
+                fechaFin: null,
+                tipoSalida: 'Autorizado',
+                idEstado: null
+            }
+        };
+        
+        const liquidacionData = {
+            salarioBase: calcularSalarioBase(liquidacion),
+            indemnizacion: parseFloat(liquidacion.MontoIndemnizacion) || 0,
+            indemnizacionActiva: liquidacion.IndemnizacionSiNo === 1,
+            aguinaldo: parseFloat(liquidacion.MontoAguinaldo) || 0,
+            vacaciones: parseFloat(liquidacion.MontoVacaciones) || 0,
+            bono14: parseFloat(liquidacion.MontoBono14) || 0,
+            subtotal: liquidacion.Total,
+            descuentoVale: parseFloat(liquidacion.DescuentoInterno) || 0,
+            numeroVale: liquidacion.NoVale || '',
+            total: liquidacion.Total,
+            diasLaborados: calcularDiasLaboradosFromDB(liquidacion),
+            diasAguinaldo: calcularDiasFromMonto(liquidacion.MontoAguinaldo, calcularSalarioBase(liquidacion)),
+            diasVacaciones: calcularDiasVacacionesFromMonto(liquidacion.MontoVacaciones, calcularSalarioBase(liquidacion)),
+            diasBono14: calcularDiasFromMonto(liquidacion.MontoBono14, calcularSalarioBase(liquidacion)),
+            esDespido: false,
+            esRenuncia: false,
+            observaciones: liquidacion.Observaciones || ''
+        };
+        
+        const infoCompleta = {
+            DPI: liquidacion.DPI,
+            NombreDivision: liquidacion.NombreDivision || 'Surtidora de Mercados, S.A.',
+            LogoDivision: liquidacion.LogoDivision,
+            DepartamentoOrigen: liquidacion.DepartamentoOrigen,
+            MunicipioOrigen: liquidacion.MunicipioOrigen,
+            NombreDepartamento: liquidacion.NombreDepartamento,
+            NombrePuesto: liquidacion.NombrePuesto,  
+            Nombre_Planilla: liquidacion.Nombre_Planilla,
+            NombreUsuarioAutoriza: liquidacion.NombreUsuarioAutoriza
+        };
+        
+        // Generar PDF de liquidación
+        await generarPDFLiquidacion(colaboradorData, liquidacionData, infoCompleta);
+        
+        // Esperar un momento y generar resumen
+        setTimeout(async () => {
+            try {
+                // Solicitar nombres de las firmas
+                const firmasInfo = await solicitarNombresFirmas();
+                
+                if (!firmasInfo) {
+                    // Usuario canceló
+                    Swal.close();
+                    await Swal.fire({
+                        icon: 'info',
+                        title: 'Operación cancelada',
+                        text: 'Se generó la liquidación pero se canceló la generación del resumen.',
+                        confirmButtonColor: '#FF9800'
+                    });
+                    return;
+                }
+                
+                // Generar resumen con las firmas
+                await generarPDFResumen(colaboradorData, liquidacionData, infoCompleta, validacionVacaciones, firmasInfo);
+                
+                Swal.close();
+                await Swal.fire({
+                    icon: 'success',
+                    title: '¡PDFs Generados!',
+                    html: `
+                        <div style="text-align: center;">
+                            <p><strong>Se han generado los siguientes documentos:</strong></p>
+                            <p>✓ Liquidación laboral detallada</p>
+                            <p>✓ Resumen de liquidación</p>
+                            ${validacionVacaciones.tieneVacaciones ? '<p>✓ Incluye pago de vacaciones autorizadas</p>' : ''}
+                        </div>
+                    `,
+                    confirmButtonColor: '#FF9800'
+                });
+            } catch (resumenError) {
+                console.error('Error al generar resumen:', resumenError);
+                await Swal.fire({
+                    icon: 'warning',
+                    title: 'Liquidación generada',
+                    text: 'La liquidación se generó correctamente, pero hubo un error al generar el resumen.',
+                    confirmButtonColor: '#FF9800'
+                });
+            }
+        }, 1000);
+        
+    } catch (error) {
+        console.error('Error al generar PDF:', error);
+        Swal.close();
+        await Swal.fire({
+            icon: 'error',
+            title: 'Error al generar PDF',
+            text: 'No se pudo generar el PDF: ' + error.message,
+            confirmButtonColor: '#FF9800'
+        });
+    }
+}
+function calcularSalarioBase(liquidacion) {
+    // Calcular el salario base aproximado basado en los montos
+    const indemnizacion = parseFloat(liquidacion.MontoIndemnizacion) || 0;
+    const aguinaldo = parseFloat(liquidacion.MontoAguinaldo) || 0;
+    
+    // Si hay aguinaldo, usar esa base para calcular el salario
+    if (aguinaldo > 0) {
+        // Aguinaldo = SalarioBase / 360 * dias, asumimos 360 días para año completo
+        return aguinaldo * 360 / 360; // Simplificado, en realidad necesitarías los días exactos
+    }
+    
+    // Fallback: usar indemnización si está disponible
+    if (indemnizacion > 0) {
+        // Indemnización simple = SalarioBase / 360 * días
+        return indemnizacion * 360 / 360; // Simplificado
+    }
+    
+    // Último recurso: calcular basado en el total
+    const total = liquidacion.Total || 0;
+    return total * 0.3; // Estimación conservadora
+}
+
+function calcularDiasLaboradosFromDB(liquidacion) {
+    // Calcular días laborados aproximados basado en fechas
+    if (!liquidacion.FechaPlanilla) return 360;
+    
+    const fechaIngreso = new Date(liquidacion.FechaPlanilla);
+    const fechaActual = new Date();
+    const diferenciaTiempo = fechaActual - fechaIngreso;
+    const diasTotales = Math.floor(diferenciaTiempo / (1000 * 60 * 60 * 24));
+    
+    return Math.min(diasTotales, 360 * 10); // Máximo 10 años
+}
+
+function calcularDiasFromMonto(monto, salarioBase) {
+    if (!monto || !salarioBase || salarioBase === 0) return 0;
+    
+    // Fórmula inversa: días = (monto * 360) / salarioBase
+    const dias = Math.round((parseFloat(monto) * 360) / salarioBase);
+    return Math.min(Math.max(dias, 0), 360); // Entre 0 y 360 días
+}
+
+function calcularDiasVacacionesFromMonto(monto, salarioBase) {
+    if (!monto || !salarioBase || salarioBase === 0) return 0;
+    
+    // Para vacaciones: monto = (SalarioBase / 360 * días) / 2
+    // Entonces: días = (monto * 2 * 360) / salarioBase
+    const dias = Math.round((parseFloat(monto) * 2 * 360) / salarioBase);
+    return Math.min(Math.max(dias, 0), 360);
+}
+//validaciones antes de generar documentos ya con resumen
+async function validarVacacionesPagadas(idLiquidacion) {
+    try {
+        const connection = await connectionString();
+        
+        // Verificar si hay vacaciones pagadas asociadas
+        const vacacionesPagadas = await connection.query(`
+            SELECT
+                vacacionespagadas.Idpagovacas, 
+                vacacionespagadas.NombreColaborador, 
+                vacacionespagadas.DiasSolicitado, 
+                vacacionespagadas.Periodo, 
+                planillas.Nombre_Planilla, 
+                departamentos.NombreDepartamento, 
+                vacacionespagadas.TotalaRecibir,
+                vacacionespagadas.Estado
+            FROM
+                vacacionespagadas
+                INNER JOIN planillas ON vacacionespagadas.IdPlanilla = planillas.IdPlanilla
+                INNER JOIN departamentos ON vacacionespagadas.IdDepartamento = departamentos.IdDepartamento
+            WHERE
+                vacacionespagadas.IdLiquidacion = ?
+        `, [idLiquidacion]);
+        
+        await connection.close();
+        
+        if (vacacionesPagadas.length === 0) {
+            // No hay vacaciones pagadas asociadas - OK para proceder
+            return {
+                puedeGenerar: true,
+                tieneVacaciones: false,
+                vacaciones: null,
+                mensaje: 'Sin vacaciones pagadas asociadas'
+            };
+        }
+        
+        const vacacion = vacacionesPagadas[0];
+        
+        // Verificar si está autorizada (Estado 2, 3 o 4)
+        if ([2, 3, 4].includes(vacacion.Estado)) {
+            return {
+                puedeGenerar: true,
+                tieneVacaciones: true,
+                vacaciones: vacacion,
+                mensaje: 'Vacaciones autorizadas - puede proceder'
+            };
+        } else {
+            return {
+                puedeGenerar: false,
+                tieneVacaciones: true,
+                vacaciones: vacacion,
+                mensaje: 'Las vacaciones pagadas aún no están autorizadas'
+            };
+        }
+        
+    } catch (error) {
+        console.error('Error al validar vacaciones pagadas:', error);
+        throw error;
+    }
+}
+async function generarPDFResumen(colaborador, liquidacion, infoCompleta, vacacionesInfo = null, firmasInfo = null) {
+    try {
+        const { jsPDF } = window.jspdf;
+        const doc = new jsPDF();
+        
+        // Configuración inicial
+        let yPosition = 20;
+        const pageWidth = doc.internal.pageSize.width;
+        const pageHeight = doc.internal.pageSize.height;
+        const margin = 20;
+        const contentWidth = pageWidth - (margin * 2);
+        
+        // Colores
+        const grisOscuro = [52, 52, 52];
+        const grisTexto = [85, 85, 85];
+        const grisTitulo = [68, 68, 68];
+        const azulHeader = [41, 128, 185];
+        
+        // Función para texto centrado
+        const centrarTexto = (texto, y, fontSize = 12, color = grisTexto, style = 'normal') => {
+            doc.setFontSize(fontSize);
+            doc.setFont(undefined, style);
+            doc.setTextColor(color[0], color[1], color[2]);
+            const textWidth = doc.getTextWidth(texto);
+            const x = (pageWidth - textWidth) / 2;
+            doc.text(texto, x, y);
+            return y + (fontSize * 0.6);
+        };
+        
+        // Función para texto izquierda
+        const textoIzq = (texto, x, y, fontSize = 10, color = grisTexto, style = 'normal') => {
+            doc.setFontSize(fontSize);
+            doc.setFont(undefined, style);
+            doc.setTextColor(color[0], color[1], color[2]);
+            doc.text(texto, x, y);
+        };
+        
+        // Función para texto derecha
+        const textoDer = (texto, x, y, fontSize = 10, color = grisTexto, style = 'normal') => {
+            doc.setFontSize(fontSize);
+            doc.setFont(undefined, style);
+            doc.setTextColor(color[0], color[1], color[2]);
+            const textWidth = doc.getTextWidth(texto);
+            doc.text(texto, x - textWidth, y);
+        };
+        
+        // === HEADER ===
+        if (infoCompleta.LogoDivision) {
+            try {
+                doc.addImage(infoCompleta.LogoDivision, 'JPEG', margin, yPosition, 35, 18, undefined, 'MEDIUM');
+            } catch (e) {
+                textoIzq('LOGO', margin, yPosition + 10, 10, grisTexto, 'bold');
+            }
+        }
+        
+        textoDer(infoCompleta.NombreDivision || 'Surtidora de Mercados, S.A.', pageWidth - margin, yPosition + 12, 11, grisTexto, 'bold');
+        
+        yPosition = 45;
+        
+        // === TÍTULO ===
+        doc.setFillColor(azulHeader[0], azulHeader[1], azulHeader[2]);
+        doc.rect(margin, yPosition, contentWidth, 12, 'F');
+        centrarTexto('RESUMEN DE LIQUIDACIÓN', yPosition + 8, 12, [255, 255, 255], 'bold');
+        yPosition += 20;
+        
+        // === INFORMACIÓN DEL COLABORADOR ===
+        doc.setFillColor(245, 245, 245);
+        doc.rect(margin, yPosition, contentWidth, 35, 'F');
+        
+        yPosition += 8;
+        textoIzq('COLABORADOR:', margin + 5, yPosition, 10, grisTitulo, 'bold');
+        textoIzq(colaborador.NombreCompleto.toUpperCase(), margin + 65, yPosition, 11, grisOscuro, 'bold');
+        
+        yPosition += 8;
+        textoIzq('PUESTO:', margin + 5, yPosition, 10, grisTitulo, 'bold');
+        textoIzq(infoCompleta.NombrePuesto || 'No especificado', margin + 65, yPosition, 10, grisTexto);
+        
+        yPosition += 8;
+        textoIzq('PLANILLA:', margin + 5, yPosition, 10, grisTitulo, 'bold');
+        textoIzq(infoCompleta.Nombre_Planilla || 'No especificada', margin + 65, yPosition, 10, grisTexto);
+        
+        yPosition += 8;
+        textoIzq('FECHA:', margin + 5, yPosition, 10, grisTitulo, 'bold');
+        textoIzq(new Date().toLocaleDateString('es-ES'), margin + 65, yPosition, 10, grisTexto);
+
+        yPosition += 8;
+        textoIzq('AUTORIZADO POR:', margin + 5, yPosition, 10, grisTitulo, 'bold');
+        const nombreAutoriza = liquidacion.NombreUsuarioAutoriza || 
+                            infoCompleta.NombreUsuarioAutoriza || 
+                            'N/A';
+        textoIzq(nombreAutoriza, margin + 65, yPosition, 10, grisTexto);
+
+        yPosition += 20;
+        
+        // === CONCEPTOS DE PAGO ===
+        doc.setFillColor(azulHeader[0], azulHeader[1], azulHeader[2]);
+        doc.rect(margin, yPosition, contentWidth, 10, 'F');
+        textoIzq('CONCEPTOS DE PAGO', margin + 5, yPosition + 7, 10, [255, 255, 255], 'bold');
+        yPosition += 15;
+        
+        // Línea de encabezado
+        doc.setDrawColor(200, 200, 200);
+        doc.setLineWidth(0.5);
+        doc.line(margin, yPosition, pageWidth - margin, yPosition);
+        yPosition += 8;
+        
+        // LIQUIDACIÓN
+        textoIzq('LIQUIDACIÓN LABORAL', margin + 5, yPosition, 11, grisTitulo, 'bold');
+        textoDer(formatearMoneda(liquidacion.total), pageWidth - margin - 5, yPosition, 11, grisOscuro, 'bold');
+        yPosition += 10;
+        
+        // VACACIONES (si existen)
+        if (vacacionesInfo && vacacionesInfo.tieneVacaciones) {
+            textoIzq('PAGO DE VACACIONES', margin + 5, yPosition, 11, grisTitulo, 'bold');
+            const montoVacaciones = parseFloat(vacacionesInfo.vacaciones.TotalaRecibir) || 0;
+            textoDer(formatearMoneda(montoVacaciones), pageWidth - margin - 5, yPosition, 11, grisOscuro, 'bold');
+            yPosition += 6;
+            textoIzq(`Días: ${vacacionesInfo.vacaciones.DiasSolicitado} - Período: ${vacacionesInfo.vacaciones.Periodo}`, margin + 10, yPosition, 8, grisTexto);
+            yPosition += 12;
+        }
+        
+        // DESCUENTO (si existe)
+        if (liquidacion.descuentoVale > 0) {
+            textoIzq('DESCUENTO INTERNO', margin + 5, yPosition, 11, grisTitulo, 'bold');
+            textoDer(`-${formatearMoneda(liquidacion.descuentoVale)}`, pageWidth - margin - 5, yPosition, 11, [220, 53, 69], 'bold');
+            yPosition += 6;
+            textoIzq(`Vale No: ${liquidacion.numeroVale || 'N/A'}`, margin + 10, yPosition, 8, grisTexto);
+            yPosition += 12;
+        }
+        
+        // Línea separadora
+        doc.setDrawColor(azulHeader[0], azulHeader[1], azulHeader[2]);
+        doc.setLineWidth(1);
+        doc.line(margin, yPosition, pageWidth - margin, yPosition);
+        yPosition += 10;
+        
+        // === TOTAL ===
+        doc.setFillColor(230, 245, 255);
+        doc.rect(margin, yPosition, contentWidth, 15, 'F');
+        
+        textoIzq('LÍQUIDO A RECIBIR', margin + 5, yPosition + 10, 14, azulHeader, 'bold');
+        
+        // Calcular total final
+        const montoLiquidacion = liquidacion.total;
+        const montoVacaciones = (vacacionesInfo && vacacionesInfo.tieneVacaciones) ? 
+            parseFloat(vacacionesInfo.vacaciones.TotalaRecibir) || 0 : 0;
+        const descuento = liquidacion.descuentoVale || 0;
+        const totalFinal = montoLiquidacion + montoVacaciones - descuento;
+        
+        textoDer(formatearMoneda(totalFinal), pageWidth - margin - 5, yPosition + 10, 14, azulHeader, 'bold');
+        yPosition += 25;
+        yPosition += 15; // Reducido de 30 a 15
+
+        // Líneas de firma
+        const anchoFirma = 60;
+        const espacioEntreFirmas = 15;
+        const xPrimera = margin + 20;
+        const xSegunda = pageWidth - margin - 20 - anchoFirma;
+
+        doc.setLineWidth(0.5);
+        doc.setDrawColor(grisTitulo[0], grisTitulo[1], grisTitulo[2]);
+        doc.line(xPrimera, yPosition, xPrimera + anchoFirma, yPosition);
+        doc.line(xSegunda, yPosition, xSegunda + anchoFirma, yPosition);
+
+        yPosition += 8;
+
+        // Nombres de las firmas (usando los parámetros recibidos)
+        const nombreFirma1 = (firmasInfo && firmasInfo.firma1) ? firmasInfo.firma1.toUpperCase() : 'FIRMA 1';
+        const cargoFirma1 = (firmasInfo && firmasInfo.cargo1) ? firmasInfo.cargo1.toUpperCase() : 'CARGO 1';
+        const nombreFirma2 = (firmasInfo && firmasInfo.firma2) ? firmasInfo.firma2.toUpperCase() : 'FIRMA 2';
+        const cargoFirma2 = (firmasInfo && firmasInfo.cargo2) ? firmasInfo.cargo2.toUpperCase() : 'CARGO 2';
+
+        // Ajustar texto para que quepa en el espacio
+        const fontSize1 = nombreFirma1.length > 25 ? 7 : 8;
+        const fontSize2 = nombreFirma2.length > 25 ? 7 : 8;
+
+        // Función para centrar texto en un área específica
+        const centrarTextoEnArea = (texto, xInicio, anchoArea, y, fontSize, color, style = 'normal') => {
+            doc.setFontSize(fontSize);
+            doc.setFont(undefined, style);
+            doc.setTextColor(color[0], color[1], color[2]);
+            const textWidth = doc.getTextWidth(texto);
+            const xCentrado = xInicio + (anchoArea - textWidth) / 2;
+            doc.text(texto, xCentrado, y);
+        };
+
+        // Centrar nombres de las firmas
+        centrarTextoEnArea(nombreFirma1, xPrimera, anchoFirma, yPosition, fontSize1, grisTitulo, 'bold');
+        centrarTextoEnArea(nombreFirma2, xSegunda, anchoFirma, yPosition, fontSize2, grisTitulo, 'bold');
+
+        yPosition += 6;
+
+        // Centrar cargos de las firmas
+        centrarTextoEnArea(cargoFirma1, xPrimera, anchoFirma, yPosition, 7, grisTexto);
+        centrarTextoEnArea(cargoFirma2, xSegunda, anchoFirma, yPosition, 7, grisTexto);
+
+        yPosition += 15; // Espacio después de las firmas
+        if (yPosition > pageHeight - 40) {
+            yPosition = pageHeight - 25; // Si no hay espacio, ponerlo en posición fija
+        }
+        doc.setLineWidth(0.3);
+        doc.setDrawColor(200, 200, 200);
+        doc.line(margin, yPosition, pageWidth - margin, yPosition);
+        
+        centrarTexto('Sistema de Recursos Humanos - Resumen de Liquidación', yPosition + 8, 8, grisTexto);
+        centrarTexto(`© ${infoCompleta.NombreDivision || 'New Technology'} ${new Date().getFullYear()}`, yPosition + 12, 7, grisTexto);
+        
+        // Generar y abrir PDF
+        const pdfBlob = doc.output('blob');
+        const pdfUrl = URL.createObjectURL(pdfBlob);
+        window.open(pdfUrl, '_blank');
+        
+        return true;
+        
+    } catch (error) {
+        console.error('Error al generar PDF de resumen:', error);
+        throw error;
+    }
+}
+async function solicitarNombresFirmas() {
+    const { value: formValues } = await Swal.fire({
+        title: 'Firmas para el Resumen',
+        html: `
+            <div style="text-align: left; padding: 10px;">
+                <div style="margin-bottom: 15px;">
+                    <label for="firma1" style="display: block; margin-bottom: 5px; font-weight: 600; color: #654321;">
+                        Primera Firma:
+                    </label>
+                    <input id="firma1" class="swal2-input" placeholder="Nombre completo de quien firma" 
+                           style="margin: 0; width: 100%; box-sizing: border-box;">
+                </div>
+                
+                <div style="margin-bottom: 15px;">
+                    <label for="cargo1" style="display: block; margin-bottom: 5px; font-weight: 600; color: #654321;">
+                        Cargo de la primera firma:
+                    </label>
+                    <input id="cargo1" class="swal2-input" placeholder="Ej: Gerente de Recursos Humanos" 
+                           style="margin: 0; width: 100%; box-sizing: border-box;">
+                </div>
+                
+                <div style="margin-bottom: 15px;">
+                    <label for="firma2" style="display: block; margin-bottom: 5px; font-weight: 600; color: #654321;">
+                        Segunda Firma:
+                    </label>
+                    <input id="firma2" class="swal2-input" placeholder="Nombre completo de quien firma" 
+                           style="margin: 0; width: 100%; box-sizing: border-box;">
+                </div>
+                
+                <div style="margin-bottom: 10px;">
+                    <label for="cargo2" style="display: block; margin-bottom: 5px; font-weight: 600; color: #654321;">
+                        Cargo de la segunda firma:
+                    </label>
+                    <input id="cargo2" class="swal2-input" placeholder="Ej: Jefe de Planillas" 
+                           style="margin: 0; width: 100%; box-sizing: border-box;">
+                </div>
+                
+                <div style="margin-top: 20px; padding: 10px; background: #f8f9fa; border-radius: 5px; border-left: 4px solid #FF9800;">
+                    <small style="color: #666;">
+                        <i class="fas fa-info-circle"></i> 
+                        Estos nombres aparecerán en las líneas de firma del resumen
+                    </small>
+                </div>
+            </div>
+        `,
+        focusConfirm: false,
+        showCancelButton: true,
+        confirmButtonColor: '#FF9800',
+        cancelButtonColor: '#6c757d',
+        confirmButtonText: '<i class="fas fa-check"></i> Continuar',
+        cancelButtonText: '<i class="fas fa-times"></i> Cancelar',
+        width: '500px',
+        preConfirm: () => {
+            const firma1 = document.getElementById('firma1').value.trim();
+            const cargo1 = document.getElementById('cargo1').value.trim();
+            const firma2 = document.getElementById('firma2').value.trim();
+            const cargo2 = document.getElementById('cargo2').value.trim();
+            
+            if (!firma1) {
+                Swal.showValidationMessage('Por favor ingrese el nombre de la primera firma');
+                return false;
+            }
+            
+            if (!cargo1) {
+                Swal.showValidationMessage('Por favor ingrese el cargo de la primera firma');
+                return false;
+            }
+            
+            if (!firma2) {
+                Swal.showValidationMessage('Por favor ingrese el nombre de la segunda firma');
+                return false;
+            }
+            
+            if (!cargo2) {
+                Swal.showValidationMessage('Por favor ingrese el cargo de la segunda firma');
+                return false;
+            }
+            
+            return {
+                firma1: firma1,
+                cargo1: cargo1,
+                firma2: firma2,
+                cargo2: cargo2
+            };
+        }
+    });
+    
+    return formValues;
+}
 // Función global para ser llamada desde el HTML
 window.seleccionarColaborador = seleccionarColaborador;
+window.generarPDFAutorizada = generarPDFAutorizada;

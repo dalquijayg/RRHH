@@ -902,3 +902,333 @@ h2 i {
 .vacaciones-disponibles-card.pocos-dias .card-icon-small {
     background: linear-gradient(135deg, #FF9800, #F57C00) !important;
 }
+.header-section {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 15px;
+    position: relative;
+}
+
+.btn-ver-autorizadas {
+    background: linear-gradient(135deg, #4CAF50, #388E3C);
+    color: white;
+    border: none;
+    padding: 10px 16px;
+    border-radius: 20px;
+    cursor: pointer;
+    transition: all 0.3s;
+    font-size: 0.85rem;
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    box-shadow: 0 4px 15px rgba(76, 175, 80, 0.3);
+    position: absolute;
+    top: 0;
+    right: 0;
+}
+
+.btn-ver-autorizadas:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(76, 175, 80, 0.4);
+    background: linear-gradient(135deg, #388E3C, #2E7D32);
+}
+
+.btn-ver-autorizadas i {
+    font-size: 0.9rem;
+}
+
+/* Modal para liquidaciones autorizadas */
+.modal-autorizadas {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.5);
+    z-index: 1000;
+    display: none;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+
+.modal-autorizadas.show {
+    opacity: 1;
+}
+
+.modal-autorizadas-content {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%) scale(0.9);
+    background: white;
+    border-radius: 15px;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+    width: 95vw;
+    max-width: 1200px;
+    height: 90vh;
+    overflow: hidden;
+    transition: all 0.3s ease;
+    display: flex;
+    flex-direction: column;
+}
+
+.modal-autorizadas.show .modal-autorizadas-content {
+    transform: translate(-50%, -50%) scale(1);
+}
+
+.modal-autorizadas-header {
+    background: linear-gradient(135deg, #4CAF50, #388E3C);
+    color: white;
+    padding: 20px 25px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-shrink: 0;
+}
+
+.modal-autorizadas-header h3 {
+    margin: 0;
+    font-size: 1.3rem;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.modal-close-autorizadas {
+    background: none;
+    border: none;
+    color: white;
+    font-size: 1.4rem;
+    cursor: pointer;
+    padding: 5px;
+    border-radius: 50%;
+    transition: all 0.3s;
+}
+
+.modal-close-autorizadas:hover {
+    background-color: rgba(255, 255, 255, 0.2);
+}
+
+.modal-autorizadas-body {
+    padding: 20px;
+    overflow-y: auto;
+    flex: 1;
+}
+
+/* Tabla de liquidaciones autorizadas */
+.tabla-autorizadas {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.9rem;
+    margin-top: 15px;
+}
+
+.tabla-autorizadas thead {
+    background: linear-gradient(135deg, #f8f9fa, #e9ecef);
+    position: sticky;
+    top: 0;
+    z-index: 10;
+}
+
+.tabla-autorizadas th,
+.tabla-autorizadas td {
+    padding: 12px 10px;
+    text-align: left;
+    border-bottom: 1px solid #e9ecef;
+    vertical-align: middle;
+}
+
+.tabla-autorizadas th {
+    font-weight: 600;
+    color: #654321;
+    white-space: nowrap;
+    border-bottom: 2px solid #dee2e6;
+}
+
+.tabla-autorizadas tbody tr {
+    transition: all 0.3s;
+}
+
+.tabla-autorizadas tbody tr:hover {
+    background-color: #f8f9fa;
+    transform: translateX(2px);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.btn-pdf {
+    background: linear-gradient(135deg, #FF5722, #E64A19);
+    color: white;
+    border: none;
+    padding: 6px 12px;
+    border-radius: 15px;
+    cursor: pointer;
+    transition: all 0.3s;
+    font-size: 0.8rem;
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    box-shadow: 0 2px 8px rgba(255, 87, 34, 0.3);
+}
+
+.btn-pdf:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(255, 87, 34, 0.4);
+}
+
+/* Controles de filtro para autorizadas */
+.controles-autorizadas {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 15px;
+    margin-bottom: 15px;
+    flex-wrap: wrap;
+}
+
+.busqueda-autorizadas {
+    position: relative;
+    flex: 1;
+    max-width: 400px;
+}
+
+.busqueda-autorizadas input {
+    width: 100%;
+    padding: 10px 40px 10px 15px;
+    border: 2px solid #e0e0e0;
+    border-radius: 20px;
+    font-size: 14px;
+    transition: all 0.3s;
+}
+
+.busqueda-autorizadas input:focus {
+    outline: none;
+    border-color: #4CAF50;
+    box-shadow: 0 0 0 3px rgba(76, 175, 80, 0.1);
+}
+
+.busqueda-autorizadas .search-icon {
+    position: absolute;
+    right: 15px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: #999;
+}
+
+.contador-autorizadas {
+    background: linear-gradient(135deg, #4CAF50, #388E3C);
+    color: white;
+    padding: 8px 16px;
+    border-radius: 20px;
+    font-size: 0.85rem;
+    font-weight: 500;
+    white-space: nowrap;
+}
+
+/* Estados y badges */
+.estado-autorizado {
+    background: linear-gradient(135deg, #4CAF50, #388E3C);
+    color: white;
+    padding: 4px 10px;
+    border-radius: 12px;
+    font-size: 0.75rem;
+    font-weight: 500;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+}
+
+/* Responsive para el modal */
+@media screen and (max-width: 768px) {
+    .header-section {
+        flex-direction: column;
+        gap: 15px;
+        align-items: center;
+    }
+    
+    .btn-ver-autorizadas {
+        position: static;
+        width: 100%;
+        justify-content: center;
+    }
+    
+    .modal-autorizadas-content {
+        width: 98vw;
+        height: 95vh;
+    }
+    
+    .controles-autorizadas {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    
+    .busqueda-autorizadas {
+        max-width: none;
+    }
+    
+    .tabla-autorizadas {
+        font-size: 0.8rem;
+    }
+    
+    .tabla-autorizadas th,
+    .tabla-autorizadas td {
+        padding: 8px 6px;
+    }
+}
+
+@media screen and (max-width: 480px) {
+    .modal-autorizadas-header {
+        padding: 15px 20px;
+    }
+    
+    .modal-autorizadas-header h3 {
+        font-size: 1.1rem;
+    }
+    
+    .tabla-autorizadas {
+        font-size: 0.75rem;
+    }
+    
+    .btn-pdf {
+        padding: 4px 8px;
+        font-size: 0.7rem;
+    }
+}
+
+/* Indicador de carga para autorizadas */
+.loading-autorizadas {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 60px 20px;
+    color: #666;
+}
+
+.loading-autorizadas .spinner {
+    width: 40px;
+    height: 40px;
+    border: 4px solid #f3f3f3;
+    border-top: 4px solid #4CAF50;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    margin-bottom: 15px;
+}
+
+.sin-autorizadas {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 60px 20px;
+    color: #999;
+    text-align: center;
+}
+
+.sin-autorizadas i {
+    font-size: 3rem;
+    margin-bottom: 15px;
+    color: #ddd;
+}
