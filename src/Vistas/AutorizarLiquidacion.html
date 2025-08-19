@@ -77,7 +77,7 @@
             
             <!-- Tabla de liquidaciones -->
             <div class="table-container">
-                
+    
                 <!-- Indicador de carga -->
                 <div id="loadingIndicator" class="loading-indicator">
                     <div class="spinner"></div>
@@ -91,81 +91,90 @@
                     <p>No se encontraron liquidaciones que requieran autorización</p>
                 </div>
                 
-                <!-- Tabla principal -->
-                <table id="tablaLiquidaciones" class="liquidaciones-table" style="display: none;">
-                    <thead>
-                        <tr>
-                            <th data-column="IdLiquidacion" class="sortable">
-                                <div class="th-content">
-                                    <span>ID</span>
-                                    <i class="fas fa-sort sort-icon"></i>
-                                </div>
-                            </th>
-                            <th data-column="NombrePersonal" class="sortable">
-                                <div class="th-content">
-                                    <span>Colaborador</span>
-                                    <i class="fas fa-sort sort-icon"></i>
-                                </div>
-                            </th>
-                            <th data-column="FechaPlanilla" class="sortable">
-                                <div class="th-content">
-                                    <span>Fecha Ingreso</span>
-                                    <i class="fas fa-sort sort-icon"></i>
-                                </div>
-                            </th>
-                            <th data-column="MontoIndemnizacion" class="sortable text-right">
-                                <div class="th-content">
-                                    <span>Indemnización</span>
-                                    <i class="fas fa-sort sort-icon"></i>
-                                </div>
-                            </th>
-                            <th data-column="MontoAguinaldo" class="sortable text-right">
-                                <div class="th-content">
-                                    <span>Aguinaldo</span>
-                                    <i class="fas fa-sort sort-icon"></i>
-                                </div>
-                            </th>
-                            <th data-column="MontoVacaciones" class="sortable text-right">
-                                <div class="th-content">
-                                    <span>Vacaciones</span>
-                                    <i class="fas fa-sort sort-icon"></i>
-                                </div>
-                            </th>
-                            <th data-column="MontoBono14" class="sortable text-right">
-                                <div class="th-content">
-                                    <span>Bono 14</span>
-                                    <i class="fas fa-sort sort-icon"></i>
-                                </div>
-                            </th>
-                            <th data-column="total" class="sortable text-right">
-                                <div class="th-content">
-                                    <span>Total</span>
-                                    <i class="fas fa-sort sort-icon"></i>
-                                </div>
-                            </th>
-                            <th data-column="NombreUsuario" class="sortable">
-                                <div class="th-content">
-                                    <span>Creado por</span>
-                                    <i class="fas fa-sort sort-icon"></i>
-                                </div>
-                            </th>
-                            <th data-column="FechaHoraRegistro" class="sortable">
-                                <div class="th-content">
-                                    <span>Fecha Registro</span>
-                                    <i class="fas fa-sort sort-icon"></i>
-                                </div>
-                            </th>
-                            <th class="actions-column">
-                                <div class="th-content">
-                                    <span>Acciones</span>
-                                </div>
-                            </th>
-                        </tr>
-                    </thead>
-                    <tbody id="tablaLiquidacionesBody">
-                        <!-- Las filas se cargarán dinámicamente -->
-                    </tbody>
-                </table>
+                <!-- Wrapper de la tabla con scroll -->
+                <div class="table-wrapper">
+                    <!-- Indicador de scroll disponible -->
+                    <div class="scroll-indicator">
+                        <i class="fas fa-arrows-alt-h"></i>
+                        Desliza
+                    </div>
+                    
+                    <!-- Tabla principal -->
+                    <table id="tablaLiquidaciones" class="liquidaciones-table" style="display: none;">
+                        <thead>
+                            <tr>
+                                <th data-column="IdLiquidacion" class="sortable">
+                                    <div class="th-content">
+                                        <span>ID</span>
+                                        <i class="fas fa-sort sort-icon"></i>
+                                    </div>
+                                </th>
+                                <th data-column="NombrePersonal" class="sortable">
+                                    <div class="th-content">
+                                        <span>Colaborador</span>
+                                        <i class="fas fa-sort sort-icon"></i>
+                                    </div>
+                                </th>
+                                <th data-column="FechaPlanilla" class="sortable">
+                                    <div class="th-content">
+                                        <span>Fecha Ingreso</span>
+                                        <i class="fas fa-sort sort-icon"></i>
+                                    </div>
+                                </th>
+                                <th data-column="MontoIndemnizacion" class="sortable text-right">
+                                    <div class="th-content">
+                                        <span>Indemnización</span>
+                                        <i class="fas fa-sort sort-icon"></i>
+                                    </div>
+                                </th>
+                                <th data-column="MontoAguinaldo" class="sortable text-right">
+                                    <div class="th-content">
+                                        <span>Aguinaldo</span>
+                                        <i class="fas fa-sort sort-icon"></i>
+                                    </div>
+                                </th>
+                                <th data-column="MontoVacaciones" class="sortable text-right">
+                                    <div class="th-content">
+                                        <span>Vacaciones</span>
+                                        <i class="fas fa-sort sort-icon"></i>
+                                    </div>
+                                </th>
+                                <th data-column="MontoBono14" class="sortable text-right">
+                                    <div class="th-content">
+                                        <span>Bono 14</span>
+                                        <i class="fas fa-sort sort-icon"></i>
+                                    </div>
+                                </th>
+                                <th data-column="total" class="sortable text-right">
+                                    <div class="th-content">
+                                        <span>Total</span>
+                                        <i class="fas fa-sort sort-icon"></i>
+                                    </div>
+                                </th>
+                                <th data-column="NombreUsuario" class="sortable">
+                                    <div class="th-content">
+                                        <span>Creado por</span>
+                                        <i class="fas fa-sort sort-icon"></i>
+                                    </div>
+                                </th>
+                                <th data-column="FechaHoraRegistro" class="sortable">
+                                    <div class="th-content">
+                                        <span>Fecha Registro</span>
+                                        <i class="fas fa-sort sort-icon"></i>
+                                    </div>
+                                </th>
+                                <th class="actions-column">
+                                    <div class="th-content">
+                                        <span>Acciones</span>
+                                    </div>
+                                </th>
+                            </tr>
+                        </thead>
+                        <tbody id="tablaLiquidacionesBody">
+                            <!-- Las filas se cargarán dinámicamente -->
+                        </tbody>
+                    </table>
+                </div>
                 
                 <!-- Paginación (para futuro uso) -->
                 <div class="pagination-container" id="paginationContainer" style="display: none;">

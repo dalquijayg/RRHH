@@ -265,9 +265,14 @@ body {
     background: white;
     border-radius: 15px;
     box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
-    overflow: hidden;
-    position: relative;
-    min-height: 400px;
+    padding: 0;
+    margin-bottom: 20px;
+    /* IMPORTANTE: Agregar overflow-x auto para scroll horizontal */
+    overflow-x: auto;
+    overflow-y: visible;
+    /* Establecer un ancho máximo */
+    max-width: 100%;
+    width: 100%;
 }
 
 /* === INDICADOR DE CARGA === */
@@ -315,13 +320,6 @@ body {
 .no-results h3 {
     margin-bottom: 10px;
     color: #666;
-}
-
-/* === TABLA === */
-.liquidaciones-table {
-    width: 100%;
-    border-collapse: collapse;
-    font-size: 0.9rem;
 }
 
 .liquidaciones-table thead {
@@ -1022,4 +1020,172 @@ body {
 .concepto-descuento-info .concepto-label small {
     color: #17a2b8;
     font-weight: 500;
+}
+/* Wrapper interno para la tabla */
+.table-wrapper {
+    overflow-x: auto;
+    overflow-y: visible;
+    max-width: 100%;
+    -webkit-overflow-scrolling: touch; /* Smooth scrolling en iOS */
+}
+
+/* Estilos para la tabla */
+.liquidaciones-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.9rem;
+    background: white;
+    /* IMPORTANTE: Establecer un ancho mínimo para forzar scroll */
+    min-width: 1200px; /* Ajusta según el contenido de tu tabla */
+    margin: 0;
+}
+
+/* Personalizar scrollbar horizontal */
+.table-container::-webkit-scrollbar {
+    height: 8px;
+    width: 8px;
+}
+
+.table-container::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 10px;
+}
+
+.table-container::-webkit-scrollbar-thumb {
+    background: #FF9800;
+    border-radius: 10px;
+}
+
+.table-container::-webkit-scrollbar-thumb:hover {
+    background: #F57C00;
+}
+
+.liquidaciones-table th,
+.liquidaciones-table td {
+    padding: 12px 10px;
+    text-align: left;
+    border-bottom: 1px solid #e9ecef;
+    vertical-align: middle;
+    white-space: nowrap; /* Evitar que el texto se corte */
+    min-width: 100px; /* Ancho mínimo para columnas */
+}
+
+/* Columnas específicas con ancho mínimo */
+.liquidaciones-table th:first-child,
+.liquidaciones-table td:first-child {
+    min-width: 60px; /* ID */
+}
+
+.liquidaciones-table th:nth-child(2),
+.liquidaciones-table td:nth-child(2) {
+    min-width: 180px; /* Colaborador */
+    max-width: 200px;
+}
+
+.liquidaciones-table th:nth-child(3),
+.liquidaciones-table td:nth-child(3) {
+    min-width: 120px; /* Fecha Ingreso */
+}
+
+.liquidaciones-table th:nth-child(4),
+.liquidaciones-table td:nth-child(4),
+.liquidaciones-table th:nth-child(5),
+.liquidaciones-table td:nth-child(5),
+.liquidaciones-table th:nth-child(6),
+.liquidaciones-table td:nth-child(6),
+.liquidaciones-table th:nth-child(7),
+.liquidaciones-table td:nth-child(7),
+.liquidaciones-table th:nth-child(8),
+.liquidaciones-table td:nth-child(8) {
+    min-width: 110px; /* Columnas de montos */
+}
+
+.liquidaciones-table th:nth-child(9),
+.liquidaciones-table td:nth-child(9) {
+    min-width: 150px; /* Creado por */
+}
+
+.liquidaciones-table th:nth-child(10),
+.liquidaciones-table td:nth-child(10) {
+    min-width: 140px; /* Fecha Registro */
+}
+
+.liquidaciones-table th:last-child,
+.liquidaciones-table td:last-child {
+    min-width: 120px; /* Acciones */
+}
+
+/* Responsive específico para tabla */
+@media screen and (max-width: 1024px) {
+    .liquidaciones-table {
+        min-width: 1100px;
+        font-size: 0.85rem;
+    }
+    
+    .liquidaciones-table th,
+    .liquidaciones-table td {
+        padding: 10px 8px;
+    }
+}
+
+@media screen and (max-width: 768px) {
+    .liquidaciones-table {
+        min-width: 1000px;
+        font-size: 0.8rem;
+    }
+    
+    .liquidaciones-table th,
+    .liquidaciones-table td {
+        padding: 8px 6px;
+    }
+    
+    /* Mostrar indicador de scroll en móviles */
+    .table-container::after {
+        content: "← Desliza para ver más →";
+        display: block;
+        text-align: center;
+        padding: 10px;
+        font-size: 0.8rem;
+        color: #666;
+        background: #f8f9fa;
+        border-top: 1px solid #e9ecef;
+    }
+}
+
+@media screen and (max-width: 480px) {
+    .liquidaciones-table {
+        min-width: 900px;
+        font-size: 0.75rem;
+    }
+    
+    .liquidaciones-table th,
+    .liquidaciones-table td {
+        padding: 6px 4px;
+    }
+}
+
+/* Indicador visual de scroll disponible */
+.scroll-indicator {
+    display: none;
+    position: absolute;
+    right: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    background: rgba(255, 152, 0, 0.8);
+    color: white;
+    padding: 5px 10px;
+    border-radius: 15px 0 0 15px;
+    font-size: 0.8rem;
+    z-index: 5;
+    animation: pulse 2s infinite;
+}
+
+@media screen and (max-width: 768px) {
+    .table-container {
+        position: relative;
+    }
+    
+    .scroll-indicator {
+        display: block;
+    }
 }
