@@ -978,7 +978,6 @@ async function generarPDFLiquidacion(colaborador, liquidacion, infoCompleta) {
             
             return yPos + 16;
         };
-        
         // INDEMNIZACIÓN
         let salarioIndem = liquidacion.salarioBase;
         if (liquidacion.esDespido) {
@@ -1058,8 +1057,14 @@ async function generarPDFLiquidacion(colaborador, liquidacion, infoCompleta) {
         const departamento = (infoCompleta.DepartamentoOrigen || 'QUICHÉ').toUpperCase();
         const empresa = (infoCompleta.NombreDivision || 'SURTIDORA DE MERCADOS, S.A.').toUpperCase();
         
-        const textoLegal = `YO ${colaborador.NombreCompleto.toUpperCase()} VECINO DEL MUNICIPIO DE ${municipio} DEL DEPARTAMENTO DE ${departamento} POR ESTE MEDIO HAGO CONSTAR QUE, RECIBÍ A MI ENTERA SATISFACCIÓN LAS PRESTACIONES LABORALES A QUE TENGO DERECHO POR PARTE DE ${empresa}, POR LO QUE EXTIENDO MI MAS AMPLIO Y ENTERO FINIQUITO A LA CITADA ${empresa} NO TENIENDO NINGUN RECLAMO PRESENTE NI FUTURO, DADO EN LA ANTIGUA GUATEMALA A LOS SEIS DÍAS DEL MES DE JUNIO DEL AÑO DOS MIL VEINTICINCO.`;
-        
+        // Generar fecha dinámica para el texto legal
+        const fechaParaTexto = colaborador.EstadoSalida.tieneRegistro ? 
+            colaborador.EstadoSalida.fechaFin : 
+            new Date().toISOString().split('T')[0];
+
+        const fechaFormateadaTexto = convertirFechaATextoLegal(fechaParaTexto);
+
+        const textoLegal = `YO ${colaborador.NombreCompleto.toUpperCase()} VECINO DEL MUNICIPIO DE ${municipio} DEL DEPARTAMENTO DE ${departamento} POR ESTE MEDIO HAGO CONSTAR QUE, RECIBÍ A MI ENTERA SATISFACCIÓN LAS PRESTACIONES LABORALES A QUE TENGO DERECHO POR PARTE DE ${empresa}, POR LO QUE EXTIENDO MI MAS AMPLIO Y ENTERO FINIQUITO A LA CITADA ${empresa} NO TENIENDO NINGUN RECLAMO PRESENTE NI FUTURO, DADO EN LA ANTIGUA GUATEMALA ${fechaFormateadaTexto}.`;
         // Función para justificar texto con espaciado reducido
         const justificarTexto = (texto, anchoLinea, x, y, tamanoFuente) => {
             const palabras = texto.split(' ');
@@ -2300,6 +2305,7 @@ class LiquidacionesAutorizadas {
                     l.Estado,
                     -- Información adicional del colaborador
                     p.DPI,
+                    p.SalarioBase,
                     p.IdDepartamentoOrigen,
                     p.IdMunicipioOrigen,
                     p.IdPlanilla,
@@ -2556,24 +2562,30 @@ async function generarPDFAutorizada(idLiquidacion) {
         }
         
         // Preparar datos (código existente...)
+        const estadoSalidaReal = await verificarDespidoRenuncia(liquidacion.IdPersonal);
+
         const colaboradorData = {
             IdPersonal: liquidacion.IdPersonal,
             NombreCompleto: liquidacion.NombrePersonal,
             FechaPlanilla: liquidacion.FechaPlanilla,
-            SalarioBase: calcularSalarioBase(liquidacion),
+            SalarioBase: parseFloat(liquidacion.SalarioBase) || calcularSalarioBase(liquidacion),
             SalarioDiario: parseFloat(liquidacion.SalarioDiario) || 0,
             FotoBase64: liquidacion.FotoBase64,
-            EstadoSalida: {
-                tieneRegistro: false,
-                fechaFin: null,
-                tipoSalida: 'Autorizado',
-                idEstado: null
-            }
+            EstadoSalida: estadoSalidaReal // Usar el estado real en lugar del forzado
         };
         
+        const salarioBaseReal = parseFloat(liquidacion.SalarioBase) || calcularSalarioBase(liquidacion);
+        const montoIndemnizacion = parseFloat(liquidacion.MontoIndemnizacion) || 0;
+
+        // Si la indemnización es mayor que el salario base simple, probablemente es despido
+        const indemnizacionSimple = (salarioBaseReal / 360) * calcularDiasLaboradosFromDB(liquidacion);
+        const indemnizacionDespido = ((salarioBaseReal + (salarioBaseReal / 6)) / 360) * calcularDiasLaboradosFromDB(liquidacion);
+
+        const esDespidoCalculado = Math.abs(montoIndemnizacion - indemnizacionDespido) < Math.abs(montoIndemnizacion - indemnizacionSimple);
+
         const liquidacionData = {
-            salarioBase: calcularSalarioBase(liquidacion),
-            indemnizacion: parseFloat(liquidacion.MontoIndemnizacion) || 0,
+            salarioBase: salarioBaseReal,
+            indemnizacion: montoIndemnizacion,
             indemnizacionActiva: liquidacion.IndemnizacionSiNo === 1,
             aguinaldo: parseFloat(liquidacion.MontoAguinaldo) || 0,
             vacaciones: parseFloat(liquidacion.MontoVacaciones) || 0,
@@ -2583,11 +2595,11 @@ async function generarPDFAutorizada(idLiquidacion) {
             numeroVale: liquidacion.NoVale || '',
             total: liquidacion.Total,
             diasLaborados: calcularDiasLaboradosFromDB(liquidacion),
-            diasAguinaldo: calcularDiasFromMonto(liquidacion.MontoAguinaldo, calcularSalarioBase(liquidacion)),
-            diasVacaciones: calcularDiasVacacionesFromMonto(liquidacion.MontoVacaciones, calcularSalarioBase(liquidacion)),
-            diasBono14: calcularDiasFromMonto(liquidacion.MontoBono14, calcularSalarioBase(liquidacion)),
-            esDespido: false,
-            esRenuncia: false,
+            diasAguinaldo: calcularDiasFromMonto(liquidacion.MontoAguinaldo, salarioBaseReal),
+            diasVacaciones: calcularDiasVacacionesFromMonto(liquidacion.MontoVacaciones, salarioBaseReal),
+            diasBono14: calcularDiasFromMonto(liquidacion.MontoBono14, salarioBaseReal),
+            esDespido: esDespidoCalculado,  // CALCULADO DINÁMICAMENTE
+            esRenuncia: !esDespidoCalculado,
             observaciones: liquidacion.Observaciones || ''
         };
         
@@ -2664,37 +2676,78 @@ async function generarPDFAutorizada(idLiquidacion) {
     }
 }
 function calcularSalarioBase(liquidacion) {
-    // Calcular el salario base aproximado basado en los montos
-    const indemnizacion = parseFloat(liquidacion.MontoIndemnizacion) || 0;
+    // PRIMERO: Intentar obtener el salario base real de la tabla personal
+    if (liquidacion.SalarioBase && liquidacion.SalarioBase > 0) {
+        return parseFloat(liquidacion.SalarioBase);
+    }
+    
+    // SEGUNDO: Si no está disponible, calcular desde los montos guardados
     const aguinaldo = parseFloat(liquidacion.MontoAguinaldo) || 0;
+    const diasAguinaldo = calcularDiasFromMonto(aguinaldo, 1); // Calcular días aproximados
     
-    // Si hay aguinaldo, usar esa base para calcular el salario
-    if (aguinaldo > 0) {
-        // Aguinaldo = SalarioBase / 360 * dias, asumimos 360 días para año completo
-        return aguinaldo * 360 / 360; // Simplificado, en realidad necesitarías los días exactos
+    if (aguinaldo > 0 && diasAguinaldo > 0) {
+        return (aguinaldo * 360) / diasAguinaldo;
     }
     
-    // Fallback: usar indemnización si está disponible
-    if (indemnizacion > 0) {
-        // Indemnización simple = SalarioBase / 360 * días
-        return indemnizacion * 360 / 360; // Simplificado
-    }
-    
-    // Último recurso: calcular basado en el total
+    // ÚLTIMO RECURSO: usar una estimación básica
     const total = liquidacion.Total || 0;
-    return total * 0.3; // Estimación conservadora
+    return total * 0.25; // Estimación más conservadora
 }
 
 function calcularDiasLaboradosFromDB(liquidacion) {
-    // Calcular días laborados aproximados basado en fechas
-    if (!liquidacion.FechaPlanilla) return 360;
+    if (!liquidacion.FechaPlanilla) {
+        console.log('No hay fecha de planilla, retornando 360');
+        return 360;
+    }
     
-    const fechaIngreso = new Date(liquidacion.FechaPlanilla);
-    const fechaActual = new Date();
-    const diferenciaTiempo = fechaActual - fechaIngreso;
-    const diasTotales = Math.floor(diferenciaTiempo / (1000 * 60 * 60 * 24));
-    
-    return Math.min(diasTotales, 360 * 10); // Máximo 10 años
+    try {
+        // Método 1: Calcular desde fecha
+        const fechaString = liquidacion.FechaPlanilla.split('T')[0];
+        const [añoInicio, mesInicio, diaInicio] = fechaString.split('-').map(Number);
+        
+        const fechaActual = new Date();
+        const añoFinal = fechaActual.getFullYear();
+        const mesFinal = fechaActual.getMonth() + 1;
+        const diaFinal = fechaActual.getDate();
+        
+        console.log('Fecha inicio:', { año: añoInicio, mes: mesInicio, dia: diaInicio });
+        console.log('Fecha actual:', { año: añoFinal, mes: mesFinal, dia: diaFinal });
+        
+        const fechaInicio = { año: añoInicio, mes: mesInicio, dia: diaInicio };
+        const fechaFin = { año: añoFinal, mes: mesFinal, dia: diaFinal };
+        
+        const diferencia = calcularDiferenciasComerciales(fechaInicio, fechaFin);
+        
+        const diasPorFecha = Math.min(diferencia.diasTotales, 360 * 10);
+        
+        // Método 2: Calcular desde indemnización
+        const salarioBase = parseFloat(liquidacion.SalarioBase) || 0;
+        const montoIndemnizacion = parseFloat(liquidacion.MontoIndemnizacion) || 0;
+        
+        if (salarioBase > 0 && montoIndemnizacion > 0) {
+            const esDespido = liquidacion.IndemnizacionSiNo === 1;
+            let diasPorIndemnizacion;
+            
+            if (esDespido) {
+                const salarioConSexta = salarioBase + (salarioBase / 6);
+                diasPorIndemnizacion = Math.round((montoIndemnizacion * 360) / salarioConSexta);
+            } else {
+                diasPorIndemnizacion = Math.round((montoIndemnizacion * 360) / salarioBase);
+            }
+            
+            console.log('Días por indemnización:', diasPorIndemnizacion);
+            
+            // Usar el método más razonable
+            if (diasPorIndemnizacion > 0 && diasPorIndemnizacion <= 3600) {
+                return diasPorIndemnizacion;
+            }
+        }
+        return diasPorFecha;
+        
+    } catch (error) {
+        console.error('Error al calcular días laborados:', error);
+        return 360;
+    }
 }
 
 function calcularDiasFromMonto(monto, salarioBase) {
@@ -3080,6 +3133,60 @@ async function solicitarNombresFirmas() {
     });
     
     return formValues;
+}
+function convertirFechaATextoLegal(fecha) {
+    if (!fecha) {
+        const hoy = new Date();
+        fecha = hoy.toISOString().split('T')[0];
+    }
+    
+    // Parsear la fecha
+    const fechaString = fecha.split('T')[0];
+    const [año, mes, dia] = fechaString.split('-').map(Number);
+    
+    // Arrays para conversión
+    const mesesTexto = [
+        '', 'ENERO', 'FEBRERO', 'MARZO', 'ABRIL', 'MAYO', 'JUNIO',
+        'JULIO', 'AGOSTO', 'SEPTIEMBRE', 'OCTUBRE', 'NOVIEMBRE', 'DICIEMBRE'
+    ];
+    
+    const numerosTexto = {
+        1: 'UNO', 2: 'DOS', 3: 'TRES', 4: 'CUATRO', 5: 'CINCO',
+        6: 'SEIS', 7: 'SIETE', 8: 'OCHO', 9: 'NUEVE', 10: 'DIEZ',
+        11: 'ONCE', 12: 'DOCE', 13: 'TRECE', 14: 'CATORCE', 15: 'QUINCE',
+        16: 'DIECISÉIS', 17: 'DIECISIETE', 18: 'DIECIOCHO', 19: 'DIECINUEVE', 20: 'VEINTE',
+        21: 'VEINTIUNO', 22: 'VEINTIDÓS', 23: 'VEINTITRÉS', 24: 'VEINTICUATRO', 25: 'VEINTICINCO',
+        26: 'VEINTISÉIS', 27: 'VEINTISIETE', 28: 'VEINTIOCHO', 29: 'VEINTINUEVE', 30: 'TREINTA',
+        31: 'TREINTA Y UNO'
+    };
+    
+    // Convertir año a texto
+    function añoATexto(año) {
+        const miles = Math.floor(año / 1000);
+        const resto = año % 1000;
+        
+        if (año === 2025) return 'DOS MIL VEINTICINCO';
+        if (año === 2024) return 'DOS MIL VEINTICUATRO';
+        if (año === 2026) return 'DOS MIL VEINTISÉIS';
+        
+        // Para otros años, construir dinámicamente
+        let textoAño = 'DOS MIL';
+        if (resto > 0) {
+            if (resto <= 31) {
+                textoAño += ' ' + numerosTexto[resto];
+            } else {
+                // Para números más complejos
+                textoAño += ' ' + resto.toString();
+            }
+        }
+        return textoAño;
+    }
+    
+    const diaTexto = numerosTexto[dia] || dia.toString();
+    const mesTexto = mesesTexto[mes];
+    const añoTexto = añoATexto(año);
+    
+    return `A LOS ${diaTexto} DÍAS DEL MES DE ${mesTexto} DEL AÑO ${añoTexto}`;
 }
 // Función global para ser llamada desde el HTML
 window.seleccionarColaborador = seleccionarColaborador;
