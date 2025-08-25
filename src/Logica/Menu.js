@@ -1,8 +1,8 @@
+
+const { connectionString } = require('../Conexion/Conexion');
 const { ipcRenderer } = require('electron');
-const odbc = require('odbc');
 const Swal = require('sweetalert2');
 const Chart = require('chart.js/auto');
-const conexion = 'DSN=recursos2';
 
 // Variables para seguimiento
 let currentRegionId = 0; // 0 significa todas las regiones
@@ -49,10 +49,11 @@ const ConsultarArchivos = document.getElementById('consultarArchivosBtn');
 const PagoPlanillaParcial = document.getElementById('planillaTiempoParcialBtn');
 const AutorizarPlanillasParciales = document.getElementById('autorizarPlanillasParcialesBtn')
 const AutorizarLiquidaciones = document.getElementById('autorizarLiquidacionesBtn')
+const ReporteDiasDisponiblesVacaciones = document.getElementById('reporteDiasDisponiblesVacacionesBtn')
 // Inicializar conexión con la base de datos
 async function getConnection() {
     try {
-        const connection = await odbc.connect(conexion);
+        const connection = await connectionString();
         await connection.query('SET NAMES utf8mb4');
         return connection;
     } catch (error) {
@@ -967,13 +968,81 @@ logoutModal.addEventListener('click', (e) => {
 });
 
 // Navegación entre páginas
-personalNuevoBtn.addEventListener('click', () => {
-    mostrarNotificacion('Abriendo formulario de nuevo personal...', 'info');
-    // Usar ipcRenderer para comunicarse con el proceso principal
-    ipcRenderer.send('open_personal_nuevo');
+personalNuevoBtn.addEventListener('click', async() => {
+    try {
+        // Mostrar notificación de verificación
+        mostrarNotificacion('Verificando permisos...', 'info');
+        
+        // Obtener el ID del usuario actual
+        const idPersonal = userData.IdPersonal;
+        
+        // Verificar permisos en la base de datos
+        const connection = await getConnection();
+        
+        const permisosQuery = `
+            SELECT COUNT(*) AS tienePermiso 
+            FROM TransaccionesRRHH 
+            WHERE IdPersonal = ${idPersonal} AND Codigo = 101
+        `;
+        
+        const resultado = await connection.query(permisosQuery);
+        await connection.close();
+        
+        // Verificar si tiene permiso (si el conteo es mayor a 0)
+        if (resultado[0].tienePermiso > 0) {
+            // Tiene permiso, abrir la ventana
+            mostrarNotificacion('Abriendo Planilla Especial...', 'success');
+            ipcRenderer.send('open_personal_nuevo');
+        } else {
+            // No tiene permiso, mostrar error
+            Swal.fire({
+                icon: 'error',
+                title: 'Acceso denegado',
+                text: 'No tienes permisos para acceder a esta funcionalidad. Trans: 101'
+            });
+        }
+    } catch (error) {
+        console.error('Error al verificar permisos:', error);
+        mostrarNotificacion('Error al verificar permisos', 'error');
+    }
 });
-BusquetaPBtn.addEventListener('click',()=>{
-    ipcRenderer.send('open_personal_busqueda');
+BusquetaPBtn.addEventListener('click',async ()=>{
+    try {
+        // Mostrar notificación de verificación
+        mostrarNotificacion('Verificando permisos...', 'info');
+        
+        // Obtener el ID del usuario actual
+        const idPersonal = userData.IdPersonal;
+        
+        // Verificar permisos en la base de datos
+        const connection = await getConnection();
+        
+        const permisosQuery = `
+            SELECT COUNT(*) AS tienePermiso 
+            FROM TransaccionesRRHH 
+            WHERE IdPersonal = ${idPersonal} AND Codigo = 102
+        `;
+        
+        const resultado = await connection.query(permisosQuery);
+        await connection.close();
+        
+        // Verificar si tiene permiso (si el conteo es mayor a 0)
+        if (resultado[0].tienePermiso > 0) {
+            // Tiene permiso, abrir la ventana
+            mostrarNotificacion('Abriendo Busqueda Colaborador...', 'success');
+            ipcRenderer.send('open_personal_busqueda');
+        } else {
+            // No tiene permiso, mostrar error
+            Swal.fire({
+                icon: 'error',
+                title: 'Acceso denegado',
+                text: 'No tienes permisos para acceder a esta funcionalidad. Trans: 102'
+            });
+        }
+    } catch (error) {
+        console.error('Error al verificar permisos:', error);
+        mostrarNotificacion('Error al verificar permisos', 'error');
+    }
 });
 planillaEspecialBtn.addEventListener('click', async () => {
     try {
@@ -1817,6 +1886,44 @@ AutorizarLiquidaciones.addEventListener('click', async () => {
                 icon: 'error',
                 title: 'Acceso denegado',
                 text: 'No tienes permisos para acceder a esta funcionalidad. Trans.127'
+            });
+        }
+    } catch (error) {
+        console.error('Error al verificar permisos:', error);
+        mostrarNotificacion('Error al verificar permisos', 'error');
+    }
+});
+ReporteDiasDisponiblesVacaciones.addEventListener('click', async () => {
+    try {
+        // Mostrar notificación de verificación
+        mostrarNotificacion('Verificando permisos...', 'info');
+        
+        // Obtener el ID del usuario actual
+        const idPersonal = userData.IdPersonal;
+        
+        // Verificar permisos en la base de datos
+        const connection = await getConnection();
+        
+        const permisosQuery = `
+            SELECT COUNT(*) AS tienePermiso 
+            FROM TransaccionesRRHH 
+            WHERE IdPersonal = ${idPersonal} AND Codigo = 128
+        `;
+        
+        const resultado = await connection.query(permisosQuery);
+        await connection.close();
+        
+        // Verificar si tiene permiso (si el conteo es mayor a 0)
+        if (resultado[0].tienePermiso > 0) {
+            // Tiene permiso, abrir la ventana
+            mostrarNotificacion('Abriendo Reporte de Días Disponibles de Vacaciones...', 'success');
+            ipcRenderer.send('open_Ventana_ReporteDiasDisponiblesVacaciones');
+        } else {
+            // No tiene permiso, mostrar error
+            Swal.fire({
+                icon: 'error',
+                title: 'Acceso denegado',
+                text: 'No tienes permisos para acceder a esta funcionalidad. Trans.128'
             });
         }
     } catch (error) {

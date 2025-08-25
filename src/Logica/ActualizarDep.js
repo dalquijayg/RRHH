@@ -1,8 +1,7 @@
 // Configuración e inicialización
 const { ipcRenderer } = require('electron');
-const odbc = require('odbc');
+const { connectionString } = require('../Conexion/Conexion');
 const Swal = require('sweetalert2');
-const conexion = 'DSN=recursos2';
 const fs = require('fs');
 const path = require('path');
 
@@ -71,23 +70,6 @@ const logoBase64Input = document.getElementById('logoBase64');
 // Referencias a pestañas
 const tabBtns = document.querySelectorAll('.tab-btn');
 const tabContents = document.querySelectorAll('.tab-content');
-
-// Inicializar conexión con la base de datos
-async function getConnection() {
-    try {
-        const connection = await odbc.connect(conexion);
-        await connection.query('SET NAMES utf8mb4');
-        return connection;
-    } catch (error) {
-        console.error('Error de conexión:', error);
-        Swal.fire({
-            icon: 'error',
-            title: 'Error de conexión',
-            text: 'No se pudo conectar a la base de datos. Por favor intente nuevamente.'
-        });
-        throw error;
-    }
-}
 
 // Cargar información del usuario
 function cargarInfoUsuario() {
@@ -176,7 +158,7 @@ function mostrarNotificacion(mensaje, tipo = 'info') {
 // Cargar regiones para filtrado
 async function cargarRegiones() {
     try {
-        const connection = await getConnection();
+        const connection = await connectionString();
         
         // Consulta para obtener regiones
         const regiones = await connection.query(`
@@ -224,8 +206,8 @@ async function cargarRegiones() {
 // Cargar divisiones para filtrado
 async function cargarDivisiones() {
     try {
-        const connection = await getConnection();
-        
+        const connection = await connectionString();
+
         // Consulta para obtener divisiones con conversión de logo a base64
         const divisiones = await connection.query(`
             SELECT
@@ -283,9 +265,9 @@ async function cargarDepartamentos() {
                 <p>Cargando departamentos...</p>
             </div>
         `;
-        
-        const connection = await getConnection();
-        
+
+        const connection = await connectionString();
+
         // Construir la consulta con filtros
         let query = `
             SELECT
@@ -476,7 +458,7 @@ async function cargarDivisionesParaGrid() {
             </div>
         `;
         
-        const connection = await getConnection();
+        const connection = await connectionString();
         
         // Construir la consulta con filtros
         let query = `
@@ -889,8 +871,8 @@ function abrirModalConfirmacionDivision(divisionId) {
 // Verificar si hay departamentos asociados a una división antes de eliminarla
 async function verificarDepartamentosEnDivision(divisionId, nombreDivision) {
     try {
-        const connection = await getConnection();
-        
+        const connection = await connectionString();
+
         // Consulta para verificar si hay departamentos en esta división
         const query = `
             SELECT COUNT(*) AS totalDepartamentos
@@ -953,9 +935,9 @@ async function guardarDepartamento() {
         // Mostrar indicador de carga en el botón
         saveBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Guardando...';
         saveBtn.disabled = true;
-        
-        const connection = await getConnection();
-        
+
+        const connection = await connectionString();
+
         // Determinar si es inserción o actualización
         if (currentAction === 'new') {
             // Consulta para insertar nuevo departamento
@@ -1049,9 +1031,9 @@ async function guardarDivision() {
         // Mostrar indicador de carga en el botón
         saveDivisionBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Guardando...';
         saveDivisionBtn.disabled = true;
-        
-        const connection = await getConnection();
-        
+
+        const connection = await connectionString();
+
         // Determinar si es inserción o actualización
         if (currentDivisionAction === 'new') {
             // Consulta para insertar nueva división
@@ -1143,9 +1125,9 @@ async function eliminarDepartamento() {
         // Mostrar indicador de carga en el botón
         confirmBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Eliminando...';
         confirmBtn.disabled = true;
-        
-        const connection = await getConnection();
-        
+
+        const connection = await connectionString();
+
         // Verificar primero si hay personal asignado a este departamento
         const checkQuery = `
             SELECT COUNT(*) AS totalPersonal
@@ -1206,9 +1188,9 @@ async function eliminarDivision() {
         // Mostrar indicador de carga en el botón
         confirmBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Eliminando...';
         confirmBtn.disabled = true;
-        
-        const connection = await getConnection();
-        
+
+        const connection = await connectionString();
+
         // Proceder con la eliminación
         const query = `DELETE FROM divisiones WHERE IdDivision = ${selectedDivisionId}`;
         await connection.query(query);

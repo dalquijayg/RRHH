@@ -642,91 +642,165 @@ function formatearMoneda(valor) {
 }
 
 // Función para calcular la liquidación completa (CORREGIDA)
-function calcularLiquidacion(colaborador, descuentos = null, indemnizacionActiva = true, observaciones = '') {
-    const salarioBase = parseFloat(colaborador.SalarioBase) || 0;
-    const estadoSalida = colaborador.EstadoSalida;
-    const tiempoLaborado = calcularTiempoLaborado(colaborador.FechaPlanilla, estadoSalida);
-    
-    // Obtener información de prestaciones
-    const aguinaldoInfo = calcularDiasAguinaldo(colaborador.FechaPlanilla, estadoSalida);
-    const vacacionesInfo = calcularDiasVacaciones(colaborador.FechaPlanilla, estadoSalida);
-    const bono14Info = calcularDiasBono14(colaborador.FechaPlanilla, estadoSalida);
-    
-    // Extraer días laborados totales del tiempo laborado
-    const diasLaboradosText = tiempoLaborado.match(/\((\d+) días laborales\)/);
-    const diasLaboradosTotales = diasLaboradosText ? parseInt(diasLaboradosText[1]) : 0;
-    
-    let liquidacion = {
-        salarioBase: redondearDosDecimales(salarioBase),
-        indemnizacion: 0,
-        indemnizacionCalculada: 0, // Nuevo campo para mostrar el cálculo siempre
-        indemnizacionActiva: indemnizacionActiva, // Nuevo campo para saber si está activa
-        observaciones: observaciones, // Nuevo campo para observaciones
-        aguinaldo: 0,
-        vacaciones: 0,
-        bono14: 0,
-        subtotal: 0,
-        descuentoVale: 0,
-        numeroVale: '',
-        total: 0,
-        diasLaborados: diasLaboradosTotales,
-        diasAguinaldo: aguinaldoInfo.dias,
-        diasVacaciones: vacacionesInfo.dias,
-        diasBono14: bono14Info.dias,
-        esDespido: estadoSalida.tieneRegistro && estadoSalida.idEstado === 2,
-        esRenuncia: estadoSalida.tieneRegistro && estadoSalida.idEstado === 3
-    };
-    
-    // Calcular indemnización (SIEMPRE calcular para mostrar)
-    if (liquidacion.esDespido) {
-        // Despido: ((SalarioBase / 6) + SalarioBase) / 360 * días laborados
-        const salarioBaseSexta = salarioBase / 6;
-        const sumaSalarios = salarioBaseSexta + salarioBase;
-        liquidacion.indemnizacionCalculada = redondearDosDecimales((sumaSalarios / 360) * diasLaboradosTotales);
-    } else {
-        // Renuncia o cualquier otro caso: SalarioBase / 360 * días laborados
-        liquidacion.indemnizacionCalculada = redondearDosDecimales((salarioBase / 360) * diasLaboradosTotales);
-    }
-    
-    // Aplicar indemnización solo si está activa
-    liquidacion.indemnizacion = indemnizacionActiva ? liquidacion.indemnizacionCalculada : 0;
-    
-    // Calcular aguinaldo = SalarioBase / 360 * días de aguinaldo
-    liquidacion.aguinaldo = redondearDosDecimales((salarioBase / 360) * aguinaldoInfo.dias);
-    
-    // Calcular vacaciones = (SalarioBase / 360 * días de vacaciones) / 2
-    liquidacion.vacaciones = redondearDosDecimales(((salarioBase / 360) * vacacionesInfo.dias) / 2);
-    
-    // Calcular Bono 14 = SalarioBase / 360 * días de Bono 14
-    liquidacion.bono14 = redondearDosDecimales((salarioBase / 360) * bono14Info.dias);
-    
-    // Calcular subtotal (con o sin indemnización según esté activa)
-    liquidacion.subtotal = redondearDosDecimales(
-        liquidacion.indemnizacion + 
-        liquidacion.aguinaldo + 
-        liquidacion.vacaciones + 
-        liquidacion.bono14
-    );
-    
-    // Aplicar descuentos si existen
-    if (descuentos && descuentos.monto > 0) {
-        liquidacion.descuentoVale = redondearDosDecimales(parseFloat(descuentos.monto));
-        liquidacion.numeroVale = descuentos.numeroVale || '';
-    }
-    
-    // Calcular total final (redondeando también el total)
-    liquidacion.total = redondearDosDecimales(liquidacion.subtotal - liquidacion.descuentoVale);
-    
-    return liquidacion;
+function calcularLiquidacion(colaborador, descuentos = null, indemnizacionActiva = true, observaciones = '', esLiquidacionParcial = false, fechaFinSeleccionada = null) {
+    return new Promise(async (resolve, reject) => {
+        try {
+            
+            // PASO 1: Verificar liquidaciones previas
+            const validacionPrevia = await verificarLiquidacionesPrevias(colaborador.IdPersonal);
+            
+            // PASO 2: Determinar fecha de inicio real
+            let fechaInicioReal = colaborador.FechaPlanilla;
+            
+            if (validacionPrevia.tieneLiquidacionPrevia) {
+                fechaInicioReal = validacionPrevia.nuevaFechaInicio;
+            } else {
+            }
+            
+            // PASO 3: Obtener AMBOS salarios según el tipo de liquidación
+            const salarios = await obtenerSalarioBaseLiquidacion(colaborador, esLiquidacionParcial, fechaFinSeleccionada);
+            
+            let estadoSalida = colaborador.EstadoSalida;
+            
+            // Si es liquidación parcial, crear un estado temporal con la fecha seleccionada
+            if (esLiquidacionParcial && fechaFinSeleccionada) {
+                estadoSalida = {
+                    tieneRegistro: true,
+                    fechaFin: fechaFinSeleccionada,
+                    tipoSalida: 'Liquidación Parcial',
+                    idEstado: 1 // Código para liquidación parcial
+                };
+            }
+            
+            // PASO 4: Calcular tiempo laborado usando la fecha de inicio ajustada
+            const tiempoLaborado = calcularTiempoLaboradoConAjuste(fechaInicioReal, estadoSalida);
+            
+            // Extraer días laborados totales del tiempo laborado
+            const diasLaboradosText = tiempoLaborado.match(/\((\d+) días laborales\)/);
+            const diasLaboradosTotales = diasLaboradosText ? parseInt(diasLaboradosText[1]) : 0;
+            
+            let liquidacion = {
+                salarioBase: redondearDosDecimales(salarios.salarioBase),
+                salarioDiario: redondearDosDecimales(salarios.salarioDiario), // NUEVO CAMPO
+                indemnizacion: 0,
+                indemnizacionCalculada: 0,
+                indemnizacionActiva: indemnizacionActiva,
+                observaciones: observaciones,
+                aguinaldo: 0,
+                vacaciones: 0,
+                bono14: 0,
+                subtotal: 0,
+                descuentoVale: 0,
+                numeroVale: '',
+                total: 0,
+                diasLaborados: diasLaboradosTotales,
+                diasAguinaldo: 0,
+                diasVacaciones: 0,
+                diasBono14: 0,
+                esDespido: false,
+                esRenuncia: false,
+                esLiquidacionParcial: esLiquidacionParcial,
+                fechaFinSeleccionada: fechaFinSeleccionada,
+                // CAMPOS PARA LIQUIDACIONES PREVIAS
+                tieneLiquidacionPrevia: validacionPrevia.tieneLiquidacionPrevia,
+                fechaInicioReal: fechaInicioReal,
+                fechaFinAnterior: validacionPrevia.fechaFinAnterior
+            };
+            
+            if (esLiquidacionParcial) {
+                // LIQUIDACIÓN PARCIAL: Solo indemnización con fórmula de renuncia
+                liquidacion.indemnizacionCalculada = redondearDosDecimales((salarios.salarioBase / 360) * diasLaboradosTotales);
+                liquidacion.esRenuncia = true; // Para efectos de cálculo
+                // Las prestaciones se quedan en 0
+                liquidacion.diasAguinaldo = 0;
+                liquidacion.diasVacaciones = 0;
+                liquidacion.diasBono14 = 0;
+            } else {
+                // LIQUIDACIÓN COMPLETA: Calcular usando la fecha de inicio ajustada
+                const aguinaldoInfo = calcularDiasAguinaldo(fechaInicioReal, estadoSalida);
+                const vacacionesInfo = calcularDiasVacaciones(fechaInicioReal, estadoSalida);
+                const bono14Info = calcularDiasBono14(fechaInicioReal, estadoSalida);
+                
+                liquidacion.diasAguinaldo = aguinaldoInfo.dias;
+                liquidacion.diasVacaciones = vacacionesInfo.dias;
+                liquidacion.diasBono14 = bono14Info.dias;
+                
+                // Determinar si es despido o renuncia
+                liquidacion.esDespido = estadoSalida.tieneRegistro && estadoSalida.idEstado === 2;
+                liquidacion.esRenuncia = estadoSalida.tieneRegistro && estadoSalida.idEstado === 3;
+                
+                // Calcular indemnización
+                if (liquidacion.esDespido) {
+                    const salarioBaseSexta = salarios.salarioBase / 6;
+                    const sumaSalarios = salarioBaseSexta + salarios.salarioBase;
+                    liquidacion.indemnizacionCalculada = redondearDosDecimales((sumaSalarios / 360) * diasLaboradosTotales);
+                } else {
+                    liquidacion.indemnizacionCalculada = redondearDosDecimales((salarios.salarioBase / 360) * diasLaboradosTotales);
+                }
+                
+                // Calcular prestaciones usando salario base
+                liquidacion.aguinaldo = redondearDosDecimales((salarios.salarioBase / 360) * aguinaldoInfo.dias);
+                liquidacion.vacaciones = redondearDosDecimales(((salarios.salarioBase / 360) * vacacionesInfo.dias) / 2);
+                liquidacion.bono14 = redondearDosDecimales((salarios.salarioBase / 360) * bono14Info.dias);
+            }
+            
+            // Aplicar indemnización solo si está activa
+            liquidacion.indemnizacion = indemnizacionActiva ? liquidacion.indemnizacionCalculada : 0;
+            
+            // Calcular subtotal
+            liquidacion.subtotal = redondearDosDecimales(
+                liquidacion.indemnizacion + 
+                liquidacion.aguinaldo + 
+                liquidacion.vacaciones + 
+                liquidacion.bono14
+            );
+            
+            // Aplicar descuentos si existen
+            if (descuentos && descuentos.monto > 0) {
+                liquidacion.descuentoVale = redondearDosDecimales(parseFloat(descuentos.monto));
+                liquidacion.numeroVale = descuentos.numeroVale || '';
+            }
+            
+            // Calcular total final
+            liquidacion.total = redondearDosDecimales(liquidacion.subtotal - liquidacion.descuentoVale);
+            
+            resolve(liquidacion);
+            
+        } catch (error) {
+            reject(error);
+        }
+    });
 }
 
 // Función para guardar liquidación en base de datos
 async function guardarLiquidacion(colaborador, liquidacion) {
     try {
-        // Obtener datos del usuario actual (simulado por ahora)
         const userData = JSON.parse(localStorage.getItem('userData') || '{}');
         const idUsuario = userData.IdPersonal || 1;
         const nombreUsuario = userData.NombreCompleto || 'Usuario Sistema';
+        
+        // Determinar TipoLiquidacion y FechaFin
+        let tipoLiquidacion;
+        let fechaFin;
+        let fechaInicio; // Nueva fecha de inicio real
+        
+        if (liquidacion.esLiquidacionParcial) {
+            // Liquidación parcial
+            tipoLiquidacion = '1';
+            fechaFin = liquidacion.fechaFinSeleccionada;
+            fechaInicio = liquidacion.fechaInicioReal;
+        } else {
+            // Liquidación completa
+            if (colaborador.EstadoSalida && colaborador.EstadoSalida.tieneRegistro) {
+                tipoLiquidacion = colaborador.EstadoSalida.idEstado.toString();
+                fechaFin = colaborador.EstadoSalida.fechaFin.split('T')[0];
+                fechaInicio = liquidacion.fechaInicioReal;
+            } else {
+                tipoLiquidacion = '0';
+                fechaFin = new Date().toISOString().split('T')[0];
+                fechaInicio = liquidacion.fechaInicioReal;
+            }
+        }
         
         const connection = await connectionString();
         
@@ -735,29 +809,45 @@ async function guardarLiquidacion(colaborador, liquidacion) {
                 IdPersonal, 
                 NombrePersonal, 
                 FechaPlanilla, 
+                FechaFin,
+                TipoLiquidacion,
+                SalarioBase,
+                SalarioDiario,
                 MontoIndemnizacion, 
                 MontoAguinaldo, 
                 MontoVacaciones, 
                 MontoBono14, 
+                DiasIndemnizacion,
+                DiasAguinaldo,
+                DiasVacaciones,
+                DiasBono14,
                 NoVale,
                 DescuentoInterno,
                 IndemnizacionSiNo,
                 Observaciones,
                 IdUsuario, 
                 NombreUsuario
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `, [
             colaborador.IdPersonal,
             colaborador.NombreCompleto,
-            colaborador.FechaPlanilla,
+            fechaInicio, // Fecha inicio real (ajustada)
+            fechaFin,
+            tipoLiquidacion,
+            redondearDosDecimales(liquidacion.salarioBase), // NUEVO: Salario Base
+            redondearDosDecimales(liquidacion.salarioDiario), // NUEVO: Salario Diario
             redondearDosDecimales(liquidacion.indemnizacion),
             redondearDosDecimales(liquidacion.aguinaldo),
             redondearDosDecimales(liquidacion.vacaciones),
             redondearDosDecimales(liquidacion.bono14),
+            liquidacion.diasLaborados,
+            liquidacion.diasAguinaldo,
+            liquidacion.diasVacaciones,
+            liquidacion.diasBono14,
             liquidacion.numeroVale || null,
             redondearDosDecimales(liquidacion.descuentoVale),
             liquidacion.indemnizacionActiva ? 1 : 0,
-            liquidacion.observaciones || null, // Nuevo campo
+            liquidacion.observaciones || null,
             idUsuario,
             nombreUsuario
         ]);
@@ -772,7 +862,7 @@ async function guardarLiquidacion(colaborador, liquidacion) {
 }
 
 // Función para generar PDF de liquidación usando jsPDF
-async function generarPDFLiquidacion(colaborador, liquidacion, infoCompleta) {
+async function generarPDFLiquidacion(colaborador, liquidacion, infoCompleta, datosLiquidacionBD = null) {
     try {
         // Importar jsPDF
         const { jsPDF } = window.jspdf;
@@ -786,12 +876,12 @@ async function generarPDFLiquidacion(colaborador, liquidacion, infoCompleta) {
         const contentWidth = pageWidth - (margin * 2);
         
         // Paleta de grises elegante (sin colores)
-        const grisOscuro = [52, 52, 52];      // Gris muy oscuro para headers
-        const grisHeader = [88, 88, 88];      // Gris medio para elementos importantes
-        const grisTitulo = [68, 68, 68];      // Gris oscuro para títulos
-        const grisTexto = [85, 85, 85];       // Gris texto normal
-        const grisClaro = [128, 128, 128];    // Gris claro para detalles
-        const verdeTotal = [72, 72, 72];      // Gris oscuro para totales (en lugar de verde)
+        const grisOscuro = [52, 52, 52];
+        const grisHeader = [88, 88, 88];
+        const grisTitulo = [68, 68, 68];
+        const grisTexto = [85, 85, 85];
+        const grisClaro = [128, 128, 128];
+        const verdeTotal = [72, 72, 72];
         
         // Función para texto centrado
         const centrarTexto = (texto, y, fontSize = 12, color = grisTexto, style = 'normal') => {
@@ -822,22 +912,18 @@ async function generarPDFLiquidacion(colaborador, liquidacion, infoCompleta) {
         };
         
         // === HEADER SIN FONDO ===
-        // Logo en header (optimizado para reducir peso)
         if (infoCompleta.LogoDivision) {
             try {
-                // Agregar logo directamente sin optimización compleja
                 doc.addImage(infoCompleta.LogoDivision, 'JPEG', margin, yPosition, 40, 20, undefined, 'MEDIUM');
             } catch (e) {
                 console.log('Logo no disponible:', e);
-                // Crear logo de texto como alternativa
                 textoIzq('LOGO', margin, yPosition + 12, 10, grisTexto, 'bold');
             }
         } else {
-            // Si no hay logo, mostrar texto
             textoIzq('LOGO', margin, yPosition + 12, 10, grisTexto, 'bold');
         }
         
-        // Texto del header (solo una vez)
+        // Texto del header
         doc.setTextColor(grisTexto[0], grisTexto[1], grisTexto[2]);
         doc.setFontSize(12);
         doc.setFont(undefined, 'bold');
@@ -845,7 +931,7 @@ async function generarPDFLiquidacion(colaborador, liquidacion, infoCompleta) {
         
         yPosition = 40;
         
-        // === TÍTULO PRINCIPAL (ELEGANTE EN GRIS) ===
+        // === TÍTULO PRINCIPAL ===
         doc.setFillColor(grisOscuro[0], grisOscuro[1], grisOscuro[2]);
         doc.rect(margin, yPosition, contentWidth, 12, 'F');
         
@@ -854,24 +940,40 @@ async function generarPDFLiquidacion(colaborador, liquidacion, infoCompleta) {
         doc.setFont(undefined, 'bold');
         centrarTexto('LIQUIDACIÓN LABORAL', yPosition + 8, 11, [255, 255, 255], 'bold');
         
-        yPosition += 18; // Reducido de 25 a 18
+        yPosition += 18;
         
-        // === INFORMACIÓN DEL COLABORADOR ===
-        const fechaInicio = formatearFechaPDF(colaborador.FechaPlanilla);
-        const fechaFin = colaborador.EstadoSalida.tieneRegistro ? 
-            formatearFechaPDF(colaborador.EstadoSalida.fechaFin) : 
-            new Date().toLocaleDateString('es-ES', {
-                year: 'numeric', 
-                month: '2-digit', 
-                day: '2-digit'
-            });
+        // === INFORMACIÓN DEL COLABORADOR (DATOS CORREGIDOS) ===
         
-        const tiempoLaboradoTexto = calcularTiempoLaborado(colaborador.FechaPlanilla, colaborador.EstadoSalida);
-        const diasLaboradosMatch = tiempoLaboradoTexto.match(/\((\d+) días laborales\)/);
-        const diasLaborados = diasLaboradosMatch ? diasLaboradosMatch[1] : liquidacion.diasLaborados;
-        const salarioDiario = (colaborador.SalarioDiario && colaborador.SalarioDiario > 0) ? 
-            parseFloat(colaborador.SalarioDiario).toFixed(2) : 
-            (liquidacion.salarioBase / 30).toFixed(2);
+        // USAR DATOS DE LA TABLA LIQUIDACIONES SI ESTÁN DISPONIBLES
+        let fechaInicio, fechaFin, diasLaborados, salarioDiario;
+        
+        if (datosLiquidacionBD) {
+            // USAR DATOS REALES DE LA BASE DE DATOS
+            fechaInicio = datosLiquidacionBD.FechaPlanilla; // Fecha inicio real guardada
+            fechaFin = datosLiquidacionBD.FechaFin; // Fecha fin real guardada
+            diasLaborados = datosLiquidacionBD.DiasIndemnizacion; // Días reales guardados
+            salarioDiario = parseFloat(datosLiquidacionBD.SalarioDiario) || 0; // Salario diario real guardado
+            
+            console.log('📋 Usando datos de liquidación guardada:');
+            console.log(`   Fecha inicio: ${fechaInicio}`);
+            console.log(`   Fecha fin: ${fechaFin}`);
+            console.log(`   Días laborados: ${diasLaborados}`);
+            console.log(`   Salario diario: Q${salarioDiario.toFixed(2)}`);
+        } else {
+            // FALLBACK: USAR DATOS CALCULADOS (PARA COMPATIBILIDAD)
+            fechaInicio = colaborador.FechaPlanilla;
+            fechaFin = colaborador.EstadoSalida.tieneRegistro ? 
+                colaborador.EstadoSalida.fechaFin : 
+                new Date().toISOString().split('T')[0];
+            diasLaborados = liquidacion.diasLaborados;
+            salarioDiario = parseFloat(colaborador.SalarioDiario) || (liquidacion.salarioBase / 30);
+            
+            console.log('⚠️ Usando datos calculados (fallback)');
+        }
+        
+        // Formatear las fechas
+        const fechaInicioFormateada = formatearFechaPDF(fechaInicio);
+        const fechaFinFormateada = formatearFechaPDF(fechaFin);
         
         // Caja gris para información (más compacta y optimizada)
         doc.setFillColor(240, 240, 240);
@@ -885,21 +987,21 @@ async function generarPDFLiquidacion(colaborador, liquidacion, infoCompleta) {
         
         yPosition += 7;
         textoIzq('INICIO:', margin + 3, yPosition, 8, grisTitulo, 'bold');
-        textoIzq(fechaInicio, margin + 25, yPosition, 8, grisTexto);
+        textoIzq(fechaInicioFormateada, margin + 25, yPosition, 8, grisTexto);
         
         textoIzq('FINALIZÓ:', margin + 75, yPosition, 8, grisTitulo, 'bold');
-        textoIzq(fechaFin, margin + 105, yPosition, 8, grisTexto);
+        textoIzq(fechaFinFormateada, margin + 105, yPosition, 8, grisTexto);
         
         yPosition += 7;
         textoIzq('TIEMPO LABORADO:', margin + 3, yPosition, 8, grisTitulo, 'bold');
         textoIzq(`${diasLaborados} DÍAS`, margin + 55, yPosition, 8, grisTexto);
         
         textoIzq('SUELDO PROM. DIARIO:', margin + 95, yPosition, 8, grisTitulo, 'bold');
-        textoIzq(`Q ${salarioDiario}`, margin + 155, yPosition, 8, grisTexto);
+        textoIzq(`Q ${salarioDiario.toFixed(2)}`, margin + 155, yPosition, 8, grisTexto);
         
-        yPosition += 14; // Reducido de 18 a 14
+        yPosition += 14;
         
-        // === CONCEPTOS DE LIQUIDACIÓN (ELEGANTE EN GRIS) ===
+        // === CONCEPTOS DE LIQUIDACIÓN ===
         doc.setFillColor(grisHeader[0], grisHeader[1], grisHeader[2]);
         doc.rect(margin, yPosition, contentWidth, 10, 'F');
         
@@ -908,13 +1010,18 @@ async function generarPDFLiquidacion(colaborador, liquidacion, infoCompleta) {
         doc.setFont(undefined, 'bold');
         textoIzq('CONCEPTOS DE LIQUIDACIÓN', margin + 5, yPosition + 7, 9, [255, 255, 255], 'bold');
         
-        yPosition += 14; // Reducido de 18 a 14
+        yPosition += 14;
         
-        // Función para mostrar cada cálculo (aún más compacto con títulos)
+        // Función para mostrar cada cálculo (usando datos reales si están disponibles)
         const mostrarCalculo = (concepto, monto, dias, divisorExtra, resultado, colorFondo, yPos) => {
+            // Usar salario base real si está disponible
+            const salarioBaseParaCalculo = datosLiquidacionBD ? 
+                parseFloat(datosLiquidacionBD.SalarioBase) || liquidacion.salarioBase :
+                liquidacion.salarioBase;
+                
             // Fondo de color (más delgado)
             doc.setFillColor(colorFondo[0], colorFondo[1], colorFondo[2]);
-            doc.rect(margin, yPos, contentWidth, 16, 'F'); // Aumentado de 12 a 16 para los títulos
+            doc.rect(margin, yPos, contentWidth, 16, 'F');
             
             // Concepto
             textoIzq(concepto + ':', margin + 5, yPos + 10, 9, grisTitulo, 'bold');
@@ -924,22 +1031,18 @@ async function generarPDFLiquidacion(colaborador, liquidacion, infoCompleta) {
             const espaciado = 7;
             
             // === SALARIO BASE ===
-            // Título arriba
             textoIzq('Salario', x, yPos + 4, 6, grisTexto);
             textoIzq('Base', x, yPos + 6.5, 6, grisTexto);
-            // Monto abajo
-            textoIzq(monto.toLocaleString('es-GT', {minimumFractionDigits: 2, maximumFractionDigits: 2}), x, yPos + 12, 8, grisTexto);
-            x += Math.max(doc.getTextWidth(monto.toLocaleString('es-GT', {minimumFractionDigits: 2, maximumFractionDigits: 2})), doc.getTextWidth('Salario')) + espaciado;
+            textoIzq(salarioBaseParaCalculo.toLocaleString('es-GT', {minimumFractionDigits: 2, maximumFractionDigits: 2}), x, yPos + 12, 8, grisTexto);
+            x += Math.max(doc.getTextWidth(salarioBaseParaCalculo.toLocaleString('es-GT', {minimumFractionDigits: 2, maximumFractionDigits: 2})), doc.getTextWidth('Salario')) + espaciado;
             
             // ÷
             textoIzq('÷', x, yPos + 10, 9, grisOscuro, 'bold');
             x += 12;
             
             // === 360 DÍAS ===
-            // Título arriba
             textoIzq('Días', x, yPos + 4, 6, grisClaro);
             textoIzq('Comerc.', x, yPos + 6.5, 6, grisClaro);
-            // Número abajo
             textoIzq('360', x, yPos + 12, 8, grisTexto, 'bold');
             x += Math.max(doc.getTextWidth('360'), doc.getTextWidth('Comerc.')) + espaciado;
             
@@ -948,55 +1051,54 @@ async function generarPDFLiquidacion(colaborador, liquidacion, infoCompleta) {
             x += 12;
             
             // === DÍAS TRABAJADOS ===
-            // Título arriba
             textoIzq('Días', x, yPos + 4, 6, grisClaro);
             textoIzq('Trabaj.', x, yPos + 6.5, 6, grisClaro);
-            // Días abajo
             textoIzq(dias.toString(), x, yPos + 12, 8, grisTexto, 'bold');
             x += Math.max(doc.getTextWidth(dias.toString()), doc.getTextWidth('Trabaj.')) + espaciado;
             
             // Divisor extra si existe (÷ 2 para vacaciones)
             if (divisorExtra) {
-                // ÷
                 textoIzq('÷', x, yPos + 10, 9, grisOscuro, 'bold');
                 x += 12;
                 
-                // === DIVISOR EXTRA ===
-                // Título arriba
                 textoIzq('Mitad', x, yPos + 6.5, 6, grisClaro);
-                // Número abajo
                 textoIzq(divisorExtra.toString(), x, yPos + 12, 8, grisTexto, 'bold');
                 x += Math.max(doc.getTextWidth(divisorExtra.toString()), doc.getTextWidth('Mitad')) + espaciado;
             }
             
             // === RESULTADO ===
-            // Título arriba
             textoDer('Total', pageWidth - margin - 5, yPos + 6.5, 6, grisClaro);
-            // Resultado abajo (FORZAR 2 DECIMALES)
             const montoFormateado = 'Q ' + Number(resultado).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
             textoDer(montoFormateado, pageWidth - margin - 5, yPos + 12, 9, grisTitulo, 'bold');
             
             return yPos + 16;
         };
+        
+        // USAR DÍAS REALES DE LA BASE DE DATOS PARA LOS CÁLCULOS
+        const diasIndemnizacion = datosLiquidacionBD ? datosLiquidacionBD.DiasIndemnizacion : liquidacion.diasLaborados;
+        const diasAguinaldo = datosLiquidacionBD ? datosLiquidacionBD.DiasAguinaldo : liquidacion.diasAguinaldo;
+        const diasVacaciones = datosLiquidacionBD ? datosLiquidacionBD.DiasVacaciones : liquidacion.diasVacaciones;
+        const diasBono14 = datosLiquidacionBD ? datosLiquidacionBD.DiasBono14 : liquidacion.diasBono14;
+        
         // INDEMNIZACIÓN
         let salarioIndem = liquidacion.salarioBase;
         if (liquidacion.esDespido) {
             salarioIndem = liquidacion.salarioBase + (liquidacion.salarioBase / 6);
         }
-        yPosition = mostrarCalculo('INDEMNIZACIÓN', salarioIndem, liquidacion.diasLaborados, null, liquidacion.indemnizacion, [255, 245, 245], yPosition);
+        yPosition = mostrarCalculo('INDEMNIZACIÓN', salarioIndem, diasIndemnizacion, null, liquidacion.indemnizacion, [255, 245, 245], yPosition);
         
         // AGUINALDO
-        yPosition = mostrarCalculo('AGUINALDO', liquidacion.salarioBase, liquidacion.diasAguinaldo, null, liquidacion.aguinaldo, [245, 255, 245], yPosition);
+        yPosition = mostrarCalculo('AGUINALDO', liquidacion.salarioBase, diasAguinaldo, null, liquidacion.aguinaldo, [245, 255, 245], yPosition);
         
         // VACACIONES
-        yPosition = mostrarCalculo('VACACIONES', liquidacion.salarioBase, liquidacion.diasVacaciones, 2, liquidacion.vacaciones, [245, 250, 255], yPosition);
+        yPosition = mostrarCalculo('VACACIONES', liquidacion.salarioBase, diasVacaciones, 2, liquidacion.vacaciones, [245, 250, 255], yPosition);
         
         // BONO 14
-        yPosition = mostrarCalculo('BONO 14', liquidacion.salarioBase, liquidacion.diasBono14, null, liquidacion.bono14, [255, 250, 240], yPosition);
+        yPosition = mostrarCalculo('BONO 14', liquidacion.salarioBase, diasBono14, null, liquidacion.bono14, [255, 250, 240], yPosition);
         
-        yPosition += 2; // Reducido de 4 a 2
+        yPosition += 2;
         
-        // === TOTAL LIQUIDACIÓN (MÁS COMPACTO) ===
+        // === TOTAL LIQUIDACIÓN ===
         doc.setFillColor(245, 255, 245);
         doc.rect(margin, yPosition, contentWidth, 13, 'F');
         
@@ -1013,17 +1115,17 @@ async function generarPDFLiquidacion(colaborador, liquidacion, infoCompleta) {
         const totalFormateado = 'Q ' + liquidacion.total.toLocaleString('es-GT', {minimumFractionDigits: 2});
         textoDer(totalFormateado, pageWidth - margin - 5, yPosition + 9, 11, verdeTotal, 'bold');
         
-        yPosition += 15; // Reducido de 17 a 15
+        yPosition += 15;
         
-        // === OTROS CONCEPTOS (MÁS COMPACTOS) ===
+        // === OTROS CONCEPTOS ===
         textoIzq(`SUELDO ORDINARIO DE DÍAS:`, margin, yPosition, 8, grisTexto);
         textoDer('Q0.00', pageWidth - margin, yPosition, 8, grisTexto);
         
-        yPosition += 8; // Reducido de 9 a 8
+        yPosition += 8;
         textoIzq(`BONIFICACIÓN INCENTIVO 37-2001 DE DÍAS:`, margin, yPosition, 8, grisTexto);
         textoDer('Q0.00', pageWidth - margin, yPosition, 8, grisTexto);
         
-        yPosition += 8; // Reducido de 10 a 8
+        yPosition += 8;
         
         // === LÍNEA DE PUNTOS PARA LÍQUIDO ===
         let puntoFinalX = margin;
@@ -1032,9 +1134,9 @@ async function generarPDFLiquidacion(colaborador, liquidacion, infoCompleta) {
             doc.circle(puntoFinalX, yPosition, 0.3, 'F');
             puntoFinalX += 3;
         }
-        yPosition += 4; // Reducido de 5 a 4
+        yPosition += 4;
         
-        // === LÍQUIDO A PAGAR (MÁS COMPACTO) ===
+        // === LÍQUIDO A PAGAR ===
         doc.setFillColor(240, 255, 240);
         doc.rect(margin, yPosition, contentWidth, 14, 'F');
         
@@ -1050,28 +1152,25 @@ async function generarPDFLiquidacion(colaborador, liquidacion, infoCompleta) {
         
         textoDer(totalFormateado, pageWidth - margin - 5, yPosition + 10, 13, verdeTotal, 'bold');
         
-        yPosition += 16; // Reducido de 18 a 16
+        yPosition += 16;
         
-        // === TEXTO LEGAL (JUSTIFICADO CON MENOS ESPACIADO) ===
+        // === TEXTO LEGAL ===
         const municipio = (infoCompleta.MunicipioOrigen || 'SANTA CRUZ DEL QUICHÉ').toUpperCase();
         const departamento = (infoCompleta.DepartamentoOrigen || 'QUICHÉ').toUpperCase();
         const empresa = (infoCompleta.NombreDivision || 'SURTIDORA DE MERCADOS, S.A.').toUpperCase();
         
-        // Generar fecha dinámica para el texto legal
-        const fechaParaTexto = colaborador.EstadoSalida.tieneRegistro ? 
-            colaborador.EstadoSalida.fechaFin : 
-            new Date().toISOString().split('T')[0];
-
-        const fechaFormateadaTexto = convertirFechaATextoLegal(fechaParaTexto);
+        // USAR FECHA ACTUAL (cuando se genera el documento) para el texto legal
+        const fechaActual = new Date();
+        const fechaFormateadaTexto = convertirFechaATextoLegal(fechaActual.toISOString().split('T')[0]);
 
         const textoLegal = `YO ${colaborador.NombreCompleto.toUpperCase()} VECINO DEL MUNICIPIO DE ${municipio} DEL DEPARTAMENTO DE ${departamento} POR ESTE MEDIO HAGO CONSTAR QUE, RECIBÍ A MI ENTERA SATISFACCIÓN LAS PRESTACIONES LABORALES A QUE TENGO DERECHO POR PARTE DE ${empresa}, POR LO QUE EXTIENDO MI MAS AMPLIO Y ENTERO FINIQUITO A LA CITADA ${empresa} NO TENIENDO NINGUN RECLAMO PRESENTE NI FUTURO, DADO EN LA ANTIGUA GUATEMALA ${fechaFormateadaTexto}.`;
+        
         // Función para justificar texto con espaciado reducido
         const justificarTexto = (texto, anchoLinea, x, y, tamanoFuente) => {
             const palabras = texto.split(' ');
             let linea = '';
             let yActual = y;
             
-            // Configurar el tamaño de fuente antes de medir
             doc.setFontSize(tamanoFuente);
             
             for (let i = 0; i < palabras.length; i++) {
@@ -1079,13 +1178,10 @@ async function generarPDFLiquidacion(colaborador, liquidacion, infoCompleta) {
                 const testLinea = linea === '' ? palabraActual : linea + ' ' + palabraActual;
                 const anchoTest = doc.getTextWidth(testLinea);
                 
-                // Verificar si la línea de prueba cabe en el ancho disponible
                 if (anchoTest > anchoLinea && linea !== '') {
-                    // La línea actual está completa, imprimirla justificada
                     const palabrasLinea = linea.trim().split(' ');
                     
                     if (palabrasLinea.length > 1) {
-                        // Justificar la línea (distribuyendo el espacio extra)
                         const espaciosNecesarios = palabrasLinea.length - 1;
                         const anchoTextoSinEspacios = palabrasLinea.reduce((sum, palabra) => {
                             return sum + doc.getTextWidth(palabra);
@@ -1096,25 +1192,21 @@ async function generarPDFLiquidacion(colaborador, liquidacion, infoCompleta) {
                         let xActual = x;
                         for (let j = 0; j < palabrasLinea.length; j++) {
                             textoIzq(palabrasLinea[j], xActual, yActual, tamanoFuente, grisTexto);
-                            if (j < palabrasLinea.length - 1) { // No agregar espacio después de la última palabra
+                            if (j < palabrasLinea.length - 1) {
                                 xActual += doc.getTextWidth(palabrasLinea[j]) + espacioEntrePalabras;
                             }
                         }
                     } else {
-                        // Solo una palabra, no justificar
                         textoIzq(linea.trim(), x, yActual, tamanoFuente, grisTexto);
                     }
                     
-                    // Pasar a la siguiente línea
                     linea = palabraActual + ' ';
                     yActual += 3.6;
                 } else {
-                    // La palabra cabe, agregarla a la línea actual
                     linea = testLinea + ' ';
                 }
             }
             
-            // Imprimir la última línea (no justificada, solo alineada a la izquierda)
             if (linea.trim()) {
                 textoIzq(linea.trim(), x, yActual, tamanoFuente, grisTexto);
                 yActual += 3.6;
@@ -1123,9 +1215,9 @@ async function generarPDFLiquidacion(colaborador, liquidacion, infoCompleta) {
             return yActual;
         };
         
-        // Aplicar justificación al texto legal con espaciado mínimo (TEXTO AÚN MÁS GRANDE)
-        yPosition = justificarTexto(textoLegal, contentWidth - 10, margin + 5, yPosition, 9) + 2; // Aumentado de 8 a 9
-        yPosition += 25; // Aumentado de 20 a 25 para bajar más la firma
+        // Aplicar justificación al texto legal
+        yPosition = justificarTexto(textoLegal, contentWidth - 10, margin + 5, yPosition, 9) + 2;
+        yPosition += 25;
         
         // === LÍNEA DE FIRMA ===
         const anchoFirma = 80;
@@ -1134,21 +1226,21 @@ async function generarPDFLiquidacion(colaborador, liquidacion, infoCompleta) {
         doc.setLineWidth(1);
         doc.setDrawColor(grisTitulo[0], grisTitulo[1], grisTitulo[2]);
         doc.line(xCentro - anchoFirma/2, yPosition, xCentro + anchoFirma/2, yPosition);
-        yPosition += 8; // Reducido de 12 a 8
+        yPosition += 8;
         
         // === NOMBRE Y DPI ===
         centrarTexto(colaborador.NombreCompleto.toUpperCase(), yPosition, 9, grisTitulo, 'bold');
-        yPosition += 5; // Reducido de 8 a 5
+        yPosition += 5;
         centrarTexto(`CUI No. ${infoCompleta.DPI || 'N/A'}`, yPosition, 8, grisTexto);
         
-        // === PIE DE PÁGINA (AÚN MÁS ABAJO) ===
-        yPosition = pageHeight - 5; // Movido más abajo de 8 a 6
+        // === PIE DE PÁGINA ===
+        yPosition = pageHeight - 5;
         doc.setLineWidth(0.3);
         doc.setDrawColor(200, 200, 200);
-        doc.line(margin, yPosition - 3, pageWidth - margin, yPosition - 3); // Reducido de 4 a 3
+        doc.line(margin, yPosition - 3, pageWidth - margin, yPosition - 3);
         
         centrarTexto('Sistema de Recursos Humanos - Liquidaciones', yPosition, 7, grisTexto);
-        centrarTexto(`© ${empresa} ${new Date().getFullYear()}`, yPosition + 3, 6, grisTexto); // Reducido de 4 a 3
+        centrarTexto(`© ${empresa} ${new Date().getFullYear()}`, yPosition + 3, 6, grisTexto);
         
         // Generar y abrir PDF
         const pdfBlob = doc.output('blob');
@@ -1162,8 +1254,32 @@ async function generarPDFLiquidacion(colaborador, liquidacion, infoCompleta) {
         throw error;
     }
 }
-// Liquidacion.js - PARTE 2 FINAL (Continuación)
-
+async function obtenerDatosLiquidacionBD(idLiquidacion) {
+    try {
+        const connection = await connectionString();
+        
+        const result = await connection.query(`
+            SELECT 
+                FechaPlanilla,
+                FechaFin,
+                SalarioBase,
+                SalarioDiario,
+                DiasIndemnizacion,
+                DiasAguinaldo,
+                DiasVacaciones,
+                DiasBono14
+            FROM Liquidaciones
+            WHERE IdLiquidacion = ?
+        `, [idLiquidacion]);
+        
+        await connection.close();
+        
+        return result.length > 0 ? result[0] : null;
+    } catch (error) {
+        console.error('Error al obtener datos de liquidación BD:', error);
+        return null;
+    }
+}
 // Función para mostrar resultados de búsqueda
 function mostrarResultados(colaboradores) {
     const contenedor = document.getElementById('resultadosBusqueda');
@@ -1825,7 +1941,7 @@ document.addEventListener('DOMContentLoaded', function() {
     });
     
     // Botón de calcular liquidación
-    document.getElementById('btnCalcularLiquidacion').addEventListener('click', function() {
+    document.getElementById('btnCalcularLiquidacion').addEventListener('click', async function() {
         if (!colaboradorSeleccionado) {
             Swal.fire({
                 icon: 'warning',
@@ -1836,11 +1952,229 @@ document.addEventListener('DOMContentLoaded', function() {
             return;
         }
         
-        // Calcular liquidación inicial (con indemnización activa por defecto)
-        const liquidacion = calcularLiquidacion(colaboradorSeleccionado, null, true);
+        // Verificar si tiene registro de despido/renuncia
+        const tieneRegistroSalida = colaboradorSeleccionado.EstadoSalida && colaboradorSeleccionado.EstadoSalida.tieneRegistro;
         
-        // Mostrar modal con resultados
-        mostrarModalLiquidacion(liquidacion, colaboradorSeleccionado);
+        if (tieneRegistroSalida) {
+            // LIQUIDACIÓN COMPLETA - Tiene despido/renuncia
+            try {
+                const liquidacion = await calcularLiquidacion(colaboradorSeleccionado, null, true);
+                mostrarModalLiquidacion(liquidacion, colaboradorSeleccionado);
+            } catch (error) {
+                console.error('Error al calcular liquidación completa:', error);
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Error',
+                    text: 'No se pudo calcular la liquidación: ' + error.message,
+                    confirmButtonColor: '#FF9800'
+                });
+            }
+        } else {
+            // LIQUIDACIÓN PARCIAL - Verificar liquidaciones previas primero
+            try {
+                const validacionPrevia = await verificarLiquidacionesPrevias(colaboradorSeleccionado.IdPersonal);
+                
+                // Determinar fecha de inicio para mostrar al usuario
+                let fechaInicioMostrar = colaboradorSeleccionado.FechaPlanilla;
+                let mensajeFechaInicio = '';
+                let alertaLiquidacionPrevia = '';
+                
+                if (validacionPrevia.tieneLiquidacionPrevia) {
+                    fechaInicioMostrar = validacionPrevia.nuevaFechaInicio;
+                    
+                    // Crear mensaje informativo sobre la liquidación previa
+                    alertaLiquidacionPrevia = `
+                        <div style="background: #e3f2fd; border: 1px solid #2196F3; border-radius: 8px; padding: 15px; margin-bottom: 20px;">
+                            <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px;">
+                                <i class="fas fa-info-circle" style="color: #2196F3; font-size: 1.2rem;"></i>
+                                <strong style="color: #1976D2; font-size: 1rem;">Liquidación Previa Detectada</strong>
+                            </div>
+                            <ul style="margin: 0; padding-left: 20px; color: #1976D2; font-size: 0.9rem; line-height: 1.4;">
+                                <li>Última liquidación hasta: <strong>${formatearFecha(validacionPrevia.fechaFinAnterior)}</strong></li>
+                                <li>Nueva liquidación desde: <strong>${formatearFecha(fechaInicioMostrar)}</strong></li>
+                                <li>ID liquidación previa: <strong>#${validacionPrevia.ultimaLiquidacion.IdLiquidacion}</strong></li>
+                            </ul>
+                        </div>
+                    `;
+                    
+                    mensajeFechaInicio = `Fecha entre nueva fecha inicio (${formatearFecha(fechaInicioMostrar)}) y hoy`;
+                } else {
+                    mensajeFechaInicio = `Fecha entre ingreso (${formatearFecha(colaboradorSeleccionado.FechaPlanilla)}) y hoy`;
+                }
+                
+                // Mostrar modal con información de liquidaciones previas
+                const { value: fechaFin } = await Swal.fire({
+                    title: 'Fecha Fin de Liquidación Parcial',
+                    html: `
+                        <div style="text-align: left; padding: 15px;">
+                            ${alertaLiquidacionPrevia}
+                            
+                            <!-- Aviso de liquidación parcial -->
+                            <div style="background: #fff3cd; border: 1px solid #ffeeba; border-radius: 8px; padding: 15px; margin-bottom: 20px;">
+                                <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px;">
+                                    <i class="fas fa-exclamation-triangle" style="color: #856404; font-size: 1.2rem;"></i>
+                                    <strong style="color: #856404; font-size: 1.1rem;">Liquidación Parcial</strong>
+                                </div>
+                                <ul style="margin: 0; padding-left: 20px; color: #856404; font-size: 0.9rem; line-height: 1.4;">
+                                    <li>Solo se calculará <strong>indemnización</strong></li>
+                                    <li>No incluye aguinaldo, vacaciones ni bono 14</li>
+                                    <li>Salario base según tabla <strong>salariosbase</strong> del año seleccionado</li>
+                                    <li>Fórmula: Salario Base ÷ 360 × Días trabajados</li>
+                                </ul>
+                            </div>
+                            
+                            <!-- Período de cálculo -->
+                            <div style="background: #f0f8ff; border: 1px solid #b3d9ff; border-radius: 8px; padding: 15px; margin-bottom: 20px;">
+                                <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px;">
+                                    <i class="fas fa-calendar-alt" style="color: #1976D2; font-size: 1.1rem;"></i>
+                                    <strong style="color: #1976D2; font-size: 1rem;">Período de Cálculo</strong>
+                                </div>
+                                <div id="contenidoPeriodo" style="color: #1565C0; font-size: 0.9rem; line-height: 1.4;">
+                                    <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
+                                        <span><strong>Desde:</strong></span>
+                                        <span>${formatearFecha(fechaInicioMostrar)}</span>
+                                    </div>
+                                    <div style="display: flex; justify-content: space-between;">
+                                        <span><strong>Hasta:</strong></span>
+                                        <span>Fecha que selecciones abajo ⬇️</span>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Selector de fecha fin -->
+                            <div>
+                                <label style="display: block; margin-bottom: 8px; font-weight: 600; color: #654321; font-size: 1rem;">
+                                    Fecha fin de liquidación:
+                                </label>
+                                <input type="date" id="fechaFinLiquidacion" 
+                                    style="width: 100%; padding: 12px; border: 2px solid #e0e0e0; border-radius: 8px; font-size: 14px; transition: border-color 0.3s;"
+                                    min="${fechaInicioMostrar.split('T')[0]}"
+                                    max="${new Date().toISOString().split('T')[0]}"
+                                    value="${new Date().toISOString().split('T')[0]}">
+                                
+                                <small style="color: #666; margin-top: 8px; display: block; line-height: 1.3;">
+                                    <i class="fas fa-info-circle"></i>
+                                    ${mensajeFechaInicio}
+                                </small>
+                            </div>
+                            
+                            <!-- Información adicional del colaborador -->
+                            <div style="background: #f8f9fa; border-radius: 8px; padding: 12px; margin-top: 15px; border-left: 4px solid #FF9800;">
+                                <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 5px;">
+                                    <i class="fas fa-user" style="color: #FF9800;"></i>
+                                    <strong style="color: #654321; font-size: 0.9rem;">Colaborador:</strong>
+                                </div>
+                                <p style="margin: 0; color: #666; font-size: 0.9rem;">${colaboradorSeleccionado.NombreCompleto}</p>
+                                <p style="margin: 5px 0 0 0; color: #666; font-size: 0.85rem;">
+                                    <i class="fas fa-calendar-alt"></i> 
+                                    Ingreso original: ${formatearFecha(colaboradorSeleccionado.FechaPlanilla)}
+                                </p>
+                                ${validacionPrevia.tieneLiquidacionPrevia ? `
+                                    <p style="margin: 5px 0 0 0; color: #666; font-size: 0.85rem;">
+                                        <i class="fas fa-history"></i> 
+                                        Último período liquidado: hasta ${formatearFecha(validacionPrevia.fechaFinAnterior)}
+                                    </p>
+                                ` : ''}
+                            </div>
+                        </div>
+                    `,
+                    width: 550,
+                    showCancelButton: true,
+                    confirmButtonColor: '#FF9800',
+                    cancelButtonColor: '#6c757d',
+                    confirmButtonText: '<i class="fas fa-calculator"></i> Calcular Liquidación Parcial',
+                    cancelButtonText: '<i class="fas fa-times"></i> Cancelar',
+                    preConfirm: () => {
+                        const fecha = document.getElementById('fechaFinLiquidacion').value;
+                        if (!fecha) {
+                            Swal.showValidationMessage('Debe seleccionar una fecha');
+                            return false;
+                        }
+                        
+                        const fechaSeleccionada = new Date(fecha);
+                        const fechaInicioDate = new Date(fechaInicioMostrar);
+                        const fechaActual = new Date();
+                        
+                        if (fechaSeleccionada < fechaInicioDate) {
+                            const fechaMostrar = validacionPrevia.tieneLiquidacionPrevia ? 
+                                `la nueva fecha de inicio (${formatearFecha(fechaInicioMostrar)})` :
+                                `el ingreso (${formatearFecha(fechaInicioMostrar)})`;
+                            Swal.showValidationMessage(`La fecha no puede ser anterior a ${fechaMostrar}`);
+                            return false;
+                        }
+                        
+                        if (fechaSeleccionada > fechaActual) {
+                            Swal.showValidationMessage('La fecha no puede ser futura');
+                            return false;
+                        }
+                        
+                        return fecha;
+                    },
+                    didOpen: () => {
+                        // Agregar efectos de focus al input de fecha
+                        const fechaInput = document.getElementById('fechaFinLiquidacion');
+                        
+                        fechaInput.addEventListener('focus', () => {
+                            fechaInput.style.borderColor = '#FF9800';
+                            fechaInput.style.boxShadow = '0 0 0 3px rgba(255, 152, 0, 0.1)';
+                        });
+                        
+                        fechaInput.addEventListener('blur', () => {
+                            fechaInput.style.borderColor = '#e0e0e0';
+                            fechaInput.style.boxShadow = 'none';
+                        });
+                        
+                        // Enfocar automáticamente el input de fecha
+                        setTimeout(() => {
+                            fechaInput.focus();
+                        }, 100);
+                        
+                        // Actualizar dinámicamente el período cuando cambie la fecha
+                        fechaInput.addEventListener('change', () => {
+                            const fechaSeleccionadaInput = fechaInput.value;
+                            if (fechaSeleccionadaInput) {
+                                try {
+                                    // Buscar el contenido del período por ID único
+                                    const contenidoPeriodo = document.getElementById('contenidoPeriodo');
+                                    if (contenidoPeriodo) {
+                                        contenidoPeriodo.innerHTML = `
+                                            <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
+                                                <span><strong>Desde:</strong></span>
+                                                <span>${formatearFecha(fechaInicioMostrar)}</span>
+                                            </div>
+                                            <div style="display: flex; justify-content: space-between;">
+                                                <span><strong>Hasta:</strong></span>
+                                                <span style="color: #4CAF50; font-weight: 600;">${formatearFecha(fechaSeleccionadaInput)}</span>
+                                            </div>
+                                            <div style="margin-top: 8px; padding-top: 8px; border-top: 1px solid #ddd; font-size: 0.85rem; color: #666;">
+                                                <i class="fas fa-clock"></i> Se calculará el tiempo laborado entre estas fechas
+                                            </div>
+                                        `;
+                                    }
+                                } catch (error) {
+                                    console.log('No se pudo actualizar el período dinámicamente:', error);
+                                }
+                            }
+                        });
+                    }
+                });
+                
+                if (!fechaFin) return; // Usuario canceló
+                
+                // Calcular liquidación parcial con la fecha seleccionada
+                const liquidacion = await calcularLiquidacion(colaboradorSeleccionado, null, true, '', true, fechaFin);
+                mostrarModalLiquidacion(liquidacion, colaboradorSeleccionado);
+                
+            } catch (error) {
+                console.error('Error al procesar liquidación parcial:', error);
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Error',
+                    text: 'No se pudo procesar la liquidación: ' + error.message,
+                    confirmButtonColor: '#FF9800'
+                });
+            }
+        }
     });
     
     // Agregar estilos de animación
@@ -1907,20 +2241,20 @@ async function obtenerPeriodosConDiasDisponibles(empleado) {
             fechaFinPeriodo.setFullYear(fechaFinPeriodo.getFullYear() + 1);
             fechaFinPeriodo.setDate(fechaFinPeriodo.getDate() - 1);
             
-            // Solo considerar períodos que ya hayan iniciado
-            if (fechaInicioPeriodo <= fechaActual) {
+            // Solo considerar períodos que ya hayan COMPLETADO (no solo iniciado)
+            if (fechaFinPeriodo <= fechaActual) {
                 const periodo = calcularPeriodoVacaciones(empleado.FechaPlanilla, i);
                 
                 // Verificar días utilizados en vacaciones tomadas
                 const queryDiasTomados = `
-                    SELECT COUNT(*) as DiasUtilizados
+                    SELECT IFNULL(COUNT(*), 0) as DiasUtilizados
                     FROM vacacionestomadas
                     WHERE IdPersonal = ? AND Periodo = ?
                 `;
                 
                 const resultDiasTomados = await connection.query(queryDiasTomados, [empleado.IdPersonal, periodo]);
                 
-                // Verificar días pagados
+                // Verificar días pagados (incluyendo los de liquidaciones anteriores)
                 const queryDiasPagados = `
                     SELECT IFNULL(SUM(CAST(DiasSolicitado AS UNSIGNED)), 0) as DiasPagados
                     FROM vacacionespagadas
@@ -1946,11 +2280,10 @@ async function obtenerPeriodosConDiasDisponibles(empleado) {
                     }
                 }
                 
-                // Calcular días disponibles
+                // Calcular días disponibles (máximo 15 por período)
                 const diasDisponibles = Math.max(0, 15 - diasUtilizados - diasPagados);
-                
-                // Solo agregar períodos completados
-                if (fechaFinPeriodo <= fechaActual) {
+                // Solo agregar períodos que tienen días disponibles
+                if (diasDisponibles > 0) {
                     periodosDisponibles.push({
                         periodo: periodo,
                         diasDisponibles: diasDisponibles,
@@ -2011,7 +2344,6 @@ function formatFechaBaseDatos(fecha) {
     }
     
     if (!(fecha instanceof Date) || isNaN(fecha)) {
-        console.error('Fecha inválida:', fecha);
         return '';
     }
     
@@ -2027,7 +2359,7 @@ async function calcularDiasVacacionesDisponibles(empleado) {
         let totalDisponibles = 0;
         let periodosConDias = [];
         
-        // Solo agregar períodos que tienen días disponibles
+        // Procesar solo períodos que tienen días disponibles
         periodos.forEach(periodo => {
             if (periodo.diasDisponibles > 0) {
                 totalDisponibles += periodo.diasDisponibles;
@@ -2038,7 +2370,6 @@ async function calcularDiasVacacionesDisponibles(empleado) {
                 });
             }
         });
-        
         return {
             totalDisponibles: totalDisponibles,
             periodosConDias: periodosConDias,
@@ -2066,83 +2397,72 @@ function formatPeriodoUsuario(periodo) {
 // Función para guardar vacaciones pagadas
 async function guardarVacacionesPagadas(colaborador, liquidacion, idLiquidacion) {
     try {
-        // Solo guardar si hay días de vacaciones en la liquidación
+        // PASO 1: Verificar si hay días en la liquidación
         if (liquidacion.diasVacaciones <= 0) {
             return null;
         }
-
-        // Obtener datos del usuario actual
+        const vacacionesDisponibles = await calcularDiasVacacionesDisponibles(colaborador);
+        
+        // PASO 3: Verificar si realmente tiene días disponibles
+        if (vacacionesDisponibles.totalDisponibles === 0) {
+            return null;
+        }
+        
+        // PASO 4: Guardar solo lo que realmente tiene disponible
         const userData = JSON.parse(localStorage.getItem('userData') || '{}');
         const idUsuario = userData.IdPersonal || 1;
         const nombreUsuario = userData.NombreCompleto || 'Usuario Sistema';
         
         const connection = await connectionString();
+        const registrosGuardados = [];
         
-        // Obtener el período de vacaciones disponibles (no el de liquidación)
-        const vacacionesDisponibles = await calcularDiasVacacionesDisponibles(colaborador);
+        let diasRestantesPorGuardar = Math.min(liquidacion.diasVacaciones, vacacionesDisponibles.totalDisponibles);
         
-        // Si tiene períodos con días disponibles, tomar el primero (el más reciente con días)
-        let periodoParaBD = '';
-        if (vacacionesDisponibles.periodosConDias && vacacionesDisponibles.periodosConDias.length > 0) {
-            // Tomar el primer período que tiene días disponibles
-            const primerPeriodo = vacacionesDisponibles.periodosConDias[0].periodo;
-            // Convertir formato "1 de abril de 2024 al 31 de marzo de 2025" a "2024-04-01 al 2025-03-31"
-            periodoParaBD = convertirPeriodoAFormatoBD(primerPeriodo);
-        } else {
-            // Si no hay períodos disponibles, calcular el período actual del año laboral
-            const fechaIngreso = colaborador.FechaPlanilla.split('T')[0].split('-');
-            const añoIngreso = parseInt(fechaIngreso[0]);
-            const mesIngreso = parseInt(fechaIngreso[1]);
-            const diaIngreso = parseInt(fechaIngreso[2]);
+        // PASO 5: Guardar por cada período disponible
+        for (const periodoInfo of vacacionesDisponibles.periodosConDias) {
+            if (diasRestantesPorGuardar <= 0) break;
             
-            const fechaActual = new Date();
-            const añoActual = fechaActual.getFullYear();
+            const diasDeEstePeriodo = Math.min(diasRestantesPorGuardar, periodoInfo.disponibles);
+            const periodoBD = convertirPeriodoAFormatoBD(periodoInfo.periodo);
             
-            // Calcular el año laboral actual
-            let añoLaboralInicio = añoActual;
-            if (fechaActual.getMonth() + 1 < mesIngreso || 
-                (fechaActual.getMonth() + 1 === mesIngreso && fechaActual.getDate() < diaIngreso)) {
-                añoLaboralInicio = añoActual - 1;
-            }
+            const result = await connection.query(`
+                INSERT INTO vacacionespagadas (
+                    IdPersonal, 
+                    NombreColaborador, 
+                    DiasSolicitado, 
+                    Periodo, 
+                    IdPlanilla, 
+                    IdDepartamento, 
+                    IdUsuario, 
+                    NombreUsuario,
+                    IdLiquidacion
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            `, [
+                colaborador.IdPersonal,
+                colaborador.NombreCompleto,
+                diasDeEstePeriodo.toString(),
+                periodoBD,
+                colaborador.IdPlanilla || null,
+                colaborador.IdSucuDepa || null,
+                idUsuario,
+                nombreUsuario,
+                idLiquidacion
+            ]);
             
-            const fechaInicio = `${añoLaboralInicio}-${mesIngreso.toString().padStart(2, '0')}-${diaIngreso.toString().padStart(2, '0')}`;
-            const fechaFin = `${añoLaboralInicio + 1}-${mesIngreso.toString().padStart(2, '0')}-${(diaIngreso - 1).toString().padStart(2, '0')}`;
+            registrosGuardados.push({
+                id: result.insertId,
+                dias: diasDeEstePeriodo,
+                periodo: periodoBD
+            });
             
-            periodoParaBD = `${fechaInicio} al ${fechaFin}`;
+            diasRestantesPorGuardar -= diasDeEstePeriodo;
         }
         
-        // Asegurar que los días solicitados no excedan 15
-        const diasASolicitar = Math.min(liquidacion.diasVacaciones, 15);
-        
-        const result = await connection.query(`
-            INSERT INTO vacacionespagadas (
-                IdPersonal, 
-                NombreColaborador, 
-                DiasSolicitado, 
-                Periodo, 
-                IdPlanilla, 
-                IdDepartamento, 
-                IdUsuario, 
-                NombreUsuario,
-                IdLiquidacion
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-        `, [
-            colaborador.IdPersonal,
-            colaborador.NombreCompleto,
-            diasASolicitar.toString(),
-            periodoParaBD, // Formato: 2024-04-01 al 2025-03-31
-            colaborador.IdPlanilla || null,
-            colaborador.IdSucuDepa || null,
-            idUsuario,
-            nombreUsuario,
-            idLiquidacion
-        ]);
-        
         await connection.close();
-        return result.insertId;
+        return registrosGuardados.length > 0 ? registrosGuardados : null;
         
     } catch (error) {
-        console.error('Error al guardar vacaciones pagadas:', error);
+        console.error('❌ Error al guardar vacaciones pagadas:', error);
         throw error;
     }
 }
@@ -2582,7 +2902,8 @@ async function generarPDFAutorizada(idLiquidacion) {
         const indemnizacionDespido = ((salarioBaseReal + (salarioBaseReal / 6)) / 360) * calcularDiasLaboradosFromDB(liquidacion);
 
         const esDespidoCalculado = Math.abs(montoIndemnizacion - indemnizacionDespido) < Math.abs(montoIndemnizacion - indemnizacionSimple);
-
+        const datosLiquidacionBD = await obtenerDatosLiquidacionBD(idLiquidacion);
+        
         const liquidacionData = {
             salarioBase: salarioBaseReal,
             indemnizacion: montoIndemnizacion,
@@ -2616,7 +2937,7 @@ async function generarPDFAutorizada(idLiquidacion) {
         };
         
         // Generar PDF de liquidación
-        await generarPDFLiquidacion(colaboradorData, liquidacionData, infoCompleta);
+        await generarPDFLiquidacion(colaboradorData, liquidacionData, infoCompleta, datosLiquidacionBD);
         
         // Esperar un momento y generar resumen
         setTimeout(async () => {
@@ -2696,7 +3017,6 @@ function calcularSalarioBase(liquidacion) {
 
 function calcularDiasLaboradosFromDB(liquidacion) {
     if (!liquidacion.FechaPlanilla) {
-        console.log('No hay fecha de planilla, retornando 360');
         return 360;
     }
     
@@ -2709,9 +3029,6 @@ function calcularDiasLaboradosFromDB(liquidacion) {
         const añoFinal = fechaActual.getFullYear();
         const mesFinal = fechaActual.getMonth() + 1;
         const diaFinal = fechaActual.getDate();
-        
-        console.log('Fecha inicio:', { año: añoInicio, mes: mesInicio, dia: diaInicio });
-        console.log('Fecha actual:', { año: añoFinal, mes: mesFinal, dia: diaFinal });
         
         const fechaInicio = { año: añoInicio, mes: mesInicio, dia: diaInicio };
         const fechaFin = { año: añoFinal, mes: mesFinal, dia: diaFinal };
@@ -2734,8 +3051,6 @@ function calcularDiasLaboradosFromDB(liquidacion) {
             } else {
                 diasPorIndemnizacion = Math.round((montoIndemnizacion * 360) / salarioBase);
             }
-            
-            console.log('Días por indemnización:', diasPorIndemnizacion);
             
             // Usar el método más razonable
             if (diasPorIndemnizacion > 0 && diasPorIndemnizacion <= 3600) {
@@ -3187,6 +3502,210 @@ function convertirFechaATextoLegal(fecha) {
     const añoTexto = añoATexto(año);
     
     return `A LOS ${diaTexto} DÍAS DEL MES DE ${mesTexto} DEL AÑO ${añoTexto}`;
+}
+//Obtener salario que corresponde para pagos de liquidaciones parciales
+async function obtenerSalarioBaseLiquidacion(colaborador, esLiquidacionParcial = false, fechaFinSeleccionada = null) {
+    try {
+        if (!esLiquidacionParcial) {
+            const salarioBase = parseFloat(colaborador.SalarioBase) || 0;
+            const salarioDiario = salarioBase > 0 ? (salarioBase / 30) : 0; // Calcular diario si no está en personal
+            
+            return {
+                salarioBase: salarioBase,
+                salarioDiario: salarioDiario
+            };
+        }
+        
+        // LIQUIDACIÓN PARCIAL: Obtener de tabla salariosbase según año y tipo de planilla
+        if (!fechaFinSeleccionada) {
+            const salarioBaseFallback = parseFloat(colaborador.SalarioBase) || 0;
+            return {
+                salarioBase: salarioBaseFallback,
+                salarioDiario: salarioBaseFallback / 30
+            };
+        }
+        
+        // Obtener el año de la fecha fin seleccionada
+        const añoFechaFin = new Date(fechaFinSeleccionada).getFullYear();
+        
+        const connection = await connectionString();
+        
+        // Obtener información de la planilla para determinar EsCapital
+        const planillaInfo = await connection.query(`
+            SELECT 
+                p.EsCapital,
+                p.Nombre_Planilla
+            FROM planillas p
+            WHERE p.IdPlanilla = ?
+        `, [colaborador.IdPlanilla]);
+        
+        if (planillaInfo.length === 0) {
+            await connection.close();
+            const salarioBaseFallback = parseFloat(colaborador.SalarioBase) || 0;
+            return {
+                salarioBase: salarioBaseFallback,
+                salarioDiario: salarioBaseFallback / 30
+            };
+        }
+        
+        const esCapital = planillaInfo[0].EsCapital;
+        const nombrePlanilla = planillaInfo[0].Nombre_Planilla;
+        
+        // Determinar qué campos usar según EsCapital
+        const campoSalarioBase = esCapital === 1 ? 'SalarioBaseGuate' : 'SalarioBase';
+        const campoSalarioDiario = esCapital === 1 ? 'SalarioDiarioGuate' : 'SalarioDiario';
+        
+        // Consultar ambos salarios de la tabla salariosbase
+        const salarioResult = await connection.query(`
+            SELECT 
+                ${campoSalarioBase} AS SalarioBase,
+                ${campoSalarioDiario} AS SalarioDiario,
+                Anyo
+            FROM salariosbase 
+            WHERE Anyo = ?
+            LIMIT 1
+        `, [añoFechaFin]);
+        
+        await connection.close();
+        
+        if (salarioResult.length > 0) {
+            const salarioBaseEncontrado = parseFloat(salarioResult[0].SalarioBase) || 0;
+            const salarioDiarioEncontrado = parseFloat(salarioResult[0].SalarioDiario) || 0;
+            
+            return {
+                salarioBase: salarioBaseEncontrado,
+                salarioDiario: salarioDiarioEncontrado
+            };
+        } else {
+            const salarioBaseFallback = parseFloat(colaborador.SalarioBase) || 0;
+            return {
+                salarioBase: salarioBaseFallback,
+                salarioDiario: salarioBaseFallback / 30 // Calcular diario como fallback
+            };
+        }
+        
+    } catch (error) {
+        console.error('Error al obtener salarios para liquidación:', error);
+        // Fallback a los salarios actuales
+        const salarioBaseFallback = parseFloat(colaborador.SalarioBase) || 0;
+        return {
+            salarioBase: salarioBaseFallback,
+            salarioDiario: salarioBaseFallback / 30
+        };
+    }
+}
+//VERIFICAR SI EXISTE LIQUIDACIONES REALIZADA DE 'X' COLABORADOR
+async function verificarLiquidacionesPrevias(idPersonal) {
+    try {
+        const connection = await connectionString();
+        
+        // Buscar liquidaciones existentes con Estado 0 (pendiente) o 1 (autorizada)
+        const liquidacionesPrevias = await connection.query(`
+            SELECT 
+                IdLiquidacion,
+                FechaFin,
+                TipoLiquidacion,
+                FechaHoraRegistro,
+                Estado
+            FROM Liquidaciones 
+            WHERE IdPersonal = ? 
+            AND Estado IN (0, 1)
+            ORDER BY FechaFin DESC
+            LIMIT 1
+        `, [idPersonal]);
+        
+        await connection.close();
+        
+        if (liquidacionesPrevias.length > 0) {
+            const ultimaLiquidacion = liquidacionesPrevias[0];
+            const fechaFinAnterior = ultimaLiquidacion.FechaFin;
+            
+            // Calcular el día siguiente a la última liquidación
+            const fechaFinDate = new Date(fechaFinAnterior);
+            fechaFinDate.setDate(fechaFinDate.getDate() + 1); // Sumar 1 día
+            
+            const nuevaFechaInicio = fechaFinDate.toISOString().split('T')[0]; // Formato YYYY-MM-DD
+            return {
+                tieneLiquidacionPrevia: true,
+                ultimaLiquidacion: ultimaLiquidacion,
+                nuevaFechaInicio: nuevaFechaInicio,
+                fechaFinAnterior: fechaFinAnterior
+            };
+        } else {
+            return {
+                tieneLiquidacionPrevia: false,
+                ultimaLiquidacion: null,
+                nuevaFechaInicio: null,
+                fechaFinAnterior: null
+            };
+        }
+        
+    } catch (error) {
+        console.error('Error al verificar liquidaciones previas:', error);
+        return {
+            tieneLiquidacionPrevia: false,
+            ultimaLiquidacion: null,
+            nuevaFechaInicio: null,
+            fechaFinAnterior: null
+        };
+    }
+}
+function calcularTiempoLaboradoConAjuste(fechaInicio, estadoSalida = null) {
+    if (!fechaInicio) return 'No disponible';
+    
+    // Crear fecha sin problemas de zona horaria
+    const fechaString = fechaInicio.split('T')[0];
+    const [añoInicio, mesInicio, diaInicio] = fechaString.split('-').map(Number);
+    
+    // Determinar fecha final (fecha de salida o fecha actual)
+    let añoFinal, mesFinal, diaFinal;
+    
+    if (estadoSalida && estadoSalida.tieneRegistro && estadoSalida.fechaFin) {
+        // Usar fecha de salida
+        const fechaFinString = estadoSalida.fechaFin.split('T')[0];
+        [añoFinal, mesFinal, diaFinal] = fechaFinString.split('-').map(Number);
+    } else {
+        // Usar fecha actual
+        const fechaActual = new Date();
+        añoFinal = fechaActual.getFullYear();
+        mesFinal = fechaActual.getMonth() + 1;
+        diaFinal = fechaActual.getDate();
+    }
+    
+    // Calcular usando año comercial
+    const fechaInicioObj = { año: añoInicio, mes: mesInicio, dia: diaInicio };
+    const fechaFinalObj = { año: añoFinal, mes: mesFinal, dia: diaFinal };
+    
+    const diferencia = calcularDiferenciasComerciales(fechaInicioObj, fechaFinalObj);
+    
+    let resultado = '';
+    
+    if (diferencia.años > 0) {
+        resultado += `${diferencia.años} año${diferencia.años > 1 ? 's' : ''}`;
+    }
+    
+    if (diferencia.meses > 0) {
+        if (resultado) resultado += ', ';
+        resultado += `${diferencia.meses} mes${diferencia.meses > 1 ? 'es' : ''}`;
+    }
+    
+    if (diferencia.dias > 0) {
+        if (resultado) resultado += ', ';
+        resultado += `${diferencia.dias} día${diferencia.dias > 1 ? 's' : ''}`;
+    }
+    
+    if (!resultado) {
+        resultado = 'Menos de 1 día';
+    }
+    
+    resultado += ` (${diferencia.diasTotales} días laborales)`;
+    
+    // Agregar información sobre el tipo de cálculo
+    if (estadoSalida && estadoSalida.tieneRegistro) {
+        resultado += ` - ${estadoSalida.tipoSalida}`;
+    }
+    
+    return resultado;
 }
 // Función global para ser llamada desde el HTML
 window.seleccionarColaborador = seleccionarColaborador;

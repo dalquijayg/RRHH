@@ -1,13 +1,10 @@
 // Importaciones necesarias
-const odbc = require('odbc');
+const { connectionString } = require('../Conexion/Conexion');
 const path = require('path');
 const fs = require('fs');
 const { ipcRenderer } = require('electron');
 const Swal = require('sweetalert2');
 const ExcelJS = require('exceljs');
-
-// Conexión a la base de datos
-const conexion = 'DSN=recursos2';
 
 // Variables globales
 let userData;
@@ -51,31 +48,6 @@ const departmentTotalEl = document.getElementById('departmentTotal');
 const departmentNameEl = document.getElementById('departmentName');
 const pdfGeneratorModal = document.getElementById('pdfGeneratorModal');
 const generatePdfBtn = document.getElementById('generatePdfBtn');
-
-// Establecer conexión a la base de datos
-async function connectionString() {
-    try {
-        const connection = await odbc.connect(conexion, {
-            binaryAsString: true,
-            bigint: 'string'
-        });
-        
-        // Configuración adicional de la conexión
-        await connection.query('SET NAMES utf8mb4');
-        await connection.query('SET character_set_results = utf8mb4');
-        
-        return connection;
-    } catch (error) {
-        console.error('Error de conexión:', error);
-        Swal.fire({
-            icon: 'error',
-            title: 'Error de conexión',
-            text: 'No se pudo conectar a la base de datos. Por favor intente nuevamente.',
-            confirmButtonColor: '#FF9800'
-        });
-        throw error;
-    }
-}
 
 // Inicializar la aplicación (actualizada para carga automática)
 async function initApp() {

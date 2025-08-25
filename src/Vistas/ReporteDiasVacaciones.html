@@ -3,8 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Reporte de Suspensiones - Recursos Humanos</title>
-    <link rel="stylesheet" href="../Disenos/Reportes/ReporteSuspensiones.css">
+    <title>Reporte de Días de Vacaciones - Recursos Humanos</title>
+    <link rel="stylesheet" href="../Disenos/Reportes/ReporteDiasVacaciones.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/sweetalert2/11.10.4/sweetalert2.min.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/sweetalert2/11.10.4/sweetalert2.min.css">
@@ -15,7 +15,7 @@
         <div class="header-content">
             <div class="logo-section">
                 <div class="page-title">
-                    <h1><i class="fas fa-chart-line"></i> Reporte de Suspensiones</h1>
+                    <h1><i class="fas fa-umbrella-beach"></i> Reporte de Días de Vacaciones</h1>
                     <p>Sistema de Recursos Humanos</p>
                 </div>
             </div>
@@ -35,30 +35,36 @@
             
             <div class="filters-content" id="filtersContent">
                 <form id="filtrosForm" class="filters-form">
-                    <!-- Filtros de fecha -->
+                    <!-- Filtro por departamento -->
                     <div class="filter-group">
-                        <label for="fechaInicio">
-                            <i class="fas fa-calendar-alt"></i> Fecha Inicio
+                        <label for="departamento">
+                            <i class="fas fa-building"></i> Departamento
                         </label>
-                        <input type="date" id="fechaInicio" name="fechaInicio" required>
+                        <select id="departamento" name="departamento">
+                            <option value="todos">Todos los departamentos</option>
+                            <!-- Los departamentos se cargarán dinámicamente -->
+                        </select>
                     </div>
 
+                    <!-- Búsqueda por colaborador -->
                     <div class="filter-group">
-                        <label for="fechaFin">
-                            <i class="fas fa-calendar-alt"></i> Fecha Fin
+                        <label for="buscarColaborador">
+                            <i class="fas fa-user-search"></i> Buscar Colaborador
                         </label>
-                        <input type="date" id="fechaFin" name="fechaFin" required>
+                        <input type="text" id="buscarColaborador" name="buscarColaborador" 
+                               placeholder="Nombre del colaborador...">
                     </div>
 
-                    <!-- Filtro de tipo -->
+                    <!-- Filtro por estado de vacaciones -->
                     <div class="filter-group">
-                        <label for="tipoFiltro">
-                            <i class="fas fa-list"></i> Tipo de Registro
+                        <label for="estadoVacaciones">
+                            <i class="fas fa-chart-pie"></i> Estado Vacaciones
                         </label>
-                        <select id="tipoFiltro" name="tipoFiltro">
-                            <option value="todos">Todos los registros</option>
-                            <option value="suspensiones">Solo Suspensiones</option>
-                            <option value="faltas">Solo Faltas</option>
+                        <select id="estadoVacaciones" name="estadoVacaciones">
+                            <option value="todos">Todos los colaboradores</option>
+                            <option value="disponibles">Con días disponibles</option>
+                            <option value="agotados">Días agotados</option>
+                            <option value="criticos">Pocas (≤ 5 días)</option>
                         </select>
                     </div>
 
@@ -83,7 +89,7 @@
             <!-- Información del reporte -->
             <div class="results-header" id="resultsHeader" style="display: none;">
                 <div class="results-info">
-                    <h3><i class="fas fa-table"></i> Resultados del Reporte</h3>
+                    <h3><i class="fas fa-calendar-check"></i> Resultados del Reporte</h3>
                 </div>
             </div>
 
@@ -93,35 +99,32 @@
                     <table class="results-table" id="tablaResultados">
                         <thead>
                             <tr>
-                                <th class="sortable" data-column="empleado">
-                                    <span>Empleado</span>
+                                <th class="sortable" data-column="colaborador">
+                                    <span>Colaborador</span>
                                     <i class="fas fa-sort sort-icon"></i>
                                 </th>
-                                <th class="sortable" data-column="fechaInicio">
-                                    <span>Fecha Inicio</span>
+                                <th class="sortable" data-column="fechaPlanilla">
+                                    <span>Fecha Planilla</span>
                                     <i class="fas fa-sort sort-icon"></i>
                                 </th>
-                                <th class="sortable" data-column="fechaFin">
-                                    <span>Fecha Fin</span>
+                                <th class="sortable" data-column="aniosCumplidos">
+                                    <span>Años Cumplidos</span>
                                     <i class="fas fa-sort sort-icon"></i>
                                 </th>
-                                <th class="sortable tipo-suspension" data-column="tipo">
-                                    <span>Tipo Suspensión</span>
+                                <th class="sortable dias-disponibles" data-column="diasDisponibles">
+                                    <span>Días Disponibles</span>
                                     <i class="fas fa-sort sort-icon"></i>
                                 </th>
-                                <th class="motivo-suspension">
-                                    <span>Motivo</span>
-                                </th>
-                                <th class="observacion-falta">
-                                    <span>Observación Falta</span>
-                                </th>
-                                <th class="sortable" data-column="usuario">
-                                    <span>Usuario Registro</span>
+                                <th class="sortable" data-column="puesto">
+                                    <span>Puesto</span>
                                     <i class="fas fa-sort sort-icon"></i>
                                 </th>
-                                <th class="sortable" data-column="fechaRegistro">
-                                    <span>Fecha Registro</span>
+                                <th class="sortable" data-column="departamento">
+                                    <span>Departamento</span>
                                     <i class="fas fa-sort sort-icon"></i>
+                                </th>
+                                <th class="estado-vacaciones">
+                                    <span>Estado</span>
                                 </th>
                             </tr>
                         </thead>
@@ -135,18 +138,18 @@
             <!-- Estado vacío -->
             <div class="empty-state" id="emptyState">
                 <div class="empty-icon">
-                    <i class="fas fa-search"></i>
+                    <i class="fas fa-umbrella-beach"></i>
                 </div>
                 <h3>Configura los filtros para generar el reporte</h3>
-                <p>Selecciona un rango de fechas y el tipo de registro que deseas consultar</p>
+                <p>Selecciona el departamento o busca colaboradores específicos para consultar sus días de vacaciones disponibles</p>
             </div>
 
             <!-- Estado sin resultados -->
             <div class="no-results" id="noResults" style="display: none;">
                 <div class="no-results-icon">
-                    <i class="fas fa-inbox"></i>
+                    <i class="fas fa-search-minus"></i>
                 </div>
-                <h3>No se encontraron registros</h3>
+                <h3>No se encontraron colaboradores</h3>
                 <p>No hay datos que coincidan con los filtros seleccionados</p>
                 <button class="btn btn-outline" onclick="document.getElementById('limpiarFiltros').click()">
                     <i class="fas fa-refresh"></i> Limpiar filtros
@@ -158,11 +161,11 @@
                 <div class="loading-spinner">
                     <div class="spinner"></div>
                 </div>
-                <p>Generando reporte...</p>
+                <p>Consultando días de vacaciones...</p>
             </div>
         </section>
     </main>
 
-    <script src="../Logica/Reportes/ReporteSuspensiones.js"></script>
+    <script src="../Logica/Reportes/ReporteDiasVacaciones.js"></script>
 </body>
 </html>

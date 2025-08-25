@@ -4,7 +4,6 @@ const { json } = require('stream/consumers');
 const { authenticator } = require('otplib');
 const qrcode = require('qrcode');
 const Swal = require('sweetalert2');
-const conexion = 'DSN=recursos2';
 
 // Configurar otplib con parámetros más tolerantes
 authenticator.options = {

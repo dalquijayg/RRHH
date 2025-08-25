@@ -1,8 +1,5 @@
-// Variables globales
 const { connectionString } = require('../Conexion/Conexion');
 const { ipcRenderer } = require('electron');
-const odbc = require('odbc');
-const conexion = 'DSN=recursos2';
 let empleadoActual = null;
 let datosOriginales = {};
 let camposModificados = {};
@@ -349,25 +346,12 @@ document.addEventListener('DOMContentLoaded', async function() {
     }
 });
 
-// Inicializar conexión con la base de datos
-async function getConnection() {
-    try {
-        const connection = await odbc.connect(conexion);
-        await connection.query('SET NAMES utf8mb4');
-        return connection;
-    } catch (error) {
-        console.error('Error de conexión:', error);
-        mostrarNotificacion('Error de conexión a la base de datos', 'error');
-        throw error;
-    }
-}
-
 // Cargar datos del empleado
 async function cargarDatosEmpleado(idEmpleado) {
     try {
         mostrarCargando(true, 'Cargando datos del colaborador...');
         
-        const connection = await getConnection();
+        const connection = await connectionString();
         const query = `
             SELECT 
                 personal.IdPersonal,
@@ -459,7 +443,7 @@ async function cargarDatosEmpleado(idEmpleado) {
 // Cargar estados civiles
 async function cargarEstadosCiviles() {
     try {
-        const connection = await getConnection();
+        const connection = await connectionString();
         const query = `
             SELECT IdCivil, EstadoCivil
             FROM estadocivil
@@ -629,10 +613,7 @@ async function guardarCambiosPersonales() {
         };
         
         // Conectar a la base de datos
-        const connection = await getConnection();
-        
-        // Iniciar transacción
-        await connection.beginTransaction();
+        const connection = await connectionString();
         
         try {
             // 1. Actualizar tabla personal
@@ -744,9 +725,6 @@ async function guardarCambiosPersonales() {
                 ]);
             }
             
-            // Confirmar transacción
-            await connection.commit();
-            
             // Actualizar datos originales
             datosOriginales = {
                 primerNombre: datosActualizados.PrimerNombre,
@@ -783,8 +761,6 @@ async function guardarCambiosPersonales() {
             camposModificados = {};
             
         } catch (error) {
-            // Revertir transacción en caso de error
-            await connection.rollback();
             throw error;
         } finally {
             // Cerrar conexión
@@ -873,7 +849,7 @@ async function cargarHistorialCambios() {
         const fechaHasta = historyDateTo.value || new Date().toISOString().split('T')[0];
         
         // Obtener historial de la base de datos
-        const connection = await getConnection();
+        const connection = await connectionString();
         const query = `
             SELECT 
                 IdPersonal,
@@ -1137,7 +1113,7 @@ async function cargarDatosUbicacion() {
         await cargarDepartamentos();
         
         // Obtener datos actuales de ubicación
-        const connection = await getConnection();
+        const connection = await connectionString();
         const query = `
             SELECT 
                 personal.IdDepartamentoOrigen,
@@ -1197,7 +1173,7 @@ async function cargarDatosUbicacion() {
 // Cargar departamentos
 async function cargarDepartamentos() {
     try {
-        const connection = await getConnection();
+        const connection = await connectionString();
         const query = `
             SELECT IdDepartamentoG, NombreDepartamento
             FROM departamentosguatemala
@@ -1240,8 +1216,8 @@ async function cargarMunicipios(idDepartamento, selectMunicipio) {
             selectMunicipio.innerHTML = '<option value="">Primero seleccione un departamento</option>';
             return;
         }
-        
-        const connection = await getConnection();
+
+        const connection = await connectionString();
         const query = `
             SELECT IdMunicipio, NombreMunicipio
             FROM municipios
@@ -1331,8 +1307,8 @@ async function guardarCambiosUbicacion() {
         ].filter(Boolean).join(' ');
         
         // Conectar a la base de datos
-        const connection = await getConnection();
-        
+        const connection = await connectionString();
+
         // Primero: Obtener nombres actuales de departamentos y municipios para el historial
         const nombresOriginales = {};
         
@@ -1523,7 +1499,7 @@ async function buscarNombreMunicipio(idMunicipio) {
     if (!idMunicipio) return null;
     
     try {
-        const connection = await getConnection();
+        const connection = await connectionString();
         const query = `
             SELECT NombreMunicipio
             FROM municipios
@@ -1608,7 +1584,7 @@ async function cargarHistorialCambiosUbicacion() {
         const fechaHasta = historyDateTo.value || new Date().toISOString().split('T')[0];
         
         // Obtener historial de la base de datos
-        const connection = await getConnection();
+        const connection = await connectionString();
         const query = `
             SELECT 
                 IdPersonal,
@@ -1720,7 +1696,7 @@ async function cargarDatosContacto() {
         await cargarParentescos();
         
         // Obtener datos actuales de contacto
-        const connection = await getConnection();
+        const connection = await connectionString();
         const query = `
             SELECT 
                 personal.Telefono1,
@@ -1774,7 +1750,7 @@ async function cargarDatosContacto() {
 // Cargar parentescos
 async function cargarParentescos() {
     try {
-        const connection = await getConnection();
+        const connection = await connectionString();
         const query = `
             SELECT IdParentesco, Parentesco
             FROM parentesco
@@ -1899,8 +1875,8 @@ async function guardarCambiosContacto() {
         ].filter(Boolean).join(' ');
         
         // Conectar a la base de datos
-        const connection = await getConnection();
-        
+        const connection = await connectionString();
+
         // Iniciar transacción
         await connection.beginTransaction();
         
@@ -2160,7 +2136,7 @@ async function cargarHistorialCambiosContacto() {
         const fechaHasta = historyDateTo.value || new Date().toISOString().split('T')[0];
         
         // Obtener historial de la base de datos
-        const connection = await getConnection();
+        const connection = await connectionString();
         const query = `
             SELECT 
                 IdPersonal,
@@ -2293,7 +2269,7 @@ async function cargarDatosLaborales() {
         ]);
         
         // Obtener datos actuales laborales
-        const connection = await getConnection();
+        const connection = await connectionString();
         const query = `
             SELECT 
                 personal.IdSucuDepa,
@@ -2410,7 +2386,7 @@ async function cargarDatosLaborales() {
 // Cargar departamentos laborales
 async function cargarDepartamentosLaborales() {
     try {
-        const connection = await getConnection();
+        const connection = await connectionString();
         const query = `
             SELECT IdDepartamento, NombreDepartamento
             FROM departamentos
@@ -2447,8 +2423,8 @@ async function cargarPuestos(idDepartamento) {
         if (!idDepartamento) {
             return;
         }
-        
-        const connection = await getConnection();
+
+        const connection = await connectionString();
         const query = `
             SELECT p.IdPuesto, p.Nombre
             FROM Puestos p
@@ -2476,7 +2452,7 @@ async function cargarPuestos(idDepartamento) {
 // Cargar tipos de personal
 async function cargarTiposPersonal() {
     try {
-        const connection = await getConnection();
+        const connection = await connectionString();
         const query = `
             SELECT IdTipo, TipoPersonal
             FROM TipoPersonal
@@ -2507,7 +2483,7 @@ async function cargarTiposPersonal() {
 // Cargar planillas
 async function cargarPlanillas() {
     try {
-        const connection = await getConnection();
+        const connection = await connectionString();
         const query = `
             SELECT 
                 p.IdPlanilla, 
@@ -2542,7 +2518,7 @@ async function cargarPlanillas() {
 // Cargar estados laborales
 async function cargarEstadosLaborales() {
     try {
-        const connection = await getConnection();
+        const connection = await connectionString();
         const query = `
             SELECT IdEstado, EstadoPersonal
             FROM EstadoPersonal
@@ -2683,8 +2659,8 @@ async function guardarCambiosLaboral() {
         ].filter(Boolean).join(' ');
         
         // Conectar a la base de datos
-        const connection = await getConnection();
-        
+        const connection = await connectionString();
+
         // Obtener nombres para el historial
         const nombresOriginales = {};
         const nombresActualizados = {};
@@ -3261,7 +3237,7 @@ async function cargarHistorialCambiosLaboral() {
         const fechaHasta = historyDateTo.value || new Date().toISOString().split('T')[0];
         
         // Obtener historial de la base de datos
-        const connection = await getConnection();
+        const connection = await connectionString();
         const query = `
             SELECT 
                 IdPersonal,
@@ -3418,7 +3394,7 @@ function inicializarEventosAcademicos() {
 }
 async function cargarEstadosEducacion() {
     try {
-        const connection = await getConnection();
+        const connection = await connectionString();
         const query = `
             SELECT IdEstadoEducacion, DescripcionEstado
             FROM EstadosEducacion
@@ -3452,7 +3428,7 @@ async function cargarEstadosEducacion() {
 // Cargar planes de estudio
 async function cargarPlanesEstudio() {
     try {
-        const connection = await getConnection();
+        const connection = await connectionString();
         const query = `
             SELECT IdPlanEstudio, Plan
             FROM planestudios
@@ -3486,7 +3462,7 @@ async function cargarPlanesEstudio() {
 // Cargar semestres
 async function cargarSemestres() {
     try {
-        const connection = await getConnection();
+        const connection = await connectionString();
         const query = `
             SELECT Id_semestre, Semestre
             FROM semestres
@@ -3520,7 +3496,7 @@ async function cargarSemestres() {
 // Cargar trimestres
 async function cargarTrimestres() {
     try {
-        const connection = await getConnection();
+        const connection = await connectionString();
         const query = `
             SELECT IdTrimestre, Trimestre
             FROM Trimestres
@@ -3549,7 +3525,7 @@ async function cargarTrimestres() {
 // Cargar grados académicos
 async function cargarGradosAcademicos() {
     try {
-        const connection = await getConnection();
+        const connection = await connectionString();
         const query = `
             SELECT IdGrado, GradoAcademico
             FROM GradosAcademicos
@@ -3578,7 +3554,7 @@ async function cargarGradosAcademicos() {
 // Cargar universidades
 async function cargarUniversidades() {
     try {
-        const connection = await getConnection();
+        const connection = await connectionString();
         const query = `
             SELECT IdUniversidad, NombreUniversidad
             FROM Universidades
@@ -3612,7 +3588,7 @@ async function cargarUniversidades() {
 // Cargar carreras universitarias
 async function cargarCarrerasUniversitarias() {
     try {
-        const connection = await getConnection();
+        const connection = await connectionString();
         const query = `
             SELECT IdCarreraUniversitaria, NombreCarrera
             FROM CarrerasUniversitarias
@@ -3641,7 +3617,7 @@ async function cargarCarrerasUniversitarias() {
 // Cargar maestrías
 async function cargarMaestrias() {
     try {
-        const connection = await getConnection();
+        const connection = await connectionString();
         const query = `
             SELECT IdMaestria, NombreMaestria
             FROM Maestrias
@@ -3738,8 +3714,8 @@ async function guardarCambiosAcademicos() {
         ].filter(Boolean).join(' ');
         
         // Conectar a la base de datos
-        const connection = await getConnection();
-        
+        const connection = await connectionString();
+
         // Obtener nombres originales y actualizados para el historial
         const nombresOriginales = {};
         const nombresActualizados = {};
@@ -4135,7 +4111,7 @@ async function cargarHistorialCambiosAcademicos() {
         const fechaHasta = historyDateTo.value || new Date().toISOString().split('T')[0];
         
         // Obtener historial de la base de datos
-        const connection = await getConnection();
+        const connection = await connectionString();
         const query = `
             SELECT 
                 IdPersonal,
@@ -4193,7 +4169,7 @@ async function cargarDatosAcademicos() {
         ]);
         
         // Verificar si ya existe información académica para el empleado
-        const connection = await getConnection();
+        const connection = await connectionString();
         const queryVerificar = `
             SELECT IdEstudio
             FROM InfoAcademica
@@ -4395,7 +4371,7 @@ function formatearNIT(input) {
 // Cargar tipos de licencia
 async function cargarTiposLicencia() {
     try {
-        const connection = await getConnection();
+        const connection = await connectionString();
         const query = `
             SELECT IdLicencia, TipoLicencia
             FROM tipolicencias
@@ -4434,7 +4410,7 @@ async function cargarDatosDocumentos() {
         await cargarTiposLicencia();
         
         // Obtener datos actuales de documentación
-        const connection = await getConnection();
+        const connection = await connectionString();
         const query = `
             SELECT 
                 personal.IdLicencia,
@@ -4550,8 +4526,8 @@ async function guardarCambiosDocumentos() {
         ].filter(Boolean).join(' ');
         
         // Conectar a la base de datos
-        const connection = await getConnection();
-        
+        const connection = await connectionString();
+
         // Obtener nombres para el historial
         const nombresOriginales = {};
         const nombresActualizados = {};
@@ -4766,7 +4742,7 @@ async function cargarHistorialCambiosDocumentos() {
         const fechaHasta = historyDateTo.value || new Date().toISOString().split('T')[0];
         
         // Obtener historial de la base de datos
-        const connection = await getConnection();
+        const connection = await connectionString();
         const query = `
             SELECT 
                 IdPersonal,
@@ -4856,7 +4832,7 @@ async function cargarResultadosPMA() {
         mostrarCargando(true, 'Cargando evaluaciones PMA...');
         
         // Obtener resultados PMA
-        const connection = await getConnection();
+        const connection = await connectionString();
         const query = `
             SELECT
                 ResultadosPMA.IdPMA,
@@ -4992,7 +4968,7 @@ async function editarPMA(idPMA) {
         mostrarCargando(true, 'Cargando datos de evaluación...');
         
         // Obtener datos de la evaluación
-        const connection = await getConnection();
+        const connection = await connectionString();
         const query = `
             SELECT
                 ResultadosPMA.IdPMA,
@@ -5081,8 +5057,8 @@ async function guardarEvaluacionPMA() {
         };
         
         // Conectar a la base de datos
-        const connection = await getConnection();
-        
+        const connection = await connectionString();
+
         // Si estamos editando, obtener los valores originales para guardar el historial
         let datosOriginalesPMA = null;
         
@@ -5244,7 +5220,7 @@ async function verDetallePMA(idPMA) {
         mostrarCargando(true, 'Cargando detalles de evaluación...');
         
         // Obtener datos de la evaluación
-        const connection = await getConnection();
+        const connection = await connectionString();
         const query = `
             SELECT
                 ResultadosPMA.IdPMA,
@@ -5483,7 +5459,7 @@ async function cargarHistorialCambiosPMA() {
         const fechaHasta = historyDateTo.value || new Date().toISOString().split('T')[0];
         
         // Obtener historial de la base de datos
-        const connection = await getConnection();
+        const connection = await connectionString();
         const query = `
             SELECT 
                 IdPersonal,
@@ -5682,7 +5658,7 @@ async function guardarNuevaFoto() {
         const arrayBuffer = await readFileAsArrayBuffer(selectedFile);
         
         // Conectar a la base de datos
-        const connection = await getConnection();
+        const connection = await connectionString();
         
         // Verificar si ya existe una foto para este empleado
         const checkQuery = `

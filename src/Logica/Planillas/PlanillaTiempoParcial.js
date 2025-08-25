@@ -1716,12 +1716,10 @@ function validarFechaPorPeriodoConfiguracion(fecha) {
     if (!planillaConfig.confirmada) {
         return { valida: false, motivo: 'no_configurada' };
     }
+    const fechaSeleccionada = formatDate(fecha); // Convierte a YYYY-MM-DD
+    const fechaInicio = planillaConfig.fechaInicio; // Ya está en formato YYYY-MM-DD
+    const fechaFin = planillaConfig.fechaFin; // Ya está en formato YYYY-MM-DD
     
-    const fechaSeleccionada = new Date(fecha);
-    const fechaInicio = new Date(planillaConfig.fechaInicio);
-    const fechaFin = new Date(planillaConfig.fechaFin);
-    
-    // Verificar si la fecha está dentro del rango configurado
     if (fechaSeleccionada >= fechaInicio && fechaSeleccionada <= fechaFin) {
         return { valida: true };
     } else {
@@ -3351,7 +3349,11 @@ async function verificarPeriodoExistente(fechaInicio, fechaFin, departamentoId) 
 }
 
 function formatDate(date) {
-    return date.toISOString().split('T')[0];
+    // ✅ Asegurar formato YYYY-MM-DD
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
 }
 
 function formatDateDisplay(date) {

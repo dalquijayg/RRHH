@@ -1,10 +1,8 @@
 // Importaciones requeridas
 const { ipcRenderer } = require('electron');
-const odbc = require('odbc');
+const { connectionString } = require('../Conexion/Conexion');
 const Swal = require('sweetalert2');
 
-// Configuración de la conexión
-const conexion = 'DSN=recursos2';
 const currentUser = JSON.parse(localStorage.getItem('userData'));
 let selectedEmployee = null;
 
@@ -81,7 +79,7 @@ const closeConfirmModal = document.getElementById('closeConfirmModal');
 // Funciones de utilidad
 async function getConnection() {
     try {
-        const connection = await odbc.connect(conexion);
+        const connection = await connectionString();
         await connection.query('SET NAMES utf8mb4');
         return connection;
     } catch (error) {

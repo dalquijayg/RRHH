@@ -1,14 +1,11 @@
 // Importaciones y configuración inicial
 const { ipcRenderer } = require('electron');
-const odbc = require('odbc');
+const { connectionString } = require('../Conexion/Conexion');
 const Swal = require('sweetalert2');
 const ExcelJS = require('exceljs');
 const fs = require('fs');
 const path = require('path');
 const { saveAs } = require('file-saver');
-
-// Configuración de conexión a la base de datos
-const conexion = 'DSN=recursos2';
 
 // Variables globales para manejo de datos
 let departamentosData = [];
@@ -94,7 +91,7 @@ const progressVacacionistaDiv = document.getElementById('progressVacacionista');
 // Función para obtener la conexión a la base de datos
 async function getConnection() {
     try {
-        const connection = await odbc.connect(conexion);
+        const connection = await connectionString();
         await connection.query('SET NAMES utf8mb4');
         return connection;
     } catch (error) {

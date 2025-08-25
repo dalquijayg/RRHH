@@ -1,4 +1,4 @@
-// AutorizarLiquidacion.js - CÓDIGO COMPLETO
+// AutorizarLiquidacion.js - CÓDIGO COMPLETO - PARTE 1
 const { connectionString } = require('../Conexion/Conexion');
 const Swal = require('sweetalert2');
 
@@ -112,6 +112,9 @@ class LiquidacionesTable {
                     Liquidaciones.IdLiquidacion, 
                     Liquidaciones.NombrePersonal, 
                     Liquidaciones.FechaPlanilla, 
+                    Liquidaciones.FechaFin,
+                    Liquidaciones.DiasIndemnizacion,
+                    Liquidaciones.TipoLiquidacion,
                     Liquidaciones.MontoIndemnizacion, 
                     Liquidaciones.MontoAguinaldo, 
                     Liquidaciones.MontoVacaciones, 
@@ -155,6 +158,24 @@ class LiquidacionesTable {
         return indemnizacion + aguinaldo + vacaciones + bono14;
     }
     
+    getTipoLiquidacionTexto(tipo) {
+        switch (tipo) {
+            case '1': return 'Parcial';
+            case '2': return 'Por Despido';
+            case '3': return 'Por Renuncia';
+            default: return 'No especificado';
+        }
+    }
+    
+    getTipoLiquidacionClase(tipo) {
+        switch (tipo) {
+            case '1': return 'tipo-parcial';
+            case '2': return 'tipo-despido';
+            case '3': return 'tipo-renuncia';
+            default: return 'tipo-indefinido';
+        }
+    }
+    
     filtrarLiquidaciones(termino) {
         if (timeoutBusqueda) {
             clearTimeout(timeoutBusqueda);
@@ -166,10 +187,13 @@ class LiquidacionesTable {
             } else {
                 const terminoLower = termino.toLowerCase();
                 liquidacionesFiltradas = liquidacionesData.filter(liquidacion => {
+                    const tipoTexto = this.getTipoLiquidacionTexto(liquidacion.TipoLiquidacion);
                     return (
                         liquidacion.IdLiquidacion.toString().includes(terminoLower) ||
                         liquidacion.NombrePersonal.toLowerCase().includes(terminoLower) ||
                         liquidacion.NombreUsuario.toLowerCase().includes(terminoLower) ||
+                        tipoTexto.toLowerCase().includes(terminoLower) ||
+                        liquidacion.DiasIndemnizacion.toString().includes(terminoLower) ||
                         this.formatearMoneda(liquidacion.MontoIndemnizacion).toLowerCase().includes(terminoLower) ||
                         this.formatearMoneda(liquidacion.MontoAguinaldo).toLowerCase().includes(terminoLower) ||
                         this.formatearMoneda(liquidacion.MontoVacaciones).toLowerCase().includes(terminoLower) ||
@@ -206,14 +230,14 @@ class LiquidacionesTable {
                 valorB = b.Total;
             }
             
-            // Convertir a números si es monetario
-            if (['MontoIndemnizacion', 'MontoAguinaldo', 'MontoVacaciones', 'MontoBono14', 'DescuentoInterno', 'total'].includes(column)) {
+            // Convertir a números si es monetario o días
+            if (['MontoIndemnizacion', 'MontoAguinaldo', 'MontoVacaciones', 'MontoBono14', 'DescuentoInterno', 'total', 'DiasIndemnizacion'].includes(column)) {
                 valorA = parseFloat(valorA) || 0;
                 valorB = parseFloat(valorB) || 0;
             }
             
             // Convertir fechas
-            if (['FechaPlanilla', 'FechaHoraRegistro'].includes(column)) {
+            if (['FechaPlanilla', 'FechaFin', 'FechaHoraRegistro'].includes(column)) {
                 valorA = new Date(valorA);
                 valorB = new Date(valorB);
             }
@@ -276,10 +300,15 @@ class LiquidacionesTable {
         // Agregar event listeners a los botones de acción
         this.setupActionButtons();
     }
+    // Continuación de la Parte 1...
     
     crearFilaLiquidacion(liquidacion) {
         const fechaIngreso = this.formatearFecha(liquidacion.FechaPlanilla);
+        const fechaFin = this.formatearFecha(liquidacion.FechaFin);
         const fechaRegistro = this.formatearFechaHora(liquidacion.FechaHoraRegistro);
+        const tipoLiquidacion = this.getTipoLiquidacionTexto(liquidacion.TipoLiquidacion);
+        const tipoClase = this.getTipoLiquidacionClase(liquidacion.TipoLiquidacion);
+        const diasIndemnizacion = liquidacion.DiasIndemnizacion || 0;
         const indemnizacionTexto = liquidacion.IndemnizacionSiNo === 1 ? 
             this.formatearMoneda(liquidacion.MontoIndemnizacion) : 
             '<span class="text-muted">Sin indemnización</span>';
@@ -290,7 +319,18 @@ class LiquidacionesTable {
                 <td class="text-truncate" title="${liquidacion.NombrePersonal}">
                     <strong>${liquidacion.NombrePersonal}</strong>
                 </td>
-                <td>${fechaIngreso}</td>
+                <td>
+                    <div class="periodo-container">
+                        <div class="fecha-inicio">${fechaIngreso}</div>
+                        <div class="fecha-fin">${fechaFin}</div>
+                    </div>
+                </td>
+                <td>
+                    <span class="badge badge-tipo ${tipoClase}">${tipoLiquidacion}</span>
+                </td>
+                <td class="text-center">
+                    <span class="dias-badge">${diasIndemnizacion} días</span>
+                </td>
                 <td class="text-right">
                     <span class="monto ${liquidacion.IndemnizacionSiNo === 1 ? 'positivo' : ''}">${indemnizacionTexto}</span>
                 </td>
@@ -475,6 +515,8 @@ class LiquidacionesTable {
         const tieneDescuento = liquidacion.DescuentoInterno > 0;
         const tieneObservaciones = liquidacion.Observaciones && liquidacion.Observaciones.trim();
         const sinIndemnizacion = liquidacion.IndemnizacionSiNo === 0;
+        const tipoLiquidacion = this.getTipoLiquidacionTexto(liquidacion.TipoLiquidacion);
+        const tipoClase = this.getTipoLiquidacionClase(liquidacion.TipoLiquidacion);
         
         return `
             <div class="liquidacion-details">
@@ -502,9 +544,28 @@ class LiquidacionesTable {
                             <label>Planilla:</label>
                             <span>${infoAdicional.Nombre_Planilla || 'N/A'}</span>
                         </div>
+                    </div>
+                </div>
+                
+                <!-- Información del período -->
+                <div class="detail-section">
+                    <h4><i class="fas fa-calendar-alt"></i> Período de Liquidación</h4>
+                    <div class="detail-grid">
+                        <div class="detail-item">
+                            <label>Tipo de Liquidación:</label>
+                            <span class="badge badge-tipo ${tipoClase}">${tipoLiquidacion}</span>
+                        </div>
                         <div class="detail-item">
                             <label>Fecha de Ingreso:</label>
                             <span>${this.formatearFecha(liquidacion.FechaPlanilla)}</span>
+                        </div>
+                        <div class="detail-item">
+                            <label>Fecha de Finalización:</label>
+                            <span>${this.formatearFecha(liquidacion.FechaFin)}</span>
+                        </div>
+                        <div class="detail-item">
+                            <label>Días de Indemnización:</label>
+                            <span class="dias-badge-large">${liquidacion.DiasIndemnizacion || 0} días</span>
                         </div>
                     </div>
                 </div>
@@ -544,6 +605,16 @@ class LiquidacionesTable {
                             </div>
                             <div class="concepto-valor">
                                 <span class="monto positivo">${this.formatearMoneda(liquidacion.MontoVacaciones)}</span>
+                            </div>
+                        </div>
+                        
+                        <div class="concepto-item">
+                            <div class="concepto-label">
+                                <i class="fas fa-calendar-plus"></i>
+                                Bono 14
+                            </div>
+                            <div class="concepto-valor">
+                                <span class="monto positivo">${this.formatearMoneda(liquidacion.MontoBono14)}</span>
                             </div>
                         </div>
                         
@@ -978,6 +1049,9 @@ function exportarLiquidaciones() {
         'ID': liquidacion.IdLiquidacion,
         'Colaborador': liquidacion.NombrePersonal,
         'Fecha Ingreso': liquidacionesTable.formatearFecha(liquidacion.FechaPlanilla),
+        'Fecha Fin': liquidacionesTable.formatearFecha(liquidacion.FechaFin),
+        'Tipo Liquidación': liquidacionesTable.getTipoLiquidacionTexto(liquidacion.TipoLiquidacion),
+        'Días Indemnización': liquidacion.DiasIndemnizacion,
         'Indemnización': liquidacion.MontoIndemnizacion,
         'Aguinaldo': liquidacion.MontoAguinaldo,
         'Vacaciones': liquidacion.MontoVacaciones,
@@ -1056,16 +1130,24 @@ function imprimirTabla() {
                 .header { text-align: center; margin-bottom: 30px; }
                 .header h1 { color: #654321; margin-bottom: 5px; }
                 .header p { color: #666; }
-                table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-                th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+                table { width: 100%; border-collapse: collapse; margin-top: 20px; font-size: 0.8rem; }
+                th, td { border: 1px solid #ddd; padding: 6px; text-align: left; }
                 th { background-color: #f2f2f2; font-weight: bold; }
                 .text-right { text-align: right; }
                 .text-center { text-align: center; }
                 .monto { font-weight: bold; }
                 .footer { margin-top: 30px; text-align: center; color: #666; font-size: 12px; }
+                .badge-tipo { padding: 2px 6px; border-radius: 8px; font-size: 0.7rem; }
+                .tipo-parcial { background-color: #e3f2fd; color: #1565c0; }
+                .tipo-despido { background-color: #ffebee; color: #c62828; }
+                .tipo-renuncia { background-color: #e8f5e8; color: #2e7d32; }
+                .periodo-container { font-size: 0.75rem; }
+                .fecha-fin { color: #666; font-style: italic; }
+                .dias-badge { background: #FF9800; color: white; padding: 2px 6px; border-radius: 6px; font-size: 0.7rem; }
                 @media print {
-                    body { margin: 0; }
+                    body { margin: 0; font-size: 0.7rem; }
                     .no-print { display: none; }
+                    table { font-size: 0.65rem; }
                 }
             </style>
         </head>
@@ -1081,7 +1163,9 @@ function imprimirTabla() {
                     <tr>
                         <th>ID</th>
                         <th>Colaborador</th>
-                        <th>Fecha Ingreso</th>
+                        <th>Período</th>
+                        <th>Tipo</th>
+                        <th>Días</th>
                         <th class="text-right">Indemnización</th>
                         <th class="text-right">Aguinaldo</th>
                         <th class="text-right">Vacaciones</th>
@@ -1095,11 +1179,21 @@ function imprimirTabla() {
     `;
     
     liquidacionesFiltradas.forEach(liquidacion => {
+        const tipoTexto = liquidacionesTable.getTipoLiquidacionTexto(liquidacion.TipoLiquidacion);
+        const tipoClase = liquidacionesTable.getTipoLiquidacionClase(liquidacion.TipoLiquidacion);
+        
         html += `
             <tr>
                 <td>#${liquidacion.IdLiquidacion}</td>
                 <td>${liquidacion.NombrePersonal}</td>
-                <td>${liquidacionesTable.formatearFecha(liquidacion.FechaPlanilla)}</td>
+                <td>
+                    <div class="periodo-container">
+                        <div>${liquidacionesTable.formatearFecha(liquidacion.FechaPlanilla)}</div>
+                        <div class="fecha-fin">→ ${liquidacionesTable.formatearFecha(liquidacion.FechaFin)}</div>
+                    </div>
+                </td>
+                <td><span class="badge-tipo ${tipoClase}">${tipoTexto}</span></td>
+                <td class="text-center"><span class="dias-badge">${liquidacion.DiasIndemnizacion || 0}</span></td>
                 <td class="text-right monto">${liquidacionesTable.formatearMoneda(liquidacion.MontoIndemnizacion)}</td>
                 <td class="text-right monto">${liquidacionesTable.formatearMoneda(liquidacion.MontoAguinaldo)}</td>
                 <td class="text-right monto">${liquidacionesTable.formatearMoneda(liquidacion.MontoVacaciones)}</td>

@@ -1,8 +1,7 @@
 // Configuración e inicialización
 const { ipcRenderer } = require('electron');
-const odbc = require('odbc');
+const { connectionString } = require('../Conexion/Conexion');
 const Swal = require('sweetalert2');
-const conexion = 'DSN=recursos2';
 const XLSX = require('xlsx');
 const fotoCache = new Map();
 // Variables globales
@@ -43,19 +42,6 @@ const photoViewerImage = document.getElementById('photoViewerImage');
 const photoViewerName = document.getElementById('photoViewerName');
 const closePhotoViewer = document.getElementById('closePhotoViewer');
 
-// Inicializar conexión con la base de datos
-async function getConnection() {
-    try {
-        const connection = await odbc.connect(conexion);
-        await connection.query('SET NAMES utf8mb4');
-        return connection;
-    } catch (error) {
-        console.error('Error de conexión:', error);
-        mostrarNotificacion('Error de conexión a la base de datos', 'error');
-        throw error;
-    }
-}
-
 function abrirVisorFoto(src, nombre) {
     photoViewerImage.src = src;
     photoViewerName.textContent = nombre;
@@ -76,7 +62,7 @@ function cerrarVisorFoto() {
 // Cargar datos de departamentos
 async function cargarDepartamentos() {
     try {
-        const connection = await getConnection();
+        const connection = await connectionString();
         const result = await connection.query(`
             SELECT IdDepartamento, NombreDepartamento
             FROM departamentos
@@ -100,7 +86,7 @@ async function cargarDepartamentos() {
 // Cargar tipos de personal
 async function cargarTiposPersonal() {
     try {
-        const connection = await getConnection();
+        const connection = await connectionString();
         const result = await connection.query(`
             SELECT IdTipo, TipoPersonal
             FROM TipoPersonal
@@ -123,7 +109,7 @@ async function cargarTiposPersonal() {
 
 async function cargarEstadosPersonal() {
     try {
-        const connection = await getConnection();
+        const connection = await connectionString();
         const result = await connection.query(`
             SELECT IdEstado, EstadoPersonal
             FROM EstadoPersonal
@@ -151,8 +137,8 @@ async function buscarPersonal() {
     mostrarCargando(true);
     
     try {
-        const connection = await getConnection();
-        
+        const connection = await connectionString();
+
         // Obtener los valores de los filtros
         const searchTermValue = searchText.value.trim();
         const departamentoValue = departamentoFilter.value;
@@ -473,7 +459,7 @@ async function cargarFotoEmpleado(idPersonal) {
     }
     
     try {
-        const connection = await getConnection();
+        const connection = await connectionString();
         const result = await connection.query(`
             SELECT CASE 
                 WHEN Foto IS NOT NULL AND LENGTH(Foto) > 0 THEN CONCAT('data:image/jpeg;base64,', TO_BASE64(Foto))
@@ -780,7 +766,7 @@ async function editarEmpleado(id) {
         }
         
         // Verificar si el usuario tiene la transacción 103 activa
-        const connection = await getConnection();
+        const connection = await connectionString();
         const query = `
             SELECT Activo 
             FROM TransaccionesRRHH 
@@ -893,7 +879,7 @@ function limpiarBusqueda() {
 // Función para cargar la información académica
 async function cargarInfoAcademica(idPersonal) {
     try {
-        const connection = await getConnection();
+        const connection = await connectionString();
         const query = `
             SELECT
                 -- Información de Primaria
@@ -975,7 +961,7 @@ async function cargarInfoAcademica(idPersonal) {
 // Función para cargar resultados PMA
 async function cargarResultadosPMA(idPersonal) {
     try {
-        const connection = await getConnection();
+        const connection = await connectionString();
         const query = `
             SELECT
                 ResultadosPMA.FactorV, 

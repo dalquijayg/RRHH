@@ -30,6 +30,7 @@ let ConsultarArchivosWindow = null;
 let PagoPlanillaTiempoParcialWindow = null;
 let AutorizarPagoPlanillasWindow = null;
 let AutorizarLiquidacionesWindow = null;
+let ReporteDiasDisponiblesVacacionesWindow = null;
 
 if(process.env.NODE_ENV !=='production'){
     require('electron-reload')(__dirname,{
@@ -766,6 +767,35 @@ function createAutorizacionLiquidacionWindow() {
         AutorizarLiquidacionesWindow = null;
     });
 }
+function createReporteDiasDisponiblesVacacionesWindow() {
+    // Verifica si la ventana ya está abierta
+    if (ReporteDiasDisponiblesVacacionesWindow) {
+        // Si ya está abierta, simplemente enfócala
+        if (ReporteDiasDisponiblesVacacionesWindow.isMinimized()) ReporteDiasDisponiblesVacacionesWindow.restore();
+        ReporteDiasDisponiblesVacacionesWindow.focus();
+        return;
+    }
+    
+    // Crea una nueva ventana si no existe
+    ReporteDiasDisponiblesVacacionesWindow = new BrowserWindow({
+        width: 1200,
+        height: 800,
+        webPreferences: {
+            nodeIntegration: true,
+            contextIsolation: false,
+        },
+        icon: path.join(__dirname, 'LogoRecursos.ico'),
+        title: 'Permisos',
+        autoHideMenuBar: true
+    });
+
+    ReporteDiasDisponiblesVacacionesWindow.loadURL(`file://${__dirname}/Vistas/ReporteDiasVacaciones.html`);
+    
+    // Elimina la referencia a la ventana cuando se cierre
+    ReporteDiasDisponiblesVacacionesWindow.on('closed', () => {
+        ReporteDiasDisponiblesVacacionesWindow = null;
+    });
+}
 // Añade este receptor para abrir la ventana de pago nómina
 ipcMain.on('open_pago_nomina', () => {
     createPagoNominaWindow();
@@ -842,6 +872,9 @@ ipcMain.on('open_Ventana_AutorizarPagoParciales', () => {
 });
 ipcMain.on('open_Ventana_AutorizarLiquidacion', () => {
     createAutorizacionLiquidacionWindow();
+});
+ipcMain.on('open_Ventana_ReporteDiasDisponiblesVacaciones', () => {
+    createReporteDiasDisponiblesVacacionesWindow();
 });
 ipcMain.handle('show-save-dialog', async (event, options) => {
     const result = await dialog.showOpenDialog(options);

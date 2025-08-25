@@ -1,35 +1,11 @@
-const odbc = require('odbc');
+const { connectionString } = require('../Conexion/Conexion');
 const Swal = require('sweetalert2');
-const conexion = 'DSN=recursos2'; // Asegúrate de tener configurado el DSN correctamente
 
 // Variable para almacenar el empleado seleccionado para descuentos
 let selectedEmployee = null;
 // Variable para almacenar el empleado seleccionado para suspensiones
 let selectedEmployeeSuspension = null;
 
-// Función para obtener la conexión a la base de datos
-async function connectionString() {
-    try {
-        const connection = await odbc.connect(conexion, {
-            binaryAsString: true,
-            bigint: 'string'
-        });
-        
-        // Configuración adicional de la conexión
-        await connection.query('SET NAMES utf8mb4');
-        await connection.query('SET character_set_results = utf8mb4');
-        
-        return connection;
-    } catch (error) {
-        console.error('Error de conexión:', error);
-        Swal.fire({
-            icon: 'error',
-            title: 'Error de conexión',
-            text: 'No se pudo conectar a la base de datos. Por favor intente nuevamente.'
-        });
-        throw error;
-    }
-}
 function manejarCambioTipo() {
     const esFaltaToggle = document.getElementById('esFaltaToggle');
     const esFalta = esFaltaToggle.checked;
