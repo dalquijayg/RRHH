@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Documentación de Vacaciones - Recursos Humanos</title>
+    <link rel="stylesheet" href="../Disenos/Documentación/Documentacion.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+</head>
+<body>
+    <!-- Header -->
+    <header class="header">
+        <div class="header-content">
+            <div class="header-left">
+                <h1 class="page-title">
+                    <i class="fas fa-file-alt"></i>
+                    Documentación de Vacaciones
+                </h1>
+                <p class="page-subtitle">Generación de reportes y fichas de control</p>
+            </div>
+            <div class="header-right">
+                <img src="../Imagenes/Logo Recursos Humanos new.png" alt="RRHH Logo" class="rrhh-logo">
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="main-content">
+        <!-- Control Panel -->
+        <section class="control-panel">
+            <div class="panel-header">
+                <h2>
+                    <i class="fas fa-filter"></i>
+                    Filtros de Búsqueda
+                </h2>
+            </div>
+            <div class="panel-content">
+                <!-- Filters Row -->
+                <div class="filters-container">
+                    <!-- Department Filter -->
+                    <div class="filter-group">
+                        <label for="departmentFilter">
+                            <i class="fas fa-building"></i>
+                            Departamento:
+                        </label>
+                        <select id="departmentFilter" class="filter-select">
+                            <option value="">-- Todos los departamentos --</option>
+                        </select>
+                    </div>
+
+                    <!-- Employee Search -->
+                    <div class="filter-group">
+                        <label for="employeeSearch">
+                            <i class="fas fa-search"></i>
+                            Buscar Colaborador:
+                        </label>
+                        <div class="search-container">
+                            <input 
+                                type="text" 
+                                id="employeeSearch" 
+                                class="search-input" 
+                                placeholder="Buscar por nombre..."
+                            >
+                            <i class="fas fa-search search-icon"></i>
+                            <button class="clear-search" id="clearSearch" style="display: none;">
+                                <i class="fas fa-times"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Action Buttons -->
+                    <div class="filter-actions">
+                        <button class="btn btn-search" id="searchBtn">
+                            <i class="fas fa-search"></i>
+                            Buscar
+                        </button>
+                        <button class="btn btn-export" id="exportBtn">
+                            <i class="fas fa-file-excel"></i>
+                            Exportar Excel
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Results Section -->
+        <section class="results-section">
+            <div class="results-header">
+                <h3>
+                    <i class="fas fa-users"></i>
+                    Colaboradores
+                    <span class="results-count" id="resultsCount">0</span>
+                </h3>
+                <div class="results-info">
+                    <span class="info-text">Haz clic en "Generar PDF" para crear la ficha de control</span>
+                </div>
+            </div>
+
+            <!-- Table Container -->
+            <div class="table-container">
+                <table class="employees-table" id="employeesTable">
+                    <thead>
+                        <tr>
+                            <th class="sortable" data-sort="name">
+                                <i class="fas fa-sort"></i>
+                                Nombre Completo
+                            </th>
+                            <th class="sortable" data-sort="department">
+                                <i class="fas fa-sort"></i>
+                                Departamento
+                            </th>
+                            <th class="sortable" data-sort="position">
+                                <i class="fas fa-sort"></i>
+                                Puesto
+                            </th>
+                            <th class="sortable" data-sort="payroll">
+                                <i class="fas fa-sort"></i>
+                                Planilla
+                            </th>
+                            <th class="no-sort">
+                                Acciones
+                            </th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <!-- Loading State -->
+                        <tr class="loading-row">
+                            <td colspan="5" class="loading-cell">
+                                <div class="loading-spinner">
+                                    <i class="fas fa-spinner fa-spin"></i>
+                                    <span>Cargando colaboradores...</span>
+                                </div>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Pagination -->
+            <div class="pagination-container">
+                <div class="pagination-info">
+                    <span id="paginationInfo">Mostrando 0 de 0 colaboradores</span>
+                </div>
+                <div class="pagination-controls">
+                    <button class="pagination-btn" id="prevPageBtn" disabled>
+                        <i class="fas fa-chevron-left"></i>
+                        Anterior
+                    </button>
+                    <span class="page-indicator" id="pageIndicator">Página 1 de 1</span>
+                    <button class="pagination-btn" id="nextPageBtn" disabled>
+                        Siguiente
+                        <i class="fas fa-chevron-right"></i>
+                    </button>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- PDF Generation Modal -->
+    <div id="pdfModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>
+                    <i class="fas fa-file-pdf"></i>
+                    Generar Ficha de Control
+                </h2>
+                <button class="close-modal" id="closePdfModal">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <!-- Employee Info -->
+                <div class="employee-section">
+                    <h3>Información del Colaborador</h3>
+                    <div class="employee-details">
+                        <div class="detail-item">
+                            <span class="label">Nombre:</span>
+                            <span class="value" id="modalEmployeeName">-</span>
+                        </div>
+                        <div class="detail-item">
+                            <span class="label">Departamento:</span>
+                            <span class="value" id="modalEmployeeDept">-</span>
+                        </div>
+                        <div class="detail-item">
+                            <span class="label">Puesto:</span>
+                            <span class="value" id="modalEmployeePosition">-</span>
+                        </div>
+                        <div class="detail-item">
+                            <span class="label">DPI:</span>
+                            <span class="value" id="modalEmployeeDPI">-</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Period Selection -->
+                <div class="period-section">
+                    <h3>Selección de Período</h3>
+                    <div class="period-select-container">
+                        <label for="periodSelect">Período de vacaciones:</label>
+                        <select id="periodSelect" class="period-select">
+                            <option value="">-- Seleccione un período --</option>
+                        </select>
+                    </div>
+                    
+                    <!-- Period Details -->
+                    <div class="period-details" id="periodDetails" style="display: none;">
+                        <div class="period-info">
+                            <div class="info-card">
+                                <div class="info-header">
+                                    <i class="fas fa-calendar-check"></i>
+                                    <span>Días Tomados</span>
+                                </div>
+                                <div class="info-value" id="daysTaken">0</div>
+                            </div>
+                            <div class="info-card">
+                                <div class="info-header">
+                                    <i class="fas fa-dollar-sign"></i>
+                                    <span>Días Pagados</span>
+                                </div>
+                                <div class="info-value" id="daysPaid">0</div>
+                            </div>
+                            <div class="info-card total">
+                                <div class="info-header">
+                                    <i class="fas fa-calculator"></i>
+                                    <span>Total Utilizado</span>
+                                </div>
+                                <div class="info-value" id="totalDays">0</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Generation Options -->
+                <div class="options-section">
+                    <h3>Opciones de Generación</h3>
+                    <div class="option-item">
+                        <label class="checkbox-label">
+                            <input type="checkbox" id="includeIncomplete" checked>
+                            <span class="checkmark"></span>
+                            Generar aunque el período esté incompleto
+                        </label>
+                    </div>
+                    <div class="notice">
+                        <i class="fas fa-info-circle"></i>
+                        <span>Se generará una ficha de control oficial con los datos disponibles del período seleccionado.</span>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-cancel" id="cancelPdfBtn">
+                    <i class="fas fa-times"></i>
+                    Cancelar
+                </button>
+                <button class="btn btn-generate" id="generatePdfBtn" disabled>
+                    <i class="fas fa-file-pdf"></i>
+                    Generar PDF
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Loading Overlay -->
+    <div id="loadingOverlay" class="loading-overlay" style="display: none;">
+        <div class="loading-content">
+            <div class="spinner-large">
+                <i class="fas fa-spinner fa-spin"></i>
+            </div>
+            <h3>Generando Documento</h3>
+            <p>Por favor espere...</p>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="Documentacion.js"></script>
+</body>
+</html>

@@ -1141,60 +1141,75 @@ async function obtenerPeriodosDisponibles(empleado) {
     try {
         const connection = await connectionString();
         
-        for (let i = 0; i <= aniosCumplidos; i++) {
+        // CORRECCIÓN: Solo iterar hasta los años que realmente ha cumplido
+        // No incluir períodos futuros que no ha alcanzado
+        for (let i = 0; i < aniosCumplidos; i++) {  // Cambiado: i < aniosCumplidos (sin el =)
             const periodo = calcularPeriodo(fechaPlanilla, i);
             
-            const queryDiasTomados = `
-                SELECT COUNT(*) as DiasUtilizados
-                FROM vacacionestomadas
-                WHERE IdPersonal = ? AND Periodo = ?
-            `;
-            const resultDiasTomados = await connection.query(queryDiasTomados, [empleado.IdPersonal, periodo]);
+            // Validar que el período ya haya comenzado
+            const fechaInicioPeriodo = obtenerFechaInicioPeriodo(fechaPlanilla, i);
+            const fechaActual = new Date();
             
-            const queryDiasPagados = `
-                SELECT IFNULL(SUM(CAST(DiasSolicitado AS UNSIGNED)), 0) as DiasPagados
-                FROM vacacionespagadas
-                WHERE IdPersonal = ? AND Periodo = ? AND Estado IN (1,2,3,4)
-            `;
-            const resultDiasPagados = await connection.query(queryDiasPagados, [empleado.IdPersonal, periodo]);
-            
-            let diasUtilizados = 0;
-            if (resultDiasTomados && resultDiasTomados[0].DiasUtilizados) {
-                const valor = resultDiasTomados[0].DiasUtilizados;
-                diasUtilizados = typeof valor === 'bigint' ? Number(valor) : parseInt(valor) || 0;
+            // Solo procesar períodos que ya han comenzado
+            if (fechaInicioPeriodo <= fechaActual) {
+                const queryDiasTomados = `
+                    SELECT COUNT(*) as DiasUtilizados
+                    FROM vacacionestomadas
+                    WHERE IdPersonal = ? AND Periodo = ?
+                `;
+                const resultDiasTomados = await connection.query(queryDiasTomados, [empleado.IdPersonal, periodo]);
+                
+                const queryDiasPagados = `
+                    SELECT IFNULL(SUM(CAST(DiasSolicitado AS UNSIGNED)), 0) as DiasPagados
+                    FROM vacacionespagadas
+                    WHERE IdPersonal = ? AND Periodo = ? AND Estado IN (1,2,3,4)
+                `;
+                const resultDiasPagados = await connection.query(queryDiasPagados, [empleado.IdPersonal, periodo]);
+                
+                let diasUtilizados = 0;
+                if (resultDiasTomados && resultDiasTomados[0].DiasUtilizados) {
+                    const valor = resultDiasTomados[0].DiasUtilizados;
+                    diasUtilizados = typeof valor === 'bigint' ? Number(valor) : parseInt(valor) || 0;
+                }
+                
+                let diasPagados = 0;
+                if (resultDiasPagados && resultDiasPagados[0].DiasPagados) {
+                    const valor = resultDiasPagados[0].DiasPagados;
+                    diasPagados = typeof valor === 'bigint' ? Number(valor) : parseInt(valor) || 0;
+                }
+                
+                const diasDisponiblesPeriodo = Math.max(0, 15 - diasUtilizados - diasPagados);
+                
+                if (diasDisponiblesPeriodo > 0) {
+                    periodos.push({
+                        periodo: periodo,
+                        diasDisponibles: diasDisponiblesPeriodo,
+                        diasUtilizados: diasUtilizados,
+                        diasPagados: diasPagados
+                    });
+                }
+                
+                totalDiasDisponibles += diasDisponiblesPeriodo;
             }
-            
-            let diasPagados = 0;
-            if (resultDiasPagados && resultDiasPagados[0].DiasPagados) {
-                const valor = resultDiasPagados[0].DiasPagados;
-                diasPagados = typeof valor === 'bigint' ? Number(valor) : parseInt(valor) || 0;
-            }
-            
-            const diasDisponiblesPeriodo = Math.max(0, 15 - diasUtilizados - diasPagados);
-            
-            if (diasDisponiblesPeriodo > 0) {
-                periodos.push({
-                    periodo: periodo,
-                    diasDisponibles: diasDisponiblesPeriodo,
-                    diasUtilizados: diasUtilizados,
-                    diasPagados: diasPagados
-                });
-            }
-            
-            totalDiasDisponibles += diasDisponiblesPeriodo;
         }
         
         await connection.close();
         
-        if (periodos.length === 0) {
-            const siguientePeriodo = calcularPeriodo(fechaPlanilla, aniosCumplidos + 1);
-            periodos.push({
-                periodo: siguientePeriodo,
-                diasDisponibles: 15,
-                diasUtilizados: 0,
-                diasPagados: 0
-            });
-            totalDiasDisponibles = 15;
+        // CORRECCIÓN: Solo agregar el período actual si realmente tiene días disponibles
+        // y si ha cumplido al menos 1 año
+        if (periodos.length === 0 && aniosCumplidos >= 1) {
+            const periodoActual = calcularPeriodo(fechaPlanilla, aniosCumplidos - 1);
+            const fechaInicioPeriodoActual = obtenerFechaInicioPeriodo(fechaPlanilla, aniosCumplidos - 1);
+            
+            if (fechaInicioPeriodoActual <= new Date()) {
+                periodos.push({
+                    periodo: periodoActual,
+                    diasDisponibles: 15,
+                    diasUtilizados: 0,
+                    diasPagados: 0
+                });
+                totalDiasDisponibles = 15;
+            }
         }
         
         return {
@@ -1206,7 +1221,16 @@ async function obtenerPeriodosDisponibles(empleado) {
         throw error;
     }
 }
-
+function obtenerFechaInicioPeriodo(fechaPlanilla, offsetAnios) {
+    const fechaInicioPlanilla = new Date(fechaPlanilla);
+    const fechaInicioPrimerPeriodo = new Date(fechaInicioPlanilla);
+    fechaInicioPrimerPeriodo.setDate(fechaInicioPrimerPeriodo.getDate() + 1);
+    
+    const fechaInicioPeriodo = new Date(fechaInicioPrimerPeriodo);
+    fechaInicioPeriodo.setFullYear(fechaInicioPrimerPeriodo.getFullYear() + offsetAnios);
+    
+    return fechaInicioPeriodo;
+}
 // Función auxiliar para formatear el período para mostrar al usuario
 function formatPeriodoUsuario(periodo) {
     if (!periodo) return '';
@@ -1269,11 +1293,20 @@ async function openVacationModal(employeeId) {
         
         loadingSwal.close();
         
-        if (totalDiasDisponibles <= 0) {
+        if (totalDiasDisponibles <= 0 || periodosInfo.periodos.length === 0) {
+            const aniosCumplidos = parseInt(employee.AniosCumplidos || 0);
+            let mensajeError = '';
+            
+            if (aniosCumplidos < 1) {
+                mensajeError = `El colaborador <strong>${getFullName(employee)}</strong> aún no ha cumplido un año completo de servicio. Debe esperar hasta cumplir al menos 1 año para poder tomar vacaciones.`;
+            } else {
+                mensajeError = `El colaborador <strong>${getFullName(employee)}</strong> no tiene días de vacaciones disponibles en períodos válidos.`;
+            }
+            
             Swal.fire({
                 icon: 'warning',
                 title: 'Sin días disponibles',
-                html: `<p>El colaborador <strong>${getFullName(employee)}</strong> no tiene días de vacaciones disponibles.</p>`,
+                html: `<p>${mensajeError}</p>`,
                 confirmButtonColor: '#FF9800'
             });
             return;

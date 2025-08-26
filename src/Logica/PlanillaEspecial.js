@@ -88,18 +88,6 @@ const progressFijoDiv = document.getElementById('progressFijo');
 const progressParcialDiv = document.getElementById('progressParcial');
 const progressVacacionistaDiv = document.getElementById('progressVacacionista');
 
-// Función para obtener la conexión a la base de datos
-async function getConnection() {
-    try {
-        const connection = await connectionString();
-        await connection.query('SET NAMES utf8mb4');
-        return connection;
-    } catch (error) {
-        mostrarNotificacion('Error de conexión a la base de datos', 'error');
-        throw error;
-    }
-}
-
 // Función para cargar datos del usuario en el header
 function cargarInfoUsuario() {
     const userData = JSON.parse(localStorage.getItem('userData'));
@@ -203,7 +191,7 @@ function mostrarNotificacion(mensaje, tipo = 'info', titulo = null) {
 // Función para cargar departamentos
 async function cargarDepartamentos() {
     try {
-        const connection = await getConnection();
+        const connection = await connectionString();
         
         // Obtener el departamento del usuario desde localStorage
         const userData = JSON.parse(localStorage.getItem('userData'));
@@ -266,8 +254,8 @@ async function cargarDepartamentos() {
 // Función para cargar tipos de personal
 async function cargarTiposPersonal() {
     try {
-        const connection = await getConnection();
-        
+        const connection = await connectionString();
+
         const query = `
             SELECT
                 TipoPersonal.IdTipo, 
@@ -317,8 +305,8 @@ function esFechaDomingo(fecha) {
 // Función para verificar si una fecha es día especial para un departamento
 async function verificarDiaEspecial(fecha, idDepartamento) {
     try {
-        const connection = await getConnection();
-        
+        const connection = await connectionString();
+
         // Extraer día y mes de la fecha correctamente, usando UTC para evitar problemas de zona horaria
         let fechaObj;
         
@@ -478,8 +466,8 @@ async function determinarTipoFecha(fecha, idDepartamento) {
 // Función para cargar el personal de un departamento
 async function cargarPersonalDepartamento(idDepartamento, idTipoPersonal) {
     try {
-        const connection = await getConnection();
-        
+        const connection = await connectionString();
+
         // Verificar si se ha seleccionado un tipo específico o "Todos"
         const filtrarPorTipo = idTipoPersonal && idTipoPersonal.toString().trim() !== '';
         
@@ -876,8 +864,8 @@ async function aplicarFiltros(e) {
         mostrarLoadingEnTabla('Verificando planillas existentes...');
         
         // 1. NUEVA VALIDACIÓN: Verificar si ya existe una planilla para este departamento con Estado = 0
-        const connection = await getConnection();
-        
+        const connection = await connectionString();
+
         // Consulta para verificar planillas pendientes de documento (Estado = 0)
         const queryPendientes = `
             SELECT 
@@ -930,7 +918,7 @@ async function aplicarFiltros(e) {
                                     <span style="font-weight: 600;">Colaboradores:</span>
                                     <span>${planillaPendiente.CantColaboradores}</span>
                                     <span style="font-weight: 600;">Monto:</span>
-                                    <span>Q ${planillaPendiente.MontoTotalGasto.toFixed(2)}</span>
+                                    <span>Q ${Number(planillaPendiente.MontoTotalGasto).toFixed(2)}</span>
                                 </div>
                             </div>
                             <button class="btn btn-primary" id="btnSubirDocumento" data-id="${planillaPendiente.IdPlanillaEspecial}" style="animation: callToAction 2s infinite;">
@@ -1091,19 +1079,20 @@ async function aplicarFiltros(e) {
         mostrarNotificacion(`Personal cargado para: ${nombreDepartamento}`, 'success');
         
     } catch (error) {
-        mostrarNotificacion('Error al cargar los datos. Intente nuevamente.', 'error');
-        
-        // Mostrar mensaje de error en la tabla
-        personalTableBody.innerHTML = `
-            <tr class="empty-row">
-                <td colspan="6">
-                    <div class="empty-message">
-                        <i class="fas fa-exclamation-triangle"></i>
-                        <p>Ocurrió un error al cargar los datos. Intente nuevamente.</p>
-                    </div>
-                </td>
-            </tr>
-        `;
+        console.error('Error detallado en aplicarFiltros:', error); // Agregar esta línea
+    mostrarNotificacion(`Error detallado: ${error.message}`, 'error'); // Cambiar esta línea
+    
+    // Mostrar mensaje de error en la tabla
+    personalTableBody.innerHTML = `
+        <tr class="empty-row">
+            <td colspan="6">
+                <div class="empty-message">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    <p>Error: ${error.message}</p>
+                </div>
+            </td>
+        </tr>
+    `;
         
         // Actualizar información de totales
         totalPersonalElement.querySelector('.status-value').textContent = '0';
@@ -1376,7 +1365,7 @@ async function generarPlanilla() {
         // Obtener conexión a la base de datos
         let connection;
         try {
-            connection = await getConnection();
+            connection = await connectionString();
         } catch (connectionError) {
             throw new Error('No se pudo establecer conexión a la base de datos');
         }
@@ -1548,7 +1537,7 @@ async function generarPDFOficial(idPlanilla, correlativo = null) {
         let tipoPlanillaNumerico = 0;
         
         if (!numeroMostrar) {
-            const connection = await getConnection();
+            const connection = await connectionString();
             const queryCorrelativo = `
                 SELECT Correlativo, TipoPlanilla 
                 FROM PlanillasEspeciales 
@@ -2174,8 +2163,8 @@ function inhabilitarControlesBusqueda(inhabilitar = true, respetarDepartamento =
 // Función para cargar la configuración de límites del departamento seleccionado
 async function cargarLimitesDepartamento(idDepartamento) {
     try {
-        const connection = await getConnection();
-        
+        const connection = await connectionString();
+
         const query = `
             SELECT 
                 PlanFijo, 
@@ -2266,8 +2255,8 @@ function verificarLimitesPersonal(personalSeleccionado, limitesDepartamento) {
 // Función para verificar si ya existe una planilla para la fecha y departamento seleccionados
 async function verificarPlanillaExistente(idDepartamento, fecha) {
     try {
-        const connection = await getConnection();
-        
+        const connection = await connectionString();
+
         const query = `
             SELECT 
                 IdPlanillaEspecial,
@@ -2297,7 +2286,7 @@ async function verificarPlanillaExistente(idDepartamento, fecha) {
             };
         } else {
             // Si no hay planillas con Estado 0, verificar si existe para la fecha específica
-            const connection2 = await getConnection();
+            const connection2 = await connectionString();
             const queryFecha = `
                 SELECT 
                     IdPlanillaEspecial,
@@ -2459,8 +2448,8 @@ function inhabilitarControlesBusquedaRespetandoPermisos(inhabilitar = true, esAd
 }
 async function obtenerLogoDivision(idDivision) {
     try {
-        const connection = await getConnection();
-        
+        const connection = await connectionString();
+
         const query = `
             SELECT
                 CASE 
@@ -2593,8 +2582,8 @@ function initExternalCollaborators() {
 // Función para cargar departamentos en el selector de departamentos externos
 async function cargarDepartamentosExternos(idDepartamentoActual) {
     try {
-        const connection = await getConnection();
-        
+        const connection = await connectionString();
+
         const query = `
             SELECT
                 departamentos.IdDepartamento, 
@@ -2646,8 +2635,8 @@ async function cargarDepartamentosExternos(idDepartamentoActual) {
 // Función para cargar departamentos - modificada para manejar permisos de administrador
 async function cargarDepartamentos() {
     try {
-        const connection = await getConnection();
-        
+        const connection = await connectionString();
+
         // Obtener el departamento del usuario desde localStorage
         const userData = JSON.parse(localStorage.getItem('userData'));
         const idDepartamentoUsuario = userData?.IdSucuDepa;
@@ -2735,9 +2724,8 @@ async function cargarPersonalDepartamentoExterno(idDepartamento) {
                 </td>
             </tr>
         `;
-        
-        const connection = await getConnection();
-        
+        const connection = await connectionString();
+
         const query = `
             SELECT
                 personal.IdPersonal, 
@@ -3556,7 +3544,7 @@ async function verificarPermiso(codigoTransaccion) {
             return false;
         }
         
-        const connection = await getConnection();
+        const connection = await connectionString();
         
         const query = `
             SELECT COUNT(*) AS tiene_permiso 
@@ -3820,8 +3808,8 @@ function formatFileSize(bytes) {
 // Función para cargar la información de la planilla
 async function cargarInfoPlanilla(idPlanilla) {
     try {
-        const connection = await getConnection();
-        
+        const connection = await connectionString();
+
         const query = `
             SELECT 
                 pe.IdPlanillaEspecial,
@@ -3949,7 +3937,7 @@ async function subirDocumentoPlanilla(idPlanilla) {
                 const nombreUsuario = userData?.NombreCompleto || 'Usuario Sistema';
                 
                 // Crear conexión a la base de datos
-                const connection = await getConnection();
+                const connection = await connectionString();
                 
                 // Verificar si ya existe un documento para esta planilla
                 const checkQuery = `
@@ -4162,8 +4150,8 @@ function formatearFechaBD(fechaBD, incluirHora = false) {
 // Función para verificar si un colaborador ya está en una planilla para una fecha específica
 async function verificarColaboradorEnPlanilla(idPersonal, fecha) {
     try {
-        const connection = await getConnection();
-        
+        const connection = await connectionString();
+
         const query = `
             SELECT 
                 pe.IdPlanillaEspecial,
@@ -4210,8 +4198,8 @@ async function verificarColaboradorEnPlanilla(idPersonal, fecha) {
 }
 async function generarCorrelativo(tipoPlanilla, fecha) {
     try {
-        const connection = await getConnection();
-        
+        const connection = await connectionString();
+
         // Obtener el año de la fecha
         const anio = new Date(fecha).getFullYear();
         

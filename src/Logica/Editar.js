@@ -1364,9 +1364,6 @@ async function guardarCambiosUbicacion() {
             nombresOriginales.municipioResidencia = 'No registrado';
         }
         
-        // Iniciar transacción
-        await connection.beginTransaction();
-        
         try {
             // 1. Actualizar tabla personal
             let updateQuery = `
@@ -1439,9 +1436,6 @@ async function guardarCambiosUbicacion() {
                     userData.NombreCompleto
                 ]);
             }
-            
-            // Confirmar transacción
-            await connection.commit();
             
             // Actualizar datos originales
             datosOriginalesUbicacion = {
@@ -1876,9 +1870,6 @@ async function guardarCambiosContacto() {
         
         // Conectar a la base de datos
         const connection = await connectionString();
-
-        // Iniciar transacción
-        await connection.beginTransaction();
         
         try {
             // 1. Actualizar tabla personal
@@ -1996,9 +1987,6 @@ async function guardarCambiosContacto() {
                     userData.NombreCompleto
                 ]);
             }
-            
-            // Confirmar transacción
-            await connection.commit();
             
             // Actualizar datos originales (guardamos los valores sin formato para compararlos después)
             datosOriginalesContacto = {
@@ -2813,9 +2801,6 @@ async function guardarCambiosLaboral() {
             nombresActualizados.estadoLaboral = 'No registrado';
         }
         
-        // Iniciar transacción
-        await connection.beginTransaction();
-        
         try {
             // DEBUG: Mostrar query y parámetros antes de ejecutar
             console.log('=== DEBUG QUERY UPDATE ===');
@@ -3049,9 +3034,6 @@ async function guardarCambiosLaboral() {
                 ];
                 await connection.query(historialQuery, historialParams);
             }
-            
-            // Confirmar transacción
-            await connection.commit();
             
             // Actualizar datos originales
             datosOriginalesLaboral = {
@@ -3784,9 +3766,6 @@ async function guardarCambiosAcademicos() {
             maestrias[item.IdMaestria] = item.NombreMaestria;
         });
         
-        // Iniciar transacción
-        await connection.beginTransaction();
-        
         try {
             // 1. Actualizar tabla InfoAcademica
             let updateQuery = `
@@ -3964,9 +3943,6 @@ async function guardarCambiosAcademicos() {
                     userData.NombreCompleto
                 ]);
             }
-            
-            // Confirmar transacción
-            await connection.commit();
             
             // Actualizar datos originales
             datosOriginalesAcademicos = {
@@ -4557,9 +4533,6 @@ async function guardarCambiosDocumentos() {
             nombresActualizados.idLicencia = 'No tiene licencia';
         }
         
-        // Iniciar transacción
-        await connection.beginTransaction();
-        
         try {
             // 1. Actualizar tabla personal
             let updateQuery = `
@@ -4625,9 +4598,6 @@ async function guardarCambiosDocumentos() {
                     userData.NombreCompleto
                 ]);
             }
-            
-            // Confirmar transacción
-            await connection.commit();
             
             // Actualizar datos originales
             datosOriginalesDocumentos = {
@@ -5078,9 +5048,6 @@ async function guardarEvaluacionPMA() {
             }
         }
         
-        // Iniciar transacción
-        await connection.beginTransaction();
-        
         try {
             let query, params;
             
@@ -5177,9 +5144,6 @@ async function guardarEvaluacionPMA() {
             }
             
             await connection.query(query, params);
-            
-            // Confirmar transacción
-            await connection.commit();
             
             // Mostrar mensaje de éxito
             mostrarNotificacion(
