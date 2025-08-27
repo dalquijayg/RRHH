@@ -2663,3 +2663,40 @@ input[type="checkbox"]:disabled {
     opacity: 0.5;
     cursor: wait !important;
 }
+.preview-summary {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 15px;
+    margin-bottom: 20px;
+    padding: 15px;
+    background-color: var(--color-dark-lighter);
+    border-radius: var(--border-radius);
+}
+
+.summary-item {
+    display: flex;
+    justify-content: space-between;
+    padding: 8px 0;
+}
+
+.summary-item.highlight {
+    font-weight: bold;
+    color: var(--color-primary);
+}
+
+.preview-table-container {
+    max-height: 400px;
+    overflow-y: auto;
+    border: 1px solid var(--color-dark-border);
+    border-radius: var(--border-radius);
+}
+
+.total-row {
+    background-color: var(--color-primary);
+    color: white;
+    font-weight: bold;
+}
+
+.total-amount {
+    font-size: 1.1em;
+}

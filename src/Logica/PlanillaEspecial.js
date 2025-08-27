@@ -802,10 +802,20 @@ function buscarPersonal(searchTerm) {
     // Renderizar los resultados filtrados
     renderizarTablaPersonal(filtrado);
 }
-
+let isSearching = false;
 async function aplicarFiltros(e) {
     if (e) e.preventDefault();
+    if (isSearching) {
+        mostrarNotificacion('Búsqueda en progreso, por favor espere...', 'warning');
+        return;
+    }
     
+    isSearching = true;
+    
+    // Cambiar apariencia del botón
+    const originalText = applyFiltersBtn.innerHTML;
+    applyFiltersBtn.classList.add('loading');
+    applyFiltersBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Buscando...';
     // Validar que se hayan seleccionado los campos requeridos
     const idDepartamento = departamentoSelect.value;
     const idTipoPersonal = tipoPersonalSelect.value.trim() !== "" ? tipoPersonalSelect.value : null;
@@ -1101,6 +1111,11 @@ async function aplicarFiltros(e) {
         // Deshabilitar botones de acción
         generatePlanillaBtn.disabled = true;
         deleteSelectedBtn.disabled = true;
+    }finally {
+        // Resetear estado
+        isSearching = false;
+        applyFiltersBtn.classList.remove('loading');
+        applyFiltersBtn.innerHTML = originalText;
     }
 }
 // Función para mostrar estado de carga en la tabla
@@ -4264,6 +4279,105 @@ async function generarCorrelativo(tipoPlanilla, fecha) {
         throw new Error(`Error al generar correlativo: ${error.message}`);
     }
 }
+function generarPreviewPDF() {
+    // Verificar si hay personal seleccionado
+    const personalSeleccionado = personalData.filter(p => p.selected);
+    
+    if (personalSeleccionado.length === 0) {
+        mostrarNotificacion('Debe seleccionar al menos un colaborador', 'warning');
+        return;
+    }
+
+    // Calcular totales
+    let totalMonto = 0;
+    const detallePersonal = personalSeleccionado.map(persona => {
+        let montoAplicable = 0;
+        if (pagoAplicable === 'dominical') {
+            montoAplicable = persona.PagosDominicales;
+        } else if (pagoAplicable === 'especial') {
+            montoAplicable = persona.PagosDiasEspeciales;
+        }
+        totalMonto += montoAplicable;
+        
+        return {
+            nombre: persona.NombreCompleto,
+            puesto: persona.NombrePuesto,
+            tipo: persona.NombreTipoPersonal,
+            monto: montoAplicable,
+            esExterno: persona.esExterno || false,
+            departamentoOrigen: persona.departamentoOrigen || ''
+        };
+    });
+
+    // Mostrar el modal de detalle
+    mostrarModalDetallePersonal(detallePersonal, totalMonto);
+}
+function mostrarModalDetallePersonal(detallePersonal, totalMonto) {
+    // Actualizar información del resumen
+    const nombreDepartamento = departamentoSelect.options[departamentoSelect.selectedIndex].text;
+    const fechaFormateada = formatearFechaSinZonaHoraria(fechaInput.value, false);
+    const tipoPago = pagoAplicable === 'dominical' ? 'Pago Dominical' : 'Pago Día Especial';
+
+    document.getElementById('previewDepartamento').textContent = nombreDepartamento;
+    document.getElementById('previewFecha').textContent = fechaFormateada;
+    document.getElementById('previewTipoPago').textContent = tipoPago;
+    document.getElementById('previewTotalPersonal').textContent = detallePersonal.length;
+    document.getElementById('previewTotalPago').textContent = `Q ${totalMonto.toFixed(2)}`;
+
+    // Llenar la tabla
+    const tbody = document.getElementById('previewTableBody');
+    tbody.innerHTML = '';
+
+    // Ordenar por nombre
+    detallePersonal.sort((a, b) => a.nombre.localeCompare(b.nombre));
+
+    detallePersonal.forEach((persona, index) => {
+        const tr = document.createElement('tr');
+        
+        // Si es colaborador externo, agregar clase especial
+        if (persona.esExterno) {
+            tr.classList.add('external-collaborator-row');
+        }
+
+        tr.innerHTML = `
+            <td class="text-center">${index + 1}</td>
+            <td>
+                ${persona.nombre}
+                ${persona.esExterno ? `<span class="external-badge" title="Colaborador externo de ${persona.departamentoOrigen}"><i class="fas fa-exchange-alt"></i></span>` : ''}
+            </td>
+            <td>${persona.puesto}</td>
+            <td>
+                <span class="personnel-type-tag ${getTypeClass(persona.tipo)}">
+                    ${persona.tipo}
+                </span>
+            </td>
+            <td class="text-right font-weight-bold">Q ${persona.monto.toFixed(2)}</td>
+        `;
+
+        tbody.appendChild(tr);
+    });
+
+    // Agregar fila de total
+    const totalRow = document.createElement('tr');
+    totalRow.classList.add('total-row');
+    totalRow.innerHTML = `
+        <td colspan="4" class="text-right font-weight-bold">TOTAL:</td>
+        <td class="text-right font-weight-bold total-amount">Q ${totalMonto.toFixed(2)}</td>
+    `;
+    tbody.appendChild(totalRow);
+
+    // Mostrar el modal
+    mostrarModal(document.getElementById('previewModal'));
+}
+
+// Función auxiliar para obtener la clase CSS del tipo de personal
+function getTypeClass(tipoPersonal) {
+    const tipo = tipoPersonal.toLowerCase();
+    if (tipo.includes('fijo')) return 'type-fijo';
+    if (tipo.includes('parcial')) return 'type-parcial';
+    if (tipo.includes('vacacionista')) return 'type-vacacionista';
+    return 'type-default';
+}
 // Agregar estilos adicionales para elementos externos
 document.addEventListener('DOMContentLoaded', async() => {
     try {
@@ -4331,13 +4445,6 @@ document.addEventListener('DOMContentLoaded', async() => {
     ]).then(() => {
         mostrarNotificacion('Datos iniciales cargados correctamente', 'success');
         
-        // Si el departamento está preseleccionado, aplicar los filtros automáticamente
-        if (departamentoSelect.disabled && departamentoSelect.value) {
-            // Dar un breve retraso para asegurar que todo está listo
-            setTimeout(() => {
-                aplicarFiltros();
-            }, 500);
-        }
     }).catch(error => {
         mostrarNotificacion('Error al cargar los datos iniciales', 'error');
     });
@@ -4405,6 +4512,18 @@ document.addEventListener('DOMContentLoaded', async() => {
         if (e.target.id === 'documentoModal') {
             ocultarModal(document.getElementById('documentoModal'));
         }
+    });
+    document.getElementById('closePreviewModal').addEventListener('click', () => {
+        ocultarModal(document.getElementById('previewModal'));
+    });
+
+    document.getElementById('closePreviewBtn').addEventListener('click', () => {
+        ocultarModal(document.getElementById('previewModal'));
+    });
+
+    document.getElementById('proceedGenerateBtn').addEventListener('click', () => {
+        ocultarModal(document.getElementById('previewModal'));
+        generarPlanilla(); // Proceder con la generación normal
     });
     // Event listeners específicos para cada modal
     cancelGenerateBtn.addEventListener('click', () => ocultarModal(confirmModal));

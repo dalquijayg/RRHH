@@ -603,6 +603,64 @@
             </div>
         </div>
     </div>
+    <div class="modal" id="previewModal">
+        <div class="modal-content wider-modal">
+            <div class="modal-header">
+                <h3><i class="fas fa-list-alt"></i> Detalle de Personal Seleccionado</h3>
+                <button class="close-modal" id="closePreviewModal"><i class="fas fa-times"></i></button>
+            </div>
+            <div class="modal-body">
+                <div class="preview-info">
+                    <div class="preview-summary">
+                        <div class="summary-item">
+                            <span class="summary-label">Departamento:</span>
+                            <span class="summary-value" id="previewDepartamento">-</span>
+                        </div>
+                        <div class="summary-item">
+                            <span class="summary-label">Fecha:</span>
+                            <span class="summary-value" id="previewFecha">-</span>
+                        </div>
+                        <div class="summary-item">
+                            <span class="summary-label">Tipo de Pago:</span>
+                            <span class="summary-value" id="previewTipoPago">-</span>
+                        </div>
+                        <div class="summary-item highlight">
+                            <span class="summary-label">Total Personal:</span>
+                            <span class="summary-value" id="previewTotalPersonal">0</span>
+                        </div>
+                        <div class="summary-item highlight">
+                            <span class="summary-label">Total a Pagar:</span>
+                            <span class="summary-value" id="previewTotalPago">Q 0.00</span>
+                        </div>
+                    </div>
+                    
+                    <div class="preview-table-container">
+                        <table class="data-table compact" id="previewTable">
+                            <thead>
+                                <tr>
+                                    <th class="th-numero">#</th>
+                                    <th class="th-nombre">Nombre del Colaborador</th>
+                                    <th class="th-puesto">Puesto</th>
+                                    <th class="th-tipo">Tipo</th>
+                                    <th class="th-monto">Monto</th>
+                                </tr>
+                            </thead>
+                            <tbody id="previewTableBody">
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-outline" id="closePreviewBtn">
+                    <i class="fas fa-times"></i> Cerrar
+                </button>
+                <button class="btn btn-success" id="proceedGenerateBtn">
+                    <i class="fas fa-check"></i> Continuar con Generación
+                </button>
+            </div>
+        </div>
+    </div>
     <!-- Contenedor de notificaciones toast -->
     <div class="toast-container"></div>
 
