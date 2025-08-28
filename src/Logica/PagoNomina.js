@@ -251,7 +251,7 @@ async function obtenerDatosNomina() {
         
         console.log('Filtros aplicados:', { planillaId, tipoQuincena, mes, anio });
         
-        // Construir la consulta SQL para personal activo (MODIFICADA)
+        // Construir la consulta SQL para personal activo (SIN CAMBIOS)
         let queryActivos = `
             SELECT
                 personal.IdPersonal, 
@@ -306,7 +306,7 @@ async function obtenerDatosNomina() {
                 personal.TipoPersonal = 1`;
         
         // Determinar fechas de inicio y fin de la quincena
-        let inicioQuincena, finQuincena;
+        let inicioQuincena, finQuincena, inicioMes, finMes;
         
         if (tipoQuincena === 'normal') {
             // Primera quincena: del 1 al 15
@@ -317,9 +317,13 @@ async function obtenerDatosNomina() {
             inicioQuincena = `${anio}-${mes.padStart(2, '0')}-16`;
             const ultimoDia = new Date(anio, parseInt(mes), 0).getDate();
             finQuincena = `${anio}-${mes.padStart(2, '0')}-${ultimoDia}`;
+            
+            // NUEVO: Para fin de mes, también necesitamos el rango completo del mes
+            inicioMes = `${anio}-${mes.padStart(2, '0')}-01`;
+            finMes = finQuincena;
         }
         
-        // Construir la consulta SQL para personal con bajas en el periodo (MODIFICADA)
+        // Construir la consulta SQL para personal con bajas en el periodo actual
         let queryBajas = `
             SELECT
                 personal.IdPersonal, 
@@ -381,6 +385,78 @@ async function obtenerDatosNomina() {
                 dr.FechaFinColaborador <= ? AND
                 dr.Estado = 1`;
         
+        // **NUEVA CONSULTA: Bajas de primera quincena para procesamiento en fin de mes**
+        let queryBajasQuincenaAnterior = '';
+        let paramsBajasQuincenaAnterior = [];
+        
+        if (tipoQuincena === 'finMes') {
+            const inicioQuincenaAnterior = `${anio}-${mes.padStart(2, '0')}-01`;
+            const finQuincenaAnterior = `${anio}-${mes.padStart(2, '0')}-15`;
+            
+            queryBajasQuincenaAnterior = `
+                SELECT
+                    personal.IdPersonal, 
+                    CONCAT(
+                        personal.PrimerApellido, 
+                        CASE WHEN personal.SegundoApellido IS NOT NULL AND personal.SegundoApellido != '' 
+                             THEN CONCAT(' ', personal.SegundoApellido) 
+                             ELSE '' 
+                        END,
+                        ' ',
+                        personal.PrimerNombre,
+                        CASE WHEN personal.SegundoNombre IS NOT NULL AND personal.SegundoNombre != '' 
+                             THEN CONCAT(' ', personal.SegundoNombre) 
+                             ELSE '' 
+                        END,
+                        CASE WHEN personal.TercerNombre IS NOT NULL AND personal.TercerNombre != '' 
+                             THEN CONCAT(' ', personal.TercerNombre) 
+                             ELSE '' 
+                        END
+                    ) AS NombreCompleto, 
+                    personal.IdSucuDepa, 
+                    personal.FechaPlanilla, 
+                    departamentos.NombreDepartamento, 
+                    planillas.IdPlanilla, 
+                    planillas.Nombre_Planilla, 
+                    CASE 
+                        WHEN divisiones.Nombre IS NOT NULL THEN CONCAT(divisiones.Nombre, ' - ', planillas.Nombre_Planilla)
+                        ELSE planillas.Nombre_Planilla
+                    END AS Nombre_Planilla_Completo,
+                    planillas.EsCapital, 
+                    planillas.NoCentroTrabajo,
+                    planillas.Division,
+                    divisiones.Nombre AS NombreDivision,
+                    personal.SalarioDiario, 
+                    personal.SalarioQuincena, 
+                    personal.SalarioQuincenaFinMes,
+                    personal.Bonificacion,
+                    personal.SalarioBase,
+                    personal.CuentaDivision1,
+                    personal.CuentaDivision2, 
+                    personal.CuentaDivision3,
+                    dr.FechaFinColaborador,
+                    CASE 
+                        WHEN dr.IdEstadoPersonal = 2 THEN 'Despedido (Q1)'
+                        WHEN dr.IdEstadoPersonal = 3 THEN 'Renuncia (Q1)'
+                        ELSE 'Otro (Q1)'
+                    END AS TipoBaja
+                FROM
+                    personal
+                    INNER JOIN planillas ON personal.IdPlanilla = planillas.IdPlanilla
+                    INNER JOIN Puestos ON personal.IdPuesto = Puestos.IdPuesto
+                    INNER JOIN departamentos ON personal.IdSucuDepa = departamentos.IdDepartamento
+                    LEFT JOIN divisiones ON planillas.Division = divisiones.IdDivision
+                    INNER JOIN DespidosRenuncias dr ON personal.IdPersonal = dr.IdPersonal
+                WHERE
+                    personal.TipoPersonal = 1 AND
+                    dr.IdEstadoPersonal IN (2, 3) AND
+                    dr.FechaFinColaborador >= ? AND
+                    dr.FechaFinColaborador <= ? AND
+                    dr.Estado = 1`;
+            
+            paramsBajasQuincenaAnterior = [inicioQuincenaAnterior, finQuincenaAnterior];
+        }
+        
         // Agregar filtros
         const params = [];
         const paramsBajas = [inicioQuincena, finQuincena];
@@ -391,22 +467,37 @@ async function obtenerDatosNomina() {
             queryBajas += ' AND planillas.IdPlanilla = ?';
             params.push(planillaId);
             paramsBajas.push(planillaId);
+            
+            if (tipoQuincena === 'finMes') {
+                queryBajasQuincenaAnterior += ' AND planillas.IdPlanilla = ?';
+                paramsBajasQuincenaAnterior.push(planillaId);
+            }
         }
         
-        // Ordenar los resultados (MODIFICADO - ordenar por apellidos)
-        queryActivos += ' ORDER BY divisiones.Nombre ASC, planillas.Nombre_Planilla ASC, personal.PrimerApellido ASC, personal.SegundoApellido ASC, personal.PrimerNombre ASC';
-        queryBajas += ' ORDER BY divisiones.Nombre ASC, planillas.Nombre_Planilla ASC, personal.PrimerApellido ASC, personal.SegundoApellido ASC, personal.PrimerNombre ASC';
+        // Ordenar los resultados
+        const orderBy = ' ORDER BY divisiones.Nombre ASC, planillas.Nombre_Planilla ASC, personal.PrimerApellido ASC, personal.SegundoApellido ASC, personal.PrimerNombre ASC';
+        queryActivos += orderBy;
+        queryBajas += orderBy;
+        if (tipoQuincena === 'finMes') {
+            queryBajasQuincenaAnterior += orderBy;
+        }
         
         // Ejecutar las consultas
         const connection = await connectionString();
         const resultsActivos = await connection.query(queryActivos, params);
         const resultsBajas = await connection.query(queryBajas, paramsBajas);
+        
+        let resultsBajasQuincenaAnterior = [];
+        if (tipoQuincena === 'finMes') {
+            resultsBajasQuincenaAnterior = await connection.query(queryBajasQuincenaAnterior, paramsBajasQuincenaAnterior);
+        }
+        
         await connection.close();
         
         // Combinar resultados
-        const results = [...resultsActivos, ...resultsBajas];
+        const results = [...resultsActivos, ...resultsBajas, ...resultsBajasQuincenaAnterior];
         
-        console.log(`Resultados obtenidos: ${resultsActivos.length} activos, ${resultsBajas.length} bajas`);
+        console.log(`Resultados obtenidos: ${resultsActivos.length} activos, ${resultsBajas.length} bajas período actual, ${resultsBajasQuincenaAnterior.length} bajas quincena anterior`);
         
         // Procesar cada empleado para agregar los días laborados y descuentos judiciales
         const mesStr = mes.toString().padStart(2, '0');
@@ -416,29 +507,49 @@ async function obtenerDatosNomina() {
         const diasTotalesQuincena = 15;
         
         for (const empleado of results) {
-            // Calcular días laborados para empleados con baja
+            // **LÓGICA ESPECIAL PARA BAJAS DE QUINCENA ANTERIOR EN FIN DE MES**
             let diasLaborados = diasTotalesQuincena;
+            let esBajaQuincenaAnterior = false;
             
             if (empleado.FechaFinColaborador) {
-                // CORRECCIÓN AQUÍ: Usar la función auxiliar para evitar problemas de zona horaria
                 const fechaFinColaborador = parsearFechaISO(empleado.FechaFinColaborador);
                 const fechaInicioQuincena = parsearFechaISO(inicioQuincena);
                 const fechaFinQuincena = parsearFechaISO(finQuincena);
                 
-                if (fechaFinColaborador >= fechaInicioQuincena && fechaFinColaborador <= fechaFinQuincena) {
-                    // Calcular días trabajados desde el inicio de la quincena hasta la fecha de baja
-                    const diasTrabajados = Math.floor((fechaFinColaborador - fechaInicioQuincena) / (1000 * 60 * 60 * 24)) + 1;
-                    diasLaborados = Math.min(diasTrabajados, diasTotalesQuincena);
+                if (tipoQuincena === 'finMes') {
+                    // Para fin de mes, verificar si la baja fue en la quincena anterior
+                    const fechaInicioMes = parsearFechaISO(inicioMes);
+                    const fecha15 = parsearFechaISO(`${anio}-${mes.padStart(2, '0')}-15`);
+                    
+                    if (fechaFinColaborador >= fechaInicioMes && fechaFinColaborador <= fecha15) {
+                        // Baja en primera quincena - para fin de mes no laboró días
+                        diasLaborados = 0;
+                        esBajaQuincenaAnterior = true;
+                    } else if (fechaFinColaborador >= fechaInicioQuincena && fechaFinColaborador <= fechaFinQuincena) {
+                        // Baja en segunda quincena - calcular días trabajados
+                        const diasTrabajados = Math.floor((fechaFinColaborador - fechaInicioQuincena) / (1000 * 60 * 60 * 24)) + 1;
+                        diasLaborados = Math.min(diasTrabajados, diasTotalesQuincena);
+                    }
+                } else {
+                    // Lógica normal para quincenas normales
+                    if (fechaFinColaborador >= fechaInicioQuincena && fechaFinColaborador <= fechaFinQuincena) {
+                        const diasTrabajados = Math.floor((fechaFinColaborador - fechaInicioQuincena) / (1000 * 60 * 60 * 24)) + 1;
+                        diasLaborados = Math.min(diasTrabajados, diasTotalesQuincena);
+                    }
                 }
             }
             
             // Obtener días suspendidos para este empleado en la quincena actual
-            const diasSuspendidos = await obtenerDiasSuspendidos(
-                empleado.IdPersonal, 
-                mesStr, 
-                anio, 
-                tipoQuincena
-            );
+            // NOTA: Para bajas de quincena anterior, no aplicar suspensiones de fin de mes
+            let diasSuspendidos = 0;
+            if (!esBajaQuincenaAnterior) {
+                diasSuspendidos = await obtenerDiasSuspendidos(
+                    empleado.IdPersonal, 
+                    mesStr, 
+                    anio, 
+                    tipoQuincena
+                );
+            }
             
             // Ajustar días laborados restando suspensiones
             diasLaborados = Math.max(0, diasLaborados - diasSuspendidos);
@@ -468,17 +579,60 @@ async function obtenerDatosNomina() {
             );
             const montoDescuentoJudicial = indicadoresDescuento.montoDescuento;
             
-            // Calcular el salario final a pagar (salario proporcional - descuento judicial)
-            const salarioFinalAPagar = Math.max(0, salarioProporcional - montoDescuentoJudicial);
+            // **CÁLCULO ESPECIAL PARA BAJAS DE QUINCENA ANTERIOR**
+            let bonificacionCalculada = 0;
+            let igssCalculado = 0;
             
-            // CORRECCIÓN AQUÍ: Formatear fecha correctamente sin problemas de zona horaria
+            if (tipoQuincena === 'finMes') {
+                // Obtener datos de quincena anterior
+                const datosQ1 = await obtenerDatosQuincenaAnterior(empleado.IdPersonal, mes, anio);
+                empleado.DatosQuincenaAnterior = datosQ1;
+                
+                if (esBajaQuincenaAnterior) {
+                    // **CASO ESPECIAL: Baja en primera quincena**
+                    // Calcular IGSS y bonificación solo sobre los días de la primera quincena
+                    const sumaSubTotales = datosQ1.subTotalPagar; // Solo quincena anterior
+                    igssCalculado = sumaSubTotales * 0.0483;
+                    
+                    // Bonificación solo por los días de la primera quincena
+                    const bonificacionMensual = empleado.Bonificacion || 0;
+                    bonificacionCalculada = (bonificacionMensual / 30) * datosQ1.diasLaborados;
+                } else {
+                    // Caso normal: empleado activo o baja en segunda quincena
+                    const salarioCalculadoQ2 = empleado.SalarioDiario * diasLaborados;
+                    const sumaSubTotales = datosQ1.subTotalPagar + salarioCalculadoQ2;
+                    igssCalculado = sumaSubTotales * 0.0483;
+                    
+                    const bonificacionMensual = empleado.Bonificacion || 0;
+                    const totalDiasAmbasQuincenas = datosQ1.diasLaborados + diasLaborados;
+                    bonificacionCalculada = (bonificacionMensual / 30) * totalDiasAmbasQuincenas;
+                }
+            }
+            
+            // Calcular el salario final a pagar
+            let salarioFinalAPagar;
+            if (tipoQuincena === 'normal') {
+                salarioFinalAPagar = Math.max(0, salarioProporcional - montoDescuentoJudicial);
+            } else {
+                if (esBajaQuincenaAnterior) {
+                    // Para bajas de quincena anterior: solo bonificación - IGSS - descuento
+                    salarioFinalAPagar = Math.max(0, bonificacionCalculada - igssCalculado - montoDescuentoJudicial);
+                } else {
+                    // Caso normal de fin de mes
+                    const salarioFinMes = empleado.SalarioDiario * diasLaborados;
+                    const subTotalFinMes = salarioFinMes + bonificacionCalculada - igssCalculado;
+                    salarioFinalAPagar = Math.max(0, subTotalFinMes - montoDescuentoJudicial);
+                }
+            }
+            
+            // Formatear fecha correctamente sin problemas de zona horaria
             if (empleado.FechaFinColaborador) {
                 empleado.FechaFinColaboradorFormateada = formatearFecha(empleado.FechaFinColaborador);
             } else {
                 empleado.FechaFinColaboradorFormateada = null;
             }
             
-            // Agregar los nuevos campos al objeto del empleado
+            // Agregar los campos al objeto del empleado
             empleado.DiasLaborados = diasLaborados;
             empleado.DiasSuspendidos = diasSuspendidos;
             empleado.DiasSuspension = detallesSuspensionesFaltas.diasSuspension;
@@ -488,6 +642,9 @@ async function obtenerDatosNomina() {
             empleado.NoDocumentoJudicial = descuentosJudiciales.NoDocumento;
             empleado.SalarioFinalAPagar = salarioFinalAPagar;
             empleado.IndicadoresDescuento = indicadoresDescuento;
+            empleado.BonificacionCalculada = bonificacionCalculada;
+            empleado.IGSSCalculado = igssCalculado;
+            empleado.EsBajaQuincenaAnterior = esBajaQuincenaAnterior; // Nueva bandera
             
             resultadosCompletos.push(empleado);
         }
@@ -506,112 +663,6 @@ async function obtenerDatosNomina() {
         document.getElementById('loader').style.display = 'none';
     }
 }
-function calcularDescuentoJudicialConIndicadores(descuentosJudiciales, tipoQuincena, diasLaborados, diasTotalesQuincena = 15) {
-    // Inicializar resultado
-    const resultado = {
-        montoDescuento: 0,
-        tieneDescuentoJudicial: descuentosJudiciales.TieneDescuento,
-        aplicaDescuento: false,
-        motivoNoAplica: '',
-        numeroDocumento: descuentosJudiciales.NoDocumento || '',
-        indicadorVisual: ''
-    };
-    
-    // Si no tiene descuento judicial configurado, retornar vacío
-    if (!descuentosJudiciales.TieneDescuento) {
-        return resultado;
-    }
-    
-    // Determinar el monto de descuento según el tipo de quincena
-    const campoDescuento = tipoQuincena === 'normal' ? 'DescuentoQuincenal' : 'DescuentoQuincenalFinMes';
-    let montoDescuentoBase = descuentosJudiciales[campoDescuento];
-    
-    // Si no hay descuento configurado para este tipo de quincena
-    if (montoDescuentoBase <= 0) {
-        resultado.motivoNoAplica = 'Sin descuento configurado para este tipo de quincena';
-        resultado.indicadorVisual = '⚠️ Sin config.';
-        return resultado;
-    }
-    
-    // Verificar si el saldo pendiente es menor que el descuento establecido
-    if (descuentosJudiciales.SaldoPendiente > 0 && descuentosJudiciales.SaldoPendiente < montoDescuentoBase) {
-        montoDescuentoBase = descuentosJudiciales.SaldoPendiente;
-    }
-    
-    // REGLA PRINCIPAL: Solo aplicar descuento si trabajó los días completos
-    if (diasLaborados >= diasTotalesQuincena) {
-        // Trabajó días completos - APLICAR DESCUENTO
-        resultado.montoDescuento = montoDescuentoBase;
-        resultado.aplicaDescuento = true;
-        resultado.indicadorVisual = '💼 Aplicado';
-    } else {
-        // No trabajó días completos - NO APLICAR DESCUENTO
-        resultado.montoDescuento = 0;
-        resultado.aplicaDescuento = false;
-        resultado.motivoNoAplica = `Días incompletos (${diasLaborados}/${diasTotalesQuincena})`;
-        resultado.indicadorVisual = `🚫 No aplicado (${diasLaborados}/${diasTotalesQuincena})`;
-    }
-    
-    return resultado;
-}
-// Función actualizada para renderizar la tabla con indicadores de bajas
-// Función para obtener descuentos judiciales del empleado
-async function obtenerDescuentosJudiciales(idPersonal) {
-    try {
-        const connection = await connectionString();
-        
-        // Consulta para obtener los descuentos judiciales del empleado
-        const query = `
-            SELECT 
-                IdPersonal,
-                DescuentoQuincenal,
-                DescuentoQuincenalFinMes,
-                NoDocumento,
-                SaldoPendiente,
-                IdDescuentoJudicial
-            FROM 
-                DescuentosJudiciales
-            WHERE 
-                IdPersonal = ? AND Estado = 0
-        `;
-        
-        const results = await connection.query(query, [idPersonal]);
-        await connection.close();
-        
-        // Si hay resultados, devolver la información de descuentos
-        if (results.length > 0) {
-            return {
-                DescuentoQuincenal: parseFloat(results[0].DescuentoQuincenal) || 0,
-                DescuentoQuincenalFinMes: parseFloat(results[0].DescuentoQuincenalFinMes) || 0,
-                NoDocumento: results[0].NoDocumento || '',
-                SaldoPendiente: parseFloat(results[0].SaldoPendiente) || 0,
-                IdDescuentoJudicial: results[0].IdDescuentoJudicial,
-                TieneDescuento: true
-            };
-        } else {
-            // Si no hay descuentos judiciales
-            return {
-                DescuentoQuincenal: 0,
-                DescuentoQuincenalFinMes: 0,
-                NoDocumento: '',
-                SaldoPendiente: 0,
-                IdDescuentoJudicial: null,
-                TieneDescuento: false
-            };
-        }
-    } catch (error) {
-        console.error('Error al obtener descuentos judiciales:', error);
-        return {
-            DescuentoQuincenal: 0,
-            DescuentoQuincenalFinMes: 0,
-            NoDocumento: '',
-            SaldoPendiente: 0,
-            IdDescuentoJudicial: null,
-            TieneDescuento: false
-        };
-    }
-}
-
 // Función para calcular el descuento judicial y generar indicadores
 function calcularDescuentoJudicialConIndicadores(descuentosJudiciales, tipoQuincena, diasLaborados, diasTotalesQuincena = 15) {
     // Inicializar resultado
@@ -661,15 +712,17 @@ function calcularDescuentoJudicialConIndicadores(descuentosJudiciales, tipoQuinc
     
     return resultado;
 }
-
-// Función actualizada para renderizar la tabla con indicadores de descuentos
 // Función completa para renderizar la tabla con indicadores de suspensiones y faltas
-function renderizarTabla(datos) {
+async function renderizarTabla(datos) {
     const tbody = document.getElementById('nominaTableBody');
+    const thead = document.querySelector('#nominaTable thead tr');
     const tipoQuincena = document.getElementById('tipoQuincenaFilter').value;
     
     // Limpiar tabla
     tbody.innerHTML = '';
+    
+    // Actualizar encabezados según el tipo de quincena
+    actualizarEncabezadosTabla(thead, tipoQuincena);
     
     // Verificar si hay datos
     if (datos.length === 0) {
@@ -685,137 +738,20 @@ function renderizarTabla(datos) {
     const startIndex = (currentPage - 1) * rowsPerPage;
     const endIndex = Math.min(startIndex + rowsPerPage, datos.length);
     
-    // Variable para determinar qué salario mostrar según el tipo de quincena
-    const campoSalario = tipoQuincena === 'normal' ? 'SalarioQuincena' : 'SalarioQuincenaFinMes';
-    
     // Crear filas para la página actual
     for (let i = startIndex; i < endIndex; i++) {
         const empleado = datos[i];
         
-        // Formatear valores para la visualización
-        const salarioDiario = formatearMoneda(empleado.SalarioDiario);
-        const salarioQuincenal = formatearMoneda(empleado[campoSalario]);
-        const salarioProporcional = formatearMoneda(empleado.SalarioProporcional);
-        const descuentoJudicial = formatearMoneda(empleado.DescuentoJudicial);
-        const salarioFinalAPagar = formatearMoneda(empleado.SalarioFinalAPagar);
-        
-        // MODIFICADO: Determinar el tipo de indicador y clase según suspensiones/faltas
-        let claseDiasLaborados = 'diasLaborados';
-        let tooltipSuspension = '';
-        let iconoIndicador = '';
-        
-        // Días completos de una quincena
-        const diasQuincenaCompleta = 15;
-        
-        if (empleado.DiasLaborados < diasQuincenaCompleta) {
-            const diasSuspension = empleado.DiasSuspension || 0;
-            const diasFalta = empleado.DiasFalta || 0;
-            
-            // Determinar el tipo de indicador basado en suspensiones y faltas
-            if (diasFalta > 0 && diasSuspension > 0) {
-                // Tiene ambos: suspensiones y faltas
-                claseDiasLaborados += ' mixto';
-                iconoIndicador = '💎'; // Diamante para casos mixtos
-                tooltipSuspension = `data-tooltip="Suspensiones: ${diasSuspension} día(s), Faltas: ${diasFalta} día(s). Total días trabajados: ${empleado.DiasLaborados}"`;
-            } else if (diasFalta > 0) {
-                // Solo faltas
-                claseDiasLaborados += ' falta';
-                iconoIndicador = '🔴'; // Círculo rojo para faltas
-                tooltipSuspension = `data-tooltip="El colaborador tiene ${diasFalta} día(s) de falta. Días trabajados: ${empleado.DiasLaborados}"`;
-            } else if (diasSuspension > 0) {
-                // Solo suspensiones
-                claseDiasLaborados += ' suspension';
-                iconoIndicador = '⚠️'; // Triángulo amarillo para suspensiones
-                tooltipSuspension = `data-tooltip="El colaborador tiene ${diasSuspension} día(s) de suspensión. Días trabajados: ${empleado.DiasLaborados}"`;
-            } else if (empleado.TipoBaja && empleado.FechaFinColaboradorFormateada) {
-                // Es una baja
-                claseDiasLaborados += ' baja';
-                iconoIndicador = '👤'; // Persona para bajas
-                tooltipSuspension = `data-tooltip="${empleado.TipoBaja} el ${empleado.FechaFinColaboradorFormateada}. Días trabajados: ${empleado.DiasLaborados}"`;
-            } else {
-                // Caso genérico (no debería llegar aquí normalmente)
-                claseDiasLaborados += ' reducido-generico';
-                iconoIndicador = '⚠️';
-                tooltipSuspension = `data-tooltip="Días reducidos. Días trabajados: ${empleado.DiasLaborados}"`;
-            }
-            
-            // Agregar clase de severidad
-            if (empleado.DiasLaborados === 0) {
-                claseDiasLaborados += ' peligro';
-            } else {
-                claseDiasLaborados += ' alerta';
-            }
-            
-            claseDiasLaborados += ' reducido';
-        }
-        
-        // Determinar si el salario es reducido
-        const claseSalario = empleado.DiasLaborados < diasQuincenaCompleta ? 'currency salario-reducido' : 'currency';
-        
-        // Preparar el tooltip y clases para descuentos judiciales
-        let claseDescuentoJudicial = 'currency';
-        let tooltipDescuento = '';
-        let contenidoDescuento = descuentoJudicial;
-        
-        // Usar los indicadores de descuento judicial
-        if (empleado.IndicadoresDescuento) {
-            const indicadores = empleado.IndicadoresDescuento;
-            
-            if (indicadores.tieneDescuentoJudicial) {
-                if (indicadores.aplicaDescuento) {
-                    // Descuento aplicado normalmente
-                    claseDescuentoJudicial += ' descuento-judicial';
-                    tooltipDescuento = `data-tooltip="Embargo No. ${indicadores.numeroDocumento} - ${indicadores.indicadorVisual}"`;
-                } else {
-                    // Tiene descuento pero no se aplicó
-                    claseDescuentoJudicial += ' descuento-no-aplicado';
-                    tooltipDescuento = `data-tooltip="Embargo No. ${indicadores.numeroDocumento} - ${indicadores.indicadorVisual}. Motivo: ${indicadores.motivoNoAplica}"`;
-                    contenidoDescuento = `<span class="descuento-suspendido">${descuentoJudicial} ${indicadores.indicadorVisual}</span>`;
-                }
-            }
-        } else if (empleado.DescuentoJudicial > 0) {
-            // Fallback para compatibilidad
-            claseDescuentoJudicial += ' descuento-judicial';
-            tooltipDescuento = `data-tooltip="Embargo No. ${empleado.NoDocumentoJudicial}"`;
-        }
-        
-        // Clase adicional para filas de bajas
-        let clasesFila = '';
-        if (empleado.TipoBaja) {
-            clasesFila = 'empleado-baja';
-        }
-        
-        // Agregar indicador de tipo de baja en el nombre
-        let nombreCompleto = empleado.NombreCompleto;
-        if (empleado.TipoBaja && empleado.FechaFinColaboradorFormateada) {
-            nombreCompleto += ` <span class="indicador-baja" title="Fecha de baja: ${empleado.FechaFinColaboradorFormateada}">[${empleado.TipoBaja}]</span>`;
-        }
-        
-        // MODIFICADO: Mostrar días laborados con el nuevo indicador
-        const contenidoDiasLaborados = empleado.DiasLaborados < diasQuincenaCompleta 
-            ? `${iconoIndicador} ${empleado.DiasLaborados} / ${diasQuincenaCompleta}`
-            : `${empleado.DiasLaborados} / ${diasQuincenaCompleta}`;
-        
-        // Crear la fila
+        // Crear la fila según el tipo de quincena
         const row = document.createElement('tr');
-        row.className = clasesFila;
-        row.innerHTML = `
-            <td>${empleado.IdPersonal}</td>
-            <td class="highlight">${nombreCompleto}</td>
-            <td>${empleado.NombreDepartamento}</td>
-            <td>${empleado.Nombre_Planilla_Completo}</td>
-            <td>
-                <span class="status-badge ${empleado.EsCapital ? 'capital' : 'regional'}">
-                    ${empleado.EsCapital ? 'Capital' : 'Regional'}
-                </span>
-            </td>
-            <td class="currency">${salarioDiario}</td>
-            <td class="currency">${salarioQuincenal}</td>
-            <td class="${claseDiasLaborados}" ${tooltipSuspension}>${contenidoDiasLaborados}</td>
-            <td class="${claseSalario}">${salarioProporcional}</td>
-            <td class="${claseDescuentoJudicial}" ${tooltipDescuento}>${contenidoDescuento}</td>
-            <td class="currency salario-final">${salarioFinalAPagar}</td>
-        `;
+        row.className = empleado.TipoBaja ? 'empleado-baja' : '';
+        
+        if (tipoQuincena === 'normal') {
+            row.innerHTML = crearFilaQuincenal(empleado, startIndex + i + 1);
+        } else {
+            // AQUÍ ESTÁ EL CAMBIO IMPORTANTE: usar await
+            row.innerHTML = await crearFilaFinMes(empleado, startIndex + i + 1);
+        }
         
         tbody.appendChild(row);
     }
@@ -823,18 +759,301 @@ function renderizarTabla(datos) {
     // Actualizar información de paginación
     actualizarPaginacion(datos.length);
 }
-
-// Función para formatear moneda a quetzales (Q)
-function formatearMoneda(valor) {
-    if (valor === null || valor === undefined) return 'Q0.00';
-    const valorFormateado = parseFloat(valor).toFixed(2);
-    return new Intl.NumberFormat('es-GT', {
-        style: 'currency',
-        currency: 'GTQ',
-        minimumFractionDigits: 2
-    }).format(valor);
+function actualizarEncabezadosTabla(thead, tipoQuincena) {
+    if (tipoQuincena === 'normal') {
+        thead.innerHTML = `
+            <th>No.</th>
+            <th>Nombre Completo</th>
+            <th>Planilla</th>
+            <th>Tipo</th>
+            <th>Salario Diario</th>
+            <th>Días Laborados</th>
+            <th>Salario Proporcional</th>
+            <th>Descuento Judicial</th>
+            <th>Total a Pagar</th>
+            <th>Cuenta División 1</th>
+            <th>Cuenta División 2</th>
+            <th>Cuenta División 3</th>
+        `;
+    } else {
+        thead.innerHTML = `
+            <th>No.</th>
+            <th>Nombre Completo</th>
+            <th>Planilla</th>
+            <th>Tipo</th>
+            <th>Salario Diario</th>
+            <th>Días Quincena</th>
+            <th>Pagado Quincena</th>
+            <th>Días Fin Mes</th>
+            <th>Salario Fin Mes</th>
+            <th>Total Días</th>
+            <th>Bonificación</th>
+            <th>IGSS</th>
+            <th>Desc. Judicial</th>
+            <th>Total Final</th>
+            <th>Cuenta Div. 1</th>
+            <th>Cuenta Div. 2</th>
+            <th>Cuenta Div. 3</th>
+        `;
+    }
+}
+function crearFilaQuincenal(empleado, numeroConsecutivo) {
+    // Formatear valores
+    const salarioDiario = formatearMoneda(empleado.SalarioDiario);
+    const salarioProporcional = formatearMoneda(empleado.SalarioProporcional);
+    const descuentoJudicial = formatearMoneda(empleado.DescuentoJudicial);
+    const salarioFinalAPagar = formatearMoneda(empleado.SalarioFinalAPagar);
+    
+    // Determinar clases y tooltips para días laborados
+    const { claseDiasLaborados, tooltipSuspension, iconoIndicador, contenidoDiasLaborados } = 
+        obtenerIndicadoresDiasLaborados(empleado);
+    
+    // Preparar nombre con indicador de baja si aplica
+    let nombreCompleto = empleado.NombreCompleto;
+    if (empleado.TipoBaja && empleado.FechaFinColaboradorFormateada) {
+        nombreCompleto += ` <span class="indicador-baja" title="Fecha de baja: ${empleado.FechaFinColaboradorFormateada}">[${empleado.TipoBaja}]</span>`;
+    }
+    
+    // Preparar tooltip y clases para descuentos judiciales
+    const { claseDescuentoJudicial, tooltipDescuento, contenidoDescuento } = 
+        obtenerIndicadoresDescuentoJudicial(empleado, descuentoJudicial);
+    
+    return `
+        <td>${numeroConsecutivo}</td>
+        <td class="highlight">${nombreCompleto}</td>
+        <td>${empleado.Nombre_Planilla_Completo}</td>
+        <td>
+            <span class="status-badge ${empleado.EsCapital ? 'capital' : 'regional'}">
+                ${empleado.EsCapital ? 'Capital' : 'Regional'}
+            </span>
+        </td>
+        <td class="currency">${salarioDiario}</td>
+        <td class="${claseDiasLaborados}" ${tooltipSuspension}>${contenidoDiasLaborados}</td>
+        <td class="currency">${salarioProporcional}</td>
+        <td class="${claseDescuentoJudicial}" ${tooltipDescuento}>${contenidoDescuento}</td>
+        <td class="currency salario-final">${salarioFinalAPagar}</td>
+        <td class="cuenta-division">${empleado.CuentaDivision1 || ''}</td>
+        <td class="cuenta-division">${empleado.CuentaDivision2 || ''}</td>
+        <td class="cuenta-division">${empleado.CuentaDivision3 || ''}</td>
+    `;
+}
+function crearFilaFinMes(empleado, numeroConsecutivo) {
+    // Usar los datos pre-calculados
+    const datosQ1 = empleado.DatosQuincenaAnterior || {
+        diasLaborados: 0,
+        montoPagado: 0,
+        subTotalPagar: 0,
+        descuentoJudicial: 0
+    };
+    
+    // Formatear valores básicos
+    const salarioDiario = formatearMoneda(empleado.SalarioDiario);
+    const diasQ2 = empleado.DiasLaborados;
+    
+    // **MANEJO ESPECIAL PARA BAJAS DE QUINCENA ANTERIOR**
+    let salarioCalculadoQ2;
+    if (empleado.EsBajaQuincenaAnterior) {
+        salarioCalculadoQ2 = formatearMoneda(0); // No trabajó en fin de mes
+    } else {
+        salarioCalculadoQ2 = formatearMoneda(parseFloat(empleado.SalarioDiario) * diasQ2);
+    }
+    
+    const totalDiasMes = datosQ1.diasLaborados + diasQ2;
+    
+    // Valores calculados
+    const bonificacionCalculada = empleado.BonificacionCalculada || 0;
+    const igssCalculado = empleado.IGSSCalculado || 0;
+    const descuentoJudicial = empleado.DescuentoJudicial || 0;
+    
+    // **CÁLCULO CORRECTO DEL TOTAL FINAL**
+    let totalFinal;
+    if (empleado.EsBajaQuincenaAnterior) {
+        // Para bajas de quincena anterior: solo bonificación - IGSS - descuento
+        totalFinal = Math.max(0, bonificacionCalculada - igssCalculado - descuentoJudicial);
+    } else {
+        // Caso normal: SubTotalPagar = Salario + Bonificación - IGSS - Descuento
+        const salarioFinMesNumerico = parseFloat(empleado.SalarioDiario) * diasQ2;
+        const subTotalPagar = salarioFinMesNumerico + bonificacionCalculada - igssCalculado;
+        totalFinal = Math.max(0, subTotalPagar - descuentoJudicial);
+    }
+    
+    // Formatear valores para mostrar
+    const bonificacion = formatearMoneda(bonificacionCalculada);
+    const igss = formatearMoneda(igssCalculado);
+    const descuentoJudicialFormateado = formatearMoneda(descuentoJudicial);
+    const totalFinalFormateado = formatearMoneda(totalFinal);
+    
+    // Determinar clases y tooltips para días laborados
+    let claseDiasLaborados = 'diasLaborados';
+    let tooltipSuspension = '';
+    let iconoIndicador = '';
+    
+    const diasQuincenaCompleta = 15;
+    
+    if (empleado.EsBajaQuincenaAnterior) {
+        // Caso especial para bajas de quincena anterior
+        claseDiasLaborados += ' baja-quincena-anterior';
+        iconoIndicador = '📋'; // Icono especial para IGSS/Bonificación
+        tooltipSuspension = `data-tooltip="Baja en primera quincena. Solo se calcula IGSS y Bonificación. Días fin de mes: 0"`;
+    } else if (empleado.DiasLaborados < diasQuincenaCompleta) {
+        // Lógica normal para días reducidos
+        const diasSuspension = empleado.DiasSuspension || 0;
+        const diasFalta = empleado.DiasFalta || 0;
+        
+        if (diasFalta > 0 && diasSuspension > 0) {
+            claseDiasLaborados += ' mixto';
+            iconoIndicador = '💎';
+            tooltipSuspension = `data-tooltip="Suspensiones: ${diasSuspension} día(s), Faltas: ${diasFalta} día(s). Total días trabajados: ${empleado.DiasLaborados}"`;
+        } else if (diasFalta > 0) {
+            claseDiasLaborados += ' falta';
+            iconoIndicador = '🔴';
+            tooltipSuspension = `data-tooltip="El colaborador tiene ${diasFalta} día(s) de falta. Días trabajados: ${empleado.DiasLaborados}"`;
+        } else if (diasSuspension > 0) {
+            claseDiasLaborados += ' suspension';
+            iconoIndicador = '⚠️';
+            tooltipSuspension = `data-tooltip="El colaborador tiene ${diasSuspension} día(s) de suspensión. Días trabajados: ${empleado.DiasLaborados}"`;
+        } else if (empleado.TipoBaja && empleado.FechaFinColaboradorFormateada) {
+            claseDiasLaborados += ' baja';
+            iconoIndicador = '👤';
+            tooltipSuspension = `data-tooltip="${empleado.TipoBaja} el ${empleado.FechaFinColaboradorFormateada}. Días trabajados: ${empleado.DiasLaborados}"`;
+        }
+        
+        if (empleado.DiasLaborados === 0) {
+            claseDiasLaborados += ' peligro';
+        } else {
+            claseDiasLaborados += ' alerta';
+        }
+        
+        claseDiasLaborados += ' reducido';
+    }
+    
+    // Preparar nombre con indicador de baja si aplica
+    let nombreCompleto = empleado.NombreCompleto;
+    if (empleado.TipoBaja && empleado.FechaFinColaboradorFormateada) {
+        nombreCompleto += ` <span class="indicador-baja" title="Fecha de baja: ${empleado.FechaFinColaboradorFormateada}">[${empleado.TipoBaja}]</span>`;
+    }
+    
+    // Preparar tooltip y clases para descuentos judiciales
+    let claseDescuentoJudicial = 'currency';
+    let tooltipDescuento = '';
+    let contenidoDescuento = descuentoJudicialFormateado;
+    
+    if (empleado.IndicadoresDescuento) {
+        const indicadores = empleado.IndicadoresDescuento;
+        
+        if (indicadores.tieneDescuentoJudicial) {
+            if (indicadores.aplicaDescuento) {
+                claseDescuentoJudicial += ' descuento-judicial';
+                tooltipDescuento = `data-tooltip="Embargo No. ${indicadores.numeroDocumento} - ${indicadores.indicadorVisual}"`;
+            } else {
+                claseDescuentoJudicial += ' descuento-no-aplicado';
+                tooltipDescuento = `data-tooltip="Embargo No. ${indicadores.numeroDocumento} - ${indicadores.indicadorVisual}. Motivo: ${indicadores.motivoNoAplica}"`;
+                contenidoDescuento = `<span class="descuento-suspendido">${descuentoJudicialFormateado} ${indicadores.indicadorVisual}</span>`;
+            }
+        }
+    } else if (empleado.DescuentoJudicial > 0) {
+        claseDescuentoJudicial += ' descuento-judicial';
+        tooltipDescuento = `data-tooltip="Embargo No. ${empleado.NoDocumentoJudicial}"`;
+    }
+    
+    // Contenido de días laborados con indicador
+    const contenidoDiasLaborados = empleado.EsBajaQuincenaAnterior || empleado.DiasLaborados < diasQuincenaCompleta 
+        ? `${iconoIndicador} ${empleado.DiasLaborados}`
+        : `${empleado.DiasLaborados}`
+        return `
+        <td>${numeroConsecutivo}</td>
+        <td class="highlight">${nombreCompleto}</td>
+        <td>${empleado.Nombre_Planilla_Completo}</td>
+        <td>
+            <span class="status-badge ${empleado.EsCapital ? 'capital' : 'regional'}">
+                ${empleado.EsCapital ? 'Capital' : 'Regional'}
+            </span>
+        </td>
+        <td class="currency">${salarioDiario}</td>
+        <td class="text-center">${datosQ1.diasLaborados}</td>
+        <td class="currency">${formatearMoneda(datosQ1.montoPagado)}</td>
+        <td class="${claseDiasLaborados} text-center" ${tooltipSuspension}>${contenidoDiasLaborados}</td>
+        <td class="currency">${salarioCalculadoQ2}</td>
+        <td class="text-center">${totalDiasMes}</td>
+        <td class="currency bonificacion-calculada">${bonificacion}</td>
+        <td class="currency igss-calculado">${igss}</td>
+        <td class="${claseDescuentoJudicial}" ${tooltipDescuento}>${contenidoDescuento}</td>
+        <td class="currency salario-final">${totalFinalFormateado}</td>
+        <td class="cuenta-division">${empleado.CuentaDivision1 || ''}</td>
+        <td class="cuenta-division">${empleado.CuentaDivision2 || ''}</td>
+        <td class="cuenta-division">${empleado.CuentaDivision3 || ''}</td>
+    `;
+}
+function obtenerIndicadoresDiasLaborados(empleado) {
+    let claseDiasLaborados = 'diasLaborados';
+    let tooltipSuspension = '';
+    let iconoIndicador = '';
+    
+    const diasQuincenaCompleta = 15;
+    
+    if (empleado.DiasLaborados < diasQuincenaCompleta) {
+        const diasSuspension = empleado.DiasSuspension || 0;
+        const diasFalta = empleado.DiasFalta || 0;
+        
+        if (diasFalta > 0 && diasSuspension > 0) {
+            claseDiasLaborados += ' mixto';
+            iconoIndicador = '💎';
+            tooltipSuspension = `data-tooltip="Suspensiones: ${diasSuspension} día(s), Faltas: ${diasFalta} día(s). Total días trabajados: ${empleado.DiasLaborados}"`;
+        } else if (diasFalta > 0) {
+            claseDiasLaborados += ' falta';
+            iconoIndicador = '🔴';
+            tooltipSuspension = `data-tooltip="El colaborador tiene ${diasFalta} día(s) de falta. Días trabajados: ${empleado.DiasLaborados}"`;
+        } else if (diasSuspension > 0) {
+            claseDiasLaborados += ' suspension';
+            iconoIndicador = '⚠️';
+            tooltipSuspension = `data-tooltip="El colaborador tiene ${diasSuspension} día(s) de suspensión. Días trabajados: ${empleado.DiasLaborados}"`;
+        } else if (empleado.TipoBaja && empleado.FechaFinColaboradorFormateada) {
+            claseDiasLaborados += ' baja';
+            iconoIndicador = '👤';
+            tooltipSuspension = `data-tooltip="${empleado.TipoBaja} el ${empleado.FechaFinColaboradorFormateada}. Días trabajados: ${empleado.DiasLaborados}"`;
+        }
+        
+        if (empleado.DiasLaborados === 0) {
+            claseDiasLaborados += ' peligro';
+        } else {
+            claseDiasLaborados += ' alerta';
+        }
+        
+        claseDiasLaborados += ' reducido';
+    }
+    
+    const contenidoDiasLaborados = empleado.DiasLaborados < diasQuincenaCompleta 
+        ? `${iconoIndicador} ${empleado.DiasLaborados} / ${diasQuincenaCompleta}`
+        : `${empleado.DiasLaborados} / ${diasQuincenaCompleta}`;
+    
+    return { claseDiasLaborados, tooltipSuspension, iconoIndicador, contenidoDiasLaborados };
 }
 
+function obtenerIndicadoresDescuentoJudicial(empleado, descuentoFormateado) {
+    let claseDescuentoJudicial = 'currency';
+    let tooltipDescuento = '';
+    let contenidoDescuento = descuentoFormateado;
+    
+    if (empleado.IndicadoresDescuento) {
+        const indicadores = empleado.IndicadoresDescuento;
+        
+        if (indicadores.tieneDescuentoJudicial) {
+            if (indicadores.aplicaDescuento) {
+                claseDescuentoJudicial += ' descuento-judicial';
+                tooltipDescuento = `data-tooltip="Embargo No. ${indicadores.numeroDocumento} - ${indicadores.indicadorVisual}"`;
+            } else {
+                claseDescuentoJudicial += ' descuento-no-aplicado';
+                tooltipDescuento = `data-tooltip="Embargo No. ${indicadores.numeroDocumento} - ${indicadores.indicadorVisual}. Motivo: ${indicadores.motivoNoAplica}"`;
+                contenidoDescuento = `<span class="descuento-suspendido">${descuentoFormateado} ${indicadores.indicadorVisual}</span>`;
+            }
+        }
+    } else if (empleado.DescuentoJudicial > 0) {
+        claseDescuentoJudicial += ' descuento-judicial';
+        tooltipDescuento = `data-tooltip="Embargo No. ${empleado.NoDocumentoJudicial}"`;
+    }
+    
+    return { claseDescuentoJudicial, tooltipDescuento, contenidoDescuento };
+}
 // Función para actualizar la información de paginación
 function actualizarPaginacion(totalItems) {
     totalRows = totalItems;
@@ -911,15 +1130,12 @@ async function cargarDatosNomina() {
         
         // Obtener planillas ya guardadas según los filtros actuales
         const planillasGuardadas = await obtenerPlanillasGuardadas();
-        console.log("Planillas ya guardadas:", planillasGuardadas);
         
         // Obtener el valor del filtro de planilla
         const planillaFilterValue = document.getElementById('planillaFilter').value;
         
         // Obtener datos según filtros
         let datosCompletos = await obtenerDatosNomina();
-        
-        console.log(`Datos obtenidos inicialmente: ${datosCompletos ? datosCompletos.length : 0} registros`);
         
         // Filtrar los datos para eliminar empleados de planillas ya guardadas
         if (datosCompletos && datosCompletos.length > 0) {
@@ -975,8 +1191,6 @@ async function cargarDatosNomina() {
                 }
             }
         }
-        
-        console.log(`Datos después de filtrar planillas guardadas: ${datosCompletos ? datosCompletos.length : 0} registros`);
         
         // Asignar los datos filtrados y renderizar la tabla
         filteredData = datosCompletos;
@@ -5859,6 +6073,15 @@ async function obtenerDetallesSuspensionesFaltas(idPersonal, mes, anio, tipoQuin
         console.error('Error al obtener detalles de suspensiones y faltas:', error);
         return { diasSuspension: 0, diasFalta: 0, totalDias: 0 };
     }
+}
+function formatearMoneda(valor) {
+    if (valor === null || valor === undefined) return 'Q0.00';
+    const valorFormateado = parseFloat(valor).toFixed(2);
+    return new Intl.NumberFormat('es-GT', {
+        style: 'currency',
+        currency: 'GTQ',
+        minimumFractionDigits: 2
+    }).format(valor);
 }
 // Eventos al cargar la página
 document.addEventListener('DOMContentLoaded', async function() {
