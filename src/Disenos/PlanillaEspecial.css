@@ -1253,6 +1253,7 @@ html, body {
     visibility: hidden;
     transition: all var(--transition-speed);
     backdrop-filter: blur(5px);
+    z-index: 9999;
 }
 
 .modal.show {
@@ -2699,4 +2700,69 @@ input[type="checkbox"]:disabled {
 
 .total-amount {
     font-size: 1.1em;
+}
+/* Estilos para el modal de confirmación de subida */
+.confirm-upload-modal {
+    font-family: var(--font-family);
+}
+
+.confirm-upload-content {
+    text-align: left;
+}
+
+.confirm-upload-content p {
+    margin: 0;
+    line-height: 1.5;
+}
+
+/* Mejorar la apariencia del progreso */
+.process-container {
+    text-align: center;
+    padding: 20px;
+}
+
+.process-progress {
+    margin-bottom: 20px;
+}
+
+.progress-bar {
+    background-color: var(--color-dark-lighter);
+    border-radius: 10px;
+    height: 20px;
+    overflow: hidden;
+    margin-bottom: 10px;
+}
+
+.progress-fill {
+    background: linear-gradient(90deg, var(--color-success), var(--color-info));
+    height: 100%;
+    transition: width 0.3s ease;
+    border-radius: 10px;
+}
+
+.progress-text {
+    font-weight: 600;
+    color: var(--color-primary);
+    font-size: 1.1rem;
+}
+
+.process-message {
+    color: var(--color-light-muted);
+    font-size: 0.9rem;
+    margin-top: 10px;
+}
+#processModal {
+    z-index: 10500 !important;
+}
+
+#processModal .modal-content {
+    z-index: 10501 !important;
+}
+
+#documentoModal {
+    z-index: 10000;
+}
+
+.swal2-container {
+    z-index: 10200 !important;
 }

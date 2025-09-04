@@ -3745,7 +3745,8 @@ function procesarColaboradores(colaboradoresData) {
         }
 
         const colaborador = colaboradoresMap.get(id);
-        const fecha = new Date(row.FechaLaborada).toLocaleDateString('es-GT', {
+        const fechaObj = new Date(row.FechaLaborada + 'T00:00:00');
+        const fecha = fechaObj.toLocaleDateString('es-GT', {
             day: '2-digit',
             month: '2-digit',
             year: 'numeric'
@@ -3820,9 +3821,6 @@ async function crearDocumentoPDF(datos) {
     // ===== NUEVA SECCIÓN: FIRMAS =====
     currentY = dibujarSeccionFirmas(doc, datos, margin, currentY, pageWidth);
 
-    // ===== PIE DE PÁGINA =====
-    dibujarPiePagina(doc, datos, pageWidth, pageHeight, margin);
-
     // ===== GUARDAR DOCUMENTO =====
     const nombreArchivo = generarNombreArchivo(datos.planilla);
     doc.save(nombreArchivo);
@@ -3830,18 +3828,10 @@ async function crearDocumentoPDF(datos) {
 function dibujarEncabezado(doc, datos, margin, currentY, pageWidth) {
     const planilla = datos.planilla;
     
-    // ===== HEADER CON FONDO GRIS =====
-    doc.setFillColor(55, 65, 81); // Gris oscuro profesional
-    doc.rect(0, 0, pageWidth, 25, 'F');
-    
-    // Título principal en blanco
-    doc.setTextColor(255, 255, 255);
+    doc.setTextColor(0, 0, 0);
     doc.setFontSize(20);
     doc.setFont('helvetica', 'bold');
-    doc.text('PLANILLA DE TIEMPO PARCIAL', pageWidth / 2, 15, { align: 'center' });
-    
-    // Restaurar color negro
-    doc.setTextColor(0, 0, 0);
+    doc.text('PLANILLA DE TIEMPO PARCIAL', pageWidth / 2, 25, { align: 'center' });
     currentY = 35;
 
     // ===== SECCIÓN DE INFORMACIÓN CON CAJAS GRISES =====
@@ -4219,24 +4209,6 @@ function dibujarTotales(doc, colaboradores, columns, margin, currentY, pageWidth
     
     return currentY + totalRowHeight;
 }
-function dibujarPiePagina(doc, datos, pageWidth, pageHeight, margin) {
-    const y = pageHeight - margin - 8;
-    
-    // Línea separadora
-    doc.setLineWidth(0.3);
-    doc.setDrawColor(200, 200, 200);
-    doc.line(margin, y - 3, pageWidth - margin, y - 3);
-    
-    // Texto del pie
-    doc.setFontSize(8);
-    doc.setFont('helvetica', 'italic');
-    doc.setTextColor(100, 100, 100);
-    doc.text('Generado automáticamente por Sistema de Recursos Humanos', pageWidth / 2, y, { align: 'center' });
-    
-    // Número de página (si se implementa paginación múltiple)
-    doc.setFont('helvetica', 'normal');
-    doc.text(`Página 1`, pageWidth - margin, y, { align: 'right' });
-}
 function generarNombreArchivo(planilla) {
     // ✅ USAR EL PERÍODO EN LUGAR DE TIPO/MES/AÑO
     const periodo = parsearPeriodoDesdeBD(planilla.PeriodoPago);
@@ -4316,20 +4288,7 @@ function dibujarSeccionFirmas(doc, datosCompletos, margin, currentY, pageWidth) 
     const planilla = datosCompletos.planilla;
     
     // Espacio antes de las firmas (AUMENTADO)
-    currentY += 20; // Cambiado de 15 a 20
-    
-    // ===== TÍTULO DE LA SECCIÓN =====
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(12);
-    doc.setTextColor(55, 65, 81); // Gris oscuro
-    doc.text('FIRMAS DE RESPONSABILIDAD', pageWidth / 2, currentY, { align: 'center' });
-    currentY += 8;
-    
-    // Línea decorativa debajo del título
-    doc.setLineWidth(0.5);
-    doc.setDrawColor(200, 200, 200);
-    doc.line(margin + 50, currentY, pageWidth - margin - 50, currentY);
-    currentY += 15; // Cambiado de 12 a 15
+    currentY += 20; 
     
     // ===== CONFIGURACIÓN DE FIRMAS =====
     const firmaWidth = (pageWidth - (margin * 2) - 40) / 3; // Dividir en 3 columnas con espacios

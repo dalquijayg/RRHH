@@ -654,7 +654,6 @@ function calcularLiquidacion(colaborador, descuentos = null, indemnizacionActiva
             
             if (validacionPrevia.tieneLiquidacionPrevia) {
                 fechaInicioReal = validacionPrevia.nuevaFechaInicio;
-            } else {
             }
             
             // PASO 3: Obtener AMBOS salarios según el tipo de liquidación
@@ -690,7 +689,7 @@ function calcularLiquidacion(colaborador, descuentos = null, indemnizacionActiva
                 vacaciones: 0,
                 bono14: 0,
                 subtotal: 0,
-                descuentoVale: 0,
+                descuentoVale: 0, // INICIALIZAR EN 0
                 numeroVale: '',
                 total: 0,
                 diasLaborados: diasLaboradosTotales,
@@ -747,7 +746,7 @@ function calcularLiquidacion(colaborador, descuentos = null, indemnizacionActiva
             // Aplicar indemnización solo si está activa
             liquidacion.indemnizacion = indemnizacionActiva ? liquidacion.indemnizacionCalculada : 0;
             
-            // Calcular subtotal
+            // Calcular subtotal ANTES de aplicar descuentos
             liquidacion.subtotal = redondearDosDecimales(
                 liquidacion.indemnizacion + 
                 liquidacion.aguinaldo + 
@@ -755,18 +754,38 @@ function calcularLiquidacion(colaborador, descuentos = null, indemnizacionActiva
                 liquidacion.bono14
             );
             
-            // Aplicar descuentos si existen
+            // *** CORRECCIÓN: Manejar descuentos correctamente ***
             if (descuentos && descuentos.monto > 0) {
-                liquidacion.descuentoVale = redondearDosDecimales(parseFloat(descuentos.monto));
-                liquidacion.numeroVale = descuentos.numeroVale || '';
+                const montoDescuento = parseFloat(descuentos.monto);
+                
+                // Validar que el descuento no sea negativo
+                if (montoDescuento < 0) {
+                    liquidacion.descuentoVale = 0;
+                    liquidacion.numeroVale = '';
+                    console.warn('Descuento negativo rechazado');
+                } else {
+                    liquidacion.descuentoVale = redondearDosDecimales(montoDescuento);
+                    liquidacion.numeroVale = descuentos.numeroVale || '';
+                }
+            } else {
+                // Si no hay descuentos, asegurar que estén en 0
+                liquidacion.descuentoVale = 0;
+                liquidacion.numeroVale = '';
             }
             
             // Calcular total final
-            liquidacion.total = redondearDosDecimales(liquidacion.subtotal - liquidacion.descuentoVale);
+            liquidacion.total = redondearDosDecimales(Math.max(0, liquidacion.subtotal - liquidacion.descuentoVale));
+            
+            // *** DEBUGGING: Agregar logs para depuración ***
+            console.log('🧮 Cálculo de liquidación:');
+            console.log(`   Subtotal: Q${liquidacion.subtotal.toFixed(2)}`);
+            console.log(`   Descuento: Q${liquidacion.descuentoVale.toFixed(2)}`);
+            console.log(`   Total final: Q${liquidacion.total.toFixed(2)}`);
             
             resolve(liquidacion);
             
         } catch (error) {
+            console.error('❌ Error en calcularLiquidacion:', error);
             reject(error);
         }
     });
@@ -864,7 +883,21 @@ async function guardarLiquidacion(colaborador, liquidacion) {
 // Función para generar PDF de liquidación usando jsPDF
 async function generarPDFLiquidacion(colaborador, liquidacion, infoCompleta, datosLiquidacionBD = null) {
     try {
-        // Importar jsPDF
+        // PASO 1: Solicitar información del representante legal
+        const representanteInfo = await solicitarRepresentanteLegal();
+        
+        if (!representanteInfo) {
+            // Usuario canceló
+            await Swal.fire({
+                icon: 'info',
+                title: 'Operación cancelada',
+                text: 'Se canceló la generación del PDF.',
+                confirmButtonColor: '#FF9800'
+            });
+            return false;
+        }
+        
+        // PASO 2: Generar PDF con la información del representante
         const { jsPDF } = window.jspdf;
         const doc = new jsPDF();
         
@@ -883,7 +916,7 @@ async function generarPDFLiquidacion(colaborador, liquidacion, infoCompleta, dat
         const grisClaro = [128, 128, 128];
         const verdeTotal = [72, 72, 72];
         
-        // Función para texto centrado
+        // Funciones auxiliares (copiadas del código original)
         const centrarTexto = (texto, y, fontSize = 12, color = grisTexto, style = 'normal') => {
             doc.setFontSize(fontSize);
             doc.setFont(undefined, style);
@@ -894,7 +927,6 @@ async function generarPDFLiquidacion(colaborador, liquidacion, infoCompleta, dat
             return y + (fontSize * 0.6);
         };
         
-        // Función para texto izquierda
         const textoIzq = (texto, x, y, fontSize = 10, color = grisTexto, style = 'normal') => {
             doc.setFontSize(fontSize);
             doc.setFont(undefined, style);
@@ -902,7 +934,6 @@ async function generarPDFLiquidacion(colaborador, liquidacion, infoCompleta, dat
             doc.text(texto, x, y);
         };
         
-        // Función para texto derecha
         const textoDer = (texto, x, y, fontSize = 10, color = grisTexto, style = 'normal') => {
             doc.setFontSize(fontSize);
             doc.setFont(undefined, style);
@@ -1154,7 +1185,7 @@ async function generarPDFLiquidacion(colaborador, liquidacion, infoCompleta, dat
         
         yPosition += 16;
         
-        // === TEXTO LEGAL ===
+        // === TEXTO LEGAL CON REPRESENTANTE ===
         const municipio = (infoCompleta.MunicipioOrigen || 'SANTA CRUZ DEL QUICHÉ').toUpperCase();
         const departamento = (infoCompleta.DepartamentoOrigen || 'QUICHÉ').toUpperCase();
         const empresa = (infoCompleta.NombreDivision || 'SURTIDORA DE MERCADOS, S.A.').toUpperCase();
@@ -1163,7 +1194,8 @@ async function generarPDFLiquidacion(colaborador, liquidacion, infoCompleta, dat
         const fechaActual = new Date();
         const fechaFormateadaTexto = convertirFechaATextoLegal(fechaActual.toISOString().split('T')[0]);
 
-        const textoLegal = `YO ${colaborador.NombreCompleto.toUpperCase()} VECINO DEL MUNICIPIO DE ${municipio} DEL DEPARTAMENTO DE ${departamento} POR ESTE MEDIO HAGO CONSTAR QUE, RECIBÍ A MI ENTERA SATISFACCIÓN LAS PRESTACIONES LABORALES A QUE TENGO DERECHO POR PARTE DE ${empresa}, POR LO QUE EXTIENDO MI MAS AMPLIO Y ENTERO FINIQUITO A LA CITADA ${empresa} NO TENIENDO NINGUN RECLAMO PRESENTE NI FUTURO, DADO EN LA ANTIGUA GUATEMALA ${fechaFormateadaTexto}.`;
+        // *** TEXTO LEGAL ACTUALIZADO CON REPRESENTANTE ***
+        const textoLegal = `YO ${colaborador.NombreCompleto.toUpperCase()} VECINO DEL MUNICIPIO DE ${municipio} DEL DEPARTAMENTO DE ${departamento} POR ESTE MEDIO HAGO CONSTAR QUE, RECIBÍ A MI ENTERA SATISFACCIÓN LAS PRESTACIONES LABORALES A QUE TENGO DERECHO POR PARTE DE ${empresa}, POR LO QUE EXTIENDO MI MAS AMPLIO Y ENTERO FINIQUITO A LA CITADA ${representanteInfo.nombre} NO TENIENDO NINGUN RECLAMO PRESENTE NI FUTURO, DADO EN LA ANTIGUA GUATEMALA ${fechaFormateadaTexto}.`;
         
         // Función para justificar texto con espaciado reducido
         const justificarTexto = (texto, anchoLinea, x, y, tamanoFuente) => {
@@ -1485,7 +1517,79 @@ function agregarInfoFechaSalida(estadoSalida) {
         infoGrid.appendChild(nuevaTarjeta);
     }
 }
-
+async function solicitarRepresentanteLegal() {
+    const { value: representanteData } = await Swal.fire({
+        title: 'Representante Legal',
+        html: `
+            <div style="text-align: left; padding: 15px;">
+                <div style="background: #f8f9fa; padding: 15px; border-radius: 8px; margin-bottom: 20px; border-left: 4px solid #FF9800;">
+                    <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 10px;">
+                        <i class="fas fa-user-tie" style="color: #FF9800; font-size: 1.2rem;"></i>
+                        <strong style="color: #654321; font-size: 1rem;">Información del Representante Legal</strong>
+                    </div>
+                    <p style="margin: 0; color: #666; font-size: 0.9rem; line-height: 1.4;">
+                        Este nombre aparecerá en el texto legal del documento de liquidación.
+                    </p>
+                </div>
+                
+                <div style="margin-bottom: 15px;">
+                    <label for="nombreRepresentante" style="display: block; margin-bottom: 8px; font-weight: 600; color: #654321; font-size: 1rem;">
+                        Nombre completo del representante legal:
+                    </label>
+                    <input id="nombreRepresentante" class="swal2-input" 
+                           placeholder="Ej: JUAN CARLOS PÉREZ GARCÍA" 
+                           style="margin: 0; width: 100%; box-sizing: border-box; text-transform: uppercase;">
+                </div>
+                
+                <div style="background: #e3f2fd; border: 1px solid #2196F3; border-radius: 8px; padding: 15px; margin-top: 20px;">
+                    <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+                        <i class="fas fa-info-circle" style="color: #2196F3;"></i>
+                        <strong style="color: #1976D2; font-size: 0.9rem;">Vista previa del texto:</strong>
+                    </div>
+                    <p style="margin: 0; color: #1976D2; font-size: 0.85rem; font-style: italic; line-height: 1.3;">
+                        "...POR LO QUE EXTIENDO MI MAS AMPLIO Y ENTERO FINIQUITO A LA CITADA <span id="previaNombre" style="font-weight: bold; color: #FF9800;">[NOMBRE DEL REPRESENTANTE]</span> NO TENIENDO NINGUN RECLAMO..."
+                    </p>
+                </div>
+            </div>
+        `,
+        width: '500px',
+        showCancelButton: true,
+        confirmButtonColor: '#FF9800',
+        cancelButtonColor: '#6c757d',
+        confirmButtonText: '<i class="fas fa-check"></i> Continuar con PDF',
+        cancelButtonText: '<i class="fas fa-times"></i> Cancelar',
+        preConfirm: () => {
+            const nombre = document.getElementById('nombreRepresentante').value.trim().toUpperCase();
+            
+            if (!nombre) {
+                Swal.showValidationMessage('Por favor ingrese el nombre del representante legal');
+                return false;
+            }
+            
+            return {
+                nombre: nombre
+            };
+        },
+        didOpen: () => {
+            // Actualizar vista previa dinámicamente
+            const nombreInput = document.getElementById('nombreRepresentante');
+            const previaNombre = document.getElementById('previaNombre');
+            
+            nombreInput.addEventListener('input', function() {
+                const valor = this.value.trim().toUpperCase();
+                previaNombre.textContent = valor || '[NOMBRE DEL REPRESENTANTE]';
+                previaNombre.style.color = valor ? '#4CAF50' : '#FF9800';
+            });
+            
+            // Enfocar automáticamente el primer input
+            setTimeout(() => {
+                nombreInput.focus();
+            }, 100);
+        }
+    });
+    
+    return representanteData;
+}
 // Función para mostrar el modal de liquidación
 function mostrarModalLiquidacion(liquidacion, colaborador) {
     const isRenuncia = colaborador.EstadoSalida.tieneRegistro && colaborador.EstadoSalida.idEstado === 3;
@@ -1672,29 +1776,37 @@ function mostrarModalLiquidacion(liquidacion, colaborador) {
                 const observacionesInput = document.getElementById('observacionesIndemnizacion');
                 const observacionesActuales = observacionesInput ? observacionesInput.value : '';
                 
-                // Recalcular liquidación
-                const numeroVale = document.getElementById('numeroVale').value.trim();
-                const montoDescuento = parseFloat(document.getElementById('montoDescuento').value) || 0;
+                // *** CORRECCIÓN: Actualizar montos directamente sin recalcular todo ***
                 
-                const descuentos = montoDescuento > 0 ? {
-                    numeroVale: numeroVale,
-                    monto: montoDescuento
-                } : null;
+                // Actualizar el monto de indemnización según el estado
+                if (liquidacion.indemnizacionActiva) {
+                    liquidacion.indemnizacion = liquidacion.indemnizacionCalculada;
+                } else {
+                    liquidacion.indemnizacion = 0;
+                    liquidacion.observaciones = observacionesActuales; // Guardar observaciones cuando se quita
+                }
                 
-                const liquidacionActualizada = calcularLiquidacion(colaborador, descuentos, liquidacion.indemnizacionActiva, observacionesActuales);
-                Object.assign(liquidacion, liquidacionActualizada);
+                // Recalcular subtotal SOLO con los montos actuales
+                liquidacion.subtotal = redondearDosDecimales(
+                    liquidacion.indemnizacion + 
+                    liquidacion.aguinaldo + 
+                    liquidacion.vacaciones + 
+                    liquidacion.bono14
+                );
                 
-                // Reconstruir completamente la sección de indemnización
-                const indemnizacionRow = this.closest('div[style*="border-bottom"]');
+                // Recalcular total considerando descuentos existentes
+                liquidacion.total = redondearDosDecimales(Math.max(0, liquidacion.subtotal - liquidacion.descuentoVale));
                 
-                // Determinar el tipo de indemnización
+                // Determinar el tipo de indemnización para la UI
                 const isDespido = liquidacion.esDespido;
                 const indemnizacionTipo = isDespido ? '🚫 Indemnización (Despido)' : '💼 Indemnización (Renuncia)';
                 const indemnizacionFormula = isDespido ? 
                     `((${formatearMoneda(liquidacion.salarioBase)} ÷ 6) + ${formatearMoneda(liquidacion.salarioBase)}) ÷ 360 × ${liquidacion.diasLaborados} días` :
                     `${formatearMoneda(liquidacion.salarioBase)} ÷ 360 × ${liquidacion.diasLaborados} días`;
                 
-                // Reconstruir HTML completo con campo de observaciones
+                // Reconstruir completamente la sección de indemnización
+                const indemnizacionRow = this.closest('div[style*="border-bottom"]');
+                
                 indemnizacionRow.innerHTML = `
                     <div style="flex: 1;">
                         <div style="display: flex; align-items: center; gap: 10px;">
@@ -1717,9 +1829,9 @@ function mostrarModalLiquidacion(liquidacion, colaborador) {
                                     placeholder="Motivo por el cual se excluye la indemnización..."
                                     maxlength="255"
                                     style="width: 100%; padding: 6px 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 0.8rem; resize: vertical; min-height: 50px; max-height: 80px;"
-                                >${liquidacion.observaciones}</textarea>
+                                >${liquidacion.observaciones || ''}</textarea>
                                 <div style="text-align: right; font-size: 0.7rem; color: #666; margin-top: 2px;">
-                                    <span id="contadorCaracteres">${liquidacion.observaciones.length}</span>/255 caracteres
+                                    <span id="contadorCaracteres">${(liquidacion.observaciones || '').length}</span>/255 caracteres
                                 </div>
                             </div>
                         ` : ''}
@@ -1735,8 +1847,11 @@ function mostrarModalLiquidacion(liquidacion, colaborador) {
                 // Actualizar el fondo
                 indemnizacionRow.style.background = liquidacion.indemnizacionActiva ? '#fff' : '#f8f9fa';
                 
-                // Re-asignar el event listener al nuevo botón
-                indemnizacionRow.querySelector('#btnToggleIndemnizacion').addEventListener('click', arguments.callee);
+                // Re-asignar el event listener al nuevo botón (recursión controlada)
+                const nuevoBoton = indemnizacionRow.querySelector('#btnToggleIndemnizacion');
+                if (nuevoBoton) {
+                    nuevoBoton.addEventListener('click', arguments.callee);
+                }
                 
                 // Agregar event listener para el contador de caracteres si el campo existe
                 const observacionesTextarea = document.getElementById('observacionesIndemnizacion');
@@ -1765,9 +1880,17 @@ function mostrarModalLiquidacion(liquidacion, colaborador) {
                     }
                 }
                 
-                // Actualizar totales
+                // *** ACTUALIZAR TOTALES EN LA INTERFAZ ***
                 document.getElementById('subtotalMonto').textContent = formatearMoneda(liquidacion.subtotal);
                 document.getElementById('totalFinalMonto').textContent = formatearMoneda(liquidacion.total);
+                
+                // Logs para verificar los cálculos
+                console.log('🔄 Toggle indemnización:');
+                console.log(`   Indemnización activa: ${liquidacion.indemnizacionActiva}`);
+                console.log(`   Monto indemnización: Q${liquidacion.indemnizacion.toFixed(2)}`);
+                console.log(`   Subtotal: Q${liquidacion.subtotal.toFixed(2)}`);
+                console.log(`   Descuento: Q${liquidacion.descuentoVale.toFixed(2)}`);
+                console.log(`   Total: Q${liquidacion.total.toFixed(2)}`);
             });
             
             // Event listener para recalcular con descuento
@@ -1784,36 +1907,49 @@ function mostrarModalLiquidacion(liquidacion, colaborador) {
                 const observacionesInput = document.getElementById('observacionesIndemnizacion');
                 const observacionesActuales = observacionesInput ? observacionesInput.value : liquidacion.observaciones;
                 
-                // Recalcular liquidación con descuento
-                const descuentos = {
-                    numeroVale: numeroVale,
-                    monto: montoDescuento
-                };
+                // *** CORRECCIÓN: Solo actualizar descuentos y totales, NO recalcular todo ***
                 
-                const liquidacionActualizada = calcularLiquidacion(colaborador, descuentos, liquidacion.indemnizacionActiva, observacionesActuales);
+                // Actualizar campos de descuento en el objeto liquidacion
+                if (montoDescuento > 0) {
+                    liquidacion.descuentoVale = redondearDosDecimales(montoDescuento);
+                    liquidacion.numeroVale = numeroVale;
+                } else {
+                    liquidacion.descuentoVale = 0;
+                    liquidacion.numeroVale = '';
+                }
                 
-                // Actualizar los montos en el modal
-                document.getElementById('subtotalMonto').textContent = formatearMoneda(liquidacionActualizada.subtotal);
+                // Actualizar observaciones
+                liquidacion.observaciones = observacionesActuales;
                 
+                // Recalcular SOLO el total final (sin tocar subtotal ni conceptos)
+                liquidacion.total = redondearDosDecimales(Math.max(0, liquidacion.subtotal - liquidacion.descuentoVale));
+                
+                // Actualizar la interfaz
                 const descuentoSection = document.getElementById('descuentoSection');
                 const numeroValeDisplay = document.getElementById('numeroValeDisplay');
                 const descuentoMonto = document.getElementById('descuentoMonto');
                 const totalFinalMonto = document.getElementById('totalFinalMonto');
                 
-                if (liquidacionActualizada.descuentoVale > 0) {
+                // Mostrar/ocultar sección de descuento
+                if (liquidacion.descuentoVale > 0) {
                     descuentoSection.style.display = 'flex';
-                    numeroValeDisplay.textContent = `Vale No: ${liquidacionActualizada.numeroVale}`;
-                    descuentoMonto.textContent = `-${formatearMoneda(liquidacionActualizada.descuentoVale)}`;
+                    numeroValeDisplay.textContent = `Vale No: ${liquidacion.numeroVale}`;
+                    descuentoMonto.textContent = `-${formatearMoneda(liquidacion.descuentoVale)}`;
                 } else {
                     descuentoSection.style.display = 'none';
                 }
                 
-                totalFinalMonto.textContent = formatearMoneda(liquidacionActualizada.total);
+                // Actualizar el total final en la interfaz
+                totalFinalMonto.textContent = formatearMoneda(liquidacion.total);
                 
-                // Actualizar la variable liquidacion para el guardado
-                Object.assign(liquidacion, liquidacionActualizada);
+                // Logs para verificar
+                console.log('💰 Recálculo de descuento:');
+                console.log(`   Subtotal: Q${liquidacion.subtotal.toFixed(2)} (sin cambios)`);
+                console.log(`   Descuento aplicado: Q${liquidacion.descuentoVale.toFixed(2)}`);
+                console.log(`   Total final: Q${liquidacion.total.toFixed(2)}`);
                 
-                Swal.showValidationMessage('Liquidación recalculada correctamente');
+                // Mensaje de confirmación
+                Swal.showValidationMessage('Descuento aplicado correctamente');
                 setTimeout(() => Swal.resetValidationMessage(), 2000);
             });
         }

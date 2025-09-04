@@ -305,9 +305,36 @@ function mostrarCargando(mensaje = "Verificando...") {
         allowOutsideClick: false
     });
 }
-
+let updateRequired = false;
+let loginBlocked = false;
 document.getElementById('loginForm').addEventListener('submit', async (event) => {
     event.preventDefault();
+    
+    // Verificar si hay una actualización obligatoria pendiente
+    if (updateRequired || loginBlocked) {
+        await Swal.fire({
+            icon: 'warning',
+            title: 'Actualización Requerida',
+            html: `
+                <div style="text-align: center;">
+                    <div style="font-size: 3rem; margin-bottom: 15px;">⚠️</div>
+                    <p>Es necesario actualizar la aplicación antes de poder ingresar al sistema.</p>
+                    <div style="background: #fff3cd; padding: 15px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #ffc107;">
+                        <p style="color: #856404; font-size: 0.9rem; margin: 0;">
+                            <strong>Por seguridad y compatibilidad</strong><br>
+                            Debes instalar la versión más reciente para continuar.
+                        </p>
+                    </div>
+                </div>
+            `,
+            confirmButtonText: 'Entendido',
+            confirmButtonColor: '#FF9800',
+            allowOutsideClick: false,
+            allowEscapeKey: false
+        });
+        return; // Bloquear el login
+    }
+    
     const dpi = document.getElementById('dpi').value;
     
     document.querySelector('.login-box').classList.add('submitting');
@@ -388,7 +415,7 @@ document.getElementById('loginForm').addEventListener('submit', async (event) =>
                 confirmButtonColor: '#FF9800',
                 cancelButtonText: 'Cancelar',
                 showLoaderOnConfirm: true,
-                width: '450px', // Ancho más compacto
+                width: '450px',
                 customClass: {
                     popup: 'swal2-no-scroll'
                 },
@@ -470,7 +497,71 @@ document.getElementById('loginForm').addEventListener('submit', async (event) =>
         }, 1000);
     }
 });
+function disableLoginForm() {
+    const form = document.getElementById('loginForm');
+    const inputs = form.querySelectorAll('input, button');
+    
+    inputs.forEach(input => {
+        input.disabled = true;
+        input.style.opacity = '0.5';
+        input.style.cursor = 'not-allowed';
+    });
+    
+    // Agregar overlay visual
+    const loginBox = document.querySelector('.login-box');
+    if (!loginBox.querySelector('.update-overlay')) {
+        const overlay = document.createElement('div');
+        overlay.className = 'update-overlay';
+        overlay.style.cssText = `
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(255, 255, 255, 0.8);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+            backdrop-filter: blur(3px);
+        `;
+        
+        overlay.innerHTML = `
+            <div style="text-align: center; padding: 20px;">
+                <div style="font-size: 3rem; margin-bottom: 15px; animation: pulse 2s infinite;">⬇️</div>
+                <h3 style="color: #FF9800; margin-bottom: 10px;">Actualización en progreso</h3>
+                <p style="color: #666; font-size: 0.9rem;">Por favor espera mientras se descarga la nueva versión</p>
+                <div style="width: 200px; height: 4px; background: #eee; border-radius: 2px; margin: 15px auto; overflow: hidden;">
+                    <div style="height: 100%; background: linear-gradient(45deg, #FF9800, #F57C00); width: 0%; animation: progressBar 3s infinite;"></div>
+                </div>
+            </div>
+        `;
+        
+        loginBox.appendChild(overlay);
+    }
+}
 
+// Función para habilitar el formulario después de actualizar
+function enableLoginForm() {
+    const form = document.getElementById('loginForm');
+    const inputs = form.querySelectorAll('input, button');
+    
+    inputs.forEach(input => {
+        input.disabled = false;
+        input.style.opacity = '1';
+        input.style.cursor = 'auto';
+    });
+    
+    // Remover overlay
+    const overlay = document.querySelector('.update-overlay');
+    if (overlay) {
+        overlay.remove();
+    }
+    
+    updateRequired = false;
+    loginBlocked = false;
+}
 function determinarRol(idPuesto) {
     if (idPuesto == 5) {
         return 'Administrador RRHH';
@@ -582,6 +673,29 @@ document.addEventListener('DOMContentLoaded', () => {
 
             .swal2-content::-webkit-scrollbar-thumb:hover {
                 background: #a1a1a1;
+            }
+                @keyframes progressBar {
+                0% { width: 0%; }
+                70% { width: 100%; }
+                100% { width: 0%; }
+            }
+            
+            .login-box {
+                position: relative;
+            }
+            
+            .update-overlay {
+                border-radius: 10px;
+            }
+            
+            .form-disabled input:disabled {
+                background-color: #f5f5f5 !important;
+                color: #999 !important;
+            }
+            
+            .form-disabled .btn:disabled {
+                background-color: #ccc !important;
+                cursor: not-allowed !important;
             }
         </style>
     `);

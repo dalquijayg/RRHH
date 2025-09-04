@@ -427,7 +427,21 @@ class LiquidacionesTable {
         if (!fecha) return 'N/A';
         
         try {
-            const fechaObj = new Date(fecha);
+            // Método 1: Crear fecha local sin conversión de zona horaria
+            let fechaObj;
+            
+            if (typeof fecha === 'string') {
+                // Si la fecha viene como string (ej: "2024-01-15" o "2024-01-15 00:00:00")
+                const fechaStr = fecha.split('T')[0]; // Tomar solo la parte de la fecha
+                const [year, month, day] = fechaStr.split('-');
+                
+                // Crear fecha local (mes - 1 porque los meses en JS van de 0 a 11)
+                fechaObj = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
+            } else {
+                // Si ya es un objeto Date
+                fechaObj = new Date(fecha);
+            }
+            
             return fechaObj.toLocaleDateString('es-ES', {
                 year: 'numeric',
                 month: 'short',

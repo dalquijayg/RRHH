@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Modificar Nóminas - Recursos Humanos</title>
+    <link rel="stylesheet" href="../Disenos/Planilla/ModificarNominas.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+</head>
+<body>
+    <!-- Elementos decorativos de fondo -->
+    <div class="bg-decoration bubble bubble1"></div>
+    <div class="bg-decoration bubble bubble2"></div>
+    <div class="bg-decoration bubble bubble3"></div>
+    <div class="bg-decoration bubble bubble4"></div>
+    <div class="bg-decoration bubble bubble5"></div>
+    
+    <!-- Header y navegación -->
+    <header class="header">
+        <div class="nav-container">
+            <div class="logo-area">
+                <img src="../Imagenes/Logo Recursos Humanos new.png" alt="Logo RH" class="logo">
+                <h1 class="page-title">Modificar Nóminas</h1>
+            </div>
+            <div class="user-area">
+                <button class="help-btn" id="helpBtn" title="Ayuda y Manual de Usuario">
+                    <i class="fas fa-question-circle"></i>
+                </button>
+                <div class="theme-switch">
+                    <span class="theme-switch-label">Tema</span>
+                    <label class="switch">
+                        <input type="checkbox" id="themeSwitch">
+                        <span class="slider"></span>
+                    </label>
+                </div>
+                <img src="../Imagenes/user-default.png" alt="Usuario" class="user-image" id="userImage">
+                <div class="user-details">
+                    <div class="user-name" id="userName">Cargando...</div>
+                    <div class="user-role" id="userRole">Cargando...</div>
+                </div>
+            </div>
+        </div>
+    </header>
+    
+    <div class="main-container">
+        <!-- Filtros de búsqueda -->
+        <section class="search-section">
+            <h2 class="section-title">
+                <i class="fas fa-search"></i> Buscar Planillas Guardadas
+            </h2>
+            
+            <div class="search-container">
+                <div class="search-filters">
+                    <div class="filter-group">
+                        <label for="planillaSelect" class="filter-label">Planilla</label>
+                        <select id="planillaSelect" class="filter-select">
+                            <option value="">Seleccione una planilla</option>
+                            <!-- Las opciones se cargarán dinámicamente -->
+                        </select>
+                    </div>
+                    
+                    <div class="filter-group">
+                        <label for="tipoQuincenaSelect" class="filter-label">Tipo de Quincena</label>
+                        <select id="tipoQuincenaSelect" class="filter-select">
+                            <option value="1">Planilla Quincenal</option>
+                            <option value="2">Planilla Fin de Mes</option>
+                        </select>
+                    </div>
+                    
+                    <div class="filter-group">
+                        <label for="mesSelect" class="filter-label">Mes</label>
+                        <select id="mesSelect" class="filter-select">
+                            <option value="1">Enero</option>
+                            <option value="2">Febrero</option>
+                            <option value="3">Marzo</option>
+                            <option value="4">Abril</option>
+                            <option value="5">Mayo</option>
+                            <option value="6">Junio</option>
+                            <option value="7">Julio</option>
+                            <option value="8">Agosto</option>
+                            <option value="9">Septiembre</option>
+                            <option value="10">Octubre</option>
+                            <option value="11">Noviembre</option>
+                            <option value="12">Diciembre</option>
+                        </select>
+                    </div>
+                    
+                    <div class="filter-group">
+                        <label for="anioSelect" class="filter-label">Año</label>
+                        <select id="anioSelect" class="filter-select">
+                            <!-- Se llenará dinámicamente con JavaScript -->
+                        </select>
+                    </div>
+                </div>
+                
+                <div class="search-actions">
+                    <button id="buscarBtn" class="search-btn">
+                        <i class="fas fa-search"></i>
+                        <span class="btn-text">Buscar Planilla</span>
+                    </button>
+                    
+                    <!-- Información de la planilla integrada -->
+                    <div class="planilla-info-inline" id="planillaInfoInline" style="display: none;">
+                        <div class="info-cards-inline">
+                            <div class="info-card">
+                                <div class="info-icon">
+                                    <i class="fas fa-id-card"></i>
+                                </div>
+                                <div class="info-content">
+                                    <div class="info-label">ID Planilla</div>
+                                    <div class="info-value" id="infoPlanillaId">-</div>
+                                </div>
+                            </div>
+                            
+                            <div class="info-card">
+                                <div class="info-icon">
+                                    <i class="fas fa-user"></i>
+                                </div>
+                                <div class="info-content">
+                                    <div class="info-label">Creado por</div>
+                                    <div class="info-value" id="infoUsuario">-</div>
+                                </div>
+                            </div>
+                            
+                            <div class="info-card">
+                                <div class="info-icon">
+                                    <i class="fas fa-users"></i>
+                                </div>
+                                <div class="info-content">
+                                    <div class="info-label">Colaboradores</div>
+                                    <div class="info-value" id="infoCantColaboradores">-</div>
+                                </div>
+                            </div>
+                            
+                            <div class="info-card">
+                                <div class="info-icon">
+                                    <i class="fas fa-money-bill-wave"></i>
+                                </div>
+                                <div class="info-content">
+                                    <div class="info-label">Monto Total</div>
+                                    <div class="info-value money" id="infoMontoTotal">-</div>
+                                </div>
+                            </div>
+                            
+                            <div class="info-card">
+                                <div class="info-icon">
+                                    <i class="fas fa-calendar-alt"></i>
+                                </div>
+                                <div class="info-content">
+                                    <div class="info-label">Fecha Registro</div>
+                                    <div class="info-value" id="infoFechaRegistro">-</div>
+                                </div>
+                            </div>
+                            
+                            <div class="info-card">
+                                <div class="info-icon">
+                                    <i class="fas fa-tag"></i>
+                                </div>
+                                <div class="info-content">
+                                    <div class="info-label">Tipo de Pago</div>
+                                    <div class="info-value" id="infoTipoPago">-</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+        
+        <!-- Tabla de detalles -->
+        <section class="details-section" id="detailsSection" style="display: none;">
+            <div class="section-header">
+                <h2 class="section-title">
+                    <i class="fas fa-table"></i> Detalle de Colaboradores
+                </h2>
+                
+                <div class="section-actions">
+                    <button id="editBtn" class="action-btn edit-btn">
+                        <i class="fas fa-edit"></i> Editar Planilla
+                    </button>
+                </div>
+            </div>
+            
+            <!-- Loader -->
+            <div class="loader" id="detailsLoader">
+                <div class="loader-spinner"></div>
+                <div class="loader-text">Cargando detalles...</div>
+            </div>
+            
+            <!-- Mensaje sin datos -->
+            <div class="no-data" id="noDetailsData">
+                <i class="fas fa-inbox"></i>
+                <h3 class="no-data-title">No se encontraron detalles</h3>
+                <p>No hay información detallada disponible para esta planilla.</p>
+            </div>
+            
+            <!-- Tabla de detalles -->
+            <div class="table-container">
+                <table class="details-table" id="detailsTable">
+                    <thead>
+                        <tr>
+                            <th>No.</th>
+                            <th>Nombre Empleado</th>
+                            <th>Salario Quincenal</th>
+                            <th>Salario Diario</th>
+                            <th>Días Laborados</th>
+                            <th>Bonificación</th>
+                            <th>IGSS</th>
+                            <th>Descuento Judicial</th>  <!-- NUEVA COLUMNA -->
+                            <th>Monto Pagado</th>
+                        </tr>
+                    </thead>
+                    <tbody id="detailsTableBody">
+                        <!-- Los datos se cargarán dinámicamente -->
+                    </tbody>
+                </table>
+            </div>
+            
+            <!-- Paginación -->
+            <div class="pagination" id="detailsPagination">
+                <div class="pagination-info" id="paginationInfo">Mostrando 0-0 de 0 registros</div>
+                <button class="pagination-btn" data-page="prev">
+                    <i class="fas fa-chevron-left"></i>
+                </button>
+                <div id="paginationButtons">
+                    <!-- Se llenará dinámicamente -->
+                </div>
+                <button class="pagination-btn" data-page="next">
+                    <i class="fas fa-chevron-right"></i>
+                </button>
+            </div>
+        </section>
+    </div>
+
+    <!-- Modal de ayuda -->
+    <div id="helpModal" class="modal" style="display: none;">
+        <div class="modal-content modal-help">
+            <div class="modal-header">
+                <h3><i class="fas fa-question-circle"></i> Manual de Usuario - Modificar Nóminas</h3>
+                <span class="close-modal-help">&times;</span>
+            </div>
+            <div class="modal-body help-content">
+                <div class="help-nav">
+                    <button class="help-nav-btn active" data-help="buscar">
+                        <i class="fas fa-search"></i> Buscar Planillas
+                    </button>
+                    <button class="help-nav-btn" data-help="modificar">
+                        <i class="fas fa-edit"></i> Modificar Datos
+                    </button>
+                    <button class="help-nav-btn" data-help="exportar">
+                        <i class="fas fa-download"></i> Exportar Datos
+                    </button>
+                </div>
+                
+                <div class="help-sections">
+                    <div class="help-section active" id="help-buscar">
+                        <h4><i class="fas fa-search"></i> Buscar Planillas Guardadas</h4>
+                        
+                        <div class="help-item">
+                            <h5>Filtros de Búsqueda</h5>
+                            <ol>
+                                <li><strong>Planilla:</strong> Seleccione la planilla específica que desea consultar</li>
+                                <li><strong>Tipo de Quincena:</strong> Elija entre "Quincenal" (1-15) o "Fin de Mes" (16-último día)</li>
+                                <li><strong>Mes y Año:</strong> Especifique el período de la planilla</li>
+                                <li>Haga clic en <strong>"Buscar Planilla"</strong></li>
+                            </ol>
+                        </div>
+                        
+                        <div class="help-item">
+                            <h5>Información Mostrada</h5>
+                            <ul>
+                                <li><strong>ID Planilla:</strong> Identificador único de la planilla</li>
+                                <li><strong>Creado por:</strong> Usuario que generó la planilla</li>
+                                <li><strong>Colaboradores:</strong> Cantidad de empleados incluidos</li>
+                                <li><strong>Monto Total:</strong> Suma total a pagar</li>
+                                <li><strong>Fecha Registro:</strong> Cuándo fue creada la planilla</li>
+                            </ul>
+                        </div>
+                    </div>
+                    
+                    <div class="help-section" id="help-modificar">
+                        <h4><i class="fas fa-edit"></i> Modificar Planillas</h4>
+                        
+                        <div class="help-item">
+                            <h5>Estados de Planillas</h5>
+                            <ul>
+                                <li><strong>Estado 0 (Editable):</strong> Planillas que pueden ser modificadas</li>
+                                <li><strong>Estado 1 (Autorizada):</strong> Planillas finalizadas, solo consulta</li>
+                            </ul>
+                        </div>
+                        
+                        <div class="help-item">
+                            <h5>Proceso de Edición</h5>
+                            <ol>
+                                <li>Busque y seleccione la planilla deseada</li>
+                                <li>Verifique que tenga estado "Editable"</li>
+                                <li>Haga clic en <strong>"Editar Planilla"</strong></li>
+                                <li>Modifique los datos necesarios en la tabla</li>
+                                <li>Guarde los cambios</li>
+                            </ol>
+                        </div>
+                    </div>
+                    
+                    <div class="help-section" id="help-exportar">
+                        <h4><i class="fas fa-download"></i> Exportar y Reportes</h4>
+                        
+                        <div class="help-item">
+                            <h5>Opciones de Exportación</h5>
+                            <ul>
+                                <li><strong>Excel:</strong> Genera archivo .xlsx con todos los detalles</li>
+                                <li><strong>Imprimir:</strong> Formato optimizado para impresión</li>
+                            </ul>
+                        </div>
+                        
+                        <div class="help-item">
+                            <h5>Contenido del Reporte</h5>
+                            <ul>
+                                <li>Información general de la planilla</li>
+                                <li>Detalle por empleado</li>
+                                <li>Totales y resúmenes</li>
+                                <li>Fecha de generación</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button id="closeHelpBtn" class="action-btn edit-btn">
+                    <i class="fas fa-check"></i> Entendido
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="../Logica/Planillas/ModificarNominas.js"></script>
+</body>
+</html>

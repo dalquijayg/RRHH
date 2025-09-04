@@ -51,6 +51,7 @@ const AutorizarPlanillasParciales = document.getElementById('autorizarPlanillasP
 const AutorizarLiquidaciones = document.getElementById('autorizarLiquidacionesBtn')
 const ReporteDiasDisponiblesVacaciones = document.getElementById('reporteDiasDisponiblesVacacionesBtn')
 const GenerarDocumentos = document.getElementById('generarDocumentosBtn')
+const modificarPagosNominaBtn = document.getElementById('modificarPagosNominaBtn')
 // Inicializar conexión con la base de datos
 async function getConnection() {
     try {
@@ -1963,6 +1964,44 @@ GenerarDocumentos.addEventListener('click', async () => {
                 icon: 'error',
                 title: 'Acceso denegado',
                 text: 'No tienes permisos para acceder a esta funcionalidad. Trans.129'
+            });
+        }
+    } catch (error) {
+        console.error('Error al verificar permisos:', error);
+        mostrarNotificacion('Error al verificar permisos', 'error');
+    }
+});
+modificarPagosNominaBtn.addEventListener('click', async () => {
+    try {
+        // Mostrar notificación de verificación
+        mostrarNotificacion('Verificando permisos...', 'info');
+        
+        // Obtener el ID del usuario actual
+        const idPersonal = userData.IdPersonal;
+        
+        // Verificar permisos en la base de datos
+        const connection = await getConnection();
+        
+        const permisosQuery = `
+            SELECT COUNT(*) AS tienePermiso 
+            FROM TransaccionesRRHH 
+            WHERE IdPersonal = ${idPersonal} AND Codigo = 130
+        `;
+        
+        const resultado = await connection.query(permisosQuery);
+        await connection.close();
+        
+        // Verificar si tiene permiso (si el conteo es mayor a 0)
+        if (resultado[0].tienePermiso > 0) {
+            // Tiene permiso, abrir la ventana
+            mostrarNotificacion('Abriendo Modificaciones de Pago Nomina...', 'success');
+            ipcRenderer.send('open_Ventana_MPN');
+        } else {
+            // No tiene permiso, mostrar error
+            Swal.fire({
+                icon: 'error',
+                title: 'Acceso denegado',
+                text: 'No tienes permisos para acceder a esta funcionalidad. Trans.130'
             });
         }
     } catch (error) {

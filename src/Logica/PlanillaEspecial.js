@@ -3876,7 +3876,7 @@ async function cargarInfoPlanilla(idPlanilla) {
                 </div>
                 <div class="info-item">
                     <span class="info-label">Monto Total:</span>
-                    <span class="info-value">Q ${planilla.MontoTotalGasto.toFixed(2)}</span>
+                    <span class="info-value">Q ${Number(planilla.MontoTotalGasto || 0).toFixed(2)}</span>
                 </div>
                 <div class="info-item">
                     <span class="info-label">Generada:</span>
@@ -3924,27 +3924,78 @@ async function subirDocumentoPlanilla(idPlanilla) {
             return;
         }
         
-        // Mostrar modal de proceso
+        // NUEVA CONFIRMACIÓN CON SWEETALERT2
+        const confirmResult = await Swal.fire({
+            icon: 'question',
+            title: 'Confirmar Subida de Documento',
+            html: `
+                <div class="confirm-upload-content">
+                    <p style="margin-bottom: 15px;">¿Está seguro de que desea subir el siguiente documento?</p>
+                    <div style="background-color: var(--color-dark-lighter); padding: 15px; border-radius: var(--border-radius); margin: 15px 0; border-left: 4px solid var(--color-info);">
+                        <div style="display: grid; grid-template-columns: auto 1fr; gap: 10px; font-size: 0.9rem;">
+                            <span style="font-weight: 600;"><i class="fas fa-file-pdf"></i> Archivo:</span>
+                            <span>${file.name}</span>
+                            <span style="font-weight: 600;"><i class="fas fa-weight-hanging"></i> Tamaño:</span>
+                            <span>${formatFileSize(file.size)}</span>
+                            <span style="font-weight: 600;"><i class="fas fa-list-ol"></i> Planilla ID:</span>
+                            <span>${idPlanilla}</span>
+                        </div>
+                    </div>
+                    <p style="color: var(--color-warning); font-weight: 500; margin-top: 15px;">
+                        <i class="fas fa-exclamation-triangle"></i> 
+                        Esta acción completará la planilla y permitirá generar nuevas planillas para este departamento.
+                    </p>
+                </div>
+            `,
+            showCancelButton: true,
+            confirmButtonText: '<i class="fas fa-upload"></i> Sí, Subir Documento',
+            cancelButtonText: '<i class="fas fa-times"></i> Cancelar',
+            confirmButtonColor: 'var(--color-success)',
+            cancelButtonColor: 'var(--color-gray)',
+            reverseButtons: true,
+            // AGREGAR ESTAS CONFIGURACIONES:
+            backdrop: true,
+            allowOutsideClick: false,
+            allowEscapeKey: false,
+            customClass: {
+                popup: 'confirm-upload-modal'
+            },
+            // CONFIGURAR Z-INDEX MÁS ALTO
+            didOpen: () => {
+                const swalContainer = document.querySelector('.swal2-container');
+                if (swalContainer) {
+                    swalContainer.style.zIndex = '10000';
+                }
+            }
+        });
+        
+        // Si el usuario cancela, salir de la función
+        if (!confirmResult.isConfirmed) {
+            return;
+        }
+        
+        // Si confirma, proceder con la subida
+        // Mostrar modal de proceso con mensaje personalizado
         mostrarModal(processModal);
-        document.getElementById('processModalTitle').innerHTML = '<i class="fas fa-file-upload"></i> Subiendo Documento';
-        document.getElementById('processMessage').textContent = 'Preparando archivo...';
+        document.getElementById('processModalTitle').innerHTML = '<i class="fas fa-cloud-upload-alt"></i> Subiendo Documento';
+        document.getElementById('processMessage').textContent = 'Preparando archivo para subida...';
         document.getElementById('progressFill').style.width = '0%';
         document.getElementById('progressText').textContent = '0%';
         
         // Iniciar progreso
-        updateProgress(10, 'Leyendo archivo...');
+        updateProgress(10, 'Validando archivo seleccionado...');
         
         // Leer el archivo como ArrayBuffer
         const reader = new FileReader();
         
         reader.onload = async function(e) {
             try {
-                updateProgress(30, 'Procesando archivo...');
+                updateProgress(30, 'Procesando archivo PDF...');
                 
                 // Convertir ArrayBuffer a Buffer para Node.js
                 const buffer = Buffer.from(e.target.result);
                 
-                updateProgress(50, 'Guardando en base de datos...');
+                updateProgress(50, 'Conectando con base de datos...');
                 
                 // Obtener datos del usuario
                 const userData = JSON.parse(localStorage.getItem('userData'));
@@ -3953,6 +4004,8 @@ async function subirDocumentoPlanilla(idPlanilla) {
                 
                 // Crear conexión a la base de datos
                 const connection = await connectionString();
+                
+                updateProgress(60, 'Verificando estado de la planilla...');
                 
                 // Verificar si ya existe un documento para esta planilla
                 const checkQuery = `
@@ -3967,7 +4020,7 @@ async function subirDocumentoPlanilla(idPlanilla) {
                 
                 if (checkResult && checkResult[0].existe > 0) {
                     // Actualizar documento existente
-                    updateProgress(60, 'Actualizando documento existente...');
+                    updateProgress(70, 'Actualizando documento existente...');
                     
                     queryType = `
                         UPDATE DocumentosPlanillasEspeciales
@@ -3989,7 +4042,7 @@ async function subirDocumentoPlanilla(idPlanilla) {
                     ];
                 } else {
                     // Insertar nuevo documento
-                    updateProgress(60, 'Insertando nuevo documento...');
+                    updateProgress(70, 'Guardando nuevo documento...');
                     
                     queryType = `
                         INSERT INTO DocumentosPlanillasEspeciales (
@@ -4014,7 +4067,7 @@ async function subirDocumentoPlanilla(idPlanilla) {
                 // Ejecutar la consulta
                 await connection.query(queryType, queryParams);
                 
-                updateProgress(80, 'Actualizando estado de la planilla...');
+                updateProgress(85, 'Actualizando estado de la planilla...');
                 
                 // Actualizar el estado de la planilla a 1
                 const updatePlanillaQuery = `
@@ -4028,7 +4081,7 @@ async function subirDocumentoPlanilla(idPlanilla) {
                 // Cerrar conexión
                 await connection.close();
                 
-                updateProgress(100, '¡Documento subido con éxito!');
+                updateProgress(100, '¡Documento subido exitosamente!');
                 
                 // Esperar un momento antes de cerrar el modal
                 setTimeout(() => {
@@ -4036,62 +4089,65 @@ async function subirDocumentoPlanilla(idPlanilla) {
                     ocultarModal(processModal);
                     ocultarModal(document.getElementById('documentoModal'));
                     
-                    // Mostrar notificación de éxito
-                   mostrarNotificacion(
-                       `Documento PDF subido correctamente. La planilla ID: ${idPlanilla} ahora está disponible para nuevas generaciones.`, 
-                       'success',
-                       'Documento Subido'
-                   );
-                   
-                   // Limpiar el formulario de filtros y permitir nueva búsqueda
-                   limpiarFiltros();
-                   
-                   // Resetear el input de archivo
-                   document.getElementById('documentoPdf').value = '';
-                   document.getElementById('fileName').textContent = 'Ningún archivo seleccionado';
-                   document.getElementById('fileInfo').textContent = '';
-                   document.getElementById('confirmUploadBtn').disabled = true;
-                   
-               }, 1500);
-               
-           } catch (dbError) {
-               
-               updateProgress(100, 'Error al guardar documento');
-               
-               setTimeout(() => {
-                   ocultarModal(processModal);
-                   mostrarNotificacion(
-                       `Error al guardar el documento: ${dbError.message}`, 
-                       'error',
-                       'Error de Base de Datos'
-                   );
-               }, 1000);
-           }
-       };
-       
-       reader.onerror = function() {
-           updateProgress(100, 'Error al leer el archivo');
-           
-           setTimeout(() => {
-               ocultarModal(processModal);
-               mostrarNotificacion('Error al leer el archivo seleccionado', 'error');
-           }, 1000);
-       };
-       
-       // Leer el archivo
-       reader.readAsArrayBuffer(file);
-       
-   } catch (error) {
-       
-       // Cerrar modal de proceso si está abierto
-       ocultarModal(processModal);
-       
-       mostrarNotificacion(
-           `Error al subir documento: ${error.message}`, 
-           'error',
-           'Error de Subida'
-       );
-   }
+                    // Mostrar notificación de éxito con más detalles
+                    mostrarNotificacion(
+                        `Documento "${file.name}" subido correctamente. La planilla ID: ${idPlanilla} ahora está disponible para nuevas generaciones.`, 
+                        'success',
+                        'Documento Subido Exitosamente'
+                    );
+                    
+                    // Limpiar el formulario de filtros y permitir nueva búsqueda
+                    limpiarFiltros();
+                    
+                    // Resetear el input de archivo
+                    document.getElementById('documentoPdf').value = '';
+                    document.getElementById('fileName').textContent = 'Ningún archivo seleccionado';
+                    document.getElementById('fileInfo').textContent = '';
+                    document.getElementById('confirmUploadBtn').disabled = true;
+                    
+                }, 1500);
+                
+            } catch (dbError) {
+                console.error('Error en base de datos:', dbError);
+                
+                updateProgress(100, 'Error al guardar documento');
+                
+                setTimeout(() => {
+                    ocultarModal(processModal);
+                    mostrarNotificacion(
+                        `Error al guardar el documento: ${dbError.message}`, 
+                        'error',
+                        'Error de Base de Datos'
+                    );
+                }, 1000);
+            }
+        };
+        
+        reader.onerror = function() {
+            updateProgress(100, 'Error al leer el archivo');
+            
+            setTimeout(() => {
+                ocultarModal(processModal);
+                mostrarNotificacion('Error al leer el archivo seleccionado', 'error');
+            }, 1000);
+        };
+        
+        // Iniciar lectura del archivo
+        updateProgress(20, 'Leyendo archivo desde disco...');
+        reader.readAsArrayBuffer(file);
+        
+    } catch (error) {
+        console.error('Error general:', error);
+        
+        // Cerrar modal de proceso si está abierto
+        ocultarModal(processModal);
+        
+        mostrarNotificacion(
+            `Error al subir documento: ${error.message}`, 
+            'error',
+            'Error de Subida'
+        );
+    }
 }
 // Función para formatear fecha sin problemas de zona horaria
 function formatearFechaSinZonaHoraria(fechaString, incluirHora = false) {

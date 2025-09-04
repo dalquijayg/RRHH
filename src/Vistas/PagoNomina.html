@@ -45,566 +45,142 @@
     </header>
     
     <div class="main-container">
-        <!-- Pestañas de navegación -->
-        <div class="tabs-container">
-            <button class="tab-btn active" data-tab="crear-nomina">
-                <i class="fas fa-file-invoice-dollar"></i> Crear Nómina
-            </button>
-            <button class="tab-btn" data-tab="modificar-nomina">
-                <i class="fas fa-edit"></i> Modificar Nómina
-            </button>
-            <button class="tab-btn" data-tab="autorizar-nomina">
-                <i class="fas fa-check-circle"></i> Autorizar Nómina
-            </button>
-        </div>
-        
-        <!-- Contenido de pestañas -->
-        <div class="tab-content">
-            <!-- TAB 1: Crear Nómina (Contenido original) -->
-            <div class="tab-pane active" id="crear-nomina">
-                <!-- Filtros -->
-                <section class="filters-section">
-                    <h2 class="filters-title">
-                        <i class="fas fa-filter"></i> Filtros de Nómina
-                    </h2>
-                    
-                    <div class="filters-container">
-                        <div class="filter-group">
-                            <label for="planillaFilter" class="filter-label">Planilla</label>
-                            <select id="planillaFilter" class="filter-select">
-                                <option value="todos">Todas las planillas</option>
-                                <!-- Las opciones se cargarán dinámicamente -->
-                            </select>
-                        </div>
-                        
-                        <div class="filter-group">
-                            <label for="tipoQuincenaFilter" class="filter-label">Tipo de Quincena</label>
-                            <select id="tipoQuincenaFilter" class="filter-select">
-                                <option value="normal">Planilla Quincenal</option>
-                                <option value="finMes">Planilla Fin de Mes</option>
-                            </select>
-                        </div>
-                        
-                        <div class="filter-group">
-                            <label for="mesFilter" class="filter-label">Mes</label>
-                            <select id="mesFilter" class="filter-select">
-                                <option value="1">Enero</option>
-                                <option value="2">Febrero</option>
-                                <option value="3">Marzo</option>
-                                <option value="4">Abril</option>
-                                <option value="5">Mayo</option>
-                                <option value="6">Junio</option>
-                                <option value="7">Julio</option>
-                                <option value="8">Agosto</option>
-                                <option value="9">Septiembre</option>
-                                <option value="10">Octubre</option>
-                                <option value="11">Noviembre</option>
-                                <option value="12">Diciembre</option>
-                            </select>
-                        </div>
-                        
-                        <div class="filter-group">
-                            <label for="anioFilter" class="filter-label">Año</label>
-                            <select id="anioFilter" class="filter-select">
-                                <!-- Se llenará dinámicamente con JavaScript -->
-                            </select>
-                        </div>
-                    </div>
-                    
-                    <button id="applyFilters" class="apply-filters">
-                        <i class="fas fa-search"></i> 
-                        <span class="btn-text">Aplicar Filtros</span>
-                        <span class="btn-total" id="btnTotal" style="display: none;">
-                            <span class="total-separator">|</span>
-                            <span class="total-amount" id="totalPlanillaAmount">Q0.00</span>
-                        </span>
-                    </button>
-                </section>
+        <!-- Filtros -->
+        <section class="filters-section">
+            <h2 class="filters-title">
+                <i class="fas fa-filter"></i> Filtros de Nómina
+            </h2>
+            
+            <div class="filters-container">
+                <div class="filter-group">
+                    <label for="planillaFilter" class="filter-label">Planilla</label>
+                    <select id="planillaFilter" class="filter-select">
+                        <option value="todos">Todas las planillas</option>
+                        <!-- Las opciones se cargarán dinámicamente -->
+                    </select>
+                </div>
                 
-                <!-- Tabla de datos -->
-                <section class="data-section">
-                    <div class="data-title">
-                        <div class="data-title-left">
-                            <i class="fas fa-money-bill-wave"></i> Resultados de Nómina
-                        </div>
-                        <div class="data-title-actions">
-                            <button id="saveBtn" class="save-btn">
-                                <i class="fas fa-save"></i> Guardar Planilla
-                            </button>
-                            <button id="exportBtn" class="export-btn">
-                                <i class="fas fa-file-excel"></i> Exportar a Excel
-                            </button>
-                            <button id="pdfBtn" class="pdf-btn">
-                                <i class="fas fa-file-pdf"></i> Generar PDF
-                            </button>
-                        </div>
-                    </div>
-                    
-                    <!-- Loader -->
-                    <div class="loader" id="loader">
-                        <div class="loader-spinner"></div>
-                        <div class="loader-text">Cargando datos...</div>
-                    </div>
-                    
-                    <!-- No data message -->
-                    <div class="no-data" id="noData">
-                        <i class="fas fa-search"></i>
-                        <h3 class="no-data-title">No hay datos disponibles</h3>
-                        <p>Prueba con diferentes filtros o verifica la conexión a la base de datos.</p>
-                    </div>
-                    
-                    <div class="data-table-container">
-                        <table class="data-table" id="nominaTable">
-                            <thead>
-                                <tr>
-                                    <th>ID</th>
-                                    <th>Nombre Completo</th>
-                                    <th>Departamento</th>
-                                    <th>Planilla</th>
-                                    <th>Tipo</th>
-                                    <th>Salario Diario</th>
-                                    <th>Salario Quincenal</th>
-                                    <th>Días Laborados</th>
-                                    <th>Salario Proporcional</th>
-                                    <th>Descuento Judicial</th>
-                                    <th>Salario a Pagar</th>
-                                </tr>
-                            </thead>
-                            <tbody id="nominaTableBody">
-                                <!-- Los datos se cargarán dinámicamente -->
-                            </tbody>
-                        </table>
-                    </div>
-                    
-                    <!-- Paginación -->
-                    <div class="pagination">
-                        <div class="pagination-info" id="paginationInfo">Mostrando 0-0 de 0 registros</div>
-                        <button class="pagination-btn" data-page="prev">
-                            <i class="fas fa-chevron-left"></i>
-                        </button>
-                        <div id="paginationButtons">
-                            <!-- Se llenará dinámicamente -->
-                        </div>
-                        <button class="pagination-btn" data-page="next">
-                            <i class="fas fa-chevron-right"></i>
-                        </button>
-                    </div>
-                </section>
+                <div class="filter-group">
+                    <label for="tipoQuincenaFilter" class="filter-label">Tipo de Quincena</label>
+                    <select id="tipoQuincenaFilter" class="filter-select">
+                        <option value="normal">Planilla Quincenal</option>
+                        <option value="finMes">Planilla Fin de Mes</option>
+                    </select>
+                </div>
+                
+                <div class="filter-group">
+                    <label for="mesFilter" class="filter-label">Mes</label>
+                    <select id="mesFilter" class="filter-select">
+                        <option value="1">Enero</option>
+                        <option value="2">Febrero</option>
+                        <option value="3">Marzo</option>
+                        <option value="4">Abril</option>
+                        <option value="5">Mayo</option>
+                        <option value="6">Junio</option>
+                        <option value="7">Julio</option>
+                        <option value="8">Agosto</option>
+                        <option value="9">Septiembre</option>
+                        <option value="10">Octubre</option>
+                        <option value="11">Noviembre</option>
+                        <option value="12">Diciembre</option>
+                    </select>
+                </div>
+                
+                <div class="filter-group">
+                    <label for="anioFilter" class="filter-label">Año</label>
+                    <select id="anioFilter" class="filter-select">
+                        <!-- Se llenará dinámicamente con JavaScript -->
+                    </select>
+                </div>
             </div>
             
-            <!-- TAB 2: Modificar Nómina -->
-            <div class="tab-pane" id="modificar-nomina">
-                <!-- Filtros para modificar planillas -->
-                <section class="filters-section">
-                    <h2 class="filters-title">
-                        <i class="fas fa-filter"></i> Filtros para Modificación
-                    </h2>
-                    
-                    <div class="filters-container">
-                        <div class="filter-group">
-                            <label for="modTipoQuincenaFilter" class="filter-label">Tipo de Quincena</label>
-                            <select id="modTipoQuincenaFilter" class="filter-select">
-                                <option value="normal">Planilla Quincenal</option>
-                                <option value="finMes">Planilla Fin de Mes</option>
-                            </select>
-                        </div>
-                        
-                        <div class="filter-group">
-                            <label for="modMesFilter" class="filter-label">Mes</label>
-                            <select id="modMesFilter" class="filter-select">
-                                <option value="1">Enero</option>
-                                <option value="2">Febrero</option>
-                                <option value="3">Marzo</option>
-                                <option value="4">Abril</option>
-                                <option value="5">Mayo</option>
-                                <option value="6">Junio</option>
-                                <option value="7">Julio</option>
-                                <option value="8">Agosto</option>
-                                <option value="9">Septiembre</option>
-                                <option value="10">Octubre</option>
-                                <option value="11">Noviembre</option>
-                                <option value="12">Diciembre</option>
-                            </select>
-                        </div>
-                        
-                        <div class="filter-group">
-                            <label for="modAnioFilter" class="filter-label">Año</label>
-                            <select id="modAnioFilter" class="filter-select">
-                                <!-- Se llenará dinámicamente con JavaScript -->
-                            </select>
-                        </div>
-                    </div>
-                    
-                    <button id="buscarPlanillasBtn" class="apply-filters">
-                        <i class="fas fa-search"></i> Buscar Planillas
+            <button id="applyFilters" class="apply-filters">
+                <i class="fas fa-search"></i> 
+                <span class="btn-text">Aplicar Filtros</span>
+                <span class="btn-total" id="btnTotal" style="display: none;">
+                    <span class="total-separator">|</span>
+                    <span class="total-amount" id="totalPlanillaAmount">Q0.00</span>
+                </span>
+            </button>
+        </section>
+        
+        <!-- Tabla de datos -->
+        <section class="data-section">
+            <div class="data-title">
+                <div class="data-title-left">
+                    <i class="fas fa-money-bill-wave"></i> Resultados de Nómina
+                </div>
+                <div class="data-title-actions">
+                    <button id="saveBtn" class="save-btn">
+                        <i class="fas fa-save"></i> Guardar Planilla
                     </button>
-                </section>
-                
-                <!-- Tabla de planillas guardadas con acordeón -->
-                <section class="data-section">
-                    <div class="data-title">
-                        <div class="data-title-left">
-                            <i class="fas fa-edit"></i> Planillas Disponibles para Modificar
-                        </div>
-                    </div>
-                    
-                    <!-- Loader -->
-                    <div class="loader" id="modLoader">
-                        <div class="loader-spinner"></div>
-                        <div class="loader-text">Cargando planillas...</div>
-                    </div>
-                    
-                    <!-- No data message -->
-                    <div class="no-data" id="modNoData">
-                        <i class="fas fa-search"></i>
-                        <h3 class="no-data-title">No hay planillas disponibles para modificar</h3>
-                        <p>Solo se pueden modificar planillas en Estado "Activo" (0).</p>
-                    </div>
-                    
-                    <div class="data-table-container">
-                        <table class="data-table accordion-table" id="planillasTable">
-                            <thead>
-                                <tr>
-                                    <th>ID</th>
-                                    <th>Planilla</th>
-                                    <th>Tipo de Pago</th>
-                                    <th>Mes/Año</th>
-                                    <th>Fecha Registro</th>
-                                    <th>Colaboradores</th>
-                                    <th>Monto Total</th>
-                                    <th>Acciones</th>
-                                </tr>
-                            </thead>
-                            <tbody id="planillasTableBody">
-                                <!-- Se llenará dinámicamente con las planillas disponibles -->
-                                <!-- Cada planilla tendrá una fila de detalle expandible -->
-                            </tbody>
-                        </table>
-                    </div>
-                </section>
-                
-                <!-- Botón para aprobar planillas en lote (opcional) -->
-                <div class="batch-actions">
-                    <button id="approveSelectedBtn" class="approve-planilla-btn" style="display: none;">
-                        <i class="fas fa-check-circle"></i> Aprobar Planillas Seleccionadas
+                    <button id="exportBtn" class="export-btn">
+                        <i class="fas fa-file-excel"></i> Exportar a Excel
+                    </button>
+                    <button id="pdfBtn" class="pdf-btn">
+                        <i class="fas fa-file-pdf"></i> Generar PDF
                     </button>
                 </div>
             </div>
             
-            <!-- TAB 3: Autorizar Nómina (NUEVA SECCIÓN) -->
-            <div class="tab-pane" id="autorizar-nomina">
-                <!-- Filtros para autorizar planillas -->
-                <section class="filters-section">
-                    <h2 class="filters-title">
-                        <i class="fas fa-filter"></i> Filtros para Autorización
-                    </h2>
-                    
-                    <div class="filters-container">
-                        <div class="filter-group">
-                            <label for="authTipoQuincenaFilter" class="filter-label">Tipo de Quincena</label>
-                            <select id="authTipoQuincenaFilter" class="filter-select">
-                                <option value="normal">Planilla Quincenal</option>
-                                <option value="finMes">Planilla Fin de Mes</option>
-                            </select>
-                        </div>
-                        
-                        <div class="filter-group">
-                            <label for="authMesFilter" class="filter-label">Mes</label>
-                            <select id="authMesFilter" class="filter-select">
-                                <option value="1">Enero</option>
-                                <option value="2">Febrero</option>
-                                <option value="3">Marzo</option>
-                                <option value="4">Abril</option>
-                                <option value="5">Mayo</option>
-                                <option value="6">Junio</option>
-                                <option value="7">Julio</option>
-                                <option value="8">Agosto</option>
-                                <option value="9">Septiembre</option>
-                                <option value="10">Octubre</option>
-                                <option value="11">Noviembre</option>
-                                <option value="12">Diciembre</option>
-                            </select>
-                        </div>
-                        
-                        <div class="filter-group">
-                            <label for="authAnioFilter" class="filter-label">Año</label>
-                            <select id="authAnioFilter" class="filter-select">
-                                <!-- Se llenará dinámicamente con JavaScript -->
-                            </select>
-                        </div>
-                    </div>
-                    
-                    <button id="buscarPlanillasAuthBtn" class="apply-filters">
-                        <i class="fas fa-search"></i> Buscar Planillas
-                    </button>
-                </section>
-                
-                <!-- Sección para cargar archivo de autorizaciones -->
-                <section class="authorization-section">
-                    <div class="card">
-                        <div class="card-header">
-                            <h3><i class="fas fa-file-upload"></i> Archivo de Autorizaciones</h3>
-                        </div>
-                        <div class="card-body">
-                            <div class="file-upload-container">
-                                <div class="file-upload-area" id="dropArea">
-                                    <input type="file" id="excelFileInput" accept=".xlsx, .xls" class="file-input" />
-                                    <div class="upload-message">
-                                        <i class="fas fa-file-excel upload-icon"></i>
-                                        <h4>Selecciona o arrastra un archivo Excel</h4>
-                                        <p>El archivo debe contener las columnas: NoCuenta y NoAutorizacion</p>
-                                    </div>
-                                    <div class="upload-progress" id="uploadProgress" style="display: none;">
-                                        <div class="progress-bar">
-                                            <div class="progress-bar-fill" id="progressBarFill"></div>
-                                        </div>
-                                        <div class="progress-text" id="progressText">Procesando archivo...</div>
-                                    </div>
-                                </div>
-                                <div class="file-upload-info" id="fileInfo" style="display: none;">
-                                    <div class="file-details">
-                                        <i class="fas fa-file-excel file-icon"></i>
-                                        <div class="file-details-text">
-                                            <h5 id="fileName">archivo.xlsx</h5>
-                                            <p id="fileSize">0 KB</p>
-                                        </div>
-                                    </div>
-                                    <button class="remove-file-btn" id="removeFileBtn">
-                                        <i class="fas fa-times"></i>
-                                    </button>
-                                </div>
-                            </div>
-                            <div class="upload-summary" id="uploadSummary" style="display: none;">
-                                <div class="summary-item">
-                                    <div class="summary-label">Registros encontrados:</div>
-                                    <div class="summary-value" id="totalRegistros">0</div>
-                                </div>
-                                <div class="summary-item">
-                                    <div class="summary-label">Coincidencias:</div>
-                                    <div class="summary-value" id="totalCoincidencias">0</div>
-                                </div>
-                                <div class="summary-item">
-                                    <div class="summary-label">Registros sin coincidencia:</div>
-                                    <div class="summary-value warning" id="totalSinCoincidencia">0</div>
-                                </div>
-                            </div>
-                            <div class="upload-actions">
-                                <button id="processAuthBtn" class="process-btn" disabled>
-                                    <i class="fas fa-cogs"></i> Procesar Autorizaciones
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </section>
-                
-                <!-- Tabla de planillas pendientes de autorización -->
-                <section class="data-section">
-                    <div class="data-title">
-                        <div class="data-title-left">
-                            <i class="fas fa-check-circle"></i> Planillas Pendientes de Autorización
-                        </div>
-                        <div class="authorization-status">
-                            <span id="planillasSeleccionadas">0</span> planillas seleccionadas
-                        </div>
-                    </div>
-                    
-                    <!-- Loader -->
-                    <div class="loader" id="authLoader">
-                        <div class="loader-spinner"></div>
-                        <div class="loader-text">Cargando planillas...</div>
-                    </div>
-                    
-                    <!-- No data message -->
-                    <div class="no-data" id="authNoData">
-                        <i class="fas fa-search"></i>
-                        <h3 class="no-data-title">No hay planillas pendientes de autorización</h3>
-                        <p>Solo se muestran planillas en Estado "Activo" (0).</p>
-                    </div>
-                    
-                    <div class="data-table-container">
-                        <table class="data-table accordion-table" id="authPlanillasTable">
-                            <thead>
-                                <tr>
-                                    <th width="40">
-                                        <div class="checkbox-container">
-                                            <input type="checkbox" id="selectAllPlanillas" class="custom-checkbox">
-                                            <label for="selectAllPlanillas"></label>
-                                        </div>
-                                    </th>
-                                    <th>ID</th>
-                                    <th>Planilla</th>
-                                    <th>Tipo de Pago</th>
-                                    <th>Mes/Año</th>
-                                    <th>Fecha Registro</th>
-                                    <th>Colaboradores</th>
-                                    <th>Autorizados</th>
-                                    <th>Pendientes</th>
-                                    <th>Acciones</th>
-                                </tr>
-                            </thead>
-                            <tbody id="authPlanillasTableBody">
-                                <!-- Se llenará dinámicamente con las planillas pendientes de autorización -->
-                            </tbody>
-                        </table>
-                    </div>
-                    
-                    <!-- Barra de estado y botones de acción -->
-                    <div class="authorization-bar">
-                        <div class="authorization-status">
-                            <div class="status-item">
-                                <i class="fas fa-users"></i>
-                                <span>Total colaboradores: <strong id="totalColaboradores">0</strong></span>
-                            </div>
-                            <div class="status-item">
-                                <i class="fas fa-check-circle status-icon-success"></i>
-                                <span>Autorizados: <strong id="totalAutorizados">0</strong></span>
-                            </div>
-                            <div class="status-item">
-                                <i class="fas fa-exclamation-circle status-icon-warning"></i>
-                                <span>Pendientes: <strong id="totalPendientes">0</strong></span>
-                            </div>
-                        </div>
-                        <div class="authorization-actions">
-                            <button id="authorizePlanillasBtn" class="authorize-btn" disabled>
-                                <i class="fas fa-check-circle"></i> Autorizar Planillas
-                            </button>
-                        </div>
-                    </div>
-                </section>
+            <!-- Loader -->
+            <div class="loader" id="loader">
+                <div class="loader-spinner"></div>
+                <div class="loader-text">Cargando datos...</div>
             </div>
-        </div>
+            
+            <!-- No data message -->
+            <div class="no-data" id="noData">
+                <i class="fas fa-search"></i>
+                <h3 class="no-data-title">No hay datos disponibles</h3>
+                <p>Prueba con diferentes filtros o verifica la conexión a la base de datos.</p>
+            </div>
+            
+            <div class="data-table-container">
+                <table class="data-table" id="nominaTable">
+                    <thead>
+                        <tr>
+                            <!-- Los encabezados se actualizarán dinámicamente -->
+                        </tr>
+                    </thead>
+                    <tbody id="nominaTableBody">
+                        <!-- Los datos se cargarán dinámicamente -->
+                    </tbody>
+                </table>
+            </div>
+            
+            <!-- Paginación -->
+            <div class="pagination">
+                <div class="pagination-info" id="paginationInfo">Mostrando 0-0 de 0 registros</div>
+                <button class="pagination-btn" data-page="prev">
+                    <i class="fas fa-chevron-left"></i>
+                </button>
+                <div id="paginationButtons">
+                    <!-- Se llenará dinámicamente -->
+                </div>
+                <button class="pagination-btn" data-page="next">
+                    <i class="fas fa-chevron-right"></i>
+                </button>
+            </div>
+        </section>
     </div>
 
-    <!-- Modal para confirmar aprobación (original) -->
-    <div id="approveModal" class="modal" style="display: none;">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h3>Confirmar Aprobación</h3>
-                <span class="close-modal">&times;</span>
-            </div>
-            <div class="modal-body">
-                <p>¿Está seguro de querer aprobar esta planilla? Una vez aprobada, no podrá ser modificada.</p>
-            </div>
-            <div class="modal-footer">
-                <button id="cancelApproveBtn" class="cancel-btn">Cancelar</button>
-                <button id="confirmApproveBtn" class="approve-planilla-btn">Confirmar Aprobación</button>
-            </div>
-        </div>
-    </div>
-    
-    <!-- Modal para confirmar autorización (nuevo) -->
-    <div id="authorizeModal" class="modal" style="display: none;">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h3>Confirmar Autorización</h3>
-                <span class="close-modal-auth">&times;</span>
-            </div>
-            <div class="modal-body">
-                <div class="auth-warning" id="authWarning" style="display: none;">
-                    <i class="fas fa-exclamation-triangle"></i>
-                    <p>Hay colaboradores sin número de autorización. Se recomienda completar todos los datos antes de autorizar.</p>
-                </div>
-                <p>¿Está seguro de querer autorizar las planillas seleccionadas? Esta acción actualizará el estado a 1 (Autorizado).</p>
-                <div class="auth-summary">
-                    <div class="summary-row">
-                        <span>Planillas seleccionadas:</span>
-                        <strong id="modalPlanillasSeleccionadas">0</strong>
-                    </div>
-                    <div class="summary-row">
-                        <span>Total colaboradores:</span>
-                        <strong id="modalTotalColaboradores">0</strong>
-                    </div>
-                    <div class="summary-row">
-                        <span>Colaboradores autorizados:</span>
-                        <strong id="modalColaboradoresAutorizados">0</strong>
-                    </div>
-                    <div class="summary-row warning-text">
-                        <span>Colaboradores sin autorización:</span>
-                        <strong id="modalColaboradoresPendientes">0</strong>
-                    </div>
-                </div>
-            </div>
-            <div class="modal-footer">
-                <button id="cancelAuthorizeBtn" class="cancel-btn">Cancelar</button>
-                <button id="confirmAuthorizeBtn" class="authorize-btn">Confirmar Autorización</button>
-            </div>
-        </div>
-    </div>
-    
-    <!-- Modal para ver detalles de planilla (nuevo) -->
-    <div id="detailsModal" class="modal" style="display: none;">
-        <div class="modal-content modal-large">
-            <div class="modal-header">
-                <h3 id="detailsModalTitle">Detalles de Planilla</h3>
-                <span class="close-modal-details">&times;</span>
-            </div>
-            <div class="modal-body">
-                <div class="search-container">
-                    <div class="search-input-group">
-                        <i class="fas fa-search search-icon"></i>
-                        <input type="text" id="searchColaborador" class="search-input" placeholder="Buscar colaborador...">
-                    </div>
-                </div>
-                
-                <div class="details-table-container">
-                    <table class="details-table" id="detailsTable">
-                        <thead>
-                            <tr>
-                                <th>ID</th>
-                                <th>Nombre Completo</th>
-                                <th>No. Cuenta (Div1 | Div2 | Div3)</th>
-                                <th>Salario a Pagar</th>
-                                <th>No. Autorización</th>
-                                <th>Estado</th>
-                            </tr>
-                        </thead>
-                        <tbody id="detailsTableBody">
-                            <!-- Se llenará dinámicamente -->
-                        </tbody>
-                    </table>
-                </div>
-                
-                <div class="details-summary">
-                    <div class="summary-row">
-                        <span>Total colaboradores:</span>
-                        <strong id="detailsTotalColaboradores">0</strong>
-                    </div>
-                    <div class="summary-row">
-                        <span>Con autorización:</span>
-                        <strong id="detailsConAutorizacion">0</strong>
-                    </div>
-                    <div class="summary-row">
-                        <span>Sin autorización:</span>
-                        <strong id="detailsSinAutorizacion">0</strong>
-                    </div>
-                </div>
-            </div>
-            <div class="modal-footer">
-                <button id="closeDetailsBtn" class="cancel-btn">Cerrar</button>
-            </div>
-        </div>
-    </div>
+    <!-- Modal de ayuda (actualizado solo para crear nómina) -->
     <div id="helpModal" class="modal" style="display: none;">
         <div class="modal-content modal-help">
             <div class="modal-header">
-                <h3><i class="fas fa-question-circle"></i> Manual de Usuario - Sistema de Nómina</h3>
+                <h3><i class="fas fa-question-circle"></i> Manual de Usuario - Crear Nómina</h3>
                 <span class="close-modal-help">&times;</span>
             </div>
             <div class="modal-body help-content">
                 
-                <!-- Navegación de ayuda -->
+                <!-- Navegación de ayuda simplificada -->
                 <div class="help-nav">
                     <button class="help-nav-btn active" data-help="general">
                         <i class="fas fa-home"></i> General
                     </button>
                     <button class="help-nav-btn" data-help="crear">
                         <i class="fas fa-file-invoice-dollar"></i> Crear Nómina
-                    </button>
-                    <button class="help-nav-btn" data-help="modificar">
-                        <i class="fas fa-edit"></i> Modificar
-                    </button>
-                    <button class="help-nav-btn" data-help="autorizar">
-                        <i class="fas fa-check-circle"></i> Autorizar
                     </button>
                     <button class="help-nav-btn" data-help="validaciones">
                         <i class="fas fa-shield-alt"></i> Validaciones
@@ -618,25 +194,16 @@
                     <div class="help-section active" id="help-general">
                         <h4><i class="fas fa-info-circle"></i> Información General</h4>
                         <div class="help-item">
-                            <h5>🎯 Propósito del Sistema</h5>
-                            <p>Este sistema permite gestionar el pago de nómina de manera integral, desde la creación hasta la autorización de planillas.</p>
+                            <h5>Propósito del Sistema</h5>
+                            <p>Este sistema permite crear planillas de nómina con cálculos automáticos para empleados activos y dados de baja.</p>
                         </div>
                         
                         <div class="help-item">
-                            <h5>📊 Tipos de Planilla</h5>
+                            <h5>Tipos de Planilla</h5>
                             <ul>
                                 <li><strong>Planilla Quincenal:</strong> Para pagos del 1 al 15 de cada mes</li>
                                 <li><strong>Planilla Fin de Mes:</strong> Para pagos del 16 al último día del mes (incluye bonificación e IGSS)</li>
                             </ul>
-                        </div>
-                        
-                        <div class="help-item">
-                            <h5>🔄 Flujo de Trabajo</h5>
-                            <ol>
-                                <li><strong>Crear:</strong> Generar nuevas planillas con cálculos automáticos</li>
-                                <li><strong>Modificar:</strong> Editar planillas existentes en estado "Activo"</li>
-                                <li><strong>Autorizar:</strong> Aprobar planillas y asignar números de autorización</li>
-                            </ol>
                         </div>
                     </div>
                     
@@ -645,7 +212,7 @@
                         <h4><i class="fas fa-file-invoice-dollar"></i> Crear Nómina</h4>
                         
                         <div class="help-item">
-                            <h5>🔍 Aplicar Filtros</h5>
+                            <h5>Aplicar Filtros</h5>
                             <ol>
                                 <li><strong>Planilla:</strong> Seleccione una planilla específica o "Todas las planillas"</li>
                                 <li><strong>Tipo de Quincena:</strong> Quincenal (1-15) o Fin de Mes (16-último día)</li>
@@ -655,7 +222,7 @@
                         </div>
                         
                         <div class="help-item">
-                            <h5>💰 Cálculos Automáticos</h5>
+                            <h5>Cálculos Automáticos</h5>
                             <ul>
                                 <li><strong>Días Laborados:</strong> Se calculan automáticamente considerando suspensiones y bajas</li>
                                 <li><strong>Salario Proporcional:</strong> (Salario Quincenal ÷ 15) × Días Laborados</li>
@@ -665,83 +232,16 @@
                         </div>
                         
                         <div class="help-item">
-                            <h5>💾 Guardar Planilla</h5>
-                            <p>Una vez revisados los datos, haga clic en <strong>"Guardar Planilla"</strong>. La planilla se guardará en estado "Activo" y podrá ser modificada posteriormente.</p>
+                            <h5>Guardar Planilla</h5>
+                            <p>Una vez revisados los datos, haga clic en <strong>"Guardar Planilla"</strong>. La planilla se guardará en la base de datos.</p>
                         </div>
                         
                         <div class="help-item">
-                            <h5>📤 Exportar Datos</h5>
+                            <h5>Exportar Datos</h5>
                             <ul>
                                 <li><strong>Excel:</strong> Genera archivos .xlsx separados por planilla</li>
                                 <li><strong>PDF:</strong> Crea reportes imprimibles con formato profesional</li>
                             </ul>
-                        </div>
-                    </div>
-                    
-                    <!-- Sección Modificar -->
-                    <div class="help-section" id="help-modificar">
-                        <h4><i class="fas fa-edit"></i> Modificar Nómina</h4>
-                        
-                        <div class="help-item">
-                            <h5>🔍 Buscar Planillas</h5>
-                            <p>Seleccione el período (Tipo, Mes, Año) y haga clic en <strong>"Buscar Planillas"</strong>. Solo aparecerán planillas en estado "Activo" (modificables).</p>
-                        </div>
-                        
-                        <div class="help-item">
-                            <h5>✏️ Editar Datos</h5>
-                            <ol>
-                                <li>Haga clic en una planilla para expandir sus detalles</li>
-                                <li>Haga clic en cualquier campo editable (marcado con línea punteada)</li>
-                                <li>Modifique el valor y presione Enter o haga clic fuera del campo</li>
-                                <li>Los cálculos se actualizarán automáticamente</li>
-                            </ol>
-                        </div>
-                        
-                        <div class="help-item">
-                            <h5>🔄 Campos Editables</h5>
-                            <ul>
-                                <li><strong>Días Laborados:</strong> Entre 0 y 15 días</li>
-                                <li><strong>Bonificación:</strong> Solo en planillas de fin de mes</li>
-                                <li><strong>IGSS:</strong> Solo en planillas de fin de mes</li>
-                                <li><strong>Descuento Judicial:</strong> Monto de descuentos aplicados</li>
-                                <li><strong>Monto a Pagar:</strong> Cantidad final a pagar al empleado</li>
-                            </ul>
-                        </div>
-                        
-                        <div class="help-item">
-                            <h5>📋 Historial de Cambios</h5>
-                            <p>Use el botón <strong>"Ver Historial"</strong> para revisar todos los cambios realizados en una planilla, incluyendo fecha, usuario y valores modificados.</p>
-                        </div>
-                    </div>
-                    
-                    <!-- Sección Autorizar -->
-                    <div class="help-section" id="help-autorizar">
-                        <h4><i class="fas fa-check-circle"></i> Autorizar Nómina</h4>
-                        
-                        <div class="help-item">
-                            <h5>📁 Cargar Archivo de Autorizaciones</h5>
-                            <ol>
-                                <li>Prepare un archivo Excel con columnas: <strong>NoCuenta</strong> y <strong>NoAutorizacion</strong></li>
-                                <li>Arrastre el archivo al área designada o haga clic para seleccionarlo</li>
-                                <li>El sistema procesará automáticamente las coincidencias</li>
-                                <li>Haga clic en <strong>"Procesar Autorizaciones"</strong> para aplicar los números</li>
-                            </ol>
-                        </div>
-                        
-                        <div class="help-item">
-                            <h5>✅ Autorizar Planillas</h5>
-                            <ol>
-                                <li>Seleccione las planillas que desea autorizar usando los checkboxes</li>
-                                <li>Revise el resumen de colaboradores autorizados vs pendientes</li>
-                                <li>Haga clic en <strong>"Autorizar Planillas"</strong></li>
-                                <li>Confirme la acción en el modal que aparece</li>
-                            </ol>
-                            <p><strong>Nota:</strong> Una vez autorizadas, las planillas cambian a estado "Autorizado" y no pueden modificarse.</p>
-                        </div>
-                        
-                        <div class="help-item">
-                            <h5>🔍 Ver Detalles</h5>
-                            <p>Use el botón de "Ver Detalles" para revisar colaborador por colaborador, editar números de autorización manualmente y buscar empleados específicos.</p>
                         </div>
                     </div>
                     
@@ -750,17 +250,16 @@
                         <h4><i class="fas fa-shield-alt"></i> Validaciones y Reglas</h4>
                         
                         <div class="help-item">
-                            <h5>⚠️ Descuentos Judiciales</h5>
+                            <h5>Descuentos Judiciales</h5>
                             <ul>
                                 <li>Solo se aplican si el empleado trabajó los 15 días completos</li>
                                 <li>Si hay días suspendidos o reducidos, NO se aplica descuento</li>
                                 <li>El sistema verifica automáticamente el saldo pendiente</li>
-                                <li>Si el saldo es menor al descuento, se aplica solo el saldo disponible</li>
                             </ul>
                         </div>
                         
                         <div class="help-item">
-                            <h5>📅 Días Laborados</h5>
+                            <h5>Días Laborados</h5>
                             <ul>
                                 <li><strong>Suspensiones:</strong> Se restan automáticamente del período</li>
                                 <li><strong>Bajas:</strong> Se calculan desde fecha de baja hasta fin de quincena</li>
@@ -769,29 +268,11 @@
                         </div>
                         
                         <div class="help-item">
-                            <h5>💼 Estados de Planilla</h5>
-                            <ul>
-                                <li><strong>Estado 0 (Activo):</strong> Puede ser modificada y editada</li>
-                                <li><strong>Estado 1 (Autorizado):</strong> Solo lectura, no se puede modificar</li>
-                            </ul>
-                        </div>
-                        
-                        <div class="help-item">
-                            <h5>🚨 Mensajes de Error Comunes</h5>
+                            <h5>Mensajes de Error Comunes</h5>
                             <ul>
                                 <li><strong>"Planilla ya guardada":</strong> Ya existe una planilla para ese período</li>
                                 <li><strong>"Sin datos disponibles":</strong> Verifique filtros y conexión a BD</li>
                                 <li><strong>"Error de autenticación":</strong> Inicie sesión nuevamente</li>
-                            </ul>
-                        </div>
-                        
-                        <div class="help-item">
-                            <h5>💡 Consejos de Uso</h5>
-                            <ul>
-                                <li>Siempre revise los cálculos antes de guardar</li>
-                                <li>Use el historial para rastrear cambios importantes</li>
-                                <li>Procese las autorizaciones antes de aprobar planillas</li>
-                                <li>Exporte reportes regularmente como respaldo</li>
                             </ul>
                         </div>
                     </div>
@@ -805,6 +286,7 @@
             </div>
         </div>
     </div>
+
     <!-- Scripts -->
     <script src="../Logica/PagoNomina.js"></script>
 </body>

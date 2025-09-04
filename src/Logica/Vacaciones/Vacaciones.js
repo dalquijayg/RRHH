@@ -2112,7 +2112,37 @@ async function obtenerDetallesPeriodo(empleado, periodo) {
         throw error;
     }
 }
-
+function optimizeImageForPDF(base64Image, maxWidth = 100, maxHeight = 100, quality = 0.3) {
+    return new Promise((resolve) => {
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        const img = new Image();
+        
+        img.onload = function() {
+            // Calcular nuevas dimensiones manteniendo proporción
+            const ratio = Math.min(maxWidth / img.width, maxHeight / img.height);
+            const newWidth = img.width * ratio;
+            const newHeight = img.height * ratio;
+            
+            // Configurar canvas
+            canvas.width = newWidth;
+            canvas.height = newHeight;
+            
+            // Dibujar imagen redimensionada
+            ctx.drawImage(img, 0, 0, newWidth, newHeight);
+            
+            // Convertir a base64 con calidad reducida
+            const optimizedBase64 = canvas.toDataURL('image/jpeg', quality);
+            resolve(optimizedBase64);
+        };
+        
+        img.onerror = function() {
+            resolve(null); // Si falla, devolver null para continuar sin logo
+        };
+        
+        img.src = base64Image;
+    });
+}
 // Función para generar el PDF del período completado
 async function generarPDFPeriodoCompleto(empleado, periodo) {
     try {
@@ -2125,14 +2155,9 @@ async function generarPDFPeriodoCompleto(empleado, periodo) {
         const pageWidth = doc.internal.pageSize.width;
         let y = 20;
         
-        if (detalles.infoPlanilla.LogoBase64) {
-            try {
-                doc.addImage(detalles.infoPlanilla.LogoBase64, 'JPEG', 10, 10, 30, 30);
-            } catch (error) {
-                console.error('Error al agregar logo:', error);
-            }
-        }
+        // REMOVIDO: Todo el código del logo
         
+        // Título principal
         doc.setFontSize(16);
         doc.setFont(undefined, 'bold');
         doc.text(detalles.infoPlanilla.NombreDivision, pageWidth / 2, y, { align: 'center' });
@@ -2152,6 +2177,7 @@ async function generarPDFPeriodoCompleto(empleado, periodo) {
         doc.text('FICHA DE CONTROL DE PERÍODO DE VACACIONES', pageWidth / 2, y, { align: 'center' });
         y += 20;
         
+        // Resto del código permanece igual...
         doc.setFont(undefined, 'normal');
         doc.setFontSize(11);
         
@@ -2181,6 +2207,7 @@ async function generarPDFPeriodoCompleto(empleado, periodo) {
         doc.text(periodoFormateado, 70, y);
         y += 20;
         
+        // Tabla de fechas
         const col1X = 20;
         const col2X = 60;
         const col3X = 120;
@@ -2244,17 +2271,12 @@ async function generarPDFPeriodoCompleto(empleado, periodo) {
             y += 5;
         }
         
-        y += 15;
-        
-        const totalDias = detalles.fechasTomadas.length + totalDiasPagados;
-        doc.setFont(undefined, 'bold');
-        doc.text(`Total de días utilizados del período: ${totalDias} / 15`, 20, y);
-        
+        // Footer
         doc.setFont(undefined, 'normal');
         doc.setFontSize(10);
-        doc.text(`Generado el: ${new Date().toLocaleDateString('es-GT')}`, 20, 270);
-        doc.text(`Generado por: ${userData.NombreCompleto}`, 20, 277);
-        doc.text(`Página 1 de 1`, pageWidth - 40, 270);
+        doc.text(`Generado el: ${new Date().toLocaleDateString('es-GT')}`, 20, 280);
+        doc.text(`Generado por: ${userData.NombreCompleto}`, 20, 285);
+        doc.text(`Página 1 de 1`, pageWidth - 40, 280);
         
         const fileName = `Periodo_Completo_${nombreCompleto.replace(/\s+/g, '_')}_${periodo.replace(/\s+/g, '_')}.pdf`;
         setTimeout(() => {
@@ -2271,7 +2293,61 @@ async function generarPDFPeriodoCompleto(empleado, periodo) {
         throw error;
     }
 }
-
+function calculateLogoDimensions(logoBase64, maxWidth = 35, maxHeight = 35) {
+    return new Promise((resolve) => {
+        const img = new Image();
+        
+        img.onload = function() {
+            const originalWidth = this.width;
+            const originalHeight = this.height;
+            
+            // Calcular la relación de aspecto
+            const aspectRatio = originalWidth / originalHeight;
+            
+            let newWidth, newHeight;
+            
+            // Si la imagen es más ancha que alta
+            if (aspectRatio > 1) {
+                newWidth = Math.min(maxWidth, originalWidth);
+                newHeight = newWidth / aspectRatio;
+                
+                // Si la altura calculada excede el máximo, ajustar
+                if (newHeight > maxHeight) {
+                    newHeight = maxHeight;
+                    newWidth = newHeight * aspectRatio;
+                }
+            } 
+            // Si la imagen es más alta que ancha
+            else {
+                newHeight = Math.min(maxHeight, originalHeight);
+                newWidth = newHeight * aspectRatio;
+                
+                // Si el ancho calculado excede el máximo, ajustar
+                if (newWidth > maxWidth) {
+                    newWidth = maxWidth;
+                    newHeight = newWidth / aspectRatio;
+                }
+            }
+            
+            resolve({
+                width: Math.round(newWidth),
+                height: Math.round(newHeight),
+                aspectRatio: aspectRatio
+            });
+        };
+        
+        img.onerror = function() {
+            // En caso de error, usar dimensiones por defecto
+            resolve({
+                width: 30,
+                height: 30,
+                aspectRatio: 1
+            });
+        };
+        
+        img.src = logoBase64;
+    });
+}
 // Función para formatear el período para el PDF
 function formatearPeriodoParaPDF(periodo) {
     if (!periodo) return '';

@@ -1107,11 +1107,11 @@ function mostrarDatosAcademicos(datosAcademicos) {
 let pmaChart = null;
 
 // Función para mostrar resultados PMA
+// Función para mostrar resultados PMA (CORREGIDA)
 function mostrarResultadosPMA(datosPMA) {
     const seccionPMA = document.querySelector('#tab-pma .details-section');
     
     if (!datosPMA) {
-        
         // Mostrar mensaje de no hay datos
         seccionPMA.innerHTML = `
             <div class="no-data-message">
@@ -1138,6 +1138,17 @@ function mostrarResultadosPMA(datosPMA) {
         `;
         return;
     }
+    
+    // Función para formatear fechas sin problemas de zona horaria
+    const formatearFechaSinZonaHoraria = (fecha) => {
+        if (!fecha) return 'No registrado';
+        const fechaObj = new Date(fecha);
+        if (isNaN(fechaObj.getTime())) return 'No registrado';
+        const dia = fechaObj.getUTCDate().toString().padStart(2, '0');
+        const mes = (fechaObj.getUTCMonth() + 1).toString().padStart(2, '0');
+        const año = fechaObj.getUTCFullYear();
+        return `${dia}/${mes}/${año}`;
+    };
     
     // Reconstruir completamente el contenido del contenedor PMA
     seccionPMA.innerHTML = `
@@ -1203,9 +1214,8 @@ function mostrarResultadosPMA(datosPMA) {
         </div>
     `;
     
-    // Ahora que los elementos DOM existen, podemos establecer su contenido
-    // Formatear fecha
-    const fechaEvaluacion = datosPMA.FechaEvaluacion ? new Date(datosPMA.FechaEvaluacion).toLocaleDateString() : 'No registrado';
+    // Formatear fecha correctamente - AQUÍ ESTÁ EL CAMBIO PRINCIPAL
+    const fechaEvaluacion = formatearFechaSinZonaHoraria(datosPMA.FechaEvaluacion);
     document.getElementById('modalPmaFecha').textContent = fechaEvaluacion;
     
     // Mostrar el nombre del evaluador
