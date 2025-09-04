@@ -72,7 +72,7 @@
             
             <div class="footer-text">
                 <p>Sistema de Recursos Humanos</p>
-                <p>© New Technology 2025 V.1.0.35</p>
+                <p>© New Technology 2025</p>
             </div>
         </div>
     </div>
@@ -80,190 +80,29 @@
     <script>
         const { ipcRenderer } = require('electron');
         
-        // Event listener para cuando hay una actualización disponible
         ipcRenderer.on('update_available', () => {
             ipcRenderer.removeAllListeners('update_available');
-            
-            // Marcar que hay actualización requerida y bloquear login
-            updateRequired = true;
-            loginBlocked = true;
-            
-            // Deshabilitar el formulario
-            disableLoginForm();
-            
             Swal.fire({
-                title: 'Actualización Obligatoria',
-                html: `
-                    <div style="text-align: center;">
-                        <div style="font-size: 4rem; margin-bottom: 20px; animation: bounce 2s infinite;">📥</div>
-                        <h3 style="color: #FF9800; margin-bottom: 15px;">Nueva versión disponible</h3>
-                        <p style="margin-bottom: 20px; color: #666;">
-                            Se está descargando una actualización crítica del sistema.<br>
-                            <strong>Es necesario instalarla antes de continuar.</strong>
-                        </p>
-                        <div style="background: #e8f5e8; padding: 15px; border-radius: 8px; margin: 20px 0;">
-                            <p style="color: #2e7d32; font-size: 0.9rem; margin: 0;">
-                                🔒 <strong>Por tu seguridad</strong><br>
-                                El acceso al sistema está temporalmente bloqueado hasta completar la actualización.
-                            </p>
-                        </div>
-                        <div style="display: flex; align-items: center; justify-content: center; gap: 10px; margin-top: 15px;">
-                            <div class="spinner" style="border: 3px solid #f3f3f3; border-top: 3px solid #FF9800; border-radius: 50%; width: 20px; height: 20px; animation: spin 1s linear infinite;"></div>
-                            <span style="color: #666; font-size: 0.9rem;">Descargando...</span>
-                        </div>
-                    </div>
-                `,
-                icon: 'info',
-                confirmButtonText: 'Entendido',
-                confirmButtonColor: '#FF9800',
-                allowOutsideClick: false,
-                allowEscapeKey: false,
-                showClass: {
-                    popup: 'swal2-show',
-                    backdrop: 'swal2-backdrop-show',
-                    icon: 'swal2-icon-show'
-                }
+                title: '¡Actualización disponible!',
+                text: 'Se está descargando una nueva versión. Te notificaremos cuando esté lista.',
+                icon: 'info'
             });
         });
         
-        // Event listener para cuando la actualización se ha descargado
         ipcRenderer.on('update_downloaded', () => {
             ipcRenderer.removeAllListeners('update_downloaded');
-            
             Swal.fire({
-                title: 'Actualización Lista para Instalar',
-                html: `
-                    <div style="text-align: center;">
-                        <div style="font-size: 4rem; margin-bottom: 20px; animation: bounce 1s infinite;">🎉</div>
-                        <h3 style="color: #4CAF50; margin-bottom: 15px;">Descarga Completada</h3>
-                        <p style="margin-bottom: 20px; color: #666;">
-                            La nueva versión se ha descargado correctamente.<br>
-                            <strong>La aplicación se reiniciará para instalar la actualización.</strong>
-                        </p>
-                        <div style="background: #fff3e0; padding: 15px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #FF9800;">
-                            <p style="color: #e65100; font-size: 0.9rem; margin: 0;">
-                                ⚠️ <strong>Importante:</strong><br>
-                                No apagues la aplicación durante el proceso de actualización.
-                            </p>
-                        </div>
-                        <div style="background: #e8f5e8; padding: 15px; border-radius: 8px; margin: 20px 0;">
-                            <p style="color: #2e7d32; font-size: 0.9rem; margin: 0;">
-                                ✅ Después del reinicio podrás acceder normalmente al sistema.
-                            </p>
-                        </div>
-                    </div>
-                `,
+                title: '¡Actualización lista!',
+                text: 'Se ha descargado una nueva versión. La aplicación se reiniciará para instalar la actualización.',
                 icon: 'success',
-                confirmButtonText: 'Reiniciar Ahora',
-                confirmButtonColor: '#4CAF50',
-                allowOutsideClick: false,
-                allowEscapeKey: false,
                 showCancelButton: false,
-                showClass: {
-                    popup: 'swal2-show',
-                    backdrop: 'swal2-backdrop-show',
-                    icon: 'swal2-icon-show'
-                }
+                confirmButtonText: 'Reiniciar ahora'
             }).then((result) => {
                 if (result.isConfirmed) {
-                    // Mostrar mensaje final antes del reinicio
-                    Swal.fire({
-                        title: 'Reiniciando...',
-                        html: `
-                            <div style="text-align: center;">
-                                <div class="spinner" style="border: 5px solid #f3f3f3; border-top: 5px solid #4CAF50; border-radius: 50%; width: 50px; height: 50px; animation: spin 1s linear infinite; margin: 0 auto 20px;"></div>
-                                <p style="color: #666;">Instalando actualización...</p>
-                            </div>
-                        `,
-                        showConfirmButton: false,
-                        allowOutsideClick: false,
-                        allowEscapeKey: false,
-                        timer: 2000
-                    }).then(() => {
-                        // Enviar señal para reiniciar la aplicación
-                        ipcRenderer.send('restart_app');
-                    });
+                    ipcRenderer.send('restart_app');
                 }
             });
         });
-        
-        // Event listener para errores de actualización (opcional)
-        ipcRenderer.on('update_error', (event, error) => {
-            console.error('Error en actualización:', error);
-            
-            // Habilitar formulario en caso de error
-            enableLoginForm();
-            
-            Swal.fire({
-                title: 'Error en Actualización',
-                html: `
-                    <div style="text-align: center;">
-                        <div style="font-size: 3rem; margin-bottom: 15px;">❌</div>
-                        <p style="margin-bottom: 15px; color: #666;">
-                            Ocurrió un error al descargar la actualización.
-                        </p>
-                        <div style="background: #ffebee; padding: 15px; border-radius: 8px; margin: 20px 0;">
-                            <p style="color: #c62828; font-size: 0.9rem; margin: 0;">
-                                <strong>Puedes intentar:</strong><br>
-                                • Verificar tu conexión a internet<br>
-                                • Reiniciar la aplicación<br>
-                                • Contactar al administrador del sistema
-                            </p>
-                        </div>
-                    </div>
-                `,
-                icon: 'error',
-                confirmButtonText: 'Continuar sin actualizar',
-                confirmButtonColor: '#FF9800',
-                showCancelButton: true,
-                cancelButtonText: 'Reintentar',
-                cancelButtonColor: '#4CAF50'
-            }).then((result) => {
-                if (!result.isConfirmed) {
-                    // Si elige reintentar, verificar actualizaciones nuevamente
-                    ipcRenderer.send('check_for_updates');
-                }
-            });
-        });
-        
-        // Verificar actualizaciones al cargar la página
-        document.addEventListener('DOMContentLoaded', () => {
-            // Enviar señal para verificar actualizaciones
-            ipcRenderer.send('check_for_updates');
-        });
-        
-        // Agregar estilos para las animaciones
-        if (!document.querySelector('#update-animations')) {
-            const style = document.createElement('style');
-            style.id = 'update-animations';
-            style.textContent = `
-                @keyframes bounce {
-                    0%, 20%, 50%, 80%, 100% {
-                        transform: translateY(0);
-                    }
-                    40% {
-                        transform: translateY(-10px);
-                    }
-                    60% {
-                        transform: translateY(-5px);
-                    }
-                }
-                
-                @keyframes spin {
-                    0% { transform: rotate(0deg); }
-                    100% { transform: rotate(360deg); }
-                }
-                
-                .swal2-show {
-                    animation: swal2-show 0.3s !important;
-                }
-                
-                .swal2-backdrop-show {
-                    animation: swal2-backdrop-show 0.15s !important;
-                }
-            `;
-            document.head.appendChild(style);
-        }
     </script>
 </body>
 </html>
