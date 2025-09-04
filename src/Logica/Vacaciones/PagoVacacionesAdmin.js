@@ -820,7 +820,6 @@ async function guardarSolicitudPago() {
                 <p><strong>Empleado:</strong> ${getFullName(currentPaymentData.employee)}</p>
                 <p><strong>Total de días:</strong> ${totalDias}</p>
                 ${diasMinimos > 0 ? `<p><strong>Mínimo requerido:</strong> ${diasMinimos} días ✓</p>` : ''}
-                <p><strong>Monto estimado:</strong> Q ${calcularMontoEstimado(currentPaymentData.employee, totalDias).toFixed(2)}</p>
                 <p><strong>Desglose por período:</strong></p>
                 ${detallesPeriodos}
             </div>
