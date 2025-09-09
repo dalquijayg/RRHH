@@ -3565,7 +3565,6 @@ async function cargarNotificacionesRegionales() {
             
             colaboradores = await connection1.query(notificacionesQuery, [idPersonal]);
             await connection1.close();
-            console.log('Aniversarios cargados:', colaboradores.length);
             
         } catch (error) {
             console.error('Error en query de aniversarios:', error);
@@ -3600,7 +3599,6 @@ async function cargarNotificacionesRegionales() {
             
             planillasPendientes = await connection2.query(planillasPendientesQuery, [idPersonal]);
             await connection2.close();
-            console.log('Planillas pendientes cargadas:', planillasPendientes.length);
             
         } catch (error) {
             console.error('Error en query de planillas pendientes:', error);
@@ -3659,8 +3657,6 @@ async function cargarNotificacionesRegionales() {
                 });
             }
         }
-        
-        console.log('Notificaciones regionales procesadas:', notificaciones.length);
         return notificaciones;
         
     } catch (error) {
@@ -4380,7 +4376,6 @@ async function guardarCambiosColaborador(idPersonal, selectDepartamento, selectP
     const originalText = btnGuardar.innerHTML;
     
     try {
-        // Mostrar loading en el botón
         btnGuardar.disabled = true;
         btnGuardar.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Guardando...';
         
@@ -4393,67 +4388,67 @@ async function guardarCambiosColaborador(idPersonal, selectDepartamento, selectP
         
         const connection = await getConnection();
         
-        // 1. Obtener datos actuales del colaborador
-        const datosActualesQuery = `
-            SELECT 
-                p.IdPersonal,
-                CONCAT(p.PrimerNombre, ' ', IFNULL(p.SegundoNombre, ''), ' ', p.PrimerApellido, ' ', IFNULL(p.SegundoApellido, '')) AS NombreCompleto,
-                p.IdSucuDepa AS DepartamentoActual,
-                p.IdPuesto AS PuestoActual,
-                d.NombreDepartamento AS NombreDepartamentoActual,
-                pu.Nombre AS NombrePuestoActual
-            FROM 
-                personal p
-                INNER JOIN departamentos d ON p.IdSucuDepa = d.IdDepartamento
-                INNER JOIN Puestos pu ON p.IdPuesto = pu.IdPuesto
-            WHERE 
-                p.IdPersonal = ?
-        `;
-        
-        const datosActuales = await connection.query(datosActualesQuery, [idPersonal]);
-        
-        if (datosActuales.length === 0) {
-            throw new Error('No se encontró el colaborador');
-        }
-        
-        const colaborador = datosActuales[0];
-        
-        // 2. Obtener nombres de nuevo departamento y puesto
-        const nuevosDatosQuery = `
-            SELECT 
-                d.NombreDepartamento,
-                p.Nombre AS NombrePuesto
-            FROM 
-                departamentos d,
-                Puestos p
-            WHERE 
-                d.IdDepartamento = ? AND
-                p.IdPuesto = ?
-        `;
-        
-        const nuevosDatos = await connection.query(nuevosDatosQuery, [nuevoDepartamentoId, nuevoPuestoId]);
-        
-        if (nuevosDatos.length === 0) {
-            throw new Error('Departamento o puesto no válido');
-        }
-        
-        const nuevosValores = nuevosDatos[0];
-        
-        // 3. Verificar si realmente hay cambios
-        const huboChangioDepartamento = parseInt(colaborador.DepartamentoActual) !== parseInt(nuevoDepartamentoId);
-        const huboCanbioPuesto = parseInt(colaborador.PuestoActual) !== parseInt(nuevoPuestoId);
-        
-        if (!huboChangioDepartamento && !huboCanbioPuesto) {
-            mostrarNotificacion('No se detectaron cambios para guardar', 'info');
-            Swal.close();
-            return;
-        }
-        
-        // 4. Iniciar transacción
-        await connection.query('START TRANSACTION');
+        // Desactivar autocommit
+        await connection.connection.query('SET autocommit = 0');
         
         try {
-            // 5. Actualizar datos del colaborador
+            // 1. Obtener datos actuales del colaborador
+            const datosActualesQuery = `
+                SELECT 
+                    p.IdPersonal,
+                    CONCAT(p.PrimerNombre, ' ', IFNULL(p.SegundoNombre, ''), ' ', p.PrimerApellido, ' ', IFNULL(p.SegundoApellido, '')) AS NombreCompleto,
+                    p.IdSucuDepa AS DepartamentoActual,
+                    p.IdPuesto AS PuestoActual,
+                    d.NombreDepartamento AS NombreDepartamentoActual,
+                    pu.Nombre AS NombrePuestoActual
+                FROM 
+                    personal p
+                    INNER JOIN departamentos d ON p.IdSucuDepa = d.IdDepartamento
+                    INNER JOIN Puestos pu ON p.IdPuesto = pu.IdPuesto
+                WHERE 
+                    p.IdPersonal = ?
+            `;
+            
+            const datosActuales = await connection.query(datosActualesQuery, [idPersonal]);
+            
+            if (datosActuales.length === 0) {
+                throw new Error('No se encontró el colaborador');
+            }
+            
+            const colaborador = datosActuales[0];
+            
+            // 2. Obtener nombres de nuevo departamento y puesto
+            const nuevosDatosQuery = `
+                SELECT 
+                    d.NombreDepartamento,
+                    p.Nombre AS NombrePuesto
+                FROM 
+                    departamentos d,
+                    Puestos p
+                WHERE 
+                    d.IdDepartamento = ? AND
+                    p.IdPuesto = ?
+            `;
+            
+            const nuevosDatos = await connection.query(nuevosDatosQuery, [nuevoDepartamentoId, nuevoPuestoId]);
+            
+            if (nuevosDatos.length === 0) {
+                throw new Error('Departamento o puesto no válido');
+            }
+            
+            const nuevosValores = nuevosDatos[0];
+            
+            // 3. Verificar si realmente hay cambios
+            const huboChangioDepartamento = parseInt(colaborador.DepartamentoActual) !== parseInt(nuevoDepartamentoId);
+            const huboCanbioPuesto = parseInt(colaborador.PuestoActual) !== parseInt(nuevoPuestoId);
+            
+            if (!huboChangioDepartamento && !huboCanbioPuesto) {
+                mostrarNotificacion('No se detectaron cambios para guardar', 'info');
+                Swal.close();
+                return;
+            }
+            
+            // 4. Actualizar datos del colaborador
             const updateQuery = `
                 UPDATE personal 
                 SET 
@@ -4465,7 +4460,7 @@ async function guardarCambiosColaborador(idPersonal, selectDepartamento, selectP
             
             await connection.query(updateQuery, [nuevoDepartamentoId, nuevoPuestoId, idPersonal]);
             
-            // 6. Registrar cambios en CambiosPersonal
+            // 5. Registrar cambios en CambiosPersonal
             const userData = JSON.parse(localStorage.getItem('userData'));
             
             // Registrar cambio de departamento si aplica
@@ -4504,8 +4499,9 @@ async function guardarCambiosColaborador(idPersonal, selectDepartamento, selectP
                 ]);
             }
             
-            // 7. Confirmar transacción
-            await connection.query('COMMIT');
+            // 6. Confirmar transacción
+            await connection.connection.query('COMMIT');
+            await connection.connection.query('SET autocommit = 1');
             
             // Mostrar mensaje de éxito
             await Swal.fire({
@@ -4521,7 +4517,8 @@ async function guardarCambiosColaborador(idPersonal, selectDepartamento, selectP
             
         } catch (error) {
             // Rollback en caso de error
-            await connection.query('ROLLBACK');
+            await connection.connection.query('ROLLBACK');
+            await connection.connection.query('SET autocommit = 1');
             throw error;
         }
         

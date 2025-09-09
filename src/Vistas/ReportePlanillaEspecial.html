@@ -8,407 +8,329 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
 </head>
 <body>
-    <!-- Elementos decorativos de fondo -->
-    <div class="bg-decoration circle circle1"></div>
-    <div class="bg-decoration circle circle2"></div>
-    <div class="bg-decoration circle circle3"></div>
-    <div class="bg-decoration polygon polygon1"></div>
-    <div class="bg-decoration polygon polygon2"></div>
-    <div class="bg-grid"></div>
-    
-    <div class="container">
-        <div class="dashboard-card">
-            <div class="card-header">
-                <div class="header-content">
-                    <div class="logo-container">
-                        <div class="logo-icon">
-                            <i class="fas fa-file-invoice-dollar"></i>
-                        </div>
-                    </div>
-                    <div class="title-container">
-                        <h1>Reporte de Planillas Especiales</h1>
-                        <div class="pulse-line"></div>
-                    </div>
+    <!-- Header con logo y información del usuario -->
+    <header class="header">
+        <div class="header-content">
+            <div class="logo-section">
+                <img src="../Imagenes/LogoDennis.png" alt="New Technology Logo" class="brand-logo">
+                <div class="page-title">
+                    <h1>Reporte de Planillas Especiales</h1>
+                    <p>Sistema de Recursos Humanos</p>
                 </div>
             </div>
             
-            <div class="search-section">
-                <div class="search-filters">
-                    <div class="filter-group user-search">
-                        <div class="filter-label">
-                            <i class="fas fa-user"></i>
-                            <span>Buscar por Usuario</span>
-                        </div>
-                        <div class="filter-input">
-                            <input type="text" id="userSearch" placeholder="Nombre del usuario">
-                            <button id="searchButton" class="filter-button">
-                                <i class="fas fa-search"></i>
-                            </button>
-                        </div>
-                    </div>
-                    
-                    <div class="filter-group department-filter">
-                        <div class="filter-label">
-                            <i class="fas fa-building"></i>
-                            <span>Departamento</span>
-                        </div>
-                        <div class="filter-input">
-                            <select id="departmentFilter">
-                                <option value="all">Todos los departamentos</option>
-                                <!-- Los departamentos se cargarán dinámicamente aquí -->
-                            </select>
-                        </div>
-                    </div>
-                    
-                    <div class="filter-group date-range">
-                        <div class="filter-label">
-                            <i class="fas fa-calendar-alt"></i>
-                            <span>Rango de Fechas</span>
-                        </div>
-                        <div class="filter-input date-inputs">
-                            <div class="date-field">
-                                <input type="date" id="startDate">
-                            </div>
-                            <div class="date-field">
-                                <input type="date" id="endDate">
-                            </div>
-                            <button id="applyDateFilter" class="filter-button">
-                                <i class="fas fa-filter"></i>
-                            </button>
-                        </div>
+            <div class="user-section">
+                <div class="user-info">
+                    <img src="../Imagenes/user-default.png" alt="Usuario" class="user-avatar" id="userAvatar">
+                    <div class="user-details">
+                        <span class="user-name" id="userName">Usuario</span>
+                        <span class="user-role" id="userRole">Rol</span>
                     </div>
                 </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Contenedor principal -->
+    <main class="main-container">
+        <!-- Panel de filtros con resumen en línea -->
+        <section class="filters-panel">
+            <div class="filters-header">
+                <h2><i class="fas fa-filter"></i> Filtros de Búsqueda</h2>
                 
-                <div class="advanced-filters">
-                    <button id="toggleAdvanced" class="toggle-button">
-                        <span>Filtros Avanzados</span>
-                        <i class="fas fa-chevron-down"></i>
-                    </button>
-                    
-                    <div class="advanced-options" style="display: none;">
-                        <div class="filter-row">
-                            <div class="filter-group">
-                                <div class="filter-label">
-                                    <i class="fas fa-clock"></i>
-                                    <span>Tipo de Fecha</span>
-                                </div>
-                                <div class="filter-input radio-buttons">
-                                    <div class="radio-option">
-                                        <input type="radio" id="creationDate" name="dateType" value="creation" checked>
-                                        <label for="creationDate">Fecha de Creación</label>
-                                    </div>
-                                    <div class="radio-option">
-                                        <input type="radio" id="workDate" name="dateType" value="work">
-                                        <label for="workDate">Fecha Laboral</label>
-                                    </div>
-                                </div>
-                            </div>
-                            
-                            <div class="filter-group">
-                                <div class="filter-label">
-                                    <i class="fas fa-sort-amount-down"></i>
-                                    <span>Ordenar Por</span>
-                                </div>
-                                <div class="filter-input">
-                                    <select id="sortBy">
-                                        <option value="dateDesc">Fecha (Más reciente)</option>
-                                        <option value="dateAsc">Fecha (Más antigua)</option>
-                                        <option value="amountDesc">Monto Total (Mayor)</option>
-                                        <option value="amountAsc">Monto Total (Menor)</option>
-                                        <option value="employeesDesc">Colaboradores (Mayor)</option>
-                                        <option value="employeesAsc">Colaboradores (Menor)</option>
-                                        <option value="departmentAsc">Departamento (A-Z)</option>
-                                        <option value="departmentDesc">Departamento (Z-A)</option>
-                                    </select>
-                                </div>
-                            </div>
-                            
-                            <div class="filter-group">
-                                <div class="filter-label">
-                                    <i class="fas fa-list-ol"></i>
-                                    <span>Resultados por página</span>
-                                </div>
-                                <div class="filter-input">
-                                    <select id="pageSize">
-                                        <option value="10">10</option>
-                                        <option value="25">25</option>
-                                        <option value="50">50</option>
-                                        <option value="100">100</option>
-                                    </select>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            
-            <div class="report-header">
-                <div class="report-summary">
-                    <div class="summary-card">
-                        <div class="summary-icon">
+                <!-- Tarjetas de resumen en línea -->
+                <div class="summary-cards-inline" id="summaryCardsInline" style="display: none;">
+                    <div class="summary-card-inline">
+                        <div class="card-icon-inline">
                             <i class="fas fa-file-invoice"></i>
                         </div>
-                        <div class="summary-data">
-                            <div class="summary-value" id="totalPlanillas">0</div>
-                            <div class="summary-label">Planillas</div>
+                        <div class="card-content-inline">
+                            <span class="card-number-inline" id="totalPlanillasInline">0</span>
+                            <span class="card-label-inline">Planillas</span>
                         </div>
                     </div>
                     
-                    <div class="summary-card">
-                        <div class="summary-icon">
+                    <div class="summary-card-inline">
+                        <div class="card-icon-inline">
                             <i class="fas fa-users"></i>
                         </div>
-                        <div class="summary-data">
-                            <div class="summary-value" id="totalColaboradores">0</div>
-                            <div class="summary-label">Colaboradores</div>
+                        <div class="card-content-inline">
+                            <span class="card-number-inline" id="totalColaboradoresInline">0</span>
+                            <span class="card-label-inline">Colaboradores</span>
                         </div>
                     </div>
                     
-                    <div class="summary-card">
-                        <div class="summary-icon">
-                            <i class="fas fa-building"></i>
+                    <div class="summary-card-inline">
+                        <div class="card-icon-inline quetzal-icon">
+                            <i class="fas fa-dollar-sign"></i>
                         </div>
-                        <div class="summary-data">
-                            <div class="summary-value" id="totalDepartamentos">0</div>
-                            <div class="summary-label">Departamentos</div>
+                        <div class="card-content-inline">
+                            <span class="card-number-inline" id="montoTotalInline">Q0.00</span>
+                            <span class="card-label-inline">Monto Total</span>
                         </div>
-                    </div>
-                    
-                    <div class="summary-card">
-                        <div class="summary-icon">
-                            <i class="fas fa-money-bill-wave"></i>
-                        </div>
-                        <div class="summary-data">
-                            <div class="summary-value" id="montoTotal">Q 0.00</div>
-                            <div class="summary-label">Monto Total</div>
-                        </div>
-                    </div>
-                </div>
-                
-                <div class="result-info">
-                    <div class="result-count">
-                        Mostrando <span id="resultCount">0</span> resultados
-                    </div>
-                    <div class="refresh-button">
-                        <button id="refreshReport">
-                            <i class="fas fa-sync-alt"></i>
-                            <span>Actualizar</span>
-                        </button>
                     </div>
                 </div>
             </div>
             
-            <div class="report-content">
-                <div class="loading-overlay" id="loadingOverlay">
-                    <div class="loader">
-                        <div class="loader-circle"></div>
-                        <div class="loader-text">Cargando datos...</div>
-                    </div>
+            <div class="filters-content">
+                <div class="filter-group">
+                    <label for="fechaLaboral">
+                        <i class="fas fa-calendar-alt"></i>
+                        Fecha Laboral
+                    </label>
+                    <input type="date" id="fechaLaboral" class="form-input" required>
                 </div>
                 
-                <table class="report-table">
-                    <thead>
-                        <tr>
-                            <th class="sortable" data-sort="id">
-                                <div class="th-content">
-                                    <span>ID</span>
-                                    <i class="fas fa-sort"></i>
-                                </div>
-                            </th>
-                            <th class="sortable" data-sort="usuario">
-                                <div class="th-content">
-                                    <span>Usuario</span>
-                                    <i class="fas fa-sort"></i>
-                                </div>
-                            </th>
-                            <th class="sortable" data-sort="departamento">
-                                <div class="th-content">
-                                    <span>Departamento</span>
-                                    <i class="fas fa-sort"></i>
-                                </div>
-                            </th>
-                            <th class="sortable" data-sort="colaboradores">
-                                <div class="th-content">
-                                    <span>Colaboradores</span>
-                                    <i class="fas fa-sort"></i>
-                                </div>
-                            </th>
-                            <th class="sortable" data-sort="montoTotal">
-                                <div class="th-content">
-                                    <span>Monto Total</span>
-                                    <i class="fas fa-sort"></i>
-                                </div>
-                            </th>
-                            <th class="sortable" data-sort="fechaLaboral">
-                                <div class="th-content">
-                                    <span>Fecha Laboral</span>
-                                    <i class="fas fa-sort"></i>
-                                </div>
-                            </th>
-                            <th class="sortable" data-sort="fechaCreacion">
-                                <div class="th-content">
-                                    <span>Fecha Creación</span>
-                                    <i class="fas fa-sort"></i>
-                                </div>
-                            </th>
-                            <th>Descripción</th>
-                            <th>Acciones</th>
-                        </tr>
-                    </thead>
-                    <tbody id="reportData">
-                        <!-- Los datos se cargarán dinámicamente aquí -->
-                    </tbody>
-                </table>
+                <div class="filter-group">
+                    <label for="departamento">
+                        <i class="fas fa-building"></i>
+                        Departamento
+                    </label>
+                    <select id="departamento" class="form-select">
+                        <option value="">Todos los departamentos</option>
+                        <!-- Las opciones se cargarán dinámicamente -->
+                    </select>
+                </div>
                 
-                <div class="empty-state" id="emptyState" style="display: none;">
+                <div class="filter-actions">
+                    <button type="button" class="btn btn-primary" id="btnBuscar">
+                        <i class="fas fa-search"></i>
+                        Buscar
+                    </button>
+                    <button type="button" class="btn btn-secondary" id="btnLimpiar">
+                        <i class="fas fa-broom"></i>
+                        Limpiar
+                    </button>
+                </div>
+            </div>
+        </section>
+
+        <!-- Panel de resultados -->
+        <section class="results-panel">
+            <!-- Resumen de resultados original (oculto por CSS) -->
+            <div class="results-summary" id="resultsSummary" style="display: none;">
+                <div class="summary-cards">
+                    <div class="summary-card">
+                        <div class="card-icon">
+                            <i class="fas fa-file-invoice"></i>
+                        </div>
+                        <div class="card-content">
+                            <span class="card-number" id="totalPlanillas">0</span>
+                            <span class="card-label">Planillas</span>
+                        </div>
+                    </div>
+                    
+                    <div class="summary-card">
+                        <div class="card-icon">
+                            <i class="fas fa-users"></i>
+                        </div>
+                        <div class="card-content">
+                            <span class="card-number" id="totalColaboradores">0</span>
+                            <span class="card-label">Colaboradores</span>
+                        </div>
+                    </div>
+                    
+                    <div class="summary-card">
+                        <div class="card-icon">
+                            <i class="fas fa-dollar-sign"></i>
+                        </div>
+                        <div class="card-content">
+                            <span class="card-number" id="montoTotal">Q0.00</span>
+                            <span class="card-label">Monto Total</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tabla de resultados -->
+            <div class="results-table-container">
+                <div class="table-header">
+                    <h3><i class="fas fa-table"></i> Resultados de la Búsqueda</h3>
+                </div>
+                
+                <!-- Estado inicial -->
+                <div class="empty-state" id="emptyState">
                     <div class="empty-icon">
                         <i class="fas fa-search"></i>
                     </div>
-                    <div class="empty-text">No se encontraron planillas especiales con los filtros seleccionados</div>
-                    <button id="clearFilters" class="empty-button">
-                        <i class="fas fa-times-circle"></i>
-                        <span>Limpiar Filtros</span>
-                    </button>
+                    <h3>Selecciona una fecha para comenzar</h3>
+                    <p>Elige una fecha laboral y opcionalmente un departamento para ver las planillas especiales.</p>
                 </div>
-            </div>
-            
-            <div class="report-footer">
-                <div class="pagination">
-                    <button id="prevPage" class="page-button" disabled>
-                        <i class="fas fa-chevron-left"></i>
-                    </button>
-                    <div class="page-numbers" id="pageNumbers">
-                        <!-- Los números de página se generarán dinámicamente -->
-                        <span class="page-number active">1</span>
+
+                <!-- Estado de carga -->
+                <div class="loading-state" id="loadingState" style="display: none;">
+                    <div class="loading-spinner">
+                        <i class="fas fa-spinner fa-spin"></i>
                     </div>
-                    <button id="nextPage" class="page-button">
-                        <i class="fas fa-chevron-right"></i>
-                    </button>
+                    <p>Cargando resultados...</p>
+                </div>
+
+                <!-- Estado sin resultados -->
+                <div class="no-results-state" id="noResultsState" style="display: none;">
+                    <div class="no-results-icon">
+                        <i class="fas fa-inbox"></i>
+                    </div>
+                    <h3>No se encontraron resultados</h3>
+                    <p>No hay planillas especiales para los filtros seleccionados.</p>
+                </div>
+
+                <!-- Tabla de datos -->
+                <div class="table-wrapper" id="tableWrapper" style="display: none;">
+                    <!-- Información de registros -->
+                    <div class="table-info-bar">
+                        <div id="infoRegistros" class="info-registros-container">
+                            <!-- Se llenará dinámicamente -->
+                        </div>
+                    </div>
+                    
+                    <!-- Tabla con scroll -->
+                    <div class="table-scroll-container">
+                        <table class="results-table" id="resultsTable">
+                            <thead>
+                                <tr>
+                                    <th class="sortable" data-column="correlativo">
+                                        <i class="fas fa-hashtag"></i>
+                                        Correlativo
+                                        <i class="fas fa-sort sort-icon"></i>
+                                    </th>
+                                    <th class="sortable" data-column="nombreDepartamento">
+                                        <i class="fas fa-building"></i>
+                                        Departamento
+                                        <i class="fas fa-sort sort-icon"></i>
+                                    </th>
+                                    <th class="sortable" data-column="descripcionLaboral">
+                                        <i class="fas fa-tag"></i>
+                                        Descripción
+                                        <i class="fas fa-sort sort-icon"></i>
+                                    </th>
+                                    <th class="sortable" data-column="estado">
+                                        <i class="fas fa-file-upload"></i>
+                                        Estado Documento
+                                        <i class="fas fa-sort sort-icon"></i>
+                                    </th>
+                                    <th class="sortable" data-column="cantColaboradores">
+                                        <i class="fas fa-users"></i>
+                                        Colaboradores
+                                        <i class="fas fa-sort sort-icon"></i>
+                                    </th>
+                                    <th class="sortable" data-column="montoTotalGasto">
+                                        <span style="font-weight: bold; color: #4CAF50;">Q</span>
+                                        Monto Total
+                                        <i class="fas fa-sort sort-icon"></i>
+                                    </th>
+                                    <th class="sortable" data-column="fechaHoraCreacion">
+                                        <i class="fas fa-clock"></i>
+                                        Fecha Creación
+                                        <i class="fas fa-sort sort-icon"></i>
+                                    </th>
+                                    <th>
+                                        <i class="fas fa-cogs"></i>
+                                        Acciones
+                                    </th>
+                                </tr>
+                            </thead>
+                            <tbody id="tableBody">
+                                <!-- Los datos se cargarán dinámicamente -->
+                            </tbody>
+                        </table>
+                    </div>
+                    
+                    <!-- Controles de paginación -->
+                    <div class="pagination-container">
+                        <div id="paginacion" class="pagination-controls" style="display: none;">
+                            <!-- Se llenará dinámicamente -->
+                        </div>
+                    </div>
                 </div>
             </div>
-        </div>
-        
-        <div class="footer-text">
-            <p>Sistema de Recursos Humanos</p>
-            <p>© New Technology 2025</p>
-        </div>
-    </div>
-    
-    <!-- Modal de Detalles de Planilla Especial -->
-    <div class="modal" id="planillaModal">
+        </section>
+    </main>
+
+    <!-- Modal para ver detalles de planilla -->
+    <div class="modal" id="modalDetalle" style="display: none;">
         <div class="modal-content">
             <div class="modal-header">
-                <h2>Detalles de Planilla Especial</h2>
-                <button class="modal-close" id="closeModal">
+                <h3><i class="fas fa-eye"></i> Detalle de Planilla Especial</h3>
+                <button type="button" class="modal-close" id="modalClose">
                     <i class="fas fa-times"></i>
                 </button>
             </div>
-            <div class="modal-body">
-                <div class="modal-info-section">
-                    <div class="modal-section-header">
-                        <i class="fas fa-info-circle"></i>
-                        <h3>Información General</h3>
-                    </div>
-                    <div class="modal-info-grid">
-                        <div class="modal-info-item">
-                            <div class="modal-info-label">ID Planilla</div>
-                            <div class="modal-info-value" id="modalPlanillaId">--</div>
+            
+            <div class="modal-body" id="modalBody">
+                <!-- Información general de la planilla -->
+                <div class="planilla-info">
+                    <div class="info-section">
+                        <h4>Información General</h4>
+                        <div class="info-grid">
+                            <div class="info-item">
+                                <label>Correlativo:</label>
+                                <span id="detalle-correlativo">-</span>
+                            </div>
+                            <div class="info-item">
+                                <label>Departamento:</label>
+                                <span id="detalle-departamento">-</span>
+                            </div>
+                            <div class="info-item">
+                                <label>Descripción:</label>
+                                <span id="detalle-tipo">-</span>
+                            </div>
+                            <div class="info-item">
+                                <label>Fecha Laboral:</label>
+                                <span id="detalle-fecha">-</span>
+                            </div>
+                            <div class="info-item">
+                                <label>Monto Total:</label>
+                                <span id="detalle-monto" class="amount">-</span>
+                            </div>
+                            <div class="info-item">
+                                <label>Contiene Externos:</label>
+                                <span id="detalle-externos">-</span>
+                            </div>
                         </div>
-                        <div class="modal-info-item">
-                            <div class="modal-info-label">Usuario Creador</div>
-                            <div class="modal-info-value" id="modalUsuario">--</div>
-                        </div>
-                        <div class="modal-info-item">
-                            <div class="modal-info-label">Departamento</div>
-                            <div class="modal-info-value" id="modalDepartamento">--</div>
-                        </div>
-                        <div class="modal-info-item">
-                            <div class="modal-info-label">Fecha Laboral</div>
-                            <div class="modal-info-value" id="modalFechaLaboral">--/--/----</div>
-                        </div>
-                        <div class="modal-info-item">
-                            <div class="modal-info-label">Fecha Creación</div>
-                            <div class="modal-info-value" id="modalFechaCreacion">--/--/----</div>
-                        </div>
-                        <div class="modal-info-item">
-                            <div class="modal-info-label">Hora Creación</div>
-                            <div class="modal-info-value" id="modalHoraCreacion">--:--</div>
+                        
+                        <div class="descripcion-section">
+                            <label>Descripción Laboral:</label>
+                            <p id="detalle-descripcion">-</p>
                         </div>
                     </div>
                 </div>
-                
-                <div class="modal-description-section">
-                    <div class="modal-section-header">
-                        <i class="fas fa-align-left"></i>
-                        <h3>Descripción Laboral</h3>
-                    </div>
-                    <div class="modal-description-content" id="modalDescripcion">
-                        <!-- La descripción se cargará aquí -->
-                    </div>
+
+                <!-- Nueva sección para información del documento -->
+                <div class="documento-info-section" id="detalle-documento-info" style="display: none;">
+                    <!-- El contenido se cargará dinámicamente -->
                 </div>
-                
-                <div class="modal-summary-section">
-                    <div class="modal-section-header">
-                        <i class="fas fa-chart-pie"></i>
-                        <h3>Resumen</h3>
-                    </div>
-                    <div class="modal-summary-cards">
-                        <div class="modal-summary-card">
-                            <div class="modal-summary-icon">
-                                <i class="fas fa-users"></i>
-                            </div>
-                            <div class="modal-summary-content">
-                                <div class="modal-summary-value" id="modalTotalColaboradores">0</div>
-                                <div class="modal-summary-label">Colaboradores</div>
-                            </div>
-                        </div>
-                        <div class="modal-summary-card">
-                            <div class="modal-summary-icon">
-                                <i class="fas fa-money-bill-wave"></i>
-                            </div>
-                            <div class="modal-summary-content">
-                                <div class="modal-summary-value" id="modalMontoTotal">Q 0.00</div>
-                                <div class="modal-summary-label">Monto Total</div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                
-                <div class="modal-detail-section">
-                    <div class="modal-section-header">
-                        <i class="fas fa-list"></i>
-                        <h3>Detalle de Colaboradores</h3>
-                    </div>
-                    <div class="modal-table-container">
-                        <table class="modal-table">
+
+                <!-- Detalle de colaboradores -->
+                <div class="colaboradores-section">
+                    <h4><i class="fas fa-users"></i> Colaboradores</h4>
+                    <div class="colaboradores-table-wrapper">
+                        <table class="colaboradores-table">
                             <thead>
                                 <tr>
-                                    <th>ID</th>
                                     <th>Colaborador</th>
                                     <th>Puesto</th>
-                                    <th>Monto</th>
+                                    <th class="text-right">Monto</th>
                                 </tr>
                             </thead>
-                            <tbody id="modalDetailData">
-                                <!-- Los detalles se cargarán dinámicamente aquí -->
+                            <tbody id="detalleColaboradores">
+                                <!-- Se cargarán dinámicamente -->
                             </tbody>
                         </table>
                     </div>
                 </div>
             </div>
+            
             <div class="modal-footer">
-                <button id="exportDetailExcel" class="modal-button">
-                    <i class="fas fa-file-excel"></i>
-                    <span>Exportar Excel</span>
-                </button>
-                <button id="closeModalBtn" class="modal-button secondary">
-                    <i class="fas fa-times"></i>
-                    <span>Cerrar</span>
+                <button type="button" class="btn btn-secondary" id="btnCerrarModal">
+                    Cerrar
                 </button>
             </div>
         </div>
     </div>
-    
+
+    <!-- Overlay del modal -->
+    <div class="modal-overlay" id="modalOverlay" style="display: none;"></div>
+
     <script src="../Logica/Reportes/ReportePlanillaEspecial.js"></script>
 </body>
 </html>

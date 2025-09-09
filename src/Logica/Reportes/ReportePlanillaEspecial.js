@@ -1,85 +1,141 @@
-const odbc = require('odbc');
+const { connectionString } = require('../Conexion/Conexion');
+const path = require('path');
 const Swal = require('sweetalert2');
-const conexion = 'DSN=recursos2'; // Asegúrate de tener configurado el DSN correctamente
-const XLSX = require('xlsx');
-// Variables globales
-let planillasData = []; // Datos obtenidos de la base de datos
-let filteredData = []; // Datos después de aplicar filtros
-let currentPage = 1;
-let pageSize = 10;
-let totalPages = 1;
-let currentSort = { field: 'fechaCreacion', direction: 'desc' }; // Ordenamiento por defecto
-let departamentosLista = []; // Lista de departamentos para el selector
+const { ipcRenderer } = require('electron');
 
-// Función para obtener la conexión a la base de datos
-async function connectionString() {
+// Variables globales
+let datosCompletos = [];
+let datosFiltrados = [];
+let ordenActual = { columna: null, direccion: 'asc' };
+let paginaActual = 1;
+let registrosPorPagina = 10;
+let totalPaginas = 0;
+
+// Inicialización cuando se carga el DOM
+document.addEventListener('DOMContentLoaded', async () => {
+    await inicializarPagina();
+    configurarEventListeners();
+    establecerFechaActual();
+});
+
+// Función principal de inicialización
+async function inicializarPagina() {
     try {
-        const connection = await odbc.connect(conexion, {
-            binaryAsString: true,
-            bigint: 'string'
-        });
+        // Cargar información del usuario desde localStorage
+        cargarInfoUsuario();
         
-        // Configuración adicional de la conexión
-        await connection.query('SET NAMES utf8mb4');
-        await connection.query('SET character_set_results = utf8mb4');
+        // Cargar departamentos
+        await cargarDepartamentos();
         
-        return connection;
+        // Configurar fecha por defecto (hoy)
+        establecerFechaActual();
+        
     } catch (error) {
-        console.error('Error de conexión:', error);
-        Swal.fire({
-            icon: 'error',
-            title: 'Error de conexión',
-            text: 'No se pudo conectar a la base de datos. Por favor intente nuevamente.'
-        });
-        throw error;
+        console.error('Error en inicialización:', error);
+        mostrarError('Error al inicializar la página');
     }
 }
 
-// Función para cargar los departamentos
+// Cargar información del usuario logueado
+function cargarInfoUsuario() {
+    try {
+        const userData = JSON.parse(localStorage.getItem('userData'));
+        if (userData) {
+            const userAvatar = document.getElementById('userAvatar');
+            const userName = document.getElementById('userName');
+            const userRole = document.getElementById('userRole');
+            
+            if (userData.FotoBase64) {
+                userAvatar.src = userData.FotoBase64;
+            }
+            userName.textContent = userData.NombreCompleto;
+            userRole.textContent = determinarRol(userData.Id_Puesto);
+        }
+    } catch (error) {
+        console.error('Error al cargar info del usuario:', error);
+    }
+}
+
+// Determinar rol del usuario
+function determinarRol(idPuesto) {
+    if (idPuesto == 5) return 'Administrador RRHH';
+    if (idPuesto == 1) return 'Gerente';
+    return 'Colaborador';
+}
+
+// Establecer fecha actual en el input
+function establecerFechaActual() {
+    const fechaInput = document.getElementById('fechaLaboral');
+    const hoy = new Date();
+    const fechaFormateada = hoy.toISOString().split('T')[0];
+    fechaInput.value = fechaFormateada;
+}
+
+// Cargar departamentos desde la base de datos
 async function cargarDepartamentos() {
     try {
         const connection = await connectionString();
-        
-        const query = `
-            SELECT
+        const departamentos = await connection.query(`
+            SELECT 
                 departamentos.IdDepartamento, 
                 departamentos.NombreDepartamento
-            FROM
-                departamentos
-            ORDER BY
-                departamentos.NombreDepartamento ASC
-        `;
-        
-        const result = await connection.query(query);
+            FROM departamentos
+            ORDER BY departamentos.NombreDepartamento
+        `);
         await connection.close();
         
-        departamentosLista = result;
+        const selectDepartamento = document.getElementById('departamento');
+        selectDepartamento.innerHTML = '<option value="">Todos los departamentos</option>';
         
-        // Llenar el selector de departamentos
-        const departmentFilter = document.getElementById('departmentFilter');
-        departmentFilter.innerHTML = '<option value="all">Todos los departamentos</option>';
-        
-        result.forEach(depto => {
+        departamentos.forEach(dept => {
             const option = document.createElement('option');
-            option.value = depto.IdDepartamento;
-            option.textContent = depto.NombreDepartamento;
-            departmentFilter.appendChild(option);
+            option.value = dept.IdDepartamento;
+            option.textContent = dept.NombreDepartamento;
+            selectDepartamento.appendChild(option);
         });
         
     } catch (error) {
         console.error('Error al cargar departamentos:', error);
-        mostrarError('Error al cargar datos', 'No se pudieron cargar los departamentos. Por favor intente nuevamente.');
+        mostrarError('Error al cargar los departamentos');
     }
 }
 
-// Función para cargar las planillas especiales
-async function cargarPlanillasEspeciales() {
-    mostrarCargando(true);
+// Configurar todos los event listeners
+function configurarEventListeners() {
+    // Botones principales
+    document.getElementById('btnBuscar').addEventListener('click', buscarPlanillas);
+    document.getElementById('btnLimpiar').addEventListener('click', limpiarFiltros);
+    
+    // Modal
+    document.getElementById('modalClose').addEventListener('click', cerrarModal);
+    document.getElementById('btnCerrarModal').addEventListener('click', cerrarModal);
+    document.getElementById('modalOverlay').addEventListener('click', cerrarModal);
+    
+    // Enter en campos de búsqueda
+    document.getElementById('fechaLaboral').addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') buscarPlanillas();
+    });
+    
+    // Ordenamiento de tabla
+    configurarOrdenamiento();
+}
+
+// Función principal de búsqueda
+async function buscarPlanillas() {
+    const fechaLaboral = document.getElementById('fechaLaboral').value;
+    const departamentoId = document.getElementById('departamento').value;
+    
+    // Validación
+    if (!fechaLaboral) {
+        mostrarError('Por favor selecciona una fecha laboral');
+        return;
+    }
     
     try {
-        const connection = await connectionString();
+        mostrarEstadoCarga();
         
-        const query = `
+        // Construir consulta SQL MODIFICADA para incluir Estado
+        let query = `
             SELECT
                 PlanillasEspeciales.IdPlanillaEspecial, 
                 PlanillasEspeciales.NombreUsuario, 
@@ -88,818 +144,787 @@ async function cargarPlanillasEspeciales() {
                 PlanillasEspeciales.CantColaboradores, 
                 PlanillasEspeciales.MontoTotalGasto, 
                 PlanillasEspeciales.FechaLaboral, 
+                PlanillasEspeciales.TipoPlanilla, 
                 PlanillasEspeciales.DescripcionLaboral, 
-                PlanillasEspeciales.FechaCreacion, 
-                PlanillasEspeciales.FechaHoraCreacion
+                PlanillasEspeciales.FechaHoraCreacion, 
+                PlanillasEspeciales.ContieneExternos, 
+                PlanillasEspeciales.Correlativo,
+                PlanillasEspeciales.Estado,
+                DetallePlanillaEspecial.IdPersonal, 
+                DetallePlanillaEspecial.NombreColaborador, 
+                DetallePlanillaEspecial.Monto, 
+                DetallePlanillaEspecial.NombrePuesto
             FROM
                 PlanillasEspeciales
-            ORDER BY
-                PlanillasEspeciales.FechaCreacion DESC,
-                PlanillasEspeciales.FechaHoraCreacion DESC
+                INNER JOIN
+                DetallePlanillaEspecial
+                ON 
+                    PlanillasEspeciales.IdPlanillaEspecial = DetallePlanillaEspecial.IdPlanillaEspecial
+            WHERE
+                PlanillasEspeciales.FechaLaboral = ?
         `;
         
-        const result = await connection.query(query);
+        const parametros = [fechaLaboral];
+        
+        // Agregar filtro de departamento si se seleccionó uno
+        if (departamentoId) {
+            query += ' AND PlanillasEspeciales.IdDepartamento = ?';
+            parametros.push(departamentoId);
+        }
+        
+        query += ' ORDER BY PlanillasEspeciales.Correlativo, DetallePlanillaEspecial.NombreColaborador';
+        
+        const connection = await connectionString();
+        const resultados = await connection.query(query, parametros);
         await connection.close();
         
-        // Procesar los datos
-        planillasData = result.map(row => {
-            return {
-                id: row.IdPlanillaEspecial,
-                nombreUsuario: row.NombreUsuario,
-                idDepartamento: row.IdDepartamento,
-                nombreDepartamento: row.NombreDepartamento,
-                cantColaboradores: row.CantColaboradores,
-                montoTotal: parseFloat(row.MontoTotalGasto || 0),
-                fechaLaboral: row.FechaLaboral,
-                descripcionLaboral: row.DescripcionLaboral,
-                fechaCreacion: row.FechaCreación,
-                horaCreacion: extraerHora(row.FechaHoraCreacion)
-            };
-        });
+        // Procesar resultados
+        procesarResultados(resultados);
         
-        // Aplicar filtros iniciales
-        aplicarFiltros();
-        
-        // Actualizar resumen
-        actualizarResumen();
     } catch (error) {
-        console.error('Error al cargar planillas:', error);
-        mostrarError('Error al cargar datos', 'No se pudieron cargar las planillas especiales. Por favor intente nuevamente.');
-        filteredData = [];
-    } finally {
-        mostrarCargando(false);
-        renderizarTabla();
+        console.error('Error en búsqueda:', error);
+        mostrarError('Error al buscar las planillas');
+        mostrarEstadoSinResultados();
     }
 }
 
-// Función para extraer la hora de un timestamp
-function extraerHora(timestamp) {
-    if (!timestamp) return '';
-    
-    // Si es una cadena de fecha/hora
-    if (typeof timestamp === 'string') {
-        const partes = timestamp.split(' ');
-        if (partes.length > 1) {
-            return partes[1].substring(0, 5); // Obtener solo HH:MM
-        }
+// Procesar y mostrar resultados
+function procesarResultados(resultados) {
+    if (resultados.length === 0) {
+        mostrarEstadoSinResultados();
+        return;
     }
     
-    // Si es un objeto Date
-    if (timestamp instanceof Date) {
-        return timestamp.toTimeString().substring(0, 5);
-    }
+    // Resetear paginación
+    paginaActual = 1;
     
-    return '';
+    // Agrupar datos por planilla
+    const planillasAgrupadas = agruparPorPlanilla(resultados);
+    
+    // Guardar datos globalmente
+    datosCompletos = planillasAgrupadas;
+    datosFiltrados = [...planillasAgrupadas];
+    
+    // Mostrar resumen
+    mostrarResumen(planillasAgrupadas, resultados);
+    
+    // Mostrar tabla con paginación
+    mostrarTabla(planillasAgrupadas);
+    
+    // Mostrar panel de resultados
+    document.getElementById('resultsSummary').style.display = 'block';
+    document.getElementById('tableWrapper').style.display = 'block';
+    ocultarEstados();
 }
 
-// Función para aplicar filtros a los datos
-function aplicarFiltros() {
-    // Obtener valores de los filtros
-    const busqueda = document.getElementById('userSearch').value.toLowerCase().trim();
-    const departamento = document.getElementById('departmentFilter').value;
-    const fechaInicio = document.getElementById('startDate').value;
-    const fechaFin = document.getElementById('endDate').value;
-    const tipoFecha = document.querySelector('input[name="dateType"]:checked').value;
+// Agrupar resultados por planilla
+function agruparPorPlanilla(resultados) {
+    const planillasMap = new Map();
     
-    // Aplicar filtros
-    filteredData = planillasData.filter(planilla => {
-        // Filtro de búsqueda por nombre de usuario
-        const coincideBusqueda = busqueda === '' || 
-                               planilla.nombreUsuario.toLowerCase().includes(busqueda);
+    resultados.forEach(row => {
+        const idPlanilla = row.IdPlanillaEspecial;
         
-        // Filtro de departamento
-        const coincideDepartamento = departamento === 'all' || 
-                                   planilla.idDepartamento.toString() === departamento;
-        
-        // Filtro de rango de fechas
-        let coincideFechas = true;
-        
-        if (fechaInicio && fechaFin) {
-            let fechaPlanilla;
-            
-            if (tipoFecha === 'creation') {
-                // Usar fecha de creación
-                fechaPlanilla = new Date(planilla.fechaCreacion);
-            } else {
-                // Usar fecha laboral
-                fechaPlanilla = new Date(planilla.fechaLaboral);
-            }
-            
-            const fechaInicioFiltro = new Date(fechaInicio);
-            const fechaFinFiltro = new Date(fechaFin);
-            
-            // Ajustar las fechas para ignorar la hora
-            fechaPlanilla.setHours(0, 0, 0, 0);
-            fechaInicioFiltro.setHours(0, 0, 0, 0);
-            fechaFinFiltro.setHours(23, 59, 59, 999);
-            
-            coincideFechas = fechaPlanilla >= fechaInicioFiltro && fechaPlanilla <= fechaFinFiltro;
+        if (!planillasMap.has(idPlanilla)) {
+            planillasMap.set(idPlanilla, {
+                IdPlanillaEspecial: row.IdPlanillaEspecial,
+                NombreUsuario: row.NombreUsuario,
+                IdDepartamento: row.IdDepartamento,
+                NombreDepartamento: row.NombreDepartamento,
+                CantColaboradores: row.CantColaboradores,
+                MontoTotalGasto: row.MontoTotalGasto,
+                FechaLaboral: row.FechaLaboral,
+                TipoPlanilla: row.TipoPlanilla,
+                DescripcionLaboral: row.DescripcionLaboral,
+                FechaHoraCreacion: row.FechaHoraCreacion,
+                ContieneExternos: row.ContieneExternos,
+                Correlativo: row.Correlativo,
+                Estado: row.Estado, // Agregar el campo Estado
+                colaboradores: []
+            });
         }
         
-        return coincideBusqueda && coincideDepartamento && coincideFechas;
+        // Agregar colaborador
+        planillasMap.get(idPlanilla).colaboradores.push({
+            IdPersonal: row.IdPersonal,
+            NombreColaborador: row.NombreColaborador,
+            Monto: row.Monto,
+            NombrePuesto: row.NombrePuesto
+        });
     });
     
-    // Aplicar ordenamiento
-    ordenarDatos();
-    
-    // Reiniciar paginación
-    currentPage = 1;
-    totalPages = Math.ceil(filteredData.length / pageSize);
-    
-    // Actualizar contador de resultados
-    document.getElementById('resultCount').textContent = filteredData.length;
-    
-    // Mostrar estado vacío si no hay resultados
-    if (filteredData.length === 0) {
-        document.getElementById('emptyState').style.display = 'flex';
-    } else {
-        document.getElementById('emptyState').style.display = 'none';
-    }
+    return Array.from(planillasMap.values());
 }
 
-// Función para ordenar los datos
-function ordenarDatos() {
-    filteredData.sort((a, b) => {
-        let valorA, valorB;
-        
-        // Obtener los valores a comparar según el campo
-        switch (currentSort.field) {
-            case 'id':
-                valorA = a.id;
-                valorB = b.id;
-                break;
-            case 'usuario':
-                valorA = a.nombreUsuario;
-                valorB = b.nombreUsuario;
-                break;
-            case 'departamento':
-                valorA = a.nombreDepartamento;
-                valorB = b.nombreDepartamento;
-                break;
-            case 'colaboradores':
-                valorA = a.cantColaboradores;
-                valorB = b.cantColaboradores;
-                break;
-            case 'montoTotal':
-                valorA = a.montoTotal;
-                valorB = b.montoTotal;
-                break;
-            case 'fechaLaboral':
-                valorA = new Date(a.fechaLaboral);
-                valorB = new Date(b.fechaLaboral);
-                break;
-            case 'fechaCreacion':
-                valorA = new Date(a.fechaCreacion + ' ' + a.horaCreacion);
-                valorB = new Date(b.fechaCreacion + ' ' + b.horaCreacion);
-                break;
-            default:
-                valorA = a[currentSort.field];
-                valorB = b[currentSort.field];
-        }
-        
-        // Realizar la comparación
-        let resultado;
-        if (typeof valorA === 'string' && typeof valorB === 'string') {
-            resultado = valorA.localeCompare(valorB);
-        } else {
-            resultado = valorA > valorB ? 1 : valorA < valorB ? -1 : 0;
-        }
-        
-        // Aplicar dirección del ordenamiento
-        return currentSort.direction === 'asc' ? resultado : -resultado;
-    });
+// Mostrar resumen estadístico
+function mostrarResumen(planillas, todosLosColaboradores) {
+    const totalPlanillas = planillas.length;
+    const totalColaboradores = todosLosColaboradores.length;
+    const montoTotal = planillas.reduce((sum, p) => sum + parseFloat(p.MontoTotalGasto || 0), 0);
+    
+    // Actualizar tarjetas originales (aunque estén ocultas)
+    document.getElementById('totalPlanillas').textContent = totalPlanillas;
+    document.getElementById('totalColaboradores').textContent = totalColaboradores;
+    document.getElementById('montoTotal').textContent = formatearMoneda(montoTotal);
+    
+    // Actualizar tarjetas en línea en el header
+    document.getElementById('totalPlanillasInline').textContent = totalPlanillas;
+    document.getElementById('totalColaboradoresInline').textContent = totalColaboradores;
+    document.getElementById('montoTotalInline').textContent = formatearMoneda(montoTotal);
+    
+    // Mostrar las tarjetas en línea
+    document.getElementById('summaryCardsInline').style.display = 'flex';
 }
 
-// Función para renderizar la tabla con los datos filtrados y ordenados
-function renderizarTabla() {
-    const tbody = document.getElementById('reportData');
+// Mostrar tabla de resultados
+function mostrarTabla(planillas) {
+    // Calcular paginación
+    totalPaginas = Math.ceil(planillas.length / registrosPorPagina);
+    const inicio = (paginaActual - 1) * registrosPorPagina;
+    const fin = inicio + registrosPorPagina;
+    const planillasPagina = planillas.slice(inicio, fin);
+    
+    const tbody = document.getElementById('tableBody');
     tbody.innerHTML = '';
     
-    // Calcular el rango de elementos a mostrar
-    const inicio = (currentPage - 1) * pageSize;
-    const fin = Math.min(inicio + pageSize, filteredData.length);
-    const datosVisibles = filteredData.slice(inicio, fin);
-    
-    if (datosVisibles.length === 0) {
-        // No hay datos que mostrar
-        return;
-    }
-    
-    // Crear las filas
-    datosVisibles.forEach((planilla, index) => {
-        const row = document.createElement('tr');
-        row.style.setProperty('--row-index', index);
+    planillasPagina.forEach(planilla => {
+        // Determinar el estado del documento
+        const estadoDocumento = planilla.Estado === 1 || planilla.Estado === '1';
+        const estadoTexto = estadoDocumento ? 'Documento Subido' : 'Pendiente Documento';
+        const estadoClase = estadoDocumento ? 'badge-success' : 'badge-warning';
+        const estadoIcono = estadoDocumento ? 'fas fa-check-circle' : 'fas fa-clock';
         
-        // Formatear valores monetarios
-        const montoTotalStr = formatearMoneda(planilla.montoTotal);
+        // Botones de acción - agregar botón PDF si tiene documento
+        let botonesAccion = `
+            <button class="action-btn action-btn-view" onclick="verDetalle(${planilla.IdPlanillaEspecial})">
+                <i class="fas fa-eye"></i> Ver
+            </button>
+        `;
         
-        // Formatear fechas
-        const fechaLaboral = formatearFecha(planilla.fechaLaboral);
-        const fechaCreacion = formatearFecha(planilla.fechaCreacion);
+        if (estadoDocumento) {
+            botonesAccion += `
+                <button class="action-btn action-btn-pdf" onclick="verPDF(${planilla.IdPlanillaEspecial})" title="Ver PDF">
+                    <i class="fas fa-file-pdf"></i> PDF
+                </button>
+            `;
+        }
         
-        // Truncar descripción
-        const descripcionCorta = planilla.descripcionLaboral && planilla.descripcionLaboral.length > 50 
-            ? planilla.descripcionLaboral.substring(0, 50) + '...' 
-            : planilla.descripcionLaboral || 'Sin descripción';
-        
-        // Construir la fila
-        row.innerHTML = `
-            <td>${planilla.id}</td>
-            <td>${planilla.nombreUsuario}</td>
-            <td>${planilla.nombreDepartamento}</td>
-            <td>${planilla.cantColaboradores}</td>
-            <td>${montoTotalStr}</td>
-            <td>${fechaLaboral}</td>
-            <td>${fechaCreacion}</td>
-            <td title="${planilla.descripcionLaboral || 'Sin descripción'}">${descripcionCorta}</td>
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+            <td class="text-center">
+                <span class="badge badge-primary">${planilla.Correlativo || 'N/A'}</span>
+            </td>
+            <td>${planilla.NombreDepartamento}</td>
             <td>
-                <div class="table-actions">
-                    <button class="table-action-button btn-detail" data-id="${planilla.id}" title="Ver detalles">
-                        <i class="fas fa-eye"></i>
-                    </button>
-                    <button class="table-action-button btn-print" data-id="${planilla.id}" title="Imprimir">
-                        <i class="fas fa-print"></i>
-                    </button>
-                </div>
+                <span class="badge badge-info" title="${planilla.DescripcionLaboral || 'Sin descripción'}">${truncarTexto(planilla.DescripcionLaboral, 25)}</span>
+            </td>
+            <td class="text-center">
+                <span class="badge ${estadoClase}" title="${estadoTexto}">
+                    <i class="${estadoIcono}"></i> ${estadoTexto}
+                </span>
+            </td>
+            <td class="text-center">${planilla.CantColaboradores}</td>
+            <td class="text-right amount">${formatearMoneda(planilla.MontoTotalGasto)}</td>
+            <td class="text-center">${formatearFecha(planilla.FechaHoraCreacion)}</td>
+            <td class="text-center">
+                ${botonesAccion}
             </td>
         `;
-        
-        // Agregar eventos a los botones
-        row.querySelector('.btn-detail').addEventListener('click', () => abrirModalDetalle(planilla.id));
-        
-        tbody.appendChild(row);
+        tbody.appendChild(tr);
     });
     
-    // Actualizar la paginación
-    actualizarPaginacion();
-}
-
-// Función para formatear moneda
-function formatearMoneda(valor) {
-    return new Intl.NumberFormat('es-GT', { 
-        style: 'currency', 
-        currency: 'GTQ',
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 2 
-    }).format(valor);
-}
-
-// Función para formatear fecha
-function formatearFecha(fechaStr) {
-    if (!fechaStr) return '';
+    // Mostrar controles de paginación
+    mostrarPaginacion();
     
-    const fecha = new Date(fechaStr);
-    return fecha.toLocaleDateString('es-GT', {
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit'
-    });
+    // Mostrar información de registros
+    mostrarInfoRegistros(planillas.length);
 }
-// Función para actualizar la paginación
-function actualizarPaginacion() {
-    const paginationContainer = document.getElementById('pageNumbers');
-    paginationContainer.innerHTML = '';
+function mostrarInfoRegistros(totalRegistros) {
+    const infoDiv = document.getElementById('infoRegistros');
+    if (!infoDiv) return;
     
-    // Botones de página anterior y siguiente
-    document.getElementById('prevPage').disabled = currentPage === 1;
-    document.getElementById('nextPage').disabled = currentPage === totalPages || totalPages === 0;
+    const inicio = (paginaActual - 1) * registrosPorPagina + 1;
+    const fin = Math.min(paginaActual * registrosPorPagina, totalRegistros);
     
-    // Si no hay páginas, no mostrar nada
-    if (totalPages === 0) {
+    infoDiv.innerHTML = `
+        <span class="info-registros">
+            Mostrando ${inicio} a ${fin} de ${totalRegistros} registros
+        </span>
+        <div class="registros-por-pagina">
+            <label for="selectRegistrosPorPagina">Mostrar:</label>
+            <select id="selectRegistrosPorPagina" onchange="cambiarRegistrosPorPagina(this.value)">
+                <option value="10" ${registrosPorPagina === 10 ? 'selected' : ''}>10</option>
+                <option value="25" ${registrosPorPagina === 25 ? 'selected' : ''}>25</option>
+                <option value="50" ${registrosPorPagina === 50 ? 'selected' : ''}>50</option>
+                <option value="100" ${registrosPorPagina === 100 ? 'selected' : ''}>100</option>
+            </select>
+            <span>registros por página</span>
+        </div>
+    `;
+}
+function cambiarRegistrosPorPagina(nuevaCantidad) {
+    registrosPorPagina = parseInt(nuevaCantidad);
+    paginaActual = 1; // Resetear a primera página
+    mostrarTabla(datosFiltrados);
+}
+function mostrarPaginacion() {
+    const paginacionDiv = document.getElementById('paginacion');
+    if (!paginacionDiv) return;
+    
+    if (totalPaginas <= 1) {
+        paginacionDiv.style.display = 'none';
         return;
     }
     
-    // Determinar qué números de página mostrar
-    let startPage = Math.max(currentPage - 2, 1);
-    let endPage = Math.min(startPage + 4, totalPages);
+    paginacionDiv.style.display = 'flex';
+    paginacionDiv.innerHTML = '';
     
-    // Ajustar si estamos cerca del final
-    if (endPage === totalPages) {
-        startPage = Math.max(endPage - 4, 1);
-    }
+    // Botón anterior
+    const btnAnterior = document.createElement('button');
+    btnAnterior.className = `pagination-btn ${paginaActual === 1 ? 'disabled' : ''}`;
+    btnAnterior.innerHTML = '<i class="fas fa-chevron-left"></i>';
+    btnAnterior.disabled = paginaActual === 1;
+    btnAnterior.onclick = () => cambiarPagina(paginaActual - 1);
+    paginacionDiv.appendChild(btnAnterior);
     
-    // Página 1
-    if (startPage > 1) {
-        const pageNumber = document.createElement('span');
-        pageNumber.className = 'page-number';
-        pageNumber.textContent = '1';
-        pageNumber.addEventListener('click', () => cambiarPagina(1));
-        paginationContainer.appendChild(pageNumber);
-        
-        // Elipsis si hay un salto
-        if (startPage > 2) {
-            const ellipsis = document.createElement('span');
-            ellipsis.className = 'page-ellipsis';
-            ellipsis.textContent = '...';
-            paginationContainer.appendChild(ellipsis);
+    // Calcular rango de páginas a mostrar
+    let inicio = Math.max(1, paginaActual - 2);
+    let fin = Math.min(totalPaginas, paginaActual + 2);
+    
+    // Ajustar si estamos cerca del inicio o fin
+    if (fin - inicio < 4) {
+        if (inicio === 1) {
+            fin = Math.min(totalPaginas, inicio + 4);
+        } else if (fin === totalPaginas) {
+            inicio = Math.max(1, fin - 4);
         }
     }
     
-    // Páginas intermedias
-    for (let i = startPage; i <= endPage; i++) {
-        const pageNumber = document.createElement('span');
-        pageNumber.className = 'page-number' + (i === currentPage ? ' active' : '');
-        pageNumber.textContent = i;
-        pageNumber.addEventListener('click', () => cambiarPagina(i));
-        paginationContainer.appendChild(pageNumber);
+    // Primera página si no está visible
+    if (inicio > 1) {
+        const btn1 = document.createElement('button');
+        btn1.className = 'pagination-btn';
+        btn1.textContent = '1';
+        btn1.onclick = () => cambiarPagina(1);
+        paginacionDiv.appendChild(btn1);
+        
+        if (inicio > 2) {
+            const dots = document.createElement('span');
+            dots.className = 'pagination-dots';
+            dots.textContent = '...';
+            paginacionDiv.appendChild(dots);
+        }
     }
     
-    // Última página
-    if (endPage < totalPages) {
-        // Elipsis si hay un salto
-        if (endPage < totalPages - 1) {
-            const ellipsis = document.createElement('span');
-            ellipsis.className = 'page-ellipsis';
-            ellipsis.textContent = '...';
-            paginationContainer.appendChild(ellipsis);
+    // Páginas del rango
+    for (let i = inicio; i <= fin; i++) {
+        const btn = document.createElement('button');
+        btn.className = `pagination-btn ${i === paginaActual ? 'active' : ''}`;
+        btn.textContent = i;
+        btn.onclick = () => cambiarPagina(i);
+        paginacionDiv.appendChild(btn);
+    }
+    
+    // Última página si no está visible
+    if (fin < totalPaginas) {
+        if (fin < totalPaginas - 1) {
+            const dots = document.createElement('span');
+            dots.className = 'pagination-dots';
+            dots.textContent = '...';
+            paginacionDiv.appendChild(dots);
         }
         
-        const pageNumber = document.createElement('span');
-        pageNumber.className = 'page-number';
-        pageNumber.textContent = totalPages;
-        pageNumber.addEventListener('click', () => cambiarPagina(totalPages));
-        paginationContainer.appendChild(pageNumber);
+        const btnUltima = document.createElement('button');
+        btnUltima.className = 'pagination-btn';
+        btnUltima.textContent = totalPaginas;
+        btnUltima.onclick = () => cambiarPagina(totalPaginas);
+        paginacionDiv.appendChild(btnUltima);
     }
+    
+    // Botón siguiente
+    const btnSiguiente = document.createElement('button');
+    btnSiguiente.className = `pagination-btn ${paginaActual === totalPaginas ? 'disabled' : ''}`;
+    btnSiguiente.innerHTML = '<i class="fas fa-chevron-right"></i>';
+    btnSiguiente.disabled = paginaActual === totalPaginas;
+    btnSiguiente.onclick = () => cambiarPagina(paginaActual + 1);
+    paginacionDiv.appendChild(btnSiguiente);
 }
-
-// Función para cambiar de página
 function cambiarPagina(nuevaPagina) {
-    currentPage = nuevaPagina;
-    renderizarTabla();
+    if (nuevaPagina < 1 || nuevaPagina > totalPaginas) return;
     
-    // Desplazarse suavemente al inicio de la tabla
-    document.querySelector('.report-content').scrollIntoView({ behavior: 'smooth' });
+    paginaActual = nuevaPagina;
+    mostrarTabla(datosFiltrados);
+    
+    // Scroll hacia arriba de la tabla
+    document.getElementById('tableWrapper').scrollTop = 0;
 }
-
-// Función para actualizar el resumen de datos
-function actualizarResumen() {
-    // Total de planillas
-    document.getElementById('totalPlanillas').textContent = planillasData.length;
-    
-    // Total de colaboradores
-    const totalColaboradores = planillasData.reduce((sum, planilla) => sum + planilla.cantColaboradores, 0);
-    document.getElementById('totalColaboradores').textContent = totalColaboradores;
-    
-    // Total de departamentos (únicos)
-    const departamentosUnicos = new Set(planillasData.map(p => p.idDepartamento));
-    document.getElementById('totalDepartamentos').textContent = departamentosUnicos.size;
-    
-    // Monto total
-    const montoTotal = planillasData.reduce((sum, planilla) => sum + planilla.montoTotal, 0);
-    document.getElementById('montoTotal').textContent = formatearMoneda(montoTotal);
+function truncarTexto(texto, maxLength = 30) {
+    if (!texto) return 'Sin descripción';
+    return texto.length > maxLength ? texto.substring(0, maxLength) + '...' : texto;
 }
-
-// Función para abrir el modal de detalle de planilla
-async function abrirModalDetalle(idPlanilla) {
-    try {
-        mostrarCargando(true);
-        
-        // Buscar primero en los datos ya cargados
-        const planilla = planillasData.find(p => p.id === idPlanilla);
-        
-        if (!planilla) {
-            throw new Error('No se encontró la planilla especificada');
+// Ver detalle de planilla en modal
+async function verDetalle(idPlanilla) {
+    const planilla = datosCompletos.find(p => p.IdPlanillaEspecial === idPlanilla);
+    if (!planilla) return;
+    
+    // Llenar información general
+    document.getElementById('detalle-correlativo').textContent = planilla.Correlativo || 'N/A';
+    document.getElementById('detalle-departamento').textContent = planilla.NombreDepartamento;
+    document.getElementById('detalle-tipo').textContent = planilla.DescripcionLaboral || 'Sin descripción';
+    document.getElementById('detalle-fecha').textContent = formatearFecha(planilla.FechaLaboral, true);
+    document.getElementById('detalle-monto').textContent = formatearMoneda(planilla.MontoTotalGasto);
+    document.getElementById('detalle-externos').textContent = planilla.ContieneExternos ? 'Sí' : 'No';
+    document.getElementById('detalle-descripcion').textContent = planilla.DescripcionLaboral || 'Sin descripción';
+    
+    // Cargar información del documento si existe
+    const estadoDocumento = planilla.Estado === 1 || planilla.Estado === '1';
+    const infoDocumentoDiv = document.getElementById('detalle-documento-info');
+    
+    if (estadoDocumento) {
+        try {
+            const connection = await connectionString();
+            const documentoInfo = await connection.query(`
+                SELECT 
+                    NombreArchivo,
+                    FechaSubida,
+                    NombreUsuarioSubida
+                FROM DocumentosPlanillasEspeciales 
+                WHERE IdPlanillaEspecial = ?
+            `, [idPlanilla]);
+            await connection.close();
+            
+            if (documentoInfo.length > 0) {
+                const doc = documentoInfo[0];
+                infoDocumentoDiv.innerHTML = `
+                    <div class="documento-info">
+                        <h5><i class="fas fa-file-pdf text-danger"></i> Información del Documento</h5>
+                        <div class="info-grid-small">
+                            <div class="info-item-small">
+                                <strong>Archivo:</strong> ${doc.NombreArchivo || 'Sin nombre'}
+                            </div>
+                            <div class="info-item-small">
+                                <strong>Fecha subida:</strong> ${formatearFecha(doc.FechaSubida)}
+                            </div>
+                            <div class="info-item-small">
+                                <strong>Subido por:</strong> ${doc.NombreUsuarioSubida || 'No especificado'}
+                            </div>
+                        </div>
+                        <div style="text-align: center; margin-top: 15px;">
+                            <button class="btn btn-info" onclick="verPDF(${idPlanilla})">
+                                <i class="fas fa-file-pdf"></i> Ver PDF
+                            </button>
+                        </div>
+                    </div>
+                `;
+                infoDocumentoDiv.style.display = 'block';
+            } else {
+                infoDocumentoDiv.style.display = 'none';
+            }
+        } catch (error) {
+            console.error('Error al cargar info del documento:', error);
+            infoDocumentoDiv.style.display = 'none';
         }
-        
-        // Actualizar información general en el modal
-        document.getElementById('modalPlanillaId').textContent = planilla.id;
-        document.getElementById('modalUsuario').textContent = planilla.nombreUsuario;
-        document.getElementById('modalDepartamento').textContent = planilla.nombreDepartamento;
-        document.getElementById('modalFechaLaboral').textContent = formatearFecha(planilla.fechaLaboral);
-        document.getElementById('modalFechaCreacion').textContent = formatearFecha(planilla.fechaCreacion);
-        document.getElementById('modalHoraCreacion').textContent = planilla.horaCreacion;
-        
-        // Descripción
-        document.getElementById('modalDescripcion').textContent = planilla.descripcionLaboral || 'No hay descripción disponible';
-        
-        // Resumen
-        document.getElementById('modalTotalColaboradores').textContent = planilla.cantColaboradores;
-        document.getElementById('modalMontoTotal').textContent = formatearMoneda(planilla.montoTotal);
-        
-        // Cargar detalle de colaboradores
-        await cargarDetalleColaboradores(idPlanilla);
-        
-        // Mostrar el modal
-        const modal = document.getElementById('planillaModal');
-        modal.classList.add('active');
-        
-        // Prevenir el scroll del body
-        document.body.style.overflow = 'hidden';
-        
-    } catch (error) {
-        console.error('Error al abrir detalle:', error);
-        mostrarError('Error al cargar detalles', 'No se pudo cargar el detalle de la planilla. Por favor intente nuevamente.');
-    } finally {
-        mostrarCargando(false);
-    }
-}
-
-// Función para cargar el detalle de colaboradores de una planilla
-async function cargarDetalleColaboradores(idPlanilla) {
-    try {
-        const connection = await connectionString();
-        
-        const query = `
-            SELECT
-                DetallePlanillaEspecial.IdPersonal, 
-                DetallePlanillaEspecial.NombreColaborador, 
-                DetallePlanillaEspecial.Monto, 
-                DetallePlanillaEspecial.IdPuesto,
-                DetallePlanillaEspecial.NombrePuesto
-            FROM
-                DetallePlanillaEspecial
-            WHERE
-                DetallePlanillaEspecial.IdPlanillaEspecial = ?
-            ORDER BY
-                DetallePlanillaEspecial.NombreColaborador ASC
+    } else {
+        infoDocumentoDiv.innerHTML = `
+            <div class="documento-info">
+                <h5><i class="fas fa-exclamation-triangle text-warning"></i> Estado del Documento</h5>
+                <p class="text-center" style="color: #856404; background: #fff3cd; padding: 15px; border-radius: 8px; margin: 0;">
+                    <i class="fas fa-clock"></i> Pendiente de subir documento
+                </p>
+            </div>
         `;
-        
-        const result = await connection.query(query, [idPlanilla]);
-        await connection.close();
-        
-        const tbody = document.getElementById('modalDetailData');
-        tbody.innerHTML = '';
-        
-        if (result.length === 0) {
-            const row = document.createElement('tr');
-            row.innerHTML = `<td colspan="4" style="text-align: center;">No hay colaboradores registrados en esta planilla</td>`;
-            tbody.appendChild(row);
-            return;
-        }
-        
-        // Renderizar filas para cada colaborador
-        result.forEach(colaborador => {
-            const row = document.createElement('tr');
-            
-            row.innerHTML = `
-                <td>${colaborador.IdPersonal}</td>
-                <td>${colaborador.NombreColaborador || 'Sin nombre'}</td>
-                <td>${colaborador.NombrePuesto || 'Sin puesto'}</td>
-                <td>${formatearMoneda(parseFloat(colaborador.Monto || 0))}</td>
-            `;
-            
-            tbody.appendChild(row);
+        infoDocumentoDiv.style.display = 'block';
+    }
+    
+    // Llenar tabla de colaboradores
+    const tbodyColaboradores = document.getElementById('detalleColaboradores');
+    tbodyColaboradores.innerHTML = '';
+    
+    planilla.colaboradores.forEach(colaborador => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+            <td>${colaborador.NombreColaborador}</td>
+            <td>${colaborador.NombrePuesto}</td>
+            <td class="text-right amount">${formatearMoneda(colaborador.Monto)}</td>
+        `;
+        tbodyColaboradores.appendChild(tr);
+    });
+    
+    // Mostrar modal
+    document.getElementById('modalDetalle').style.display = 'flex';
+    document.getElementById('modalOverlay').style.display = 'block';
+}
+
+// Configurar ordenamiento de tabla
+function configurarOrdenamiento() {
+    const headers = document.querySelectorAll('.sortable');
+    headers.forEach(header => {
+        header.addEventListener('click', () => {
+            const columna = header.getAttribute('data-column');
+            ordenarTabla(columna);
         });
-        
-    } catch (error) {
-        console.error('Error al cargar detalle de colaboradores:', error);
-        throw error;
-    }
+    });
 }
 
-// Función para cerrar el modal
+// Ordenar tabla por columna
+function ordenarTabla(columna) {
+    // Cambiar dirección de orden
+    if (ordenActual.columna === columna) {
+        ordenActual.direccion = ordenActual.direccion === 'asc' ? 'desc' : 'asc';
+    } else {
+        ordenActual.columna = columna;
+        ordenActual.direccion = 'asc';
+    }
+    
+    // Actualizar iconos
+    actualizarIconosOrden();
+    
+    // Ordenar datos
+    datosFiltrados.sort((a, b) => {
+        let valorA = obtenerValorColumna(a, columna);
+        let valorB = obtenerValorColumna(b, columna);
+        
+        // Manejar valores numéricos
+        if (columna === 'cantColaboradores' || columna === 'montoTotalGasto') {
+            valorA = parseFloat(valorA) || 0;
+            valorB = parseFloat(valorB) || 0;
+        }
+        
+        // Manejar fechas
+        if (columna === 'fechaHoraCreacion') {
+            valorA = new Date(valorA);
+            valorB = new Date(valorB);
+        }
+        
+        if (valorA < valorB) return ordenActual.direccion === 'asc' ? -1 : 1;
+        if (valorA > valorB) return ordenActual.direccion === 'asc' ? 1 : -1;
+        return 0;
+    });
+    
+    // Resetear a primera página y volver a mostrar tabla
+    paginaActual = 1;
+    mostrarTabla(datosFiltrados);
+}
+
+// Obtener valor de columna para ordenamiento
+function obtenerValorColumna(planilla, columna) {
+    const mapeo = {
+        'correlativo': planilla.Correlativo,
+        'nombreDepartamento': planilla.NombreDepartamento,
+        'descripcionLaboral': planilla.DescripcionLaboral,
+        'estado': planilla.Estado, // Nueva columna para ordenamiento
+        'cantColaboradores': planilla.CantColaboradores,
+        'montoTotalGasto': planilla.MontoTotalGasto,
+        'fechaHoraCreacion': planilla.FechaHoraCreacion
+    };
+    return mapeo[columna] || '';
+}
+
+// Actualizar iconos de ordenamiento
+function actualizarIconosOrden() {
+    const headers = document.querySelectorAll('.sortable');
+    headers.forEach(header => {
+        header.classList.remove('asc', 'desc');
+        if (header.getAttribute('data-column') === ordenActual.columna) {
+            header.classList.add(ordenActual.direccion);
+        }
+    });
+}
+
+// Estados de la interfaz
+function mostrarEstadoCarga() {
+    document.getElementById('emptyState').style.display = 'none';
+    document.getElementById('noResultsState').style.display = 'none';
+    document.getElementById('loadingState').style.display = 'flex';
+    document.getElementById('tableWrapper').style.display = 'none';
+    document.getElementById('resultsSummary').style.display = 'none';
+    
+    // Ocultar tarjetas mientras carga
+    document.getElementById('summaryCardsInline').style.display = 'none';
+}
+
+function mostrarEstadoSinResultados() {
+    document.getElementById('emptyState').style.display = 'none';
+    document.getElementById('loadingState').style.display = 'none';
+    document.getElementById('noResultsState').style.display = 'flex';
+    document.getElementById('tableWrapper').style.display = 'none';
+    document.getElementById('resultsSummary').style.display = 'none';
+    
+    // Ocultar tarjetas si no hay resultados
+    document.getElementById('summaryCardsInline').style.display = 'none';
+}
+
+function ocultarEstados() {
+    document.getElementById('emptyState').style.display = 'none';
+    document.getElementById('loadingState').style.display = 'none';
+    document.getElementById('noResultsState').style.display = 'none';
+}
+
+// Funciones de utilidad
+function formatearMoneda(monto) {
+    const numero = parseFloat(monto) || 0;
+    
+    // Formatear con separadores de miles pero sin símbolo de moneda automático
+    const numeroFormateado = new Intl.NumberFormat('es-GT', {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2
+    }).format(numero);
+    
+    // Agregar el símbolo Q manualmente al inicio
+    return `Q ${numeroFormateado}`;
+}
+
+function formatearFecha(fecha, soloFecha = false) {
+    if (!fecha) return 'N/A';
+    const opciones = soloFecha 
+        ? { year: 'numeric', month: '2-digit', day: '2-digit' }
+        : { 
+            year: 'numeric', 
+            month: '2-digit', 
+            day: '2-digit',
+            hour: '2-digit', 
+            minute: '2-digit' 
+          };
+    
+    return new Date(fecha).toLocaleDateString('es-GT', opciones);
+}
+
+// Limpiar filtros
+function limpiarFiltros() {
+    document.getElementById('fechaLaboral').value = '';
+    document.getElementById('departamento').value = '';
+    
+    // Limpiar resultados y resetear paginación
+    datosCompletos = [];
+    datosFiltrados = [];
+    paginaActual = 1;
+    totalPaginas = 0;
+    
+    // Ocultar tarjetas en línea
+    document.getElementById('summaryCardsInline').style.display = 'none';
+    
+    // Ocultar controles de paginación
+    const paginacionDiv = document.getElementById('paginacion');
+    if (paginacionDiv) paginacionDiv.style.display = 'none';
+    
+    const infoDiv = document.getElementById('infoRegistros');
+    if (infoDiv) infoDiv.innerHTML = '';
+    
+    // Mostrar estado inicial
+    document.getElementById('emptyState').style.display = 'flex';
+    document.getElementById('loadingState').style.display = 'none';
+    document.getElementById('noResultsState').style.display = 'none';
+    document.getElementById('tableWrapper').style.display = 'none';
+    document.getElementById('resultsSummary').style.display = 'none';
+}
+
+// Exportar funciones globales
+window.cambiarPagina = cambiarPagina;
+window.cambiarRegistrosPorPagina = cambiarRegistrosPorPagina;
+
+// Cerrar modal
 function cerrarModal() {
-    const modal = document.getElementById('planillaModal');
-    modal.classList.remove('active');
-    
-    // Restaurar el scroll del body
-    document.body.style.overflow = '';
-}
-// Función para exportar detalle a Excel
-async function exportarDetalleExcel() {
-    try {
-        // Obtener ID de la planilla actual
-        const idPlanilla = document.getElementById('modalPlanillaId').textContent;
-        
-        if (!idPlanilla) {
-            mostrarError('Error', 'No se pudo identificar la planilla actual');
-            return;
-        }
-        
-        mostrarCargando(true);
-        
-        // Buscar la planilla en los datos ya cargados
-        const planilla = planillasData.find(p => p.id.toString() === idPlanilla.toString());
-        
-        if (!planilla) {
-            throw new Error('No se encontró la planilla especificada');
-        }
-        
-        // Obtener detalle de colaboradores
-        const connection = await connectionString();
-        const query = `
-            SELECT
-                DetallePlanillaEspecial.IdPersonal, 
-                DetallePlanillaEspecial.NombreColaborador, 
-                DetallePlanillaEspecial.Monto, 
-                DetallePlanillaEspecial.IdPuesto,
-                DetallePlanillaEspecial.NombrePuesto
-            FROM
-                DetallePlanillaEspecial
-            WHERE
-                DetallePlanillaEspecial.IdPlanillaEspecial = ?
-            ORDER BY
-                DetallePlanillaEspecial.NombreColaborador ASC
-        `;
-        
-        const colaboradores = await connection.query(query, [idPlanilla]);
-        await connection.close();
-        
-        // Crear un nuevo libro de trabajo
-        const workbook = XLSX.utils.book_new();
-        
-        // Preparar los datos para el Excel - Info general
-        const infoGeneral = [{
-            'ID Planilla': planilla.id,
-            'Usuario': planilla.nombreUsuario,
-            'Departamento': planilla.nombreDepartamento,
-            'Colaboradores': planilla.cantColaboradores,
-            'Monto Total': planilla.montoTotal,
-            'Fecha Laboral': formatearFecha(planilla.fechaLaboral),
-            'Fecha Creación': formatearFecha(planilla.fechaCreacion),
-            'Hora Creación': planilla.horaCreacion,
-            'Descripción': planilla.descripcionLaboral || ''
-        }];
-        
-        // Preparar los datos para el Excel - Colaboradores
-        const datosColaboradores = colaboradores.map(colaborador => ({
-            'ID': colaborador.IdPersonal,
-            'Colaborador': colaborador.NombreColaborador || 'Sin nombre',
-            'Puesto': colaborador.NombrePuesto || 'Sin puesto',
-            'Monto': parseFloat(colaborador.Monto || 0)
-        }));
-        
-        // Crear las hojas de cálculo
-        const worksheetInfo = XLSX.utils.json_to_sheet(infoGeneral);
-        const worksheetColaboradores = XLSX.utils.json_to_sheet(datosColaboradores);
-        
-        // Agregar las hojas al libro
-        XLSX.utils.book_append_sheet(workbook, worksheetInfo, 'Información');
-        XLSX.utils.book_append_sheet(workbook, worksheetColaboradores, 'Colaboradores');
-        
-        // Configurar ancho de columnas
-        const anchosInfo = [
-            { wch: 15 }, // ID Planilla
-            { wch: 25 }, // Usuario
-            { wch: 25 }, // Departamento
-            { wch: 15 }, // Colaboradores
-            { wch: 15 }, // Monto Total
-            { wch: 15 }, // Fecha Laboral
-            { wch: 15 }, // Fecha Creación
-            { wch: 15 }, // Hora Creación
-            { wch: 50 }  // Descripción
-        ];
-        
-        const anchosColaboradores = [
-            { wch: 10 }, // ID
-            { wch: 30 }, // Colaborador
-            { wch: 30 }, // Puesto
-            { wch: 15 }  // Monto
-        ];
-        
-        worksheetInfo['!cols'] = anchosInfo;
-        worksheetColaboradores['!cols'] = anchosColaboradores;
-        
-        // Generar el archivo Excel
-        const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'buffer' });
-        
-        // Determinar si estamos en un entorno web o Node.js
-        if (typeof window !== 'undefined') {
-            // Estamos en un navegador
-            const blob = new Blob([excelBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
-            const url = URL.createObjectURL(blob);
-            
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `Planilla_Especial_${idPlanilla}_${formatearFechaArchivo(new Date())}.xlsx`;
-            document.body.appendChild(a);
-            a.click();
-            
-            // Limpiar
-            setTimeout(() => {
-                document.body.removeChild(a);
-                URL.revokeObjectURL(url);
-                mostrarCargando(false);
-            }, 100);
-        } else {
-            // Estamos en Node.js
-            const fs = require('fs');
-            const filename = `Planilla_Especial_${idPlanilla}_${formatearFechaArchivo(new Date())}.xlsx`;
-            fs.writeFileSync(filename, excelBuffer);
-            console.log(`Archivo guardado como ${filename}`);
-            mostrarCargando(false);
-        }
-        
-    } catch (error) {
-        console.error('Error al exportar detalle a Excel:', error);
-        mostrarError('Error al exportar', 'No se pudo generar el archivo Excel de detalle.');
-        mostrarCargando(false);
-    }
+    document.getElementById('modalDetalle').style.display = 'none';
+    document.getElementById('modalOverlay').style.display = 'none';
 }
 
-// Función para formatear fecha para nombres de archivo
-function formatearFechaArchivo(fecha) {
-    const year = fecha.getFullYear();
-    const month = String(fecha.getMonth() + 1).padStart(2, '0');
-    const day = String(fecha.getDate()).padStart(2, '0');
-    const hours = String(fecha.getHours()).padStart(2, '0');
-    const minutes = String(fecha.getMinutes()).padStart(2, '0');
-    
-    return `${year}${month}${day}_${hours}${minutes}`;
-}
-
-// Función para mostrar u ocultar el indicador de carga
-function mostrarCargando(mostrar) {
-    const loadingOverlay = document.getElementById('loadingOverlay');
-    loadingOverlay.style.display = mostrar ? 'flex' : 'none';
-}
-
-// Función para mostrar un mensaje de error
-function mostrarError(titulo, mensaje) {
+// Mostrar errores
+function mostrarError(mensaje) {
     Swal.fire({
         icon: 'error',
-        title: titulo,
+        title: 'Error',
         text: mensaje,
-        confirmButtonColor: '#ff7b00'
+        confirmButtonColor: '#FF9800'
     });
 }
 
-// Función para mostrar un mensaje de éxito
-function mostrarExito(titulo, mensaje) {
+// Mostrar éxito
+function mostrarExito(mensaje) {
     Swal.fire({
         icon: 'success',
-        title: titulo,
+        title: 'Éxito',
         text: mensaje,
-        confirmButtonColor: '#4CAF50',
-        timer: 3000,
-        timerProgressBar: true
+        timer: 2000,
+        confirmButtonColor: '#FF9800'
     });
 }
-
-// Eventos
-document.addEventListener('DOMContentLoaded', () => {
-    // Cargar datos iniciales
-    cargarDepartamentos().then(() => {
-        cargarPlanillasEspeciales();
-    });
-    
-    // Eventos para filtros
-    document.getElementById('searchButton').addEventListener('click', () => {
-        aplicarFiltros();
-        renderizarTabla();
-    });
-    
-    // Evento para Enter en el campo de búsqueda
-    document.getElementById('userSearch').addEventListener('keypress', (event) => {
-        if (event.key === 'Enter') {
-            event.preventDefault();
-            document.getElementById('searchButton').click();
-        }
-    });
-    
-    // Evento para cambio en el selector de departamento
-    document.getElementById('departmentFilter').addEventListener('change', () => {
-        aplicarFiltros();
-        renderizarTabla();
-    });
-    
-    // Evento para aplicar filtro de fechas
-    document.getElementById('applyDateFilter').addEventListener('click', () => {
-        aplicarFiltros();
-        renderizarTabla();
-    });
-    
-    // Eventos para cambio de tipo de fecha
-    document.querySelectorAll('input[name="dateType"]').forEach(radio => {
-        radio.addEventListener('change', () => {
-            if (document.getElementById('startDate').value && document.getElementById('endDate').value) {
-                aplicarFiltros();
-                renderizarTabla();
-            }
+async function verPDF(idPlanilla) {
+    try {
+        // Mostrar loading
+        Swal.fire({
+            title: 'Cargando documento...',
+            html: '<div class="loading-spinner"><i class="fas fa-spinner fa-spin"></i></div>',
+            showConfirmButton: false,
+            allowOutsideClick: false
         });
-    });
-    
-    // Evento para toggle de filtros avanzados
-    document.getElementById('toggleAdvanced').addEventListener('click', function() {
-        const advancedOptions = document.querySelector('.advanced-options');
-        const displayStyle = advancedOptions.style.display;
         
-        advancedOptions.style.display = displayStyle === 'none' ? 'block' : 'none';
-        this.classList.toggle('active');
+        // Consultar información del documento
+        const connection = await connectionString();
+        const resultado = await connection.query(`
+            SELECT 
+                NombreArchivo,
+                DocumentoPDF,
+                FechaSubida,
+                NombreUsuarioSubida
+            FROM DocumentosPlanillasEspeciales 
+            WHERE IdPlanillaEspecial = ?
+        `, [idPlanilla]);
+        await connection.close();
         
-        // Animar el ícono
-        const icon = this.querySelector('i');
-        icon.style.transform = displayStyle === 'none' ? 'rotate(180deg)' : 'rotate(0deg)';
-    });
-    
-    // Evento para cambiar tamaño de página
-    document.getElementById('pageSize').addEventListener('change', function() {
-        pageSize = parseInt(this.value);
-        totalPages = Math.ceil(filteredData.length / pageSize);
-        currentPage = 1; // Reset a primera página
-        renderizarTabla();
-    });
-    
-    // Evento para ordenar
-    document.getElementById('sortBy').addEventListener('change', function() {
-        const value = this.value;
-        
-        // Configurar el campo y dirección de ordenamiento
-        switch (value) {
-            case 'dateDesc':
-                currentSort = { field: 'fechaCreacion', direction: 'desc' };
-                break;
-            case 'dateAsc':
-                currentSort = { field: 'fechaCreacion', direction: 'asc' };
-                break;
-            case 'amountDesc':
-                currentSort = { field: 'montoTotal', direction: 'desc' };
-                break;
-            case 'amountAsc':
-                currentSort = { field: 'montoTotal', direction: 'asc' };
-                break;
-            case 'employeesDesc':
-                currentSort = { field: 'colaboradores', direction: 'desc' };
-                break;
-            case 'employeesAsc':
-                currentSort = { field: 'colaboradores', direction: 'asc' };
-                break;
-            case 'departmentAsc':
-                currentSort = { field: 'departamento', direction: 'asc' };
-                break;
-            case 'departmentDesc':
-                currentSort = { field: 'departamento', direction: 'desc' };
-                break;
-        }
-        
-        ordenarDatos();
-        renderizarTabla();
-    });
-    
-    // Evento para botones de ordenación en encabezados de tabla
-    document.querySelectorAll('th.sortable').forEach(th => {
-        th.addEventListener('click', function() {
-            const campo = this.dataset.sort;
-            
-            // Cambiar dirección si es el mismo campo
-            if (currentSort.field === campo) {
-                currentSort.direction = currentSort.direction === 'asc' ? 'desc' : 'asc';
-            } else {
-                currentSort.field = campo;
-                currentSort.direction = 'asc';
-            }
-            
-            // Actualizar clases de ordenamiento
-            document.querySelectorAll('th.sortable').forEach(header => {
-                header.classList.remove('sorted-asc', 'sorted-desc');
+        if (resultado.length === 0) {
+            Swal.fire({
+                icon: 'error',
+                title: 'Documento no encontrado',
+                text: 'No se encontró el documento PDF para esta planilla.',
+                confirmButtonColor: '#FF9800'
             });
-            
-            this.classList.add(`sorted-${currentSort.direction}`);
-            
-            ordenarDatos();
-            renderizarTabla();
+            return;
+        }
+        
+        const documento = resultado[0];
+        
+        // Cerrar loading
+        Swal.close();
+        
+        // Mostrar modal con información del PDF
+        await mostrarModalPDF(documento, idPlanilla);
+        
+    } catch (error) {
+        console.error('Error al cargar PDF:', error);
+        Swal.fire({
+            icon: 'error',
+            title: 'Error',
+            text: 'No se pudo cargar el documento PDF.',
+            confirmButtonColor: '#FF9800'
         });
+    }
+}
+
+// Función para mostrar modal con información del PDF
+async function mostrarModalPDF(documento, idPlanilla) {
+    const result = await Swal.fire({
+        title: 'Documento PDF',
+        html: `
+            <div style="text-align: left; padding: 20px;">
+                <div style="background: #f8f9fa; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
+                    <h4 style="color: #654321; margin-bottom: 15px; text-align: center;">
+                        <i class="fas fa-file-pdf" style="color: #dc3545;"></i> 
+                        Información del Documento
+                    </h4>
+                    
+                    <div style="display: grid; gap: 10px;">
+                        <div>
+                            <strong>Archivo:</strong> ${documento.NombreArchivo || 'Sin nombre'}
+                        </div>
+                        <div>
+                            <strong>Fecha de subida:</strong> ${formatearFecha(documento.FechaSubida)}
+                        </div>
+                        <div>
+                            <strong>Subido por:</strong> ${documento.NombreUsuarioSubida || 'No especificado'}
+                        </div>
+                    </div>
+                </div>
+                
+                <div style="text-align: center; margin-top: 20px;">
+                    <p style="color: #666; font-size: 0.9rem;">
+                        ¿Qué deseas hacer con el documento?
+                    </p>
+                </div>
+            </div>
+        `,
+        showCancelButton: true,
+        showDenyButton: true,
+        confirmButtonText: '<i class="fas fa-eye"></i> Ver PDF',
+        denyButtonText: '<i class="fas fa-download"></i> Descargar',
+        cancelButtonText: 'Cerrar',
+        confirmButtonColor: '#17a2b8',
+        denyButtonColor: '#28a745',
+        cancelButtonColor: '#6c757d',
+        width: '500px'
     });
     
-    // Evento para botones de paginación
-    document.getElementById('prevPage').addEventListener('click', () => {
-        if (currentPage > 1) {
-            cambiarPagina(currentPage - 1);
-        }
-    });
-    
-    document.getElementById('nextPage').addEventListener('click', () => {
-        if (currentPage < totalPages) {
-            cambiarPagina(currentPage + 1);
-        }
-    });
-    
-    // Evento para limpiar filtros
-    document.getElementById('clearFilters').addEventListener('click', () => {
-        // Limpiar campo de búsqueda
-        document.getElementById('userSearch').value = '';
+    if (result.isConfirmed) {
+        // Ver PDF en nueva ventana
+        abrirPDFViewer(documento);
+    } else if (result.isDenied) {
+        // Descargar PDF
+        descargarPDF(documento);
+    }
+}
+
+// Función para abrir PDF en nueva ventana
+function abrirPDFViewer(documento) {
+    try {
+        // Convertir buffer a blob si es necesario
+        const pdfBlob = new Blob([documento.DocumentoPDF], { type: 'application/pdf' });
+        const pdfUrl = URL.createObjectURL(pdfBlob);
         
-        // Resetear selector de departamento
-        document.getElementById('departmentFilter').value = 'all';
+        // Abrir en nueva ventana
+        const nuevaVentana = window.open('', '_blank');
+        nuevaVentana.document.write(`
+            <html>
+                <head>
+                    <title>${documento.NombreArchivo}</title>
+                    <style>
+                        body { margin: 0; padding: 0; }
+                        iframe { width: 100%; height: 100vh; border: none; }
+                    </style>
+                </head>
+                <body>
+                    <iframe src="${pdfUrl}" type="application/pdf"></iframe>
+                </body>
+            </html>
+        `);
+        nuevaVentana.document.close();
         
-        // Limpiar fechas
-        document.getElementById('startDate').value = '';
-        document.getElementById('endDate').value = '';
+    } catch (error) {
+        console.error('Error al abrir PDF:', error);
+        Swal.fire({
+            icon: 'error',
+            title: 'Error',
+            text: 'No se pudo abrir el documento PDF.',
+            confirmButtonColor: '#FF9800'
+        });
+    }
+}
+
+// Función para descargar PDF
+function descargarPDF(documento) {
+    try {
+        // Crear blob del PDF
+        const pdfBlob = new Blob([documento.DocumentoPDF], { type: 'application/pdf' });
         
-        // Restaurar tipo de fecha
-        document.getElementById('creationDate').checked = true;
+        // Crear enlace de descarga
+        const enlaceDescarga = document.createElement('a');
+        enlaceDescarga.href = URL.createObjectURL(pdfBlob);
+        enlaceDescarga.download = documento.NombreArchivo || 'documento.pdf';
         
-        // Aplicar filtros (que ahora están vacíos)
-        aplicarFiltros();
-        renderizarTabla();
-    });
-    
-    // Evento para refrescar datos
-    document.getElementById('refreshReport').addEventListener('click', () => {
-        cargarPlanillasEspeciales();
-    });
-    
-    // Eventos para el modal
-    document.getElementById('closeModal').addEventListener('click', cerrarModal);
-    document.getElementById('closeModalBtn').addEventListener('click', cerrarModal);
-    
-    // Evento para exportar detalle a Excel desde el modal
-    document.getElementById('exportDetailExcel').addEventListener('click', exportarDetalleExcel);
-    
-    // Cerrar modal al hacer clic fuera de él
-    document.getElementById('planillaModal').addEventListener('click', (event) => {
-        if (event.target === document.getElementById('planillaModal')) {
-            cerrarModal();
-        }
-    });
+        // Simular clic para descargar
+        document.body.appendChild(enlaceDescarga);
+        enlaceDescarga.click();
+        document.body.removeChild(enlaceDescarga);
+        
+        // Limpiar URL del objeto
+        URL.revokeObjectURL(enlaceDescarga.href);
+        
+        mostrarExito('Descarga iniciada correctamente');
+        
+    } catch (error) {
+        console.error('Error al descargar PDF:', error);
+        mostrarError('No se pudo descargar el documento PDF');
+    }
+}
+
+// Exportar función para uso global
+window.verPDF = verPDF;
+// Manejo de errores globales
+window.addEventListener('error', (event) => {
+    console.error('Error global:', event.error);
 });
+
+// Manejo de promesas rechazadas
+window.addEventListener('unhandledrejection', (event) => {
+    console.error('Promesa rechazada:', event.reason);
+});
+
+// Exportar funciones para uso global
+window.verDetalle = verDetalle;
