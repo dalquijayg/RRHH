@@ -6,7 +6,7 @@ const ExcelJS = require('exceljs');
 let empleadosData = [];
 let empleadosFiltrados = [];
 let currentPage = 1;
-const itemsPerPage = 10;
+const itemsPerPage = 50;
 let currentSort = { field: null, order: 'asc' };
 let empleadoEditando = null;
 
@@ -55,6 +55,12 @@ function inicializarEventListeners() {
         });
     }
 
+    // NUEVO: Checkbox filtro sin cuenta bancaria
+    const filtroSinCuenta = document.getElementById('filtroSinCuenta');
+    if (filtroSinCuenta) {
+        filtroSinCuenta.addEventListener('change', aplicarFiltroSinCuenta);
+    }
+
     // Botón generar reporte
     const generarBtn = document.getElementById('generarReporte');
     if (generarBtn) {
@@ -67,7 +73,7 @@ function inicializarEventListeners() {
         searchInput.addEventListener('input', filtrarEmpleados);
     }
 
-    // Modal
+    // Modal handlers...
     const modalClose = document.getElementById('modalClose');
     if (modalClose) {
         modalClose.addEventListener('click', cerrarModal);
@@ -199,6 +205,13 @@ async function cargarPlanillas(esCapital = null) {
         if (planillaSelect) {
             planillaSelect.innerHTML = '<option value="">Seleccione una planilla</option>';
             
+            // AGREGAR OPCIÓN "TODAS LAS PLANILLAS"
+            const todasOption = document.createElement('option');
+            todasOption.value = 'TODAS';
+            todasOption.textContent = '📋 TODAS LAS PLANILLAS';
+            todasOption.dataset.esCapital = esCapital !== null ? esCapital : 'todas';
+            planillaSelect.appendChild(todasOption);
+            
             result.forEach(planilla => {
                 const option = document.createElement('option');
                 option.value = planilla.IdPlanilla;
@@ -225,6 +238,7 @@ async function generarReporte() {
     const planillaSelect = document.getElementById('planillaSelect');
     const planillaId = planillaSelect?.value;
     const planillaNombre = planillaSelect?.selectedOptions[0]?.textContent;
+    const tipoUbicacion = document.getElementById('tipoUbicacion').value;
     
     if (!planillaId) {
         await Swal.fire({
@@ -237,9 +251,21 @@ async function generarReporte() {
     
     mostrarCargando(true);
     
+    // RESETEAR FILTROS AL GENERAR NUEVO REPORTE
+    const filtroSinCuenta = document.getElementById('filtroSinCuenta');
+    const searchInput = document.getElementById('searchInput');
+    
+    if (filtroSinCuenta) {
+        filtroSinCuenta.checked = false;
+    }
+    if (searchInput) {
+        searchInput.value = '';
+    }
+    
     try {
         const connection = await connectionString();
-        const result = await connection.query(`
+        
+        let query = `
             SELECT
                 personal.IdPersonal, 
                 CONCAT(
@@ -265,18 +291,36 @@ async function generarReporte() {
                     IFNULL(personal.CuentaDivision1, ''), ' ',
                     IFNULL(personal.CuentaDivision2, ''), ' ',
                     IFNULL(personal.CuentaDivision3, '')
-                ) AS CuentaBancaria
+                ) AS CuentaBancaria,
+                planillas.Nombre_Planilla,
+                divisiones.Nombre AS NombreDivision
             FROM
                 personal
                 INNER JOIN departamentos
                     ON personal.IdSucuDepa = departamentos.IdDepartamento
                 INNER JOIN Puestos
                     ON personal.IdPuesto = Puestos.IdPuesto
-            WHERE
-                personal.IdPlanilla = ?
-            ORDER BY personal.PrimerApellido, personal.SegundoApellido, personal.PrimerNombre
-        `, [planillaId]);
+                INNER JOIN planillas
+                    ON personal.IdPlanilla = planillas.IdPlanilla
+                INNER JOIN divisiones
+                    ON planillas.Division = divisiones.IdDivision
+        `;
         
+        let params = [];
+        
+        if (planillaId === 'TODAS') {
+            if (tipoUbicacion !== '') {
+                query += ' WHERE planillas.EsCapital = ?';
+                params.push(tipoUbicacion);
+            }
+        } else {
+            query += ' WHERE personal.IdPlanilla = ?';
+            params.push(planillaId);
+        }
+        
+        query += ' ORDER BY divisiones.Nombre, planillas.Nombre_Planilla, personal.PrimerApellido, personal.SegundoApellido, personal.PrimerNombre';
+        
+        const result = await connection.query(query, params);
         await connection.close();
         
         empleadosData = result.map(emp => ({
@@ -286,12 +330,19 @@ async function generarReporte() {
         
         empleadosFiltrados = [...empleadosData];
         currentPage = 1;
-        currentSort = { field: null, order: 'asc' }; // Reset ordenamiento
+        currentSort = { field: null, order: 'asc' };
         
-        mostrarResultados(planillaNombre);
+        let nombreMostrar = planillaNombre;
+        if (planillaId === 'TODAS') {
+            const tipoTexto = tipoUbicacion === '1' ? 'Capital' : 
+                             tipoUbicacion === '0' ? 'Regional' : 
+                             'Capital y Regional';
+            nombreMostrar = `📋 TODAS LAS PLANILLAS (${tipoTexto})`;
+        }
+        
+        mostrarResultados(nombreMostrar);
         renderizarTabla();
         
-        // Reinicializar listeners de ordenamiento después de cargar datos
         setTimeout(() => {
             inicializarOrdenamientoTabla();
         }, 100);
@@ -354,6 +405,8 @@ function mostrarResultados(planillaNombre) {
 // Filtrar empleados por búsqueda
 function filtrarEmpleados() {
     const searchInput = document.getElementById('searchInput');
+    const filtroSinCuenta = document.getElementById('filtroSinCuenta');
+    
     if (!searchInput) {
         console.log('Elemento searchInput no encontrado');
         return;
@@ -361,10 +414,22 @@ function filtrarEmpleados() {
     
     const searchTerm = searchInput.value.toLowerCase();
     
+    // Primero aplicar filtro de cuenta bancaria si está activo
+    let datosBase = empleadosData;
+    if (filtroSinCuenta && filtroSinCuenta.checked) {
+        datosBase = empleadosData.filter(emp => {
+            const sinCuenta1 = !emp.CuentaDivision1 || emp.CuentaDivision1.trim() === '';
+            const sinCuenta2 = !emp.CuentaDivision2 || emp.CuentaDivision2.trim() === '';
+            const sinCuenta3 = !emp.CuentaDivision3 || emp.CuentaDivision3.trim() === '';
+            return sinCuenta1 && sinCuenta2 && sinCuenta3;
+        });
+    }
+    
+    // Luego aplicar búsqueda de texto
     if (searchTerm === '') {
-        empleadosFiltrados = [...empleadosData];
+        empleadosFiltrados = [...datosBase];
     } else {
-        empleadosFiltrados = empleadosData.filter(emp => 
+        empleadosFiltrados = datosBase.filter(emp => 
             emp.NombreCompleto.toLowerCase().includes(searchTerm) ||
             emp.DPI.includes(searchTerm) ||
             (emp.CuentaBancaria && emp.CuentaBancaria.toLowerCase().includes(searchTerm)) ||
@@ -434,6 +499,10 @@ function ordenarEmpleados() {
 // Renderizar tabla optimizada
 function renderizarTabla() {
     const tbody = document.getElementById('employeesTableBody');
+    const planillaSelect = document.getElementById('planillaSelect');
+    const mostrarPlanilla = planillaSelect?.value === 'TODAS';
+    const filtroSinCuenta = document.getElementById('filtroSinCuenta');
+    const filtroActivo = filtroSinCuenta?.checked || false;
     
     if (!tbody) {
         console.error('No se encontró el elemento employeesTableBody');
@@ -451,16 +520,38 @@ function renderizarTabla() {
         const row = document.createElement('tr');
         const numeroFila = startIndex + index + 1;
         
+        // Verificar si el empleado no tiene cuenta bancaria
+        const sinCuentaBancaria = (!empleado.CuentaDivision1 || empleado.CuentaDivision1.trim() === '') &&
+                                 (!empleado.CuentaDivision2 || empleado.CuentaDivision2.trim() === '') &&
+                                 (!empleado.CuentaDivision3 || empleado.CuentaDivision3.trim() === '');
+        
+        // Agregar clase CSS si no tiene cuenta
+        if (sinCuentaBancaria) {
+            row.classList.add('empleado-sin-cuenta');
+        }
+        
+        const planillaColumn = mostrarPlanilla ? 
+            `<td class="text-center planilla-cell" style="font-size: 0.8rem; color: #666;">
+                ${empleado.NombreDivision} - ${empleado.Nombre_Planilla}
+            </td>` : '';
+        
+        // Destacar la celda de cuenta bancaria cuando está vacía
+        const cuentaBancariaClass = sinCuentaBancaria ? 'cuenta-vacia' : '';
+        const cuentaBancariaTexto = sinCuentaBancaria ? 
+            '<span style="color: #e74c3c; font-weight: 600;"><i class="fas fa-exclamation-triangle"></i> No asignada</span>' :
+            empleado.CuentaBancaria;
+        
         row.innerHTML = `
             <td class="text-center">${numeroFila}</td>
             <td class="font-weight-bold">${empleado.NombreCompleto}</td>
-            <td class="text-center">
+            <td class="text-center ${cuentaBancariaClass}">
                 <span class="bank-account-clickable" onclick="editarCuentaBancaria(${empleado.IdPersonal})" title="Click para editar">
-                    ${empleado.CuentaBancaria || 'No asignada'}
+                    ${cuentaBancariaTexto}
                 </span>
             </td>
             <td>${empleado.NombreDepartamento}</td>
             <td>${empleado.NombrePuesto}</td>
+            ${planillaColumn}
             <td class="text-center">${formatearFecha(empleado.FechaPlanilla)}</td>
             <td class="text-right">Q${parseFloat(empleado.SalarioBase || 0).toLocaleString('es-GT', {minimumFractionDigits: 2})}</td>
             <td class="text-right">Q${parseFloat(empleado.Bonificacion || 0).toLocaleString('es-GT', {minimumFractionDigits: 2})}</td>
@@ -475,8 +566,36 @@ function renderizarTabla() {
     });
     
     renderizarPaginacion(totalPages);
+    actualizarHeadersTabla(mostrarPlanilla);
 }
-
+function actualizarHeadersTabla(mostrarPlanilla) {
+    const table = document.getElementById('employeesTable');
+    if (!table) return;
+    
+    const thead = table.querySelector('thead tr');
+    if (!thead) return;
+    
+    // Verificar si ya tiene la columna de planilla
+    const planillaHeader = thead.querySelector('.planilla-header');
+    
+    if (mostrarPlanilla && !planillaHeader) {
+        // Agregar header de planilla después de "Puesto"
+        const puestoHeader = thead.querySelector('[data-sort="puesto"]');
+        if (puestoHeader) {
+            const planillaHeaderElement = document.createElement('th');
+            planillaHeaderElement.className = 'sortable planilla-header';
+            planillaHeaderElement.setAttribute('data-sort', 'planilla');
+            planillaHeaderElement.innerHTML = `
+                Planilla
+                <i class="fas fa-sort sort-icon"></i>
+            `;
+            puestoHeader.insertAdjacentElement('afterend', planillaHeaderElement);
+        }
+    } else if (!mostrarPlanilla && planillaHeader) {
+        // Remover header de planilla
+        planillaHeader.remove();
+    }
+}
 // Renderizar paginación optimizada
 function renderizarPaginacion(totalPages) {
     const container = document.getElementById('paginationContainer');
@@ -676,7 +795,6 @@ async function exportarAExcel() {
     }
     
     try {
-        // Mostrar loading
         const loadingSwal = Swal.fire({
             title: 'Generando Excel...',
             html: 'Por favor espere mientras se genera el archivo',
@@ -686,18 +804,19 @@ async function exportarAExcel() {
             }
         });
         
-        const planillaNombre = document.getElementById('planillaSelect')?.selectedOptions[0]?.textContent || 'Planilla';
+        const planillaSelect = document.getElementById('planillaSelect');
+        const planillaNombre = planillaSelect?.selectedOptions[0]?.textContent || 'Planilla';
+        const mostrarPlanilla = planillaSelect?.value === 'TODAS';
         
-        // Crear el archivo Excel
         const workbook = new ExcelJS.Workbook();
         const worksheet = workbook.addWorksheet('Reporte de Planilla');
         
-        // Configurar información del archivo
         workbook.creator = 'Sistema de Recursos Humanos';
         workbook.created = new Date();
         
         // Título principal
-        worksheet.mergeCells('A1:I2');
+        const titleRange = mostrarPlanilla ? 'A1:J2' : 'A1:I2';
+        worksheet.mergeCells(titleRange);
         const titleCell = worksheet.getCell('A1');
         titleCell.value = `REPORTE DE PLANILLA - ${planillaNombre.toUpperCase()}`;
         titleCell.font = { size: 16, bold: true };
@@ -709,15 +828,19 @@ async function exportarAExcel() {
         };
         titleCell.font.color = { argb: 'FFFFFFFF' };
         
-        // Información adicional
         worksheet.getCell('A4').value = `Total de empleados: ${empleadosData.length}`;
         worksheet.getCell('A5').value = `Fecha de generación: ${new Date().toLocaleDateString('es-GT')}`;
         
-        // Headers de la tabla
+        // Headers de la tabla - MODIFICAR PARA INCLUIR PLANILLA SI ES NECESARIO
         const headers = [
-            '#', 'Nombre Completo', 'Cuenta Bancaria', 'Departamento', 
-            'Puesto', 'Fecha Planilla', 'Salario Base', 'Bonificación', 'DPI'
+            '#', 'Nombre Completo', 'Cuenta Bancaria', 'Departamento', 'Puesto'
         ];
+        
+        if (mostrarPlanilla) {
+            headers.push('Planilla');
+        }
+        
+        headers.push('Fecha Planilla', 'Salario Base', 'Bonificación', 'DPI');
         
         const headerRow = worksheet.getRow(7);
         headers.forEach((header, index) => {
@@ -738,31 +861,42 @@ async function exportarAExcel() {
             };
         });
         
-        // Datos de los empleados
+        // Datos de los empleados - MODIFICAR PARA INCLUIR PLANILLA
         empleadosData.forEach((empleado, index) => {
             const row = worksheet.getRow(8 + index);
+            let colIndex = 1;
             
-            row.getCell(1).value = index + 1;
-            row.getCell(2).value = empleado.NombreCompleto;
-            row.getCell(3).value = empleado.CuentaBancaria || 'No asignada';
-            row.getCell(4).value = empleado.NombreDepartamento;
-            row.getCell(5).value = empleado.NombrePuesto;
-            row.getCell(6).value = empleado.FechaPlanilla ? new Date(empleado.FechaPlanilla) : null;
-            row.getCell(7).value = parseFloat(empleado.SalarioBase) || 0;
-            row.getCell(8).value = parseFloat(empleado.Bonificacion) || 0;
-            row.getCell(9).value = empleado.DPI;
+            row.getCell(colIndex++).value = index + 1;
+            row.getCell(colIndex++).value = empleado.NombreCompleto;
+            row.getCell(colIndex++).value = empleado.CuentaBancaria || 'No asignada';
+            row.getCell(colIndex++).value = empleado.NombreDepartamento;
+            row.getCell(colIndex++).value = empleado.NombrePuesto;
+            
+            if (mostrarPlanilla) {
+                row.getCell(colIndex++).value = `${empleado.NombreDivision} - ${empleado.Nombre_Planilla}`;
+            }
+            
+            row.getCell(colIndex++).value = empleado.FechaPlanilla ? new Date(empleado.FechaPlanilla) : null;
+            row.getCell(colIndex++).value = parseFloat(empleado.SalarioBase) || 0;
+            row.getCell(colIndex++).value = parseFloat(empleado.Bonificacion) || 0;
+            row.getCell(colIndex++).value = empleado.DPI;
             
             // Formato de moneda para salarios
-            row.getCell(7).numFmt = '"Q"#,##0.00';
-            row.getCell(8).numFmt = '"Q"#,##0.00';
+            const salarioCol = mostrarPlanilla ? 7 : 6;
+            const bonificacionCol = mostrarPlanilla ? 8 : 7;
+            
+            row.getCell(salarioCol).numFmt = '"Q"#,##0.00';
+            row.getCell(bonificacionCol).numFmt = '"Q"#,##0.00';
             
             // Formato de fecha
             if (empleado.FechaPlanilla) {
-                row.getCell(6).numFmt = 'dd/mm/yyyy';
+                const fechaCol = mostrarPlanilla ? 6 : 5;
+                row.getCell(fechaCol + 1).numFmt = 'dd/mm/yyyy';
             }
             
             // Bordes para todas las celdas
-            for (let col = 1; col <= 9; col++) {
+            const totalCols = mostrarPlanilla ? 10 : 9;
+            for (let col = 1; col <= totalCols; col++) {
                 row.getCell(col).border = {
                     top: { style: 'thin' },
                     left: { style: 'thin' },
@@ -773,7 +907,7 @@ async function exportarAExcel() {
             
             // Alternar colores de filas
             if (index % 2 === 0) {
-                for (let col = 1; col <= 9; col++) {
+                for (let col = 1; col <= totalCols; col++) {
                     row.getCell(col).fill = {
                         type: 'pattern',
                         pattern: 'solid',
@@ -784,36 +918,41 @@ async function exportarAExcel() {
         });
         
         // Ajustar ancho de columnas
-        const columnWidths = [5, 30, 20, 20, 25, 15, 15, 15, 15];
+        const columnWidths = mostrarPlanilla ? 
+            [5, 30, 20, 20, 25, 25, 15, 15, 15, 15] : 
+            [5, 30, 20, 20, 25, 15, 15, 15, 15];
+            
         columnWidths.forEach((width, index) => {
             worksheet.getColumn(index + 1).width = width;
         });
         
-        // Agregar totales al final
+        // Totales al final
         const totalRow = worksheet.getRow(8 + empleadosData.length + 1);
-        totalRow.getCell(6).value = 'TOTALES:';
-        totalRow.getCell(6).font = { bold: true };
+        const totalLabelCol = mostrarPlanilla ? 6 : 5;
+        const totalSalarioCol = mostrarPlanilla ? 7 : 6;
+        const totalBonificacionCol = mostrarPlanilla ? 8 : 7;
+        
+        totalRow.getCell(totalLabelCol + 1).value = 'TOTALES:';
+        totalRow.getCell(totalLabelCol + 1).font = { bold: true };
         
         const totalSalarios = empleadosData.reduce((sum, emp) => sum + (parseFloat(emp.SalarioBase) || 0), 0);
         const totalBonificaciones = empleadosData.reduce((sum, emp) => sum + (parseFloat(emp.Bonificacion) || 0), 0);
         
-        totalRow.getCell(7).value = totalSalarios;
-        totalRow.getCell(7).numFmt = '"Q"#,##0.00';
-        totalRow.getCell(7).font = { bold: true };
+        totalRow.getCell(totalSalarioCol + 1).value = totalSalarios;
+        totalRow.getCell(totalSalarioCol + 1).numFmt = '"Q"#,##0.00';
+        totalRow.getCell(totalSalarioCol + 1).font = { bold: true };
         
-        totalRow.getCell(8).value = totalBonificaciones;
-        totalRow.getCell(8).numFmt = '"Q"#,##0.00';
-        totalRow.getCell(8).font = { bold: true };
+        totalRow.getCell(totalBonificacionCol + 1).value = totalBonificaciones;
+        totalRow.getCell(totalBonificacionCol + 1).numFmt = '"Q"#,##0.00';
+        totalRow.getCell(totalBonificacionCol + 1).font = { bold: true };
         
-        // Generar el archivo
+        // Generar y descargar archivo
         const buffer = await workbook.xlsx.writeBuffer();
         
-        // Crear nombre de archivo
         const fechaActual = new Date().toISOString().split('T')[0];
         const nombrePlanilla = planillaNombre.replace(/[^a-zA-Z0-9]/g, '_');
         const nombreArchivo = `Reporte_Planilla_${nombrePlanilla}_${fechaActual}.xlsx`;
         
-        // Descargar el archivo
         const blob = new Blob([buffer], { 
             type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' 
         });
@@ -827,10 +966,8 @@ async function exportarAExcel() {
         document.body.removeChild(link);
         window.URL.revokeObjectURL(url);
         
-        // Cerrar loading
         loadingSwal.close();
         
-        // Mostrar éxito
         await Swal.fire({
             icon: 'success',
             title: '¡Exportación exitosa!',
@@ -1065,6 +1202,58 @@ function inicializarEventListenersEdicion() {
     if (bankAccountForm) {
         bankAccountForm.addEventListener('submit', guardarCambiosCuentaBancaria);
     }
+}
+function aplicarFiltroSinCuenta() {
+    if (!empleadosData || empleadosData.length === 0) {
+        return; // No hay datos cargados aún
+    }
+    
+    const filtroSinCuenta = document.getElementById('filtroSinCuenta');
+    const searchInput = document.getElementById('searchInput');
+    
+    // Resetear búsqueda si hay texto
+    if (searchInput && searchInput.value.trim() !== '') {
+        searchInput.value = '';
+    }
+    
+    if (filtroSinCuenta && filtroSinCuenta.checked) {
+        // Filtrar solo empleados sin cuenta bancaria
+        empleadosFiltrados = empleadosData.filter(emp => {
+            const sinCuenta1 = !emp.CuentaDivision1 || emp.CuentaDivision1.trim() === '';
+            const sinCuenta2 = !emp.CuentaDivision2 || emp.CuentaDivision2.trim() === '';
+            const sinCuenta3 = !emp.CuentaDivision3 || emp.CuentaDivision3.trim() === '';
+            
+            // Empleado sin cuenta si NO tiene ninguna de las 3 divisiones
+            return sinCuenta1 && sinCuenta2 && sinCuenta3;
+        });
+    } else {
+        // Mostrar todos los empleados
+        empleadosFiltrados = [...empleadosData];
+    }
+    
+    currentPage = 1;
+    renderizarTabla();
+    actualizarContadorEmpleados();
+}
+function actualizarContadorEmpleados() {
+    const planillaInfoCompact = document.getElementById('planillaInfoCompact');
+    if (!planillaInfoCompact) return;
+    
+    const filtroSinCuenta = document.getElementById('filtroSinCuenta');
+    const planillaSelect = document.getElementById('planillaSelect');
+    const planillaNombre = planillaSelect?.selectedOptions[0]?.textContent || 'Planilla';
+    
+    let textoContador = `${planillaNombre} - `;
+    
+    if (filtroSinCuenta && filtroSinCuenta.checked) {
+        textoContador += `${empleadosFiltrados.length} empleados SIN cuenta bancaria (de ${empleadosData.length} total)`;
+    } else {
+        textoContador += `${empleadosData.length} empleados`;
+    }
+    
+    planillaInfoCompact.innerHTML = `
+        <i class="fas fa-clipboard-list"></i> ${textoContador}
+    `;
 }
 // Exportar funciones globales para uso en HTML
 window.cambiarPagina = cambiarPagina;
