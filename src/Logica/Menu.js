@@ -2130,7 +2130,7 @@ async function cargarNotificaciones() {
         const userData = JSON.parse(localStorage.getItem('userData'));
         
         // Verificar si es encargado regional
-        if ([94, 95, 175].includes(userData.Id_Puesto)) {
+        if ([94, 95, 175, 221].includes(userData.Id_Puesto)) {
             // Cargar notificaciones específicas para encargados regionales
             const notificacionesRegionales = await cargarNotificacionesRegionales();
             

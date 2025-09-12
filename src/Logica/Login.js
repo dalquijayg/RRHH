@@ -114,7 +114,7 @@ async function mostrarConfiguracion2FA(userData) {
     const secret = authenticator.generateSecret();
     const otpauth = authenticator.keyuri(
         userData.NombreCompleto, 
-        'Sistema RRHH New Technology', 
+        'Sistema RRHH', 
         secret
     );
     

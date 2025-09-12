@@ -287,6 +287,7 @@ body {
     transform: scale(1.05);
     box-shadow: var(--shadow-medium);
 }
+
 /* ===== LAYOUT PRINCIPAL - PANTALLA COMPLETA ===== */
 .main-container {
     max-width: none;
@@ -587,7 +588,6 @@ body {
     color: var(--trust-blue);
     text-align: center;
 }
-
 /* ===== BOTONES PRINCIPALES ===== */
 .btn {
     display: inline-flex;
@@ -688,6 +688,7 @@ body {
     transform: none !important;
     box-shadow: none !important;
 }
+
 /* ===== PANEL IZQUIERDO REDISEÑADO ===== */
 .collaborators-section {
     background: white;
@@ -890,7 +891,7 @@ body {
     font-weight: 600;
 }
 
-/* ===== SECCIÓN DE PLANILLA - MAXIMIZADA ===== */
+/* ===== SECCIÓN DE PLANILLA - MAXIMIZADA CON NUEVA ESTRUCTURA ===== */
 .payroll-section {
     background: white;
     border-radius: var(--radius-2xl);
@@ -902,6 +903,8 @@ body {
     flex-direction: column;
     height: 100%;
     min-height: 0;
+    /* NUEVO: Altura máxima para forzar scroll interno */
+    max-height: calc(100vh - 120px);
 }
 
 .payroll-section .section-header {
@@ -910,7 +913,8 @@ body {
     padding: var(--spacing-xl) var(--spacing-2xl);
     position: relative;
     overflow: hidden;
-    flex-shrink: 0;
+    flex-shrink: 0; /* No se comprime */
+    z-index: 10;
 }
 
 .payroll-section .section-header::before {
@@ -966,16 +970,50 @@ body {
     text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
 }
 
-/* ===== TABLA REDISEÑADA CON CONFIANZA ===== */
+/* ===== NUEVO: ÁREA DE CONTENIDO SCROLLEABLE ===== */
+.payroll-content-area {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    overflow: hidden;
+}
+
+/* ===== TABLA REDISEÑADA CON CONFIANZA Y SCROLL MEJORADO ===== */
 .payroll-table-container {
     flex: 1;
     overflow-y: auto;
     overflow-x: hidden;
     background: white;
     min-height: 0;
-    max-height: none;
+    /* AUMENTAR: Más espacio para la tabla */
+    max-height: calc(100vh - 260px); /* Reducido de calc(100vh - 320px) */
+    border-top: 1px solid var(--gray-100);
+}
+.payroll-actions-container.ultra-compact {
+    padding: 8px var(--spacing-md);
+    min-height: 45px;
+    max-height: 55px;
 }
 
+.payroll-actions-container.ultra-compact .btn {
+    padding: 4px 12px;
+    font-size: 0.75rem;
+    min-height: 30px;
+}
+
+.payroll-actions-container.ultra-compact .compact-total {
+    padding: 8px 12px;
+    min-width: 160px;
+}
+
+.payroll-actions-container.ultra-compact .compact-total-amount {
+    font-size: 1.2rem;
+}
+
+.payroll-actions-container.ultra-compact ~ .payroll-table-container {
+    max-height: calc(100vh - 220px);
+}
 .payroll-table {
     width: 100%;
     border-collapse: collapse;
@@ -1140,18 +1178,30 @@ body {
     box-shadow: var(--shadow-medium);
 }
 
-/* ===== ESTRUCTURA DE ACCIONES OPTIMIZADA ===== */
+/* ===== NUEVO: CONTENEDOR DE ACCIONES MEJORADO - SIEMPRE VISIBLE ===== */
 .payroll-actions-container {
     display: flex;
     justify-content: space-between;
-    align-items: flex-start;
-    gap: var(--spacing-lg);
-    padding: var(--spacing-lg) var(--spacing-xl);
+    align-items: center;
+    gap: var(--spacing-md); /* Reducido de var(--spacing-lg) */
+    padding: var(--spacing-md) var(--spacing-xl); /* Reducido de var(--spacing-lg) */
     background: linear-gradient(135deg, var(--gray-25) 0%, var(--gray-50) 100%);
     border-top: 1px solid var(--gray-200);
     flex-shrink: 0;
+    position: sticky;
+    bottom: 0;
+    z-index: 5;
+    box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.05);
+    /* NUEVO: Altura máxima más pequeña */
+    min-height: 60px; /* Reducido de altura automática */
+    max-height: 80px; /* Limitar altura máxima */
 }
-
+.left-actions .btn {
+    padding: var(--spacing-sm) var(--spacing-md); /* Reducido significativamente */
+    font-size: 0.8rem; /* Reducido de 0.85rem */
+    min-height: 36px; /* Reducido de altura por defecto */
+    border-radius: var(--radius-md); /* Reducido de var(--radius-xl) */
+}
 .left-actions {
     display: flex;
     align-items: center;
@@ -1168,13 +1218,13 @@ body {
 .compact-total {
     background: linear-gradient(135deg, var(--success-emerald) 0%, var(--success-light) 100%);
     color: white;
-    padding: var(--spacing-xl) var(--spacing-2xl);
-    border-radius: var(--radius-2xl);
+    padding: var(--spacing-md) var(--spacing-lg); /* Reducido significativamente */
+    border-radius: var(--radius-lg); /* Reducido de var(--radius-2xl) */
     display: flex;
     flex-direction: column;
     align-items: center;
-    min-width: 240px;
-    box-shadow: var(--shadow-large);
+    min-width: 200px; /* Reducido de 240px */
+    box-shadow: var(--shadow-medium); /* Reducido de var(--shadow-large) */
     position: relative;
     overflow: hidden;
     border: 1px solid rgba(255, 255, 255, 0.2);
@@ -1194,7 +1244,7 @@ body {
 }
 
 .compact-total-label {
-    font-size: 0.85rem;
+    font-size: 0.75rem; /* Reducido de 0.85rem */
     opacity: 0.95;
     font-weight: 600;
     position: relative;
@@ -1202,25 +1252,28 @@ body {
     text-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
     text-transform: uppercase;
     letter-spacing: 0.05em;
+    margin-bottom: 2px; /* Reducir espacio */
 }
 
 .compact-total-amount {
-    font-size: 1.8rem;
+    font-size: 1.4rem; /* Reducido de 1.8rem */
     font-weight: 900;
     position: relative;
     z-index: 1;
     text-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
     letter-spacing: -0.025em;
+    line-height: 1.1; /* Reducir altura de línea */
 }
 
 .compact-total-details {
-    font-size: 0.75rem;
+    font-size: 0.7rem; /* Reducido de 0.75rem */
     opacity: 0.9;
     position: relative;
     z-index: 1;
-    margin-top: 4px;
+    margin-top: 2px; /* Reducido de 4px */
     text-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
     font-weight: 500;
+    line-height: 1.2;
 }
 
 /* ===== ESTADOS VACÍO Y WELCOME REDISEÑADOS ===== */
@@ -1230,7 +1283,7 @@ body {
     align-items: center;
     justify-content: center;
     padding: var(--spacing-2xl);
-    min-height: 300px;
+    min-height: 200px; /* Altura mínima reducida */
     background: linear-gradient(135deg, var(--gray-25) 0%, white 100%);
 }
 
@@ -1447,7 +1500,7 @@ body {
     max-height: 90vh;
     overflow: hidden;
     display: flex;
-    flex-direction: column; /* Importante: estructura en columna */
+    flex-direction: column;
 }
 
 .modal-body {
@@ -1947,6 +2000,7 @@ body {
     max-width: 280px;
     min-height: 0;
 }
+
 .modal-footer .btn {
     min-width: 140px; 
     white-space: nowrap; 
@@ -1956,63 +2010,10 @@ body {
     margin-right: auto;
 }
 
-/* Botón de guardar (derecha) */
 .modal-footer .btn-primary {
     margin-left: auto;
 }
-@media (max-width: 1024px) {
-    .modal-body {
-        grid-template-columns: 1fr;
-        gap: var(--spacing-lg);
-    }
-    
-    .sidebar-section {
-        order: -1;
-        flex-direction: row;
-        height: auto;
-        overflow: visible;
-        max-width: none;
-    }
-    
-    .modal-summary {
-        flex: 1;
-    }
-    
-    .calendar-legend {
-        flex: 1;
-    }
-    
-    .calendar-container {
-        max-height: calc(90vh - 180px); /* Ajuste para pantallas medianas */
-    }
-}
 
-@media (max-width: 768px) {
-    .modal-large {
-        width: 100%;
-        height: 100vh;
-        border-radius: 0;
-    }
-    
-    .modal-footer {
-        flex-direction: row; /* Mantener botones en fila en móvil */
-        justify-content: space-between;
-        padding: var(--spacing-md);
-    }
-    
-    .modal-footer .btn {
-        min-width: 120px;
-        font-size: 0.85rem;
-    }
-    
-    .calendar-container {
-        max-height: calc(100vh - 200px); /* Ajuste para móviles */
-    }
-    
-    .sidebar-section {
-        flex-direction: column;
-    }
-}
 .modal-summary {
     background: linear-gradient(135deg, white 0%, var(--gray-50) 100%);
     border-radius: var(--radius-lg);
@@ -2316,6 +2317,179 @@ body {
     color: var(--trust-slate);
 }
 
+/* ===== BOTONES DE CONFIGURACIÓN ===== */
+.buttons-group {
+    display: flex;
+    align-items: end;
+}
+
+.config-buttons-container {
+    display: flex;
+    flex-direction: row;
+    gap: var(--spacing-md);
+    width: 100%;
+}
+
+/* ===== BOTONES BASE MEJORADOS ===== */
+.btn-config {
+    padding: var(--spacing-md) var(--spacing-lg);
+    border: none;
+    border-radius: var(--radius-lg);
+    font-size: 0.9rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    position: relative;
+    overflow: hidden;
+    box-shadow: var(--shadow-medium);
+    letter-spacing: 0.025em;
+    min-height: 48px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--spacing-sm);
+    flex: 1;
+}
+
+.btn-config::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
+    transition: left 0.5s;
+}
+
+.btn-config:hover::before {
+    left: 100%;
+}
+
+/* ===== BOTÓN PRIMARIO (INICIAR) ===== */
+.btn-config-primary {
+    background: linear-gradient(135deg, var(--gray-300) 0%, var(--gray-400) 100%);
+    color: var(--gray-600);
+    cursor: not-allowed;
+}
+
+.btn-config-primary.ready {
+    background: linear-gradient(135deg, var(--trust-blue) 0%, var(--trust-light-blue) 50%, var(--success-emerald) 100%);
+    color: white;
+    cursor: pointer;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+}
+
+.btn-config-primary.ready:hover {
+    background: linear-gradient(135deg, var(--trust-navy) 0%, var(--trust-blue) 50%, var(--success-emerald) 100%);
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-large);
+}
+
+/* ===== BOTÓN SECUNDARIO (PDF) ===== */
+.btn-config-secondary {
+    background: linear-gradient(135deg, #dc2626 0%, #ef4444 100%);
+    color: white;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+}
+
+.btn-config-secondary:hover {
+    background: linear-gradient(135deg, #b91c1c 0%, #dc2626 100%);
+    transform: translateY(-2px);
+    box-shadow: 0 8px 25px rgba(220, 38, 38, 0.3);
+}
+
+.btn-config-secondary:active {
+    transform: translateY(0);
+}
+
+.btn-config:disabled {
+    background: var(--gray-200) !important;
+    color: var(--gray-400) !important;
+    cursor: not-allowed !important;
+    opacity: 0.6 !important;
+    transform: none !important;
+    box-shadow: var(--shadow-soft) !important;
+}
+
+/* ===== BOTÓN DE AYUDA ===== */
+.btn-help {
+    background: linear-gradient(135deg, #059669 0%, #10b981 100%);
+    color: white;
+    border: none;
+    border-radius: var(--radius-xl);
+    padding: var(--spacing-md) var(--spacing-lg);
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    box-shadow: var(--shadow-medium);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.25);
+}
+
+.btn-help:hover {
+    background: linear-gradient(135deg, #047857 0%, #059669 100%);
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-large);
+}
+
+.btn-help i {
+    font-size: 1.1rem;
+}
+
+/* ===== INDICADOR DE SCROLL ===== */
+.scroll-indicator {
+    position: absolute;
+    bottom: 80px;
+    right: 20px;
+    background: rgba(59, 130, 246, 0.9);
+    color: white;
+    padding: 8px 12px;
+    border-radius: 20px;
+    font-size: 0.8rem;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    animation: bounce 2s infinite;
+    z-index: 100;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+/* ===== ESTILOS PARA MODAL DE AYUDA ===== */
+.help-modal {
+    font-family: 'Inter', sans-serif !important;
+}
+
+.help-content {
+    text-align: left !important;
+}
+
+.help-content h3 {
+    margin-top: 0 !important;
+}
+
+.help-content p {
+    margin-bottom: 10px !important;
+}
+
+.help-content::-webkit-scrollbar {
+    width: 6px;
+}
+
+.help-content::-webkit-scrollbar-track {
+    background: #f1f5f9;
+    border-radius: 3px;
+}
+
+.help-content::-webkit-scrollbar-thumb {
+    background: #10b981;
+    border-radius: 3px;
+}
+
 /* ===== RESPONSIVE DESIGN OPTIMIZADO ===== */
 @media (max-width: 1200px) {
     .main-container {
@@ -2394,13 +2568,17 @@ body {
     .department-info-container {
         min-width: 250px;
     }
+    
+    .payroll-table-container {
+        max-height: calc(100vh - 400px);
+    }
 }
 
 @media (max-width: 768px) {
     .payroll-type-section {
         margin: var(--spacing-xs);
-        max-height: 85vh; /* Aumentar para móviles */
-        overflow-y: auto; /* Permitir scroll si es necesario */
+        max-height: 85vh;
+        overflow-y: auto;
     }
     
     .payroll-type-container {
@@ -2576,13 +2754,14 @@ body {
     }
     
     .left-actions {
-        flex-wrap: wrap;
+        flex-direction: column;
+        width: 100%;
         gap: var(--spacing-xs);
     }
     
     .btn {
-        font-size: 0.7rem;
-        padding: var(--spacing-xs) var(--spacing-sm);
+        width: 100%;
+        justify-content: center;
     }
     
     .compact-total {
@@ -2637,6 +2816,32 @@ body {
     .option-content p {
         font-size: 0.75rem;
     }
+    
+    .payroll-table-container {
+        max-height: calc(100vh - 350px);
+    }
+    
+    .config-buttons-container {
+        flex-direction: column;
+        gap: var(--spacing-sm);
+    }
+    
+    .btn-config {
+        font-size: 0.85rem;
+        min-height: 44px;
+        padding: var(--spacing-sm) var(--spacing-md);
+    }
+    
+    .btn-help span {
+        display: none;
+    }
+    .btn-help {
+        padding: var(--spacing-sm);
+        border-radius: 50%;
+        width: 44px;
+        height: 44px;
+        justify-content: center;
+    }
 }
 
 @media (max-width: 480px) {
@@ -2660,7 +2865,7 @@ body {
     
     .payroll-type-header.enhanced p {
         font-size: 0.75rem;
-        display: none; /* Ocultar descripción en pantallas muy pequeñas */
+        display: none;
     }
     
     .form-control.enhanced {
@@ -2673,13 +2878,12 @@ body {
         min-height: 40px;
     }
     
-    /* Simplificar las tarjetas informativas en móviles */
     .config-info {
         margin-top: var(--spacing-xs);
     }
     
     .config-info > div:first-child {
-        grid-template-columns: 1fr; /* Una sola columna */
+        grid-template-columns: 1fr;
         gap: var(--spacing-xs);
     }
 
@@ -2758,6 +2962,16 @@ body {
     
     .option-content p {
         font-size: 0.7rem;
+    }
+    
+    .btn-config {
+        font-size: 0.8rem;
+        min-height: 40px;
+        padding: var(--spacing-sm);
+    }
+    
+    .btn-config span {
+        font-size: 0.75rem;
     }
 }
 
@@ -2845,6 +3059,18 @@ body {
     to { 
         opacity: 1; 
         transform: translate(-50%, -50%) scale(1); 
+    }
+}
+
+@keyframes bounce {
+    0%, 20%, 50%, 80%, 100% {
+        transform: translateY(0);
+    }
+    40% {
+        transform: translateY(-5px);
+    }
+    60% {
+        transform: translateY(-3px);
     }
 }
 
@@ -3175,196 +3401,4 @@ body {
     border-top: 4px solid var(--trust-navy);
     z-index: 1000;
     pointer-events: none;
-}
-.buttons-group {
-    display: flex;
-    align-items: end;
-}
-
-.config-buttons-container {
-    display: flex;
-    flex-direction: row; /* Cambio: lado a lado */
-    gap: var(--spacing-md);
-    width: 100%;
-}
-
-/* ===== BOTONES BASE MEJORADOS ===== */
-.btn-config {
-    padding: var(--spacing-md) var(--spacing-lg);
-    border: none;
-    border-radius: var(--radius-lg);
-    font-size: 0.9rem;
-    font-weight: 700;
-    cursor: pointer;
-    transition: all 0.3s ease;
-    position: relative;
-    overflow: hidden;
-    box-shadow: var(--shadow-medium);
-    letter-spacing: 0.025em;
-    min-height: 48px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: var(--spacing-sm);
-    flex: 1; /* Ambos botones del mismo tamaño */
-}
-
-.btn-config::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: -100%;
-    width: 100%;
-    height: 100%;
-    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
-    transition: left 0.5s;
-}
-
-.btn-config:hover::before {
-    left: 100%;
-}
-
-/* ===== BOTÓN PRIMARIO (INICIAR) ===== */
-.btn-config-primary {
-    background: linear-gradient(135deg, var(--gray-300) 0%, var(--gray-400) 100%);
-    color: var(--gray-600);
-    cursor: not-allowed;
-}
-
-.btn-config-primary.ready {
-    background: linear-gradient(135deg, var(--trust-blue) 0%, var(--trust-light-blue) 50%, var(--success-emerald) 100%);
-    color: white;
-    cursor: pointer;
-    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
-}
-
-.btn-config-primary.ready:hover {
-    background: linear-gradient(135deg, var(--trust-navy) 0%, var(--trust-blue) 50%, var(--success-emerald) 100%);
-    transform: translateY(-2px);
-    box-shadow: var(--shadow-large);
-}
-
-/* ===== BOTÓN SECUNDARIO (PDF) ===== */
-.btn-config-secondary {
-    background: linear-gradient(135deg, #dc2626 0%, #ef4444 100%);
-    color: white;
-    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
-}
-
-.btn-config-secondary:hover {
-    background: linear-gradient(135deg, #b91c1c 0%, #dc2626 100%);
-    transform: translateY(-2px);
-    box-shadow: 0 8px 25px rgba(220, 38, 38, 0.3);
-}
-
-.btn-config-secondary:active {
-    transform: translateY(0);
-}
-
-/* ===== RESPONSIVE MEJORADO ===== */
-@media (max-width: 768px) {
-    .config-buttons-container {
-        flex-direction: column; /* En móviles: uno debajo del otro */
-        gap: var(--spacing-sm);
-    }
-    
-    .btn-config {
-        font-size: 0.85rem;
-        min-height: 44px;
-        padding: var(--spacing-sm) var(--spacing-md);
-    }
-}
-
-@media (max-width: 480px) {
-    .btn-config {
-        font-size: 0.8rem;
-        min-height: 40px;
-        padding: var(--spacing-sm);
-    }
-    
-    .btn-config span {
-        font-size: 0.75rem;
-    }
-}
-
-/* ===== ESTADOS DISABLED ===== */
-.btn-config:disabled {
-    background: var(--gray-200) !important;
-    color: var(--gray-400) !important;
-    cursor: not-allowed !important;
-    opacity: 0.6 !important;
-    transform: none !important;
-    box-shadow: var(--shadow-soft) !important;
-}
-.btn-help {
-    background: linear-gradient(135deg, #059669 0%, #10b981 100%);
-    color: white;
-    border: none;
-    border-radius: var(--radius-xl);
-    padding: var(--spacing-md) var(--spacing-lg);
-    display: flex;
-    align-items: center;
-    gap: var(--spacing-sm);
-    font-size: 0.9rem;
-    font-weight: 600;
-    cursor: pointer;
-    transition: all 0.3s ease;
-    box-shadow: var(--shadow-medium);
-    backdrop-filter: blur(10px);
-    border: 1px solid rgba(255, 255, 255, 0.25);
-}
-
-.btn-help:hover {
-    background: linear-gradient(135deg, #047857 0%, #059669 100%);
-    transform: translateY(-2px);
-    box-shadow: var(--shadow-large);
-}
-
-.btn-help i {
-    font-size: 1.1rem;
-}
-
-/* Responsive */
-@media (max-width: 768px) {
-    .btn-help span {
-        display: none;
-    }
-    .btn-help {
-        padding: var(--spacing-sm);
-        border-radius: 50%;
-        width: 44px;
-        height: 44px;
-        justify-content: center;
-    }
-}
-/* ===== ESTILOS PARA MODAL DE AYUDA ===== */
-.help-modal {
-    font-family: 'Inter', sans-serif !important;
-}
-
-.help-content {
-    text-align: left !important;
-}
-
-.help-content h3 {
-    margin-top: 0 !important;
-}
-
-.help-content p {
-    margin-bottom: 10px !important;
-}
-
-/* Scroll personalizado para el modal de ayuda */
-.help-content::-webkit-scrollbar {
-    width: 6px;
-}
-
-.help-content::-webkit-scrollbar-track {
-    background: #f1f5f9;
-    border-radius: 3px;
-}
-
-.help-content::-webkit-scrollbar-thumb {
-    background: #10b981;
-    border-radius: 3px;
 }

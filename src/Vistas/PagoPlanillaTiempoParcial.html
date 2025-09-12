@@ -8,6 +8,156 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/3.0.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/sweetalert2/11.0.19/sweetalert2.min.js"></script>
+    
+    <style>
+        /* ===== ESTILOS ADICIONALES PARA SCROLL Y BOTONES VISIBLES ===== */
+        
+        /* Contenedor principal de la sección de planilla */
+        .payroll-section {
+            background: white;
+            border-radius: var(--radius-2xl);
+            box-shadow: var(--shadow-large);
+            border: 1px solid var(--gray-200);
+            overflow: hidden;
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+            min-height: 0;
+            /* NUEVO: Altura máxima para forzar scroll interno */
+            max-height: calc(100vh - 120px);
+        }
+
+        /* Header de la sección (fijo en la parte superior) */
+        .payroll-section .section-header {
+            background: linear-gradient(135deg, var(--trust-navy) 0%, var(--trust-blue) 50%, var(--trust-slate) 100%);
+            color: white;
+            padding: var(--spacing-xl) var(--spacing-2xl);
+            position: relative;
+            overflow: hidden;
+            flex-shrink: 0; /* No se comprime */
+            z-index: 10;
+        }
+
+        /* NUEVO: Área de contenido scrolleable */
+        .payroll-content-area {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            min-height: 0;
+            overflow: hidden;
+        }
+
+        /* Contenedor de la tabla con scroll mejorado */
+        .payroll-table-container {
+            flex: 1;
+            overflow-y: auto;
+            overflow-x: hidden;
+            background: white;
+            min-height: 0;
+            /* NUEVO: Altura máxima específica */
+            max-height: calc(100vh - 320px);
+            /* NUEVO: Borde superior sutil para separar del header */
+            border-top: 1px solid var(--gray-100);
+        }
+
+        /* NUEVO: Contenedor de acciones mejorado - siempre visible */
+        .payroll-actions-container {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: var(--spacing-lg);
+            padding: var(--spacing-lg) var(--spacing-xl);
+            background: linear-gradient(135deg, var(--gray-25) 0%, var(--gray-50) 100%);
+            border-top: 1px solid var(--gray-200);
+            flex-shrink: 0; /* IMPORTANTE: No se comprime */
+            position: sticky;
+            bottom: 0;
+            z-index: 5;
+            /* NUEVO: Sombra sutil hacia arriba */
+            box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.05);
+        }
+
+        /* Estados vacíos mejorados */
+        .empty-payroll-state {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: var(--spacing-2xl);
+            min-height: 200px; /* Altura mínima reducida */
+            background: linear-gradient(135deg, var(--gray-25) 0%, white 100%);
+        }
+
+        /* Indicador de scroll */
+        .scroll-indicator {
+            position: absolute;
+            bottom: 80px;
+            right: 20px;
+            background: rgba(59, 130, 246, 0.9);
+            color: white;
+            padding: 8px 12px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            animation: bounce 2s infinite;
+            z-index: 100;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        }
+
+        @keyframes bounce {
+            0%, 20%, 50%, 80%, 100% {
+                transform: translateY(0);
+            }
+            40% {
+                transform: translateY(-5px);
+            }
+            60% {
+                transform: translateY(-3px);
+            }
+        }
+
+        /* RESPONSIVE: En pantallas pequeñas */
+        @media (max-width: 1024px) {
+            .payroll-table-container {
+                max-height: calc(100vh - 400px);
+            }
+            
+            .payroll-actions-container {
+                flex-direction: column;
+                gap: var(--spacing-md);
+                padding: var(--spacing-md);
+            }
+            
+            .right-summary {
+                width: 100%;
+                justify-content: center;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .payroll-table-container {
+                max-height: calc(100vh - 350px);
+            }
+            
+            .payroll-actions-container {
+                padding: var(--spacing-sm);
+            }
+            
+            .left-actions {
+                flex-direction: column;
+                width: 100%;
+                gap: var(--spacing-xs);
+            }
+            
+            .btn {
+                width: 100%;
+                justify-content: center;
+            }
+        }
+    </style>
 </head>
 <body>
     <!-- Header Principal -->
@@ -114,23 +264,6 @@
                 </button>
             </div>
         </div>
-        
-        <!-- Vista confirmada (compacta) -->
-        <div class="payroll-confirmed enhanced" id="payrollConfirmed" style="display: none;">
-            <div class="confirmed-info" style="background: linear-gradient(135deg, var(--success-emerald) 0%, var(--success-light) 100%); color: white; padding: var(--spacing-lg); border-radius: var(--radius-lg); display: flex; justify-content: space-between; align-items: center; box-shadow: var(--shadow-medium);">
-                <div class="confirmed-details">
-                    <div style="display: flex; align-items: center; gap: var(--spacing-sm); margin-bottom: var(--spacing-xs);">
-                        <i class="fas fa-check-circle" style="font-size: 1.2rem;"></i>
-                        <span class="confirmed-type" id="confirmedType" style="font-size: 1rem; font-weight: 700;">Tipo de Planilla</span>
-                    </div>
-                    <span class="confirmed-period" id="confirmedPeriod" style="font-size: 0.8rem; opacity: 0.9;">Período</span>
-                </div>
-                <button type="button" id="changePlanilla" class="btn-change" style="background: rgba(255, 255, 255, 0.2); border: 2px solid rgba(255, 255, 255, 0.5); color: white; padding: var(--spacing-xs) var(--spacing-md); border-radius: var(--radius-md); font-size: 0.75rem; font-weight: 600; cursor: pointer; transition: all 0.2s ease; backdrop-filter: blur(10px);">
-                    <i class="fas fa-edit"></i>
-                    Cambiar
-                </button>
-            </div>
-        </div>
     </div>
 </section>
 
@@ -158,8 +291,9 @@
 
         <!-- Panel Derecho: Planilla Principal -->
         <section class="right-panel">
-            <!-- Sección Principal de Planilla (MAXIMIZADA) -->
+            <!-- Sección Principal de Planilla (MEJORADA CON NUEVA ESTRUCTURA) -->
             <div class="payroll-section" id="payrollSection">
+                <!-- Header (se mantiene igual) -->
                 <div class="section-header">
                     <h3><i class="fas fa-file-invoice-dollar"></i> Planilla de Colaboradores</h3>
                     <div class="payroll-stats">
@@ -168,58 +302,57 @@
                     </div>
                 </div>
 
-                <!-- Tabla de colaboradores (MAXIMIZADA CON SCROLL) -->
-                <div class="payroll-table-container" id="payrollTableContainer">
-                    <table class="payroll-table" id="payrollTable">
-                        <thead>
-                            <tr>
-                                <th>Colaborador</th>
-                                <th style="text-align: center;">T. Mañana</th>
-                                <th style="text-align: center;">T. Mixtos</th>
-                                <th style="text-align: center;">T. 4 Horas</th>
-                                <th style="text-align: center;">Total Turnos</th>
-                                <th style="text-align: right;">Total a Pagar</th>
-                                <th style="text-align: center;">Acciones</th>
-                            </tr>
-                        </thead>
-                        <tbody id="payrollTableBody">
-                            <!-- Filas dinámicas -->
-                        </tbody>
-                    </table>
-                    
-                    <!-- Estado vacío -->
-                    <div class="empty-payroll-state" id="emptyPayrollState">
-                        <div class="empty-state">
-                            <i class="fas fa-users-slash"></i>
-                            <h4>No hay colaboradores en la planilla</h4>
-                            <p>Selecciona un colaborador, asigna turnos y agrégalo a la planilla para comenzar.</p>
+                <!-- NUEVO: Área de contenido scrolleable -->
+                <div class="payroll-content-area">
+                    <!-- Tabla de colaboradores con scroll propio -->
+                    <div class="payroll-table-container" id="payrollTableContainer">
+                        <table class="payroll-table" id="payrollTable">
+                            <thead>
+                                <tr>
+                                    <th>Colaborador</th>
+                                    <th style="text-align: center;">T. Mañana</th>
+                                    <th style="text-align: center;">T. Mixtos</th>
+                                    <th style="text-align: center;">T. 4 Horas</th>
+                                    <th style="text-align: center;">Total Turnos</th>
+                                    <th style="text-align: right;">Total a Pagar</th>
+                                    <th style="text-align: center;">Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody id="payrollTableBody">
+                                <!-- Filas dinámicas -->
+                            </tbody>
+                        </table>
+                        
+                        <!-- Estado vacío -->
+                        <div class="empty-payroll-state" id="emptyPayrollState">
+                            <div class="empty-state">
+                                <i class="fas fa-users-slash"></i>
+                                <h4>No hay colaboradores en la planilla</h4>
+                                <p>Selecciona un colaborador, asigna turnos y agrégalo a la planilla para comenzar.</p>
+                            </div>
                         </div>
                     </div>
-                </div>
 
-                <!-- Estructura de acciones optimizada -->
-                <div class="payroll-actions-container" id="payrollActionsContainer" style="display: none;">
-                    <!-- Botones de acción a la izquierda -->
-                    <div class="left-actions">
-                        <button type="button" id="clearAllPayroll" class="btn btn-danger">
-                            <i class="fas fa-trash-alt"></i>
-                            <span>Limpiar Planilla</span>
-                        </button>
+                    <!-- NUEVO: Acciones fijas en la parte inferior -->
+                    <div class="payroll-actions-container" id="payrollActionsContainer" style="display: none;">
+                        <!-- Botones de acción a la izquierda -->
+                        <div class="left-actions">
+                            <button type="button" id="clearAllPayroll" class="btn btn-danger">
+                                <i class="fas fa-trash-alt"></i>
+                                <span>Limpiar Planilla</span>
+                            </button>
+                            
+                            <button type="button" id="generateFinalPayroll" class="btn btn-success">
+                                <i class="fas fa-file-export"></i>
+                                <span>Solicitar Autorización</span>
+                            </button>
+                        </div>
                         
-                        <button type="button" id="generateFinalPayroll" class="btn btn-success">
-                            <i class="fas fa-file-export"></i>
-                            <span>Solicitar Autorización</span>
-                        </button>
-                    </div>
-                    
-                    <!-- Resumen total a la derecha -->
-                    <div class="right-summary">
-                        <div class="compact-total">
-                            <div class="compact-total-label">Total General</div>
-                            <div class="compact-total-amount" id="totalAmount">Q 0.00</div>
-                            <div class="compact-total-details">
-                                <span id="totalCollaborators">0</span> colaboradores • 
-                                <span id="totalShifts">0</span> turnos
+                        <!-- Resumen total a la derecha -->
+                        <div class="right-summary">
+                            <div class="compact-total">
+                                <div class="compact-total-label">Total General</div>
+                                <div class="compact-total-amount" id="totalAmount">Q 0.00</div>
                             </div>
                         </div>
                     </div>

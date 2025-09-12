@@ -2130,6 +2130,16 @@ function actualizarResumenModal() {
 
 // ⭐ FUNCIÓN PARA ACTUALIZAR PROGRESO CUANDO SE AGREGA A PLANILLA
 function agregarNuevoColaboradorAPlanillaConProgreso() {
+    if (!selectedEmployee || currentShifts.length === 0) {
+        Swal.fire({
+            icon: 'warning',
+            title: 'Información incompleta',
+            text: 'Debe seleccionar un colaborador y asignarle al menos un turno.',
+            confirmButtonColor: '#1e40af'
+        });
+        return;
+    }
+    
     const colaboradorData = {
         id: selectedEmployee.id,
         nombre: selectedEmployee.nombre,
@@ -2146,7 +2156,7 @@ function agregarNuevoColaboradorAPlanillaConProgreso() {
     payrollCollaborators.push(colaboradorData);
     
     // ⭐ ACTUALIZAR PROGRESO A "GENERAR" SI HAY COLABORADORES
-    if (payrollCollaborators.length > 0) {
+    if (payrollCollaborators.length > 0 && typeof actualizarProgresoVisual === 'function') {
         actualizarProgresoVisual('generate');
     }
     
@@ -2156,6 +2166,23 @@ function agregarNuevoColaboradorAPlanillaConProgreso() {
     // Actualizar vista de planilla y visibilidad de acciones
     actualizarVistaPlanilla();
     actualizarVisibilidadAcciones();
+    
+    // NUEVO: Scroll automático al colaborador recién agregado
+    setTimeout(() => {
+        const index = payrollCollaborators.length - 1;
+        scrollToCollaborator(index);
+    }, 300);
+    
+    // Mostrar confirmación
+    Swal.fire({
+        icon: 'success',
+        title: 'Colaborador agregado',
+        text: `${colaboradorData.nombre} ha sido agregado a la planilla con ${colaboradorData.totalTurnos} turnos.`,
+        timer: 2000,
+        showConfirmButton: false,
+        toast: true,
+        position: 'top-end'
+    });
 }
 
 function actualizarIndicadoresSemana() {
@@ -2202,26 +2229,33 @@ function actualizarIndicadoresSemana() {
 function actualizarVisibilidadAcciones() {
     const payrollActionsContainer = document.getElementById('payrollActionsContainer');
     const hasCollaborators = payrollCollaborators.length > 0;
-    const hasCurrentEmployee = selectedEmployee !== null;
     
-    // Mostrar contenedor de acciones si hay colaboradores en planilla O empleado actual seleccionado
-    if (hasCollaborators || hasCurrentEmployee) {
+    if (!payrollActionsContainer) return;
+    
+    // Mostrar contenedor de acciones si hay colaboradores en planilla
+    if (hasCollaborators) {
         payrollActionsContainer.style.display = 'flex';
         
         // Habilitar/deshabilitar botones específicos
-        const clearCurrentBtn = document.getElementById('clearCurrentShifts');
         const clearAllBtn = document.getElementById('clearAllPayroll');
-        
-        if (clearCurrentBtn) {
-            clearCurrentBtn.disabled = !hasCurrentEmployee || currentShifts.length === 0;
-        }
+        const generateBtn = document.getElementById('generateFinalPayroll');
         
         if (clearAllBtn) {
-            clearAllBtn.disabled = !hasCollaborators;
+            clearAllBtn.disabled = false;
+        }
+        
+        if (generateBtn) {
+            generateBtn.disabled = false;
         }
     } else {
         payrollActionsContainer.style.display = 'none';
     }
+    
+    // NUEVO: Ajustar scroll después de cambios en la visibilidad
+    setTimeout(() => {
+        ajustarScrollTabla();
+        mostrarIndicadorScrollSiEsNecesario();
+    }, 100);
 }
 
 function actualizarColaboradorEnPlanilla(index) {
@@ -2258,63 +2292,131 @@ function actualizarVistaPlanilla() {
     const payrollCount = document.getElementById('payrollCount');
     
     // Actualizar contador
-    payrollCount.textContent = payrollCollaborators.length;
+    if (payrollCount) {
+        payrollCount.textContent = payrollCollaborators.length;
+    }
     
     if (payrollCollaborators.length === 0) {
         // Mostrar estado vacío
-        tableBody.innerHTML = '';
-        emptyState.style.display = 'flex';
-        payrollActionsContainer.style.display = 'none';
+        if (tableBody) tableBody.innerHTML = '';
+        if (emptyState) emptyState.style.display = 'flex';
+        if (payrollActionsContainer) payrollActionsContainer.style.display = 'none';
     } else {
         // Mostrar tabla con colaboradores
-        emptyState.style.display = 'none';
-        payrollActionsContainer.style.display = 'flex';
+        if (emptyState) emptyState.style.display = 'none';
+        if (payrollActionsContainer) payrollActionsContainer.style.display = 'flex';
         
         // Generar filas de la tabla
-        tableBody.innerHTML = payrollCollaborators.map((colaborador, index) => `
-            <tr>
-                <td>
-                    <div class="collaborator-name-cell">${colaborador.nombre}</div>
-                    <div class="collaborator-id-cell">ID: ${colaborador.id}</div>
-                </td>
-                <td style="text-align: center;">
-                    <span class="shift-count morning">${colaborador.turnosMañana}</span>
-                </td>
-                <td style="text-align: center;">
-                    <span class="shift-count mixed">${colaborador.turnosMixtos}</span>
-                </td>
-                <td style="text-align: center;">
-                    <span class="shift-count hours">${colaborador.turnos4Horas || 0}</span>
-                    ${colaborador.turnos4Horas > 0 ? `
-                        <div style="font-size: 0.65rem; color: #6b7280; margin-top: 2px; line-height: 1.2;">
-                            ${obtenerDetallesTurnos4Horas(colaborador.shifts)}
+        if (tableBody) {
+            tableBody.innerHTML = payrollCollaborators.map((colaborador, index) => `
+                <tr>
+                    <td>
+                        <div class="collaborator-name-cell">${colaborador.nombre}</div>
+                        <div class="collaborator-id-cell">ID: ${colaborador.id}</div>
+                    </td>
+                    <td style="text-align: center;">
+                        <span class="shift-count morning">${colaborador.turnosMañana}</span>
+                    </td>
+                    <td style="text-align: center;">
+                        <span class="shift-count mixed">${colaborador.turnosMixtos}</span>
+                    </td>
+                    <td style="text-align: center;">
+                        <span class="shift-count hours">${colaborador.turnos4Horas || 0}</span>
+                        ${colaborador.turnos4Horas > 0 ? `
+                            <div style="font-size: 0.65rem; color: #6b7280; margin-top: 2px; line-height: 1.2;">
+                                ${obtenerDetallesTurnos4Horas(colaborador.shifts)}
+                            </div>
+                        ` : ''}
+                    </td>
+                    <td style="text-align: center;">
+                        <span class="shift-count total">${colaborador.totalTurnos}</span>
+                    </td>
+                    <td style="text-align: right;">
+                        <span class="payment-amount">Q ${colaborador.totalPago.toFixed(2)}</span>
+                    </td>
+                    <td style="text-align: center;">
+                        <div class="table-actions">
+                            <button class="btn-table-action btn-edit" onclick="editarColaborador(${index})" title="Editar turnos">
+                                <i class="fas fa-edit"></i>
+                            </button>
+                            <button class="btn-table-action btn-remove" onclick="eliminarColaboradorDePlanilla(${index})" title="Eliminar de planilla">
+                                <i class="fas fa-trash"></i>
+                            </button>
                         </div>
-                    ` : ''}
-                </td>
-                <td style="text-align: center;">
-                    <span class="shift-count total">${colaborador.totalTurnos}</span>
-                </td>
-                <td style="text-align: right;">
-                    <span class="payment-amount">Q ${colaborador.totalPago.toFixed(2)}</span>
-                </td>
-                <td style="text-align: center;">
-                    <div class="table-actions">
-                        <button class="btn-table-action btn-edit" onclick="editarColaborador(${index})" title="Editar turnos">
-                            <i class="fas fa-edit"></i>
-                        </button>
-                        <button class="btn-table-action btn-remove" onclick="eliminarColaboradorDePlanilla(${index})" title="Eliminar de planilla">
-                            <i class="fas fa-trash"></i>
-                        </button>
-                    </div>
-                </td>
-            </tr>
-        `).join('');
+                    </td>
+                </tr>
+            `).join('');
+        }
         
         // Actualizar totales generales
         actualizarTotalesGenerales();
     }
+    
+    // NUEVO: Forzar recálculo del scroll después de cambios
+    setTimeout(() => {
+        ajustarScrollTabla();
+        mostrarIndicadorScrollSiEsNecesario();
+    }, 100);
 }
-
+function ajustarScrollTabla() {
+    const tableContainer = document.getElementById('payrollTableContainer');
+    if (!tableContainer) return;
+    
+    // Verificar si necesita scroll
+    const needsScroll = tableContainer.scrollHeight > tableContainer.clientHeight;
+    
+    if (needsScroll) {
+        // Agregar clase para indicar que tiene scroll
+        tableContainer.classList.add('has-scroll');
+        
+        // Opcional: Scroll automático al último elemento agregado si es necesario
+        // tableContainer.scrollTop = tableContainer.scrollHeight;
+    } else {
+        tableContainer.classList.remove('has-scroll');
+    }
+    
+    console.log(`Tabla scroll: ${needsScroll ? 'necesario' : 'no necesario'}`);
+}
+function mostrarIndicadorScrollSiEsNecesario() {
+    const tableContainer = document.getElementById('payrollTableContainer');
+    if (!tableContainer) return;
+    
+    const hasScroll = tableContainer.scrollHeight > tableContainer.clientHeight;
+    
+    if (hasScroll && payrollCollaborators.length > 5) {
+        // Crear indicador si no existe
+        let scrollIndicator = document.getElementById('scrollIndicator');
+        if (!scrollIndicator) {
+            scrollIndicator = document.createElement('div');
+            scrollIndicator.id = 'scrollIndicator';
+            scrollIndicator.className = 'scroll-indicator';
+            scrollIndicator.innerHTML = '<i class="fas fa-chevron-down"></i> Desplácese para ver más';
+            tableContainer.parentNode.appendChild(scrollIndicator);
+        }
+        
+        scrollIndicator.style.display = 'flex';
+        
+        // Ocultar indicador cuando llegue al final
+        const scrollHandler = () => {
+            const isAtBottom = tableContainer.scrollTop + tableContainer.clientHeight >= tableContainer.scrollHeight - 10;
+            scrollIndicator.style.display = isAtBottom ? 'none' : 'flex';
+        };
+        
+        // Remover listener anterior si existe
+        tableContainer.removeEventListener('scroll', tableContainer._scrollHandler);
+        
+        // Agregar nuevo listener
+        tableContainer._scrollHandler = scrollHandler;
+        tableContainer.addEventListener('scroll', scrollHandler);
+        
+    } else {
+        // Remover indicador si no es necesario
+        const scrollIndicator = document.getElementById('scrollIndicator');
+        if (scrollIndicator) {
+            scrollIndicator.remove();
+        }
+    }
+}
 function obtenerDetallesTurnos4Horas(shifts) {
     const turnos4h = shifts.filter(s => s.turno === 3);
     if (turnos4h.length === 0) return '';
@@ -2340,12 +2442,10 @@ function actualizarTotalesGenerales() {
     // Calcular desglose de turnos
     const totalTurnosMañana = payrollCollaborators.reduce((sum, c) => sum + c.turnosMañana, 0);
     const totalTurnosMixtos = payrollCollaborators.reduce((sum, c) => sum + c.turnosMixtos, 0);
-    const totalTurnos4Horas = payrollCollaborators.reduce((sum, c) => sum + c.turnos4Horas, 0);
-    
-    // Actualizar elementos básicos
-    document.getElementById('totalCollaborators').textContent = totalColaboradores;
-    document.getElementById('totalShifts').textContent = totalTurnos;
-    document.getElementById('totalAmount').textContent = `Q ${totalPagoRedondeado.toFixed(2)}`;
+    const totalTurnos4Horas = payrollCollaborators.reduce((sum, c) => sum + (c.turnos4Horas || 0), 0);
+
+    const totalAmountEl = document.getElementById('totalAmount');
+    if (totalAmountEl) totalAmountEl.textContent = `Q ${totalPagoRedondeado.toFixed(2)}`;
     
     // Actualizar detalles adicionales si existen los elementos
     const detailsElement = document.getElementById('shiftsBreakdown');
@@ -2361,7 +2461,29 @@ function actualizarTotalesGenerales() {
         `;
     }
 }
-
+function scrollToCollaborator(index) {
+    const tableContainer = document.getElementById('payrollTableContainer');
+    if (!tableContainer) return;
+    
+    const rows = tableContainer.querySelectorAll('tbody tr');
+    
+    if (rows[index]) {
+        rows[index].scrollIntoView({
+            behavior: 'smooth',
+            block: 'center'
+        });
+        
+        // Resaltar temporalmente la fila
+        rows[index].style.background = 'rgba(59, 130, 246, 0.1)';
+        rows[index].style.transform = 'scale(1.02)';
+        rows[index].style.transition = 'all 0.3s ease';
+        
+        setTimeout(() => {
+            rows[index].style.background = '';
+            rows[index].style.transform = '';
+        }, 2000);
+    }
+}
 function editarColaborador(index) {
     const colaborador = payrollCollaborators[index];
     
@@ -2437,12 +2559,31 @@ function limpiarTodaLaPlanilla() {
     
     Swal.fire({
         title: '¿Limpiar toda la planilla?',
-        text: `Se eliminarán todos los ${payrollCollaborators.length} colaboradores de la planilla.`,
+        html: `
+            <div style="text-align: left; margin: 15px 0;">
+                <div style="background: #fee2e2; padding: 15px; border-radius: 8px; border-left: 4px solid #ef4444; margin-bottom: 15px;">
+                    <p style="margin: 0; color: #991b1b;">
+                        <strong>⚠️ Esta acción eliminará:</strong>
+                    </p>
+                    <ul style="margin: 10px 0 0 20px; color: #991b1b;">
+                        <li>${payrollCollaborators.length} colaboradores</li>
+                        <li>${payrollCollaborators.reduce((sum, c) => sum + c.totalTurnos, 0)} turnos asignados</li>
+                        <li>Total de Q ${payrollCollaborators.reduce((sum, c) => sum + c.totalPago, 0).toFixed(2)}</li>
+                    </ul>
+                </div>
+                <div style="background: #fef3c7; padding: 12px; border-radius: 6px; border-left: 4px solid #f59e0b;">
+                    <p style="margin: 0; color: #92400e; font-size: 0.9rem;">
+                        <strong>💡 Nota:</strong> Esta acción no se puede deshacer.
+                    </p>
+                </div>
+            </div>
+        `,
         icon: 'warning',
         showCancelButton: true,
         confirmButtonText: 'Sí, limpiar todo',
         cancelButtonText: 'Cancelar',
-        confirmButtonColor: '#f43f5e'
+        confirmButtonColor: '#f43f5e',
+        cancelButtonColor: '#6b7280'
     }).then((result) => {
         if (result.isConfirmed) {
             payrollCollaborators = [];
@@ -2454,12 +2595,13 @@ function limpiarTodaLaPlanilla() {
                 title: 'Planilla limpiada',
                 text: 'Todos los colaboradores han sido eliminados.',
                 timer: 2000,
-                showConfirmButton: false
+                showConfirmButton: false,
+                toast: true,
+                position: 'top-end'
             });
         }
     });
 }
-
 function calcularSalarioColaborador(shifts) {
     const region = isCapitalino ? 'capitalino' : 'regional';
     if (!salaryRates[region] || shifts.length === 0) return 0;
