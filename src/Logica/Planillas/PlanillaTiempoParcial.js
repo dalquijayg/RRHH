@@ -265,7 +265,7 @@ function validarRangoFechas(fechaInicio, fechaFin) {
     const fin = new Date(fechaFin);
     const diferenciaDias = Math.ceil((fin - inicio) / (1000 * 60 * 60 * 24));
     
-    if (inicio >= fin) {
+    if (inicio > fin) {  // Cambiar >= por >
         return {
             valido: false,
             mensaje: 'La fecha de fin debe ser posterior a la fecha de inicio'
@@ -279,10 +279,11 @@ function validarRangoFechas(fechaInicio, fechaFin) {
         };
     }
     
-    if (diferenciaDias < 1) {
+    // Eliminar o cambiar esta validación
+    if (diferenciaDias < 0) {  // Cambiar < 1 por < 0
         return {
             valido: false,
-            mensaje: 'El período debe ser de al menos 1 día'
+            mensaje: 'El período no es válido'
         };
     }
     
@@ -437,8 +438,6 @@ async function cargarTarifasSalarios() {
                 salarioXturno: parseFloat(rate.SalarioXturno)
             };
         });
-        
-        console.log('Tarifas cargadas:', salaryRates);
     } catch (error) {
         console.error('Error al cargar tarifas de salarios:', error);
         mostrarError('Error al cargar las tarifas de salarios');
@@ -3283,8 +3282,6 @@ function generarFechasSemanaSanta() {
         ...calcularFechasSemanaSanta(añoActual),
         ...calcularFechasSemanaSanta(añoSiguiente)
     ];
-    
-    console.log(`Fechas de Semana Santa cargadas para ${añoActual}-${añoSiguiente}:`, fechasSemanaSanta);
 }
 
 function esSemanaSanta(fecha) {
@@ -3996,31 +3993,40 @@ function dibujarEncabezado(doc, datos, margin, currentY, pageWidth) {
 
     // Columna izquierda
     doc.setFont('helvetica', 'bold');
-    doc.setTextColor(55, 65, 81); // Gris oscuro en lugar de azul
+    doc.setTextColor(55, 65, 81); // Gris oscuro
     doc.text('SUCURSAL:', col1X + 3, textY);
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(0, 0, 0);
     doc.text(planilla.NombreDepartamento, col1X + 3, textY + 5);
 
-    // ✅ ACTUALIZAR PERÍODO EN LUGAR DE MES/AÑO
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(55, 65, 81);
     doc.text('PERÍODO:', col1X + 3, textY + 12);
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(0, 0, 0);
     
-    // ✅ PARSEAR Y FORMATEAR EL PERÍODO
+    // Parsear y formatear el período
     const periodo = parsearPeriodoDesdeBDSeguro(planilla.PeriodoPago);
     const periodoTexto = formatearPeriodoSeguro(periodo.inicio, periodo.fin);
     doc.text(periodoTexto.toUpperCase(), col1X + 3, textY + 17);
 
-    // Columna derecha
+    // ID PLANILLA en el lado derecho del cuadro izquierdo
+    const idPlanillaX = col1X + (boxWidth * 0.62);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(55, 65, 81);
+    doc.setFontSize(11);
+    doc.text('ID PLANILLA:', idPlanillaX, textY + 5);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(0, 0, 0);
+    doc.text(planilla.IdPlanillaParcial.toString(), idPlanillaX, textY + 10);
+
+    // Columna derecha - LADO IZQUIERDO
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(55, 65, 81);
     doc.text('TIPO DE PAGO:', col2X + 3, textY);
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(0, 0, 0);
-    doc.text('PLANILLA POR PERÍODO', col2X + 3, textY + 5); // ✅ TEXTO FIJO
+    doc.text('PLANILLA POR PERÍODO', col2X + 3, textY + 5);
 
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(55, 65, 81);
@@ -4029,20 +4035,29 @@ function dibujarEncabezado(doc, datos, margin, currentY, pageWidth) {
     doc.setTextColor(0, 0, 0);
     doc.text(planilla.CantidadColaboradores.toString(), col2X + 3, textY + 17);
 
-    currentY += boxHeight + 8;
-
-    // ===== FECHAS EN UNA LÍNEA =====
-    doc.setFontSize(9);
-    doc.setFont('helvetica', 'normal');
-    doc.setTextColor(100, 100, 100);
-    
+    // FECHAS EN EL LADO DERECHO DEL MISMO CUADRO
     const fechaRegistro = new Date(planilla.FechaRegistro).toLocaleDateString('es-GT');
     const fechaGeneracion = datos.fechaGeneracion.toLocaleDateString('es-GT');
     
-    const fechasText = `Fecha de Registro: ${fechaRegistro}  |  Fecha de Generación: ${fechaGeneracion}`;
-    doc.text(fechasText, pageWidth / 2, currentY, { align: 'center' });
+    const fechasX = col2X + (boxWidth * 0.62); // Ajuste fino de posición
     
-    currentY += 10;
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(55, 65, 81);
+    doc.setFontSize(11); // Igualado al tamaño de los otros títulos
+    doc.text('F. REGISTRO:', fechasX, textY + 2);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(0, 0, 0);
+    doc.text(fechaRegistro, fechasX, textY + 7);
+
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(55, 65, 81);
+    doc.setFontSize(11); // Igualado al tamaño de los otros títulos
+    doc.text('F. GENERACIÓN:', fechasX, textY + 13);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(0, 0, 0);
+    doc.text(fechaGeneracion, fechasX, textY + 18);
+
+    currentY += boxHeight + 5;
     
     // Línea separadora
     doc.setLineWidth(0.3);
@@ -4276,7 +4291,7 @@ function formatearFechasLaboradas(colaborador) {
     return resultado.trim();
 }
 function dibujarTotales(doc, colaboradores, columns, margin, currentY, pageWidth) {
-    currentY += 8;
+    currentY += 2;
     
     // Calcular totales
     const totalColaboradores = colaboradores.length;
@@ -4429,42 +4444,36 @@ function dibujarNombreEnDosLineas(doc, nombreCompleto, x, y, width) {
 function dibujarSeccionFirmas(doc, datosCompletos, margin, currentY, pageWidth) {
     const planilla = datosCompletos.planilla;
     
-    // Espacio antes de las firmas (AUMENTADO)
-    currentY += 20; 
+    // Espacio antes de las firmas
+    currentY += 8; 
     
     // ===== CONFIGURACIÓN DE FIRMAS =====
     const firmaWidth = (pageWidth - (margin * 2) - 40) / 3; // Dividir en 3 columnas con espacios
-    const firmaHeight = 35; // AUMENTADO de 25 a 35 para más espacio de firma
+    const firmaHeight = 35; // Altura del área de firma
     const espacioEntreFirmas = 20;
     
     const firmas = [
         {
             titulo: 'ELABORÓ',
-            nombre: planilla.NombreUsuario || 'No disponible',
+            nombre: planilla.NombreUsuario || '',
             descripcion: 'Persona que realizó la planilla'
         },
         {
             titulo: 'ENTREGÓ',
-            nombre: '', // ✅ ELIMINADO "Pendiente" - ahora está vacío
+            nombre: '',
             descripcion: 'Persona que entregó'
         },
         {
             titulo: 'AUTORIZÓ',
-            nombre: planilla.NombreUsuarioAutoriza || '',  // ✅ También eliminado texto por defecto
+            nombre: planilla.NombreUsuarioAutoriza || '',
             descripcion: 'Persona que autorizó'
         }
     ];
     
-    // ===== DIBUJAR CAJAS DE FIRMAS =====
+    // ===== DIBUJAR FIRMAS SIN CUADROS =====
     let currentXFirma = margin;
     
     firmas.forEach((firma, index) => {
-        // ===== CAJA DE FIRMA =====
-        doc.setFillColor(248, 250, 252); // Fondo gris muy claro
-        doc.setLineWidth(1);
-        doc.setDrawColor(156, 163, 175); // Borde gris medio
-        doc.rect(currentXFirma, currentY, firmaWidth, firmaHeight, 'FD');
-        
         // ===== TÍTULO DE LA FIRMA =====
         doc.setFont('helvetica', 'bold');
         doc.setFontSize(10);
@@ -4483,8 +4492,8 @@ function dibujarSeccionFirmas(doc, datosCompletos, margin, currentY, pageWidth) 
             doc.text(nombreLineas, currentXFirma + (firmaWidth / 2), nombreY, { align: 'center' });
         }
         
-        // ===== LÍNEA PARA FIRMA (MÁS ABAJO PARA MÁS ESPACIO) =====
-        const lineaY = currentY + firmaHeight - 8; // Cambiado de -6 a -8
+        // ===== LÍNEA PARA FIRMA =====
+        const lineaY = currentY + firmaHeight - 8;
         doc.setLineWidth(0.5);
         doc.setDrawColor(107, 114, 128);
         doc.line(currentXFirma + 8, lineaY, currentXFirma + firmaWidth - 8, lineaY);
@@ -4495,24 +4504,11 @@ function dibujarSeccionFirmas(doc, datosCompletos, margin, currentY, pageWidth) 
         doc.setTextColor(107, 114, 128);
         doc.text('Firma', currentXFirma + (firmaWidth / 2), lineaY + 4, { align: 'center' });
         
-        // Mover X para la siguiente caja
+        // Mover X para la siguiente firma
         currentXFirma += firmaWidth + espacioEntreFirmas;
     });
     
-    currentY += firmaHeight + 10; // Cambiado de +8 a +10
-    
-    // ===== DESCRIPCIÓN ADICIONAL =====
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(8);
-    doc.setTextColor(100, 100, 100);
-    currentXFirma = margin;
-    
-    firmas.forEach((firma, index) => {
-        doc.text(firma.descripcion, currentXFirma + (firmaWidth / 2), currentY, { align: 'center' });
-        currentXFirma += firmaWidth + espacioEntreFirmas;
-    });
-    
-    currentY += 10; // Cambiado de +8 a +10
+    currentY += firmaHeight + 5;
     
     // Restaurar configuración
     doc.setTextColor(0, 0, 0);
