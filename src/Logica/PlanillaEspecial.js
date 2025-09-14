@@ -816,50 +816,49 @@ async function aplicarFiltros(e) {
     const originalText = applyFiltersBtn.innerHTML;
     applyFiltersBtn.classList.add('loading');
     applyFiltersBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Buscando...';
-    // Validar que se hayan seleccionado los campos requeridos
-    const idDepartamento = departamentoSelect.value;
-    const idTipoPersonal = tipoPersonalSelect.value.trim() !== "" ? tipoPersonalSelect.value : null;
-    const fecha = fechaInput.value;
-    
-    if (!idDepartamento || !fecha) {
-        mostrarNotificacion('Debe seleccionar departamento y fecha', 'warning');
-        return;
-    }
-    
-    // Validar que la fecha no sea pasada
-    const fechaSeleccionada = new Date(fecha);
-    fechaSeleccionada.setHours(0, 0, 0, 0); // Eliminar la parte de tiempo
-    
-    const fechaActual = new Date();
-    fechaActual.setHours(0, 0, 0, 0); // Eliminar la parte de tiempo para comparar solo las fechas
-    
-    if (fechaSeleccionada < fechaActual) {
-        mostrarNotificacion('No es posible generar planillas para fechas pasadas', 'error', 'Fecha no válida');
-        
-        // Mostrar mensaje en la tabla
-        personalTableBody.innerHTML = `
-            <tr class="empty-row">
-                <td colspan="6">
-                    <div class="empty-message">
-                        <i class="fas fa-calendar-times"></i>
-                        <p>No es posible generar planillas para fechas pasadas.<br>Por favor, seleccione la fecha actual o una fecha futura.</p>
-                    </div>
-                </td>
-            </tr>
-        `;
-        
-        // Actualizar información de totales
-        totalPersonalElement.querySelector('.status-value').textContent = '0';
-        totalPagoElement.querySelector('.status-value').textContent = 'Q 0.00';
-        
-        // Deshabilitar botones de acción
-        generatePlanillaBtn.disabled = true;
-        deleteSelectedBtn.disabled = true;
-        
-        return;
-    }
     
     try {
+        // Validar que se hayan seleccionado los campos requeridos
+        const idDepartamento = departamentoSelect.value;
+        const idTipoPersonal = tipoPersonalSelect.value.trim() !== "" ? tipoPersonalSelect.value : null;
+        const fecha = fechaInput.value;
+        
+        if (!idDepartamento || !fecha) {
+            mostrarNotificacion('Debe seleccionar departamento y fecha', 'warning');
+            return;
+        }
+        
+        // VALIDACIÓN DE FECHA CORREGIDA - Evitar problemas de zona horaria
+        const fechaSeleccionadaStr = fecha; // "YYYY-MM-DD"
+        const fechaHoyStr = new Date().toISOString().split('T')[0]; // "YYYY-MM-DD"
+        
+        // Comparar directamente las cadenas de fecha para evitar problemas de zona horaria
+        if (fechaSeleccionadaStr < fechaHoyStr) {
+            mostrarNotificacion('No es posible generar planillas para fechas pasadas', 'error', 'Fecha no válida');
+            
+            // Mostrar mensaje en la tabla
+            personalTableBody.innerHTML = `
+                <tr class="empty-row">
+                    <td colspan="6">
+                        <div class="empty-message">
+                            <i class="fas fa-calendar-times"></i>
+                            <p>No es posible generar planillas para fechas pasadas.<br>Por favor, seleccione la fecha actual o una fecha futura.</p>
+                        </div>
+                    </td>
+                </tr>
+            `;
+            
+            // Actualizar información de totales
+            totalPersonalElement.querySelector('.status-value').textContent = '0';
+            totalPagoElement.querySelector('.status-value').textContent = 'Q 0.00';
+            
+            // Deshabilitar botones de acción
+            generatePlanillaBtn.disabled = true;
+            deleteSelectedBtn.disabled = true;
+            
+            return;
+        }
+        
         // Mostrar estado de carga
         const selectedOption = departamentoSelect.options[departamentoSelect.selectedIndex];
         const idDivision = selectedOption.dataset.idDivision;
@@ -1089,20 +1088,20 @@ async function aplicarFiltros(e) {
         mostrarNotificacion(`Personal cargado para: ${nombreDepartamento}`, 'success');
         
     } catch (error) {
-        console.error('Error detallado en aplicarFiltros:', error); // Agregar esta línea
-    mostrarNotificacion(`Error detallado: ${error.message}`, 'error'); // Cambiar esta línea
-    
-    // Mostrar mensaje de error en la tabla
-    personalTableBody.innerHTML = `
-        <tr class="empty-row">
-            <td colspan="6">
-                <div class="empty-message">
-                    <i class="fas fa-exclamation-triangle"></i>
-                    <p>Error: ${error.message}</p>
-                </div>
-            </td>
-        </tr>
-    `;
+        console.error('Error detallado en aplicarFiltros:', error);
+        mostrarNotificacion(`Error detallado: ${error.message}`, 'error');
+        
+        // Mostrar mensaje de error en la tabla
+        personalTableBody.innerHTML = `
+            <tr class="empty-row">
+                <td colspan="6">
+                    <div class="empty-message">
+                        <i class="fas fa-exclamation-triangle"></i>
+                        <p>Error: ${error.message}</p>
+                    </div>
+                </td>
+            </tr>
+        `;
         
         // Actualizar información de totales
         totalPersonalElement.querySelector('.status-value').textContent = '0';
@@ -1111,7 +1110,7 @@ async function aplicarFiltros(e) {
         // Deshabilitar botones de acción
         generatePlanillaBtn.disabled = true;
         deleteSelectedBtn.disabled = true;
-    }finally {
+    } finally {
         // Resetear estado
         isSearching = false;
         applyFiltersBtn.classList.remove('loading');
