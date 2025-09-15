@@ -830,7 +830,7 @@ async function aplicarFiltros(e) {
         
         // VALIDACIÓN DE FECHA CORREGIDA - Evitar problemas de zona horaria
         const fechaSeleccionadaStr = fecha; // "YYYY-MM-DD"
-        const fechaHoyStr = new Date().toISOString().split('T')[0]; // "YYYY-MM-DD"
+        const fechaHoyStr = obtenerFechaLocalString();
         
         // Comparar directamente las cadenas de fecha para evitar problemas de zona horaria
         if (fechaSeleccionadaStr < fechaHoyStr) {
@@ -4433,6 +4433,13 @@ function getTypeClass(tipoPersonal) {
     if (tipo.includes('vacacionista')) return 'type-vacacionista';
     return 'type-default';
 }
+function obtenerFechaLocalString() {
+    const hoy = new Date();
+    const año = hoy.getFullYear();
+    const mes = String(hoy.getMonth() + 1).padStart(2, '0');
+    const dia = String(hoy.getDate()).padStart(2, '0');
+    return `${año}-${mes}-${dia}`;
+}
 // Agregar estilos adicionales para elementos externos
 document.addEventListener('DOMContentLoaded', async() => {
     try {
@@ -4524,13 +4531,14 @@ document.addEventListener('DOMContentLoaded', async() => {
     
     // Actualizar fecha mínima (no permitir fechas pasadas)
     function actualizarFechaMinima() {
-        const hoy = new Date().toISOString().split('T')[0];
-        fechaInput.min = hoy; // Esto previene seleccionar fechas anteriores a hoy
+        const hoy = obtenerFechaLocalString(); // Usar la función corregida
+        fechaInput.min = hoy;
     }
+
     actualizarFechaMinima();
 
     // Para hacer que la fecha por defecto sea hoy
-    fechaInput.value = new Date().toISOString().split('T')[0];
+    fechaInput.value = obtenerFechaLocalString();
     
     // Event listener para seleccionar todos
     selectAllCheckbox.addEventListener('change', seleccionarTodos);

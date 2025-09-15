@@ -1,1565 +1,1444 @@
-// Configuración e inicialización
-const { ipcRenderer } = require('electron');
 const { connectionString } = require('../Conexion/Conexion');
 const Swal = require('sweetalert2');
-const fs = require('fs');
-const path = require('path');
 
-// Variables para seguimiento de departamentos
-let userData = null;
-let departmentsData = [];
-let regionsData = [];
-let divisionsData = [];
+// Variables globales para manejo de datos
+let departamentosData = [];
+let filteredData = [];
 let currentPage = 1;
-let itemsPerPage = 8;
-let totalPages = 1;
-let currentFilterRegion = 0;
-let currentFilterDivision = 0;
-let searchTerm = '';
-let currentAction = 'edit'; // 'edit' o 'new'
-let selectedDepartmentId = null;
+let pageSize = 10;
+let sortColumn = '';
+let sortDirection = 'asc';
+let regiones = []; // Para el formulario
+let puestosGenerales = []; // Para el formulario de puestos
 
-// Variables para seguimiento de divisiones
-let divisionsPageData = [];
-let currentDivisionPage = 1;
-let divisionItemsPerPage = 8;
-let totalDivisionPages = 1;
-let divisionSearchTerm = '';
-let currentDivisionAction = 'edit'; // 'edit' o 'new'
-let selectedDivisionId = null;
-let currentLogoBase64 = null;
+// Variables para modal de puestos
+let puestosData = [];
+let colaboradoresData = [];
+let currentDepartamento = null;
 
-// Referencias a elementos DOM - Departamentos
-const departmentsGrid = document.getElementById('departmentsGrid');
-const searchInput = document.getElementById('searchDepartment');
-const clearSearchBtn = document.getElementById('clearSearch');
-const filterRegion = document.getElementById('filterRegion');
-const filterDivision = document.getElementById('filterDivision');
-const newDepartmentBtn = document.getElementById('newDepartmentBtn');
-const departmentModal = document.getElementById('departmentModal');
-const confirmModal = document.getElementById('confirmModal');
-const modalCloseBtn = departmentModal.querySelector('.close-modal');
-const confirmModalCloseBtn = confirmModal.querySelector('.close-modal');
-const cancelBtn = document.getElementById('cancelBtn');
-const saveBtn = document.getElementById('saveBtn');
-const cancelConfirmBtn = document.getElementById('cancelConfirmBtn');
-const confirmBtn = document.getElementById('confirmBtn');
-const prevPageBtn = document.getElementById('prevPage');
-const nextPageBtn = document.getElementById('nextPage');
-const pageNumbers = document.getElementById('pageNumbers');
+// Inicialización cuando se carga el DOM
+document.addEventListener('DOMContentLoaded', async () => {
+    await cargarDatos();
+    await cargarRegiones();
+    await cargarPuestosGenerales();
+    configurarEventListeners();
+    configurarModalPuestos();
+    actualizarTabla();
+});
 
-// Referencias a elementos DOM - Divisiones
-const divisionsGrid = document.getElementById('divisionsGrid');
-const searchDivisionInput = document.getElementById('searchDivision');
-const clearDivisionSearchBtn = document.getElementById('clearDivisionSearch');
-const newDivisionBtn = document.getElementById('newDivisionBtn');
-const divisionModal = document.getElementById('divisionModal');
-const divisionModalCloseBtn = divisionModal.querySelector('.close-modal');
-const cancelDivisionBtn = document.getElementById('cancelDivisionBtn');
-const saveDivisionBtn = document.getElementById('saveDivisionBtn');
-const prevDivisionPageBtn = document.getElementById('prevDivisionPage');
-const nextDivisionPageBtn = document.getElementById('nextDivisionPage');
-const divisionPageNumbers = document.getElementById('divisionPageNumbers');
-const selectLogoBtn = document.getElementById('selectLogoBtn');
-const removeLogoBtn = document.getElementById('removeLogoBtn');
-const logoFileInput = document.getElementById('logoFileInput');
-const logoPreview = document.getElementById('logoPreview');
-const currentLogo = document.getElementById('currentLogo');
-const logoBase64Input = document.getElementById('logoBase64');
-
-// Referencias a pestañas
-const tabBtns = document.querySelectorAll('.tab-btn');
-const tabContents = document.querySelectorAll('.tab-content');
-
-// Cargar información del usuario
-function cargarInfoUsuario() {
-    // Obtener datos del usuario de localStorage
-    userData = JSON.parse(localStorage.getItem('userData'));
-
-    if (userData) {
-        document.getElementById('userName').textContent = userData.NombreCompleto || 'Usuario';
-        
-        // Determinar rol según el puesto (5 es RRHH)
-        let rol = 'Usuario';
-        if (userData.Id_Puesto === 5) {
-            rol = 'Administrador RRHH';
-        } else if (userData.Id_Puesto === 1) {
-            rol = 'Gerente';
-        } else {
-            rol = 'Colaborador';
-        }
-        
-        document.getElementById('userRole').textContent = rol;
-        
-        // Cargar la imagen del usuario si está disponible
-        if (userData.FotoBase64) {
-            document.getElementById('userImage').src = userData.FotoBase64;
-        }
-    }
-}
-
-// Función para mostrar notificaciones toast
-function mostrarNotificacion(mensaje, tipo = 'info') {
-    // Verificar si ya existe el contenedor de toast
-    let toastContainer = document.querySelector('.toast-container');
-    
-    if (!toastContainer) {
-        toastContainer = document.createElement('div');
-        toastContainer.className = 'toast-container';
-        document.body.appendChild(toastContainer);
-    }
-    
-    // Crear el toast
-    const toast = document.createElement('div');
-    toast.className = `toast toast-${tipo} animate__animated animate__fadeInUp`;
-    
-    // Definir iconos según el tipo
-    const iconMap = {
-        success: 'check-circle',
-        error: 'times-circle',
-        warning: 'exclamation-triangle',
-        info: 'info-circle'
-    };
-    
-    // Crear contenido del toast
-    toast.innerHTML = `
-        <div class="toast-icon">
-            <i class="fas fa-${iconMap[tipo]}"></i>
-        </div>
-        <div class="toast-content">${mensaje}</div>
-        <button class="toast-close">
-            <i class="fas fa-times"></i>
-        </button>
-    `;
-    
-    // Agregar al contenedor
-    toastContainer.appendChild(toast);
-    
-    // Manejar el cierre del toast
-    const closeBtn = toast.querySelector('.toast-close');
-    closeBtn.addEventListener('click', () => {
-        toast.classList.replace('animate__fadeInUp', 'animate__fadeOutDown');
-        setTimeout(() => {
-            toast.remove();
-        }, 300);
-    });
-    
-    // Auto-cierre después de 5 segundos
-    setTimeout(() => {
-        if (toast.parentElement) {
-            toast.classList.replace('animate__fadeInUp', 'animate__fadeOutDown');
-            setTimeout(() => {
-                if (toast.parentElement) toast.remove();
-            }, 300);
-        }
-    }, 5000);
-}
-
-// Cargar regiones para filtrado
-async function cargarRegiones() {
+// Función para cargar los datos de departamentos
+async function cargarDatos() {
     try {
+        mostrarLoading(true);
+        
         const connection = await connectionString();
-        
-        // Consulta para obtener regiones
-        const regiones = await connection.query(`
-            SELECT
-                IdRegion, 
-                NombreRegion
-            FROM
-                Regiones
-            ORDER BY
-                NombreRegion
-        `);
-        
-        await connection.close();
-        
-        // Guardar datos para uso posterior
-        regionsData = regiones;
-        
-        // Llenar selector de regiones
-        filterRegion.innerHTML = '<option value="0">Todas las Regiones</option>';
-        
-        regiones.forEach(region => {
-            const option = document.createElement('option');
-            option.value = region.IdRegion;
-            option.textContent = region.NombreRegion;
-            filterRegion.appendChild(option);
-        });
-        
-        // También llenar el selector del modal
-        const regionSelect = document.getElementById('regionSelect');
-        regionSelect.innerHTML = '<option value="">Seleccionar Región</option>';
-        
-        regiones.forEach(region => {
-            const option = document.createElement('option');
-            option.value = region.IdRegion;
-            option.textContent = region.NombreRegion;
-            regionSelect.appendChild(option);
-        });
-        
-    } catch (error) {
-        console.error('Error al cargar regiones:', error);
-        mostrarNotificacion('Error al cargar las regiones', 'error');
-    }
-}
-
-// Cargar divisiones para filtrado
-async function cargarDivisiones() {
-    try {
-        const connection = await connectionString();
-
-        // Consulta para obtener divisiones con conversión de logo a base64
-        const divisiones = await connection.query(`
-            SELECT
-                IdDivision, 
-                Nombre,
-                CASE 
-                    WHEN Logos IS NOT NULL THEN CONCAT('data:image/png;base64,', TO_BASE64(Logos))
-                    ELSE NULL 
-                END AS LogosBase64
-            FROM
-                divisiones
-            ORDER BY
-                Nombre
-        `);
-        
-        await connection.close();
-        
-        // Guardar datos para uso posterior
-        divisionsData = divisiones;
-        
-        // Llenar selector de divisiones
-        filterDivision.innerHTML = '<option value="0">Todas las Divisiones</option>';
-        
-        divisiones.forEach(division => {
-            const option = document.createElement('option');
-            option.value = division.IdDivision;
-            option.textContent = division.Nombre;
-            filterDivision.appendChild(option);
-        });
-        
-        // También llenar el selector del modal
-        const divisionSelect = document.getElementById('divisionSelect');
-        divisionSelect.innerHTML = '<option value="">Seleccionar División</option>';
-        
-        divisiones.forEach(division => {
-            const option = document.createElement('option');
-            option.value = division.IdDivision;
-            option.textContent = division.Nombre;
-            divisionSelect.appendChild(option);
-        });
-        
-    } catch (error) {
-        console.error('Error al cargar divisiones:', error);
-        mostrarNotificacion('Error al cargar las divisiones', 'error');
-    }
-}
-
-// Cargar datos de departamentos
-async function cargarDepartamentos() {
-    try {
-        // Mostrar el spinner de carga
-        departmentsGrid.innerHTML = `
-            <div class="loading-container">
-                <div class="spinner"></div>
-                <p>Cargando departamentos...</p>
-            </div>
-        `;
-
-        const connection = await connectionString();
-
-        // Construir la consulta con filtros
-        let query = `
+        const result = await connection.query(`
             SELECT
                 departamentos.IdDepartamento, 
                 departamentos.NombreDepartamento, 
-                divisiones.Nombre AS NombreDivision, 
-                departamentos.NoMaxPers, 
-                departamentos.IdRegion,
                 Regiones.NombreRegion, 
-                departamentos.IdDivision,
-                departamentos.CantFijos, 
-                departamentos.CantParciales, 
-                departamentos.CantVacacionista, 
                 departamentos.PlanFijo, 
                 departamentos.PlanParcial, 
-                departamentos.PlanVacacionista
+                departamentos.PlanVacacionista,
+                departamentos.IdRegion
             FROM
                 departamentos
-                INNER JOIN divisiones ON departamentos.IdDivision = divisiones.IdDivision
-                INNER JOIN Regiones ON departamentos.IdRegion = Regiones.IdRegion
-            WHERE 1=1
-        `;
-        
-        // Agregar filtros si están seleccionados
-        if (currentFilterRegion > 0) {
-            query += ` AND departamentos.IdRegion = ${currentFilterRegion}`;
-        }
-        
-        if (currentFilterDivision > 0) {
-            query += ` AND departamentos.IdDivision = ${currentFilterDivision}`;
-        }
-        
-        // Agregar búsqueda si hay término
-        if (searchTerm.trim()) {
-            query += ` AND departamentos.NombreDepartamento LIKE '%${searchTerm.trim()}%'`;
-        }
-        
-        query += ` ORDER BY departamentos.NombreDepartamento`;
-        
-        const resultados = await connection.query(query);
+                INNER JOIN
+                Regiones
+                ON 
+                    departamentos.IdRegion = Regiones.IdRegion
+            ORDER BY departamentos.NombreDepartamento ASC
+        `);
         
         await connection.close();
         
-        // Guardar resultados
-        departmentsData = resultados;
+        departamentosData = result;
+        filteredData = [...departamentosData];
         
-        // Calcular paginación
-        totalPages = Math.ceil(departmentsData.length / itemsPerPage);
-        
-        // Renderizar departamentos y paginación
-        renderizarDepartamentos();
-        actualizarPaginacion();
+        actualizarContadores();
+        mostrarLoading(false);
         
     } catch (error) {
-        console.error('Error al cargar departamentos:', error);
-        mostrarNotificacion('Error al cargar los departamentos', 'error');
+        console.error('Error al cargar datos:', error);
+        mostrarLoading(false);
         
-        departmentsGrid.innerHTML = `
-            <div class="empty-state">
-                <i class="fas fa-exclamation-circle"></i>
-                <h3>Error al cargar datos</h3>
-                <p>No se pudieron cargar los departamentos. Por favor, intente nuevamente.</p>
-                <button class="btn btn-primary" onclick="cargarDepartamentos()">
-                    <i class="fas fa-sync-alt"></i> Reintentar
-                </button>
-            </div>
-        `;
+        await Swal.fire({
+            icon: 'error',
+            title: 'Error de Conexión',
+            text: 'No se pudieron cargar los datos de departamentos.',
+            confirmButtonColor: '#FF9800'
+        });
     }
 }
 
-// Renderizar departamentos en el grid
-function renderizarDepartamentos() {
-    // Calcular índices para la página actual
-    const startIndex = (currentPage - 1) * itemsPerPage;
-    const endIndex = startIndex + itemsPerPage;
-    const paginatedData = departmentsData.slice(startIndex, endIndex);
-    
-    // Verificar si hay resultados
-    if (departmentsData.length === 0) {
-        departmentsGrid.innerHTML = `
-            <div class="empty-state">
-                <i class="fas fa-folder-open"></i>
-                <h3>No se encontraron departamentos</h3>
-                <p>No hay departamentos que coincidan con los criterios de búsqueda.</p>
-                <button class="btn btn-primary" id="resetFiltersBtn">
-                    <i class="fas fa-filter"></i> Limpiar filtros
-                </button>
-            </div>
-        `;
-        
-        // Agregar evento al botón de limpiar filtros
-        document.getElementById('resetFiltersBtn').addEventListener('click', resetearFiltros);
-        return;
-    }
-    
-    // Limpiar el grid
-    departmentsGrid.innerHTML = '';
-    
-    // Agregar departamentos
-    paginatedData.forEach((depto, index) => {
-        const card = document.createElement('div');
-        card.className = 'department-card';
-        card.style.animationDelay = `${index * 0.05}s`;
-        
-        // Obtener nombres de planes
-        const planFijo = obtenerNombrePlan(depto.PlanFijo);
-        const planParcial = obtenerNombrePlan(depto.PlanParcial);
-        const planVacacionista = obtenerNombrePlan(depto.PlanVacacionista);
-        
-        card.innerHTML = `
-        <div class="card-header">
-            <h3 class="card-title">
-                <i class="fas fa-building"></i>
-                ${depto.NombreDepartamento}
-            </h3>
-            <div class="card-actions">
-                <button class="btn-card-action edit" title="Editar" data-id="${depto.IdDepartamento}">
-                    <i class="fas fa-edit"></i>
-                </button>
-                <button class="btn-card-action delete" title="Eliminar" data-id="${depto.IdDepartamento}">
-                    <i class="fas fa-trash-alt"></i>
-                </button>
-            </div>
-        </div>
-        <div class="card-body">
-            <div class="detail-group">
-                <div class="detail-label">División</div>
-                <div class="detail-value">${depto.NombreDivision}</div>
-            </div>
-            <div class="detail-group">
-                <div class="detail-label">Región</div>
-                <div class="detail-value">${depto.NombreRegion}</div>
-            </div>
-            <div class="detail-group">
-                <div class="detail-label">Personal Máximo para vacaciones</div>
-                <div class="detail-value">
-                    <span class="detail-badge badge-primary">${depto.NoMaxPers}</span>
-                </div>
-            </div>
-            
-            <div class="personnel-distribution">
-                <div class="distribution-column">
-                    <div class="distribution-title">Fijo</div>
-                    <span class="distribution-count">${depto.CantFijos}</span>
-                    <div class="plan-indicator">Dom/Asueto: ${formatearPlan(depto.PlanFijo)}</div>
-                </div>
-                <div class="distribution-column">
-                    <div class="distribution-title">Parcial</div>
-                    <span class="distribution-count">${depto.CantParciales}</span>
-                    <div class="plan-indicator">Dom/Asueto: ${formatearPlan(depto.PlanParcial)}</div>
-                </div>
-                <div class="distribution-column">
-                    <div class="distribution-title">Vacacionista</div>
-                    <span class="distribution-count">${depto.CantVacacionista}</span>
-                    <div class="plan-indicator">Dom/Asueto: ${formatearPlan(depto.PlanVacacionista)}</div>
-                </div>
-            </div>
-        </div>
-    `;
-        
-        departmentsGrid.appendChild(card);
-    });
-    
-    // Agregar event listeners a los botones
-    document.querySelectorAll('.btn-card-action.edit').forEach(btn => {
-        btn.addEventListener('click', () => {
-            const deptoId = btn.getAttribute('data-id');
-            abrirModalEditar(deptoId);
-        });
-    });
-    
-    document.querySelectorAll('.btn-card-action.delete').forEach(btn => {
-        btn.addEventListener('click', () => {
-            const deptoId = btn.getAttribute('data-id');
-            abrirModalConfirmacion(deptoId);
-        });
-    });
-}
-
-// Cargar datos de divisiones
-async function cargarDivisionesParaGrid() {
+// Función para cargar las regiones (para el formulario)
+async function cargarRegiones() {
     try {
-        // Mostrar el spinner de carga
-        divisionsGrid.innerHTML = `
-            <div class="loading-container">
-                <div class="spinner"></div>
-                <p>Cargando divisiones...</p>
-            </div>
-        `;
-        
         const connection = await connectionString();
-        
-        // Construir la consulta con filtros
-        let query = `
-            SELECT
-                IdDivision, 
-                Nombre,
-                CASE 
-                    WHEN Logos IS NOT NULL THEN CONCAT('data:image/png;base64,', TO_BASE64(Logos))
-                    ELSE NULL 
-                END AS LogosBase64
-            FROM
-                divisiones
-            WHERE 1=1
-        `;
-        
-        // Agregar búsqueda si hay término
-        if (divisionSearchTerm.trim()) {
-            query += ` AND Nombre LIKE '%${divisionSearchTerm.trim()}%'`;
-        }
-        
-        query += ` ORDER BY Nombre`;
-        
-        const resultados = await connection.query(query);
-        
+        const result = await connection.query(`
+            SELECT IdRegion, NombreRegion 
+            FROM Regiones 
+            ORDER BY NombreRegion ASC
+        `);
         await connection.close();
         
-        // Guardar resultados
-        divisionsPageData = resultados;
-        
-        // Calcular paginación
-        totalDivisionPages = Math.ceil(divisionsPageData.length / divisionItemsPerPage);
-        
-        // Renderizar divisiones y paginación
-        renderizarDivisiones();
-        actualizarPaginacionDivisiones();
+        regiones = result;
         
     } catch (error) {
-        console.error('Error al cargar divisiones:', error);
-        mostrarNotificacion('Error al cargar las divisiones', 'error');
+        console.error('Error al cargar regiones:', error);
+    }
+}
+
+// Función para cargar puestos generales (para el formulario de puestos)
+async function cargarPuestosGenerales() {
+    try {
+        const connection = await connectionString();
+        const result = await connection.query(`
+            SELECT Id_Puesto, Nombre 
+            FROM PuestosGenerales 
+            ORDER BY Nombre ASC
+        `);
+        await connection.close();
         
-        divisionsGrid.innerHTML = `
-            <div class="empty-state">
-                <i class="fas fa-exclamation-circle"></i>
-                <h3>Error al cargar datos</h3>
-                <p>No se pudieron cargar las divisiones. Por favor, intente nuevamente.</p>
-                <button class="btn btn-primary" onclick="cargarDivisionesParaGrid()">
-                    <i class="fas fa-sync-alt"></i> Reintentar
-                </button>
-            </div>
+        puestosGenerales = result;
+        
+    } catch (error) {
+        console.error('Error al cargar puestos generales:', error);
+    }
+}
+
+// Configurar todos los event listeners
+function configurarEventListeners() {
+    // Botones principales
+    document.getElementById('btnAgregar').addEventListener('click', () => mostrarFormulario(null));
+    document.getElementById('btnRefrescar').addEventListener('click', refrescarDatos);
+    document.getElementById('btnFiltros').addEventListener('click', mostrarFiltros);
+    
+    // Buscador
+    document.getElementById('searchInput').addEventListener('input', aplicarFiltros);
+    
+    // Paginación
+    document.getElementById('pageSize').addEventListener('change', cambiarTamanoPagina);
+    document.getElementById('btnFirst').addEventListener('click', () => irAPagina(1));
+    document.getElementById('btnPrev').addEventListener('click', () => irAPagina(currentPage - 1));
+    document.getElementById('btnNext').addEventListener('click', () => irAPagina(currentPage + 1));
+    document.getElementById('btnLast').addEventListener('click', () => irAPagina(Math.ceil(filteredData.length / pageSize)));
+    
+    // Headers ordenables
+    document.querySelectorAll('.sortable').forEach(header => {
+        header.addEventListener('click', () => ordenarPor(header.getAttribute('data-sort')));
+    });
+}
+
+// Configurar event listeners del modal de puestos
+function configurarModalPuestos() {
+    // Cerrar modal
+    document.getElementById('btnCerrarModalPuestos').addEventListener('click', cerrarModalPuestos);
+    document.getElementById('btnCerrarPuestos').addEventListener('click', cerrarModalPuestos);
+    
+    // Clicks fuera del modal
+    document.getElementById('modalPuestos').addEventListener('click', (e) => {
+        if (e.target.id === 'modalPuestos') {
+            cerrarModalPuestos();
+        }
+    });
+    
+    // Botones del modal
+    document.getElementById('btnAgregarPuesto').addEventListener('click', () => mostrarFormularioPuesto(null));
+    document.getElementById('btnRefrescarPuestos').addEventListener('click', refrescarPuestos);
+    
+    // Buscador de puestos
+    document.getElementById('searchPuestos').addEventListener('input', filtrarPuestos);
+    
+    // Ocultar colaboradores
+    document.getElementById('btnOcultarColaboradores').addEventListener('click', () => {
+        document.getElementById('colaboradoresSection').style.display = 'none';
+    });
+}
+
+// Mostrar/ocultar loading
+function mostrarLoading(show) {
+    const tableBody = document.getElementById('tableBody');
+    
+    if (show) {
+        tableBody.innerHTML = `
+            <tr class="loading-row">
+                <td colspan="7" class="text-center">
+                    <div class="loading-spinner">
+                        <i class="fas fa-spinner fa-spin"></i>
+                        Cargando datos...
+                    </div>
+                </td>
+            </tr>
         `;
     }
 }
 
-// Renderizar divisiones en el grid
-function renderizarDivisiones() {
-    // Calcular índices para la página actual
-    const startIndex = (currentDivisionPage - 1) * divisionItemsPerPage;
-    const endIndex = startIndex + divisionItemsPerPage;
-    const paginatedData = divisionsPageData.slice(startIndex, endIndex);
+// Actualizar la tabla con los datos actuales
+function actualizarTabla() {
+    const tableBody = document.getElementById('tableBody');
     
-    // Verificar si hay resultados
-    if (divisionsPageData.length === 0) {
-        divisionsGrid.innerHTML = `
-            <div class="empty-state">
-                <i class="fas fa-landmark"></i>
-                <h3>No se encontraron divisiones</h3>
-                <p>No hay divisiones que coincidan con los criterios de búsqueda.</p>
-                <button class="btn btn-primary" id="resetDivisionFiltersBtn">
-                    <i class="fas fa-filter"></i> Limpiar filtros
-                </button>
-            </div>
+    if (filteredData.length === 0) {
+        tableBody.innerHTML = `
+            <tr>
+                <td colspan="7" class="text-center">
+                    <div class="empty-state">
+                        <i class="fas fa-inbox"></i>
+                        <h3>No se encontraron departamentos</h3>
+                        <p>No hay datos que coincidan con los criterios de búsqueda.</p>
+                    </div>
+                </td>
+            </tr>
         `;
-        
-        // Agregar evento al botón de limpiar filtros
-        document.getElementById('resetDivisionFiltersBtn').addEventListener('click', resetearFiltrosDivisiones);
         return;
     }
     
-    // Limpiar el grid
-    divisionsGrid.innerHTML = '';
+    // Calcular datos para la página actual
+    const startIndex = (currentPage - 1) * pageSize;
+    const endIndex = startIndex + pageSize;
+    const pageData = filteredData.slice(startIndex, endIndex);
     
-    // Agregar divisiones
-    paginatedData.forEach((division, index) => {
-        const card = document.createElement('div');
-        card.className = 'division-card';
-        card.style.animationDelay = `${index * 0.05}s`;
+    // Generar filas de la tabla
+    tableBody.innerHTML = pageData.map(dept => `
+        <tr data-id="${dept.IdDepartamento}">
+            <td class="text-center">${dept.IdDepartamento}</td>
+            <td><strong>${dept.NombreDepartamento}</strong></td>
+            <td>${dept.NombreRegion}</td>
+            <td class="text-center">
+                <span class="plan-quantity ${(dept.PlanFijo && parseInt(dept.PlanFijo) > 0) ? 'active' : 'inactive'}">
+                    ${parseInt(dept.PlanFijo) || 0}
+                </span>
+            </td>
+            <td class="text-center">
+                <span class="plan-quantity ${(dept.PlanParcial && parseInt(dept.PlanParcial) > 0) ? 'active' : 'inactive'}">
+                    ${parseInt(dept.PlanParcial) || 0}
+                </span>
+            </td>
+            <td class="text-center">
+                <span class="plan-quantity ${(dept.PlanVacacionista && parseInt(dept.PlanVacacionista) > 0) ? 'active' : 'inactive'}">
+                    ${parseInt(dept.PlanVacacionista) || 0}
+                </span>
+            </td>
+            <td class="text-center">
+                <div class="action-buttons">
+                    <button class="btn-action btn-view" onclick="verPuestos(${dept.IdDepartamento})" title="Ver Puestos">
+                        <i class="fas fa-briefcase"></i>
+                    </button>
+                    <button class="btn-action btn-edit" onclick="editarDepartamento(${dept.IdDepartamento})" title="Editar">
+                        <i class="fas fa-edit"></i>
+                    </button>
+                    <button class="btn-action btn-delete" onclick="eliminarDepartamento(${dept.IdDepartamento})" title="Eliminar">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                </div>
+            </td>
+        </tr>
+    `).join('');
+    
+    actualizarPaginacion();
+}
+
+// Aplicar filtros de búsqueda
+function aplicarFiltros() {
+    const searchTerm = document.getElementById('searchInput').value.toLowerCase().trim();
+    
+    if (searchTerm === '') {
+        filteredData = [...departamentosData];
+    } else {
+        filteredData = departamentosData.filter(dept => 
+            dept.NombreDepartamento.toLowerCase().includes(searchTerm) ||
+            dept.NombreRegion.toLowerCase().includes(searchTerm) ||
+            dept.IdDepartamento.toString().includes(searchTerm)
+        );
+    }
+    
+    currentPage = 1;
+    actualizarContadores();
+    actualizarTabla();
+}
+
+// Ordenar datos por columna
+function ordenarPor(column) {
+    if (sortColumn === column) {
+        sortDirection = sortDirection === 'asc' ? 'desc' : 'asc';
+    } else {
+        sortColumn = column;
+        sortDirection = 'asc';
+    }
+    
+    filteredData.sort((a, b) => {
+        let valueA = a[column];
+        let valueB = b[column];
         
-        // Preparar contenido de logo
-        let logoContent;
-        if (division.LogosBase64) {
-            // Si hay logo, mostrar la imagen
-            logoContent = `
-                <div class="division-logo">
-                    <img src="${division.LogosBase64}" alt="${division.Nombre}">
-                </div>
-            `;
-        } else {
-            // Si no hay logo, mostrar indicador
-            logoContent = `
-                <div class="division-logo">
-                    <div class="no-logo-indicator">
-                        <i class="fas fa-image"></i>
-                        <span>Sin logo</span>
-                    </div>
-                </div>
-            `;
+        // Manejar diferentes tipos de datos
+        if (typeof valueA === 'string') {
+            valueA = valueA.toLowerCase();
+            valueB = valueB.toLowerCase();
         }
         
-        card.innerHTML = `
-        <div class="card-header">
-            <h3 class="card-title">
-                <i class="fas fa-landmark"></i>
-                ${division.Nombre}
-            </h3>
-            <div class="card-actions">
-                <button class="btn-card-action edit" title="Editar" data-id="${division.IdDivision}">
-                    <i class="fas fa-edit"></i>
-                </button>
-                <button class="btn-card-action delete" title="Eliminar" data-id="${division.IdDivision}">
-                    <i class="fas fa-trash-alt"></i>
-                </button>
-            </div>
-        </div>
-        <div class="card-body">
-            ${logoContent}
-            <div class="detail-group">
-                <div class="detail-label">ID División</div>
-                <div class="detail-value">
-                    <span class="detail-badge badge-secondary">${division.IdDivision}</span>
-                </div>
-            </div>
-        </div>
-    `;
+        // Para campos numéricos
+        if (column === 'PlanFijo' || column === 'PlanParcial' || column === 'PlanVacacionista' || column === 'IdDepartamento') {
+            valueA = parseInt(valueA) || 0;
+            valueB = parseInt(valueB) || 0;
+        }
         
-        divisionsGrid.appendChild(card);
+        if (valueA < valueB) return sortDirection === 'asc' ? -1 : 1;
+        if (valueA > valueB) return sortDirection === 'asc' ? 1 : -1;
+        return 0;
     });
     
-    // Agregar event listeners a los botones
-    document.querySelectorAll('.division-card .btn-card-action.edit').forEach(btn => {
-        btn.addEventListener('click', () => {
-            const divisionId = btn.getAttribute('data-id');
-            abrirModalEditarDivision(divisionId);
-        });
+    // Actualizar indicadores visuales
+    document.querySelectorAll('.sortable').forEach(header => {
+        header.classList.remove('sorted-asc', 'sorted-desc');
     });
     
-    document.querySelectorAll('.division-card .btn-card-action.delete').forEach(btn => {
-        btn.addEventListener('click', () => {
-            const divisionId = btn.getAttribute('data-id');
-            abrirModalConfirmacionDivision(divisionId);
-        });
-    });
-}
-
-function formatearPlan(valor) {
-    // Si es 0, mostramos "No aplica"
-    // Si no, mostramos el valor numérico
-    return valor == 0 ? "Sin Dato" : valor;
-}
-
-// Función para obtener el nombre de un plan según su ID
-function obtenerNombrePlan(planId) {
-    const planes = {
-        0: 'No aplica',
-        1: 'Plan A',
-        2: 'Plan B',
-        3: 'Plan C',
-    };
+    const currentHeader = document.querySelector(`[data-sort="${column}"]`);
+    currentHeader.classList.add(`sorted-${sortDirection}`);
     
-    return planes[planId] || 'No definido';
+    currentPage = 1;
+    actualizarTabla();
 }
 
-// Actualizar la paginación de departamentos
+// Cambiar tamaño de página
+function cambiarTamanoPagina() {
+    pageSize = parseInt(document.getElementById('pageSize').value);
+    currentPage = 1;
+    actualizarTabla();
+}
+
+// Ir a página específica
+function irAPagina(page) {
+    const totalPages = Math.ceil(filteredData.length / pageSize);
+    
+    if (page >= 1 && page <= totalPages) {
+        currentPage = page;
+        actualizarTabla();
+    }
+}
+
+// Actualizar información de paginación
 function actualizarPaginacion() {
+    const totalRecords = filteredData.length;
+    const totalPages = Math.ceil(totalRecords / pageSize);
+    const startRecord = (currentPage - 1) * pageSize + 1;
+    const endRecord = Math.min(currentPage * pageSize, totalRecords);
+    
+    // Actualizar información
+    document.getElementById('showingStart').textContent = totalRecords > 0 ? startRecord : 0;
+    document.getElementById('showingEnd').textContent = endRecord;
+    document.getElementById('totalRecords').textContent = totalRecords;
+    
     // Actualizar botones de navegación
-    prevPageBtn.disabled = currentPage === 1;
-    nextPageBtn.disabled = currentPage === totalPages || totalPages === 0;
+    document.getElementById('btnFirst').disabled = currentPage === 1;
+    document.getElementById('btnPrev').disabled = currentPage === 1;
+    document.getElementById('btnNext').disabled = currentPage === totalPages || totalPages === 0;
+    document.getElementById('btnLast').disabled = currentPage === totalPages || totalPages === 0;
     
     // Generar números de página
+    generarNumerosPagina(totalPages);
+}
+
+// Generar números de página
+function generarNumerosPagina(totalPages) {
+    const pageNumbers = document.getElementById('pageNumbers');
     pageNumbers.innerHTML = '';
     
-    // Si no hay páginas o solo hay una, no mostrar numeración
-    if (totalPages <= 1) {
-        return;
-    }
+    if (totalPages <= 1) return;
     
-    // Determinar rango de páginas a mostrar (máximo 5)
     let startPage = Math.max(1, currentPage - 2);
     let endPage = Math.min(totalPages, startPage + 4);
     
-    // Ajustar el rango si estamos cerca del final
     if (endPage - startPage < 4) {
         startPage = Math.max(1, endPage - 4);
     }
     
-    // Generar botones de página
     for (let i = startPage; i <= endPage; i++) {
-        const pageBtn = document.createElement('button');
-        pageBtn.className = `page-number ${i === currentPage ? 'active' : ''}`;
-        pageBtn.textContent = i;
-        
-        pageBtn.addEventListener('click', () => {
-            currentPage = i;
-            renderizarDepartamentos();
-            actualizarPaginacion();
-        });
-        
-        pageNumbers.appendChild(pageBtn);
+        const pageButton = document.createElement('button');
+        pageButton.className = `page-number ${i === currentPage ? 'active' : ''}`;
+        pageButton.textContent = i;
+        pageButton.addEventListener('click', () => irAPagina(i));
+        pageNumbers.appendChild(pageButton);
     }
 }
 
-// Actualizar la paginación de divisiones
-function actualizarPaginacionDivisiones() {
-    // Actualizar botones de navegación
-    prevDivisionPageBtn.disabled = currentDivisionPage === 1;
-    nextDivisionPageBtn.disabled = currentDivisionPage === totalDivisionPages || totalDivisionPages === 0;
-    
-    // Generar números de página
-    divisionPageNumbers.innerHTML = '';
-    
-    // Si no hay páginas o solo hay una, no mostrar numeración
-    if (totalDivisionPages <= 1) {
-        return;
-    }
-    
-    // Determinar rango de páginas a mostrar (máximo 5)
-    let startPage = Math.max(1, currentDivisionPage - 2);
-    let endPage = Math.min(totalDivisionPages, startPage + 4);
-    
-    // Ajustar el rango si estamos cerca del final
-    if (endPage - startPage < 4) {
-        startPage = Math.max(1, endPage - 4);
-    }
-    
-    // Generar botones de página
-    for (let i = startPage; i <= endPage; i++) {
-        const pageBtn = document.createElement('button');
-        pageBtn.className = `page-number ${i === currentDivisionPage ? 'active' : ''}`;
-        pageBtn.textContent = i;
-        
-        pageBtn.addEventListener('click', () => {
-            currentDivisionPage = i;
-            renderizarDivisiones();
-            actualizarPaginacionDivisiones();
-        });
-        
-        divisionPageNumbers.appendChild(pageBtn);
-    }
+// Actualizar contadores
+function actualizarContadores() {
+    document.getElementById('recordCount').textContent = departamentosData.length;
 }
 
-// Abrir modal para crear nuevo departamento
-function abrirModalNuevo() {
-    currentAction = 'new';
-    selectedDepartmentId = null;
+// Refrescar datos
+async function refrescarDatos() {
+    await cargarDatos();
+    await cargarRegiones();
+    await cargarPuestosGenerales();
     
-    // Cambiar título del modal
-    document.getElementById('modalTitle').innerHTML = '<i class="fas fa-plus-circle"></i> <span>Nuevo Departamento</span>';
+    // Limpiar filtros
+    document.getElementById('searchInput').value = '';
+    filteredData = [...departamentosData];
+    currentPage = 1;
+    sortColumn = '';
+    sortDirection = 'asc';
     
-    // Limpiar formulario
-    document.getElementById('departmentForm').reset();
-    document.getElementById('departmentId').value = 0;
+    // Limpiar indicadores de ordenamiento
+    document.querySelectorAll('.sortable').forEach(header => {
+        header.classList.remove('sorted-asc', 'sorted-desc');
+    });
     
-    // Mostrar modal
-    departmentModal.classList.add('show');
+    actualizarTabla();
+    
+    // Mostrar mensaje de éxito
+    Swal.fire({
+        icon: 'success',
+        title: 'Datos actualizados',
+        text: 'Los datos se han refrescado correctamente.',
+        timer: 1500,
+        showConfirmButton: false,
+        toast: true,
+        position: 'top-end'
+    });
 }
 
-// Abrir modal para crear nueva división
-function abrirModalNuevaDivision() {
-    currentDivisionAction = 'new';
-    selectedDivisionId = null;
-    currentLogoBase64 = null;
-    
-    // Cambiar título del modal
-    document.getElementById('divisionModalTitle').innerHTML = '<i class="fas fa-plus-circle"></i> <span>Nueva División</span>';
-    
-    // Limpiar formulario
-    document.getElementById('divisionForm').reset();
-    document.getElementById('divisionId').value = 0;
-    document.getElementById('logoBase64').value = '';
-    
-    // Reiniciar previsualización del logo
-    document.getElementById('currentLogo').src = '../Imagenes/no-logo.png';
-    const logoOverlay = logoPreview.querySelector('.logo-overlay');
-    if (logoOverlay) {
-        logoOverlay.style.opacity = '1';
-    }
-    
-    // Mostrar modal
-    divisionModal.classList.add('show');
-}
+// === FUNCIONES DE DEPARTAMENTOS ===
 
-// Abrir modal para editar departamento
-function abrirModalEditar(deptoId) {
-    currentAction = 'edit';
-    selectedDepartmentId = deptoId;
+// Mostrar formulario para agregar/editar departamento
+async function mostrarFormulario(departamentoData) {
+    const isEditing = departamentoData !== null;
+    const title = isEditing ? 'Editar Departamento' : 'Agregar Nuevo Departamento';
     
-    // Buscar el departamento en los datos
-    const depto = departmentsData.find(d => Number(d.IdDepartamento) === Number(deptoId));
+    const regionesOptions = regiones.map(region => 
+        `<option value="${region.IdRegion}" ${isEditing && departamentoData && departamentoData.IdRegion == region.IdRegion ? 'selected' : ''}>
+            ${region.NombreRegion}
+        </option>`
+    ).join('');
     
-    if (!depto) {
-        mostrarNotificacion('No se encontró la información del departamento', 'error');
-        return;
-    }
-    
-    // Cambiar título del modal
-    document.getElementById('modalTitle').innerHTML = '<i class="fas fa-edit"></i> <span>Editar Departamento</span>';
-    
-    // Llenar formulario con datos del departamento
-    document.getElementById('departmentId').value = depto.IdDepartamento;
-    document.getElementById('departmentName').value = depto.NombreDepartamento;
-    document.getElementById('divisionSelect').value = depto.IdDivision;
-    document.getElementById('regionSelect').value = depto.IdRegion;
-    document.getElementById('maxPersonnel').value = depto.NoMaxPers;
-    document.getElementById('fixedCount').value = depto.CantFijos;
-    document.getElementById('partialCount').value = depto.CantParciales;
-    document.getElementById('vacationistCount').value = depto.CantVacacionista;
-    document.getElementById('fixedPlan').value = depto.PlanFijo;
-    document.getElementById('partialPlan').value = depto.PlanParcial;
-    document.getElementById('vacationistPlan').value = depto.PlanVacacionista;
-    
-    // Mostrar modal
-    departmentModal.classList.add('show');
-}
-
-// Abrir modal para editar división
-function abrirModalEditarDivision(divisionId) {
-    currentDivisionAction = 'edit';
-    selectedDivisionId = divisionId;
-    
-    // Buscar la división en los datos
-    const division = divisionsPageData.find(d => Number(d.IdDivision) === Number(divisionId));
-    
-    if (!division) {
-        mostrarNotificacion('No se encontró la información de la división', 'error');
-        return;
-    }
-    
-    // Cambiar título del modal
-    document.getElementById('divisionModalTitle').innerHTML = '<i class="fas fa-edit"></i> <span>Editar División</span>';
-    
-    // Llenar formulario con datos de la división
-    document.getElementById('divisionId').value = division.IdDivision;
-    document.getElementById('divisionName').value = division.Nombre;
-    
-    // Configurar el logo
-    if (division.LogosBase64) {
-        document.getElementById('currentLogo').src = division.LogosBase64;
-        
-        // Intentamos extraer solo la parte base64 para guardar
-        const base64String = division.LogosBase64.split(',')[1];
-        document.getElementById('logoBase64').value = base64String || '';
-        currentLogoBase64 = base64String || null;
-        
-        // Ocultar el overlay "Sin logo"
-        const logoOverlay = logoPreview.querySelector('.logo-overlay');
-        if (logoOverlay) {
-            logoOverlay.style.opacity = '0';
+    const { value: formValues } = await Swal.fire({
+        title: title,
+        html: `
+            <div style="text-align: left; max-width: 500px;">
+                <div style="margin-bottom: 20px;">
+                    <label style="display: block; margin-bottom: 8px; font-weight: 600; color: #654321;">
+                        Nombre del Departamento *
+                    </label>
+                    <input type="text" id="nombreDepartamento" class="swal2-input" 
+                           value="${isEditing && departamentoData ? departamentoData.NombreDepartamento || '' : ''}"
+                           placeholder="Ingrese el nombre del departamento"
+                           style="width: 100%; margin: 0;">
+                </div>
+                
+                <div style="margin-bottom: 20px;">
+                    <label style="display: block; margin-bottom: 8px; font-weight: 600; color: #654321;">
+                        Región *
+                    </label>
+                    <select id="regionSelect" class="swal2-input" style="width: 100%; margin: 0;">
+                        <option value="">Seleccione una región</option>
+                        ${regionesOptions}
+                    </select>
+                </div>
+                
+                <div style="margin-bottom: 15px;">
+                    <h4 style="color: #654321; margin-bottom: 15px; border-bottom: 2px solid #FF9800; padding-bottom: 5px;">
+                        Cantidades Máximas por Plan
+                    </h4>
+                    
+                    <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 15px;">
+                        <div style="text-align: center;">
+                            <label style="display: block; margin-bottom: 8px; font-weight: 600; color: #654321;">
+                                Plan Fijo
+                            </label>
+                            <input type="number" id="planFijo" class="swal2-input" 
+                                   value="${isEditing && departamentoData ? (parseInt(departamentoData.PlanFijo) || 0) : 0}"
+                                   min="0" max="999"
+                                   style="width: 100%; margin: 0; text-align: center; font-size: 1.2rem; font-weight: bold;">
+                        </div>
+                        
+                        <div style="text-align: center;">
+                            <label style="display: block; margin-bottom: 8px; font-weight: 600; color: #654321;">
+                                Plan Parcial
+                            </label>
+                            <input type="number" id="planParcial" class="swal2-input" 
+                                   value="${isEditing && departamentoData ? (parseInt(departamentoData.PlanParcial) || 0) : 0}"
+                                   min="0" max="999"
+                                   style="width: 100%; margin: 0; text-align: center; font-size: 1.2rem; font-weight: bold;">
+                        </div>
+                        
+                        <div style="text-align: center;">
+                            <label style="display: block; margin-bottom: 8px; font-weight: 600; color: #654321;">
+                                Plan Vacacionista
+                            </label>
+                            <input type="number" id="planVacacionista" class="swal2-input" 
+                                   value="${isEditing && departamentoData ? (parseInt(departamentoData.PlanVacacionista) || 0) : 0}"
+                                   min="0" max="999"
+                                   style="width: 100%; margin: 0; text-align: center; font-size: 1.2rem; font-weight: bold;">
+                        </div>
+                    </div>
+                    
+                    <div style="background: #e3f2fd; padding: 12px; border-radius: 8px; margin-top: 15px;">
+                        <p style="margin: 0; color: #1976d2; font-size: 0.85rem; text-align: center;">
+                            💡 Ingrese la cantidad máxima permitida para cada tipo de plan
+                        </p>
+                    </div>
+                </div>
+            </div>
+        `,
+        focusConfirm: false,
+        showCancelButton: true,
+        confirmButtonText: isEditing ? 'Actualizar' : 'Agregar',
+        cancelButtonText: 'Cancelar',
+        confirmButtonColor: '#FF9800',
+        width: '600px',
+        customClass: {
+            popup: 'swal2-no-scroll'
+        },
+        preConfirm: () => {
+            const nombre = document.getElementById('nombreDepartamento').value.trim();
+            const regionValue = document.getElementById('regionSelect').value;
+            
+            // Obtener valores de los campos numéricos
+            const planFijoValue = document.getElementById('planFijo').value;
+            const planParcialValue = document.getElementById('planParcial').value;
+            const planVacacionistaValue = document.getElementById('planVacacionista').value;
+            
+            // Validaciones básicas
+            if (!nombre) {
+                Swal.showValidationMessage('El nombre del departamento es requerido');
+                return false;
+            }
+            
+            if (!regionValue) {
+                Swal.showValidationMessage('Debe seleccionar una región');
+                return false;
+            }
+            
+            // Convertir valores a números enteros con validación
+            const region = parseInt(regionValue);
+            const planFijo = planFijoValue === '' ? 0 : parseInt(planFijoValue);
+            const planParcial = planParcialValue === '' ? 0 : parseInt(planParcialValue);
+            const planVacacionista = planVacacionistaValue === '' ? 0 : parseInt(planVacacionistaValue);
+            
+            // Validar que sean números válidos
+            if (isNaN(region) || isNaN(planFijo) || isNaN(planParcial) || isNaN(planVacacionista)) {
+                Swal.showValidationMessage('Todos los valores numéricos deben ser válidos');
+                return false;
+            }
+            
+            // Validar rangos
+            if (planFijo < 0 || planParcial < 0 || planVacacionista < 0) {
+                Swal.showValidationMessage('Las cantidades no pueden ser negativas');
+                return false;
+            }
+            
+            if (planFijo > 999 || planParcial > 999 || planVacacionista > 999) {
+                Swal.showValidationMessage('Las cantidades no pueden ser mayores a 999');
+                return false;
+            }
+            
+            return { 
+                nombre, 
+                region, 
+                planFijo, 
+                planParcial, 
+                planVacacionista 
+            };
         }
-    } else {
-        document.getElementById('currentLogo').src = '../Imagenes/no-logo.png';
-        document.getElementById('logoBase64').value = '';
-        currentLogoBase64 = null;
-        
-        // Mostrar el overlay "Sin logo"
-        const logoOverlay = logoPreview.querySelector('.logo-overlay');
-        if (logoOverlay) {
-            logoOverlay.style.opacity = '1';
+    });
+    
+    if (formValues) {
+        if (isEditing && departamentoData) {
+            await actualizarDepartamento(departamentoData.IdDepartamento, formValues);
+        } else {
+            await crearDepartamento(formValues);
         }
     }
-    
-    // Mostrar modal
-    divisionModal.classList.add('show');
 }
 
-// Abrir modal de confirmación para eliminar departamento
-function abrirModalConfirmacion(deptoId) {
-    selectedDepartmentId = deptoId;
-    
-    // Buscar el departamento en los datos
-    const depto = departmentsData.find(d => Number(d.IdDepartamento) === Number(deptoId));
-    
-    if (!depto) {
-        mostrarNotificacion('No se encontró la información del departamento', 'error');
-        return;
-    }
-    
-    // Actualizar mensaje de confirmación
-    document.getElementById('confirmMessage').textContent = 
-        `¿Está seguro que desea eliminar el departamento "${depto.NombreDepartamento}"?`;
-    
-    // Mostrar modal
-    confirmModal.classList.add('show');
-}
-
-// Abrir modal de confirmación para eliminar división
-function abrirModalConfirmacionDivision(divisionId) {
-    selectedDivisionId = divisionId;
-    
-    // Buscar la división en los datos
-    const division = divisionsPageData.find(d => Number(d.IdDivision) === Number(divisionId));
-    
-    if (!division) {
-        mostrarNotificacion('No se encontró la información de la división', 'error');
-        return;
-    }
-    
-    // Verificar si hay departamentos asociados
-    verificarDepartamentosEnDivision(divisionId, division.Nombre);
-}
-
-// Verificar si hay departamentos asociados a una división antes de eliminarla
-async function verificarDepartamentosEnDivision(divisionId, nombreDivision) {
+// Crear nuevo departamento
+async function crearDepartamento(data) {
     try {
-        const connection = await connectionString();
+        // Validar que todos los datos requeridos estén presentes
+        if (!data.nombre || !data.region) {
+            throw new Error('Faltan datos requeridos: nombre o región');
+        }
 
-        // Consulta para verificar si hay departamentos en esta división
-        const query = `
-            SELECT COUNT(*) AS totalDepartamentos
-            FROM departamentos
-            WHERE IdDivision = ${divisionId}
-        `;
+        const connection = await connectionString();
         
-        const resultado = await connection.query(query);
+        const result = await connection.query(`
+            INSERT INTO departamentos (NombreDepartamento, IdRegion, PlanFijo, PlanParcial, PlanVacacionista)
+            VALUES (?, ?, ?, ?, ?)
+        `, [
+            data.nombre,
+            data.region,
+            data.planFijo || 0,
+            data.planParcial || 0,
+            data.planVacacionista || 0
+        ]);
+        
         await connection.close();
         
-        const totalDepartamentos = Number(resultado[0].totalDepartamentos);
+        await Swal.fire({
+            icon: 'success',
+            title: '¡Departamento creado!',
+            text: 'El departamento se ha agregado correctamente.',
+            confirmButtonColor: '#4CAF50'
+        });
         
-        if (totalDepartamentos > 0) {
-            // Hay departamentos, mostrar mensaje de error
-            Swal.fire({
-                icon: 'warning',
-                title: 'No se puede eliminar',
-                text: `Esta división tiene ${totalDepartamentos} departamentos asociados. Debe reasignar los departamentos antes de eliminar la división.`
-            });
-        } else {
-            // No hay departamentos, mostrar confirmación
-            document.getElementById('confirmMessage').textContent = 
-                `¿Está seguro que desea eliminar la división "${nombreDivision}"?`;
-            
-            // Actualizar el callback del botón confirmar
-            confirmBtn.setAttribute('data-action', 'eliminar-division');
-            
-            // Mostrar modal
-            confirmModal.classList.add('show');
-        }
+        await refrescarDatos();
+        
     } catch (error) {
-        console.error('Error al verificar departamentos:', error);
-        mostrarNotificacion('Error al verificar los departamentos asociados', 'error');
+        console.error('Error al crear departamento:', error);
+        
+        await Swal.fire({
+            icon: 'error',
+            title: 'Error al crear',
+            text: error.message || 'No se pudo crear el departamento. Verifique que el nombre no esté duplicado.',
+            confirmButtonColor: '#FF9800'
+        });
     }
 }
 
-// Guardar departamento (crear o actualizar)
-async function guardarDepartamento() {
+// Actualizar departamento existente
+async function actualizarDepartamento(id, data) {
     try {
-        // Validar formulario
-        const form = document.getElementById('departmentForm');
-        if (!form.checkValidity()) {
-            form.reportValidity();
-            return;
+        // Validar que todos los datos requeridos estén presentes
+        if (!data.nombre || !data.region || !id) {
+            throw new Error('Faltan datos requeridos: nombre, región o ID del departamento');
         }
-        
-        // Obtener datos del formulario
-        const deptoId = document.getElementById('departmentId').value;
-        const nombre = document.getElementById('departmentName').value.trim();
-        const divisionId = document.getElementById('divisionSelect').value;
-        const regionId = document.getElementById('regionSelect').value;
-        const maxPersonnel = document.getElementById('maxPersonnel').value;
-        const fixedCount = document.getElementById('fixedCount').value;
-        const partialCount = document.getElementById('partialCount').value;
-        const vacationistCount = document.getElementById('vacationistCount').value;
-        const fixedPlan = document.getElementById('fixedPlan').value;
-        const partialPlan = document.getElementById('partialPlan').value;
-        const vacationistPlan = document.getElementById('vacationistPlan').value;
-        
-        // Mostrar indicador de carga en el botón
-        saveBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Guardando...';
-        saveBtn.disabled = true;
 
         const connection = await connectionString();
-
-        // Determinar si es inserción o actualización
-        if (currentAction === 'new') {
-            // Consulta para insertar nuevo departamento
-            const query = `
-                INSERT INTO departamentos (
-                    NombreDepartamento,
-                    IdDivision,
-                    IdRegion,
-                    NoMaxPers,
-                    CantFijos,
-                    CantParciales,
-                    CantVacacionista,
-                    PlanFijo,
-                    PlanParcial,
-                    PlanVacacionista
-                ) VALUES (
-                    '${nombre}',
-                    ${divisionId},
-                    ${regionId},
-                    ${maxPersonnel},
-                    ${fixedCount},
-                    ${partialCount},
-                    ${vacationistCount},
-                    ${fixedPlan},
-                    ${partialPlan},
-                    ${vacationistPlan}
-                )
-            `;
-            
-            await connection.query(query);
-            await connection.close();
-            
-            // Cerrar modal y mostrar notificación
-            departmentModal.classList.remove('show');
-            mostrarNotificacion('Departamento creado exitosamente', 'success');
-            
-        } else {
-            // Consulta para actualizar departamento existente
-            const query = `
-                UPDATE departamentos
-                SET
-                    NombreDepartamento = '${nombre}',
-                    IdDivision = ${divisionId},
-                    IdRegion = ${regionId},
-                    NoMaxPers = ${maxPersonnel},
-                    CantFijos = ${fixedCount},
-                    CantParciales = ${partialCount},
-                    CantVacacionista = ${vacationistCount},
-                    PlanFijo = ${fixedPlan},
-                    PlanParcial = ${partialPlan},
-                    PlanVacacionista = ${vacationistPlan}
-                WHERE IdDepartamento = ${deptoId}
-            `;
-            
-            await connection.query(query);
-            await connection.close();
-            
-            // Cerrar modal y mostrar notificación
-            departmentModal.classList.remove('show');
-            mostrarNotificacion('Departamento actualizado exitosamente', 'success');
-        }
         
-        // Recargar datos
-        await cargarDepartamentos();
+        const result = await connection.query(`
+            UPDATE departamentos 
+            SET NombreDepartamento = ?, IdRegion = ?, PlanFijo = ?, PlanParcial = ?, PlanVacacionista = ?
+            WHERE IdDepartamento = ?
+        `, [
+            data.nombre,
+            data.region,
+            data.planFijo || 0,
+            data.planParcial || 0,
+            data.planVacacionista || 0,
+            parseInt(id)
+        ]);
+        
+        await connection.close();
+        
+        await Swal.fire({
+            icon: 'success',
+            title: '¡Departamento actualizado!',
+            text: 'Los cambios se han guardado correctamente.',
+            confirmButtonColor: '#4CAF50'
+        });
+        
+        await refrescarDatos();
         
     } catch (error) {
-        console.error('Error al guardar departamento:', error);
-        mostrarNotificacion('Error al guardar los datos. Por favor, intente nuevamente.', 'error');
-    } finally {
-        // Restaurar estado del botón
-        saveBtn.innerHTML = 'Guardar';
-        saveBtn.disabled = false;
+        console.error('Error al actualizar departamento:', error);
+        
+        await Swal.fire({
+            icon: 'error',
+            title: 'Error al actualizar',
+            text: error.message || 'No se pudo actualizar el departamento.',
+            confirmButtonColor: '#FF9800'
+        });
     }
 }
 
-// Guardar división (crear o actualizar)
-async function guardarDivision() {
-    try {
-        // Validar formulario
-        const form = document.getElementById('divisionForm');
-        if (!form.checkValidity()) {
-            form.reportValidity();
-            return;
-        }
-        
-        // Obtener datos del formulario
-        const divisionId = document.getElementById('divisionId').value;
-        const nombre = document.getElementById('divisionName').value.trim();
-        const logoBase64 = document.getElementById('logoBase64').value;
-        
-        // Mostrar indicador de carga en el botón
-        saveDivisionBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Guardando...';
-        saveDivisionBtn.disabled = true;
-
-        const connection = await connectionString();
-
-        // Determinar si es inserción o actualización
-        if (currentDivisionAction === 'new') {
-            // Consulta para insertar nueva división
-            let query;
-            
-            if (logoBase64) {
-                // Con logo - usamos FROM_BASE64 para convertir de base64 a BLOB
-                query = `
-                    INSERT INTO divisiones (
-                        Nombre,
-                        Logos
-                    ) VALUES (
-                        '${nombre}',
-                        FROM_BASE64('${logoBase64}')
-                    )
-                `;
-            } else {
-                // Sin logo
-                query = `
-                    INSERT INTO divisiones (
-                        Nombre
-                    ) VALUES (
-                        '${nombre}'
-                    )
-                `;
-            }
-            
-            await connection.query(query);
-            await connection.close();
-            
-            // Cerrar modal y mostrar notificación
-            divisionModal.classList.remove('show');
-            mostrarNotificacion('División creada exitosamente', 'success');
-            
-        } else {
-            // Construir la consulta según si hay logo o no
-            let query;
-            
-            if (logoBase64) {
-                // Actualizar con logo - usamos FROM_BASE64 para convertir de base64 a BLOB
-                query = `
-                    UPDATE divisiones
-                    SET
-                        Nombre = '${nombre}',
-                        Logos = FROM_BASE64('${logoBase64}')
-                    WHERE IdDivision = ${divisionId}
-                `;
-            } else {
-                // Actualizar sin logo (establecer a NULL)
-                query = `
-                    UPDATE divisiones
-                    SET
-                        Nombre = '${nombre}',
-                        Logos = NULL
-                    WHERE IdDivision = ${divisionId}
-                `;
-            }
-            
-            await connection.query(query);
-            await connection.close();
-            
-            // Cerrar modal y mostrar notificación
-            divisionModal.classList.remove('show');
-            mostrarNotificacion('División actualizada exitosamente', 'success');
-        }
-        
-        // Recargar datos
-        await cargarDivisiones(); // Para actualizar los selectores
-        await cargarDivisionesParaGrid(); // Para actualizar el grid
-        
-    } catch (error) {
-        console.error('Error al guardar división:', error);
-        mostrarNotificacion('Error al guardar los datos. Por favor, intente nuevamente.', 'error');
-    } finally {
-        // Restaurar estado del botón
-        saveDivisionBtn.innerHTML = 'Guardar';
-        saveDivisionBtn.disabled = false;
+// Editar departamento
+async function editarDepartamento(id) {
+    const departamento = departamentosData.find(d => d.IdDepartamento == id);
+    
+    if (departamento) {
+        await mostrarFormulario(departamento);
+    } else {
+        await Swal.fire({
+            icon: 'error',
+            title: 'Error',
+            text: 'No se pudo encontrar el departamento seleccionado.',
+            confirmButtonColor: '#FF9800'
+        });
     }
 }
 
 // Eliminar departamento
-async function eliminarDepartamento() {
-    try {
-        if (!selectedDepartmentId) {
-            mostrarNotificacion('No se ha seleccionado un departamento', 'error');
-            return;
-        }
-        
-        // Mostrar indicador de carga en el botón
-        confirmBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Eliminando...';
-        confirmBtn.disabled = true;
-
-        const connection = await connectionString();
-
-        // Verificar primero si hay personal asignado a este departamento
-        const checkQuery = `
-            SELECT COUNT(*) AS totalPersonal
-            FROM personal
-            WHERE IdSucuDepa = ${selectedDepartmentId} AND Estado = 1
-        `;
-        
-        const checkResult = await connection.query(checkQuery);
-        const totalPersonal = Number(checkResult[0].totalPersonal);
-        
-        if (totalPersonal > 0) {
+async function eliminarDepartamento(id) {
+    const departamento = departamentosData.find(d => d.IdDepartamento == id);
+    
+    if (!departamento) return;
+    
+    const result = await Swal.fire({
+        title: '¿Confirmar eliminación?',
+        html: `
+            <div style="text-align: center;">
+                <div style="font-size: 3rem; color: #FF5252; margin-bottom: 15px;">
+                    <i class="fas fa-exclamation-triangle"></i>
+                </div>
+                <p style="margin-bottom: 15px;">
+                    Está a punto de eliminar el departamento:
+                </p>
+                <div style="background: #f8f9fa; padding: 15px; border-radius: 8px; margin: 15px 0;">
+                    <h4 style="color: #654321; margin-bottom: 5px;">${departamento.NombreDepartamento}</h4>
+                    <p style="color: #777; margin: 0;">Región: ${departamento.NombreRegion}</p>
+                </div>
+                <div style="background: #ffebee; padding: 12px; border-radius: 8px; border-left: 4px solid #FF5252;">
+                    <p style="color: #c62828; margin: 0; font-weight: 500;">
+                        ⚠️ Esta acción no se puede deshacer
+                    </p>
+                </div>
+            </div>
+        `,
+        showCancelButton: true,
+        confirmButtonText: 'Sí, eliminar',
+        cancelButtonText: 'Cancelar',
+        confirmButtonColor: '#FF5252',
+        cancelButtonColor: '#6c757d',
+        width: '500px'
+    });
+    
+    if (result.isConfirmed) {
+        try {
+            const connection = await connectionString();
+            await connection.query('DELETE FROM departamentos WHERE IdDepartamento = ?', [id]);
             await connection.close();
-            confirmModal.classList.remove('show');
             
-            Swal.fire({
-                icon: 'warning',
-                title: 'No se puede eliminar',
-                text: `Este departamento tiene ${totalPersonal} colaboradores asignados. Debe reasignar el personal antes de eliminar el departamento.`
+            await Swal.fire({
+                icon: 'success',
+                title: '¡Departamento eliminado!',
+                text: 'El departamento se ha eliminado correctamente.',
+                confirmButtonColor: '#4CAF50',
+                timer: 2000
             });
             
-            confirmBtn.innerHTML = 'Confirmar';
-            confirmBtn.disabled = false;
-            return;
-        }
-        
-        // Proceder con la eliminación si no hay personal asignado
-        const query = `DELETE FROM departamentos WHERE IdDepartamento = ${selectedDepartmentId}`;
-        await connection.query(query);
-        await connection.close();
-        
-        // Cerrar modal y mostrar notificación
-        confirmModal.classList.remove('show');
-        mostrarNotificacion('Departamento eliminado exitosamente', 'success');
-        
-        // Recargar datos
-        await cargarDepartamentos();
-        
-    } catch (error) {
-        console.error('Error al eliminar departamento:', error);
-        mostrarNotificacion('Error al eliminar el departamento. Por favor, intente nuevamente.', 'error');
-    } finally {
-        // Restaurar estado del botón
-        confirmBtn.innerHTML = 'Confirmar';
-        confirmBtn.disabled = false;
-        // Restaurar atributo de acción
-        confirmBtn.removeAttribute('data-action');
-    }
-}
-
-// Eliminar división
-async function eliminarDivision() {
-    try {
-        if (!selectedDivisionId) {
-            mostrarNotificacion('No se ha seleccionado una división', 'error');
-            return;
-        }
-        
-        // Mostrar indicador de carga en el botón
-        confirmBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Eliminando...';
-        confirmBtn.disabled = true;
-
-        const connection = await connectionString();
-
-        // Proceder con la eliminación
-        const query = `DELETE FROM divisiones WHERE IdDivision = ${selectedDivisionId}`;
-        await connection.query(query);
-        await connection.close();
-        
-        // Cerrar modal y mostrar notificación
-        confirmModal.classList.remove('show');
-        mostrarNotificacion('División eliminada exitosamente', 'success');
-        
-        // Recargar datos
-        await cargarDivisiones(); // Para actualizar los selectores
-        await cargarDivisionesParaGrid(); // Para actualizar el grid
-        
-    } catch (error) {
-        console.error('Error al eliminar división:', error);
-        mostrarNotificacion('Error al eliminar la división. Por favor, intente nuevamente.', 'error');
-    } finally {
-        // Restaurar estado del botón
-        confirmBtn.innerHTML = 'Confirmar';
-        confirmBtn.disabled = false;
-        // Restaurar atributo de acción
-        confirmBtn.removeAttribute('data-action');
-    }
-}
-
-// Resetear todos los filtros de departamentos
-function resetearFiltros() {
-    // Limpiar búsqueda
-    searchInput.value = '';
-    searchTerm = '';
-    
-    // Resetear selectores de filtro
-    filterRegion.value = 0;
-    filterDivision.value = 0;
-    currentFilterRegion = 0;
-    currentFilterDivision = 0;
-    
-    // Resetear paginación
-    currentPage = 1;
-    
-    // Recargar datos
-    cargarDepartamentos();
-}
-
-// Resetear filtros de divisiones
-function resetearFiltrosDivisiones() {
-    // Limpiar búsqueda
-    searchDivisionInput.value = '';
-    divisionSearchTerm = '';
-    
-    // Resetear paginación
-    currentDivisionPage = 1;
-    
-    // Recargar datos
-    cargarDivisionesParaGrid();
-}
-
-// Cargar archivo de imagen como Base64
-function cargarImagenComoBase64(file) {
-    return new Promise((resolve, reject) => {
-        // Verificar el tamaño del archivo (1MB)
-        if (file.size > 1024 * 1024) {
-            reject('El archivo es demasiado grande. El tamaño máximo es 1MB.');
-            return;
-        }
-        
-        // Verificar el tipo de archivo
-        if (!file.type.match('image/(jpeg|jpg|png|gif)')) {
-            reject('Formato de imagen no válido. Use JPG o PNG.');
-            return;
-        }
-        
-        const reader = new FileReader();
-        
-        reader.onload = function(e) {
-            // Obtener la cadena base64 (quitando el prefijo de tipo de datos)
-            const base64String = e.target.result.split(',')[1];
-            resolve(base64String);
-        };
-        
-        reader.onerror = function() {
-            reject('Error al leer el archivo.');
-        };
-        
-        reader.readAsDataURL(file);
-    });
-}
-
-// Event Listeners
-
-// Gestión de pestañas
-tabBtns.forEach(btn => {
-    btn.addEventListener('click', () => {
-        // Quitar la clase active de todos los botones y contenidos
-        tabBtns.forEach(b => b.classList.remove('active'));
-        tabContents.forEach(c => c.classList.remove('active'));
-        
-        // Agregar clase active al botón actual
-        btn.classList.add('active');
-        
-        // Mostrar el contenido correspondiente
-        const tabName = btn.getAttribute('data-tab');
-        document.getElementById(`${tabName}Tab`).classList.add('active');
-        
-        // Cargar datos si es necesario
-        if (tabName === 'divisions' && divisionsPageData.length === 0) {
-            cargarDivisionesParaGrid();
-        }
-    });
-});
-
-// Búsqueda de departamentos
-searchInput.addEventListener('input', () => {
-    searchTerm = searchInput.value;
-    
-    // Mostrar/ocultar botón de limpiar
-    if (searchTerm) {
-        clearSearchBtn.style.opacity = '1';
-    } else {
-        clearSearchBtn.style.opacity = '0';
-    }
-    
-    // Resetear a primera página
-    currentPage = 1;
-    
-    // Recargar con nuevo término de búsqueda
-    cargarDepartamentos();
-});
-
-// Búsqueda de divisiones
-searchDivisionInput.addEventListener('input', () => {
-    divisionSearchTerm = searchDivisionInput.value;
-    
-    // Mostrar/ocultar botón de limpiar
-    if (divisionSearchTerm) {
-        clearDivisionSearchBtn.style.opacity = '1';
-    } else {
-        clearDivisionSearchBtn.style.opacity = '0';
-    }
-    
-    // Resetear a primera página
-    currentDivisionPage = 1;
-    
-    // Recargar con nuevo término de búsqueda
-    cargarDivisionesParaGrid();
-});
-
-// Limpiar búsqueda de departamentos
-clearSearchBtn.addEventListener('click', () => {
-    searchInput.value = '';
-    searchTerm = '';
-    clearSearchBtn.style.opacity = '0';
-    
-    // Resetear a primera página
-    currentPage = 1;
-    
-    // Recargar datos
-    cargarDepartamentos();
-});
-
-// Limpiar búsqueda de divisiones
-clearDivisionSearchBtn.addEventListener('click', () => {
-    searchDivisionInput.value = '';
-    divisionSearchTerm = '';
-    clearDivisionSearchBtn.style.opacity = '0';
-    
-    // Resetear a primera página
-    currentDivisionPage = 1;
-    
-    // Recargar datos
-    cargarDivisionesParaGrid();
-});
-
-// Filtro por región
-filterRegion.addEventListener('change', () => {
-    currentFilterRegion = Number(filterRegion.value);
-    
-    // Resetear a primera página
-    currentPage = 1;
-    
-    // Recargar datos
-    cargarDepartamentos();
-});
-
-// Filtro por división
-filterDivision.addEventListener('change', () => {
-    currentFilterDivision = Number(filterDivision.value);
-    
-    // Resetear a primera página
-    currentPage = 1;
-    
-    // Recargar datos
-    cargarDepartamentos();
-});
-
-// Botón para nuevo departamento
-newDepartmentBtn.addEventListener('click', abrirModalNuevo);
-
-// Botón para nueva división
-newDivisionBtn.addEventListener('click', abrirModalNuevaDivision);
-
-// Botones de paginación de departamentos
-prevPageBtn.addEventListener('click', () => {
-    if (currentPage > 1) {
-        currentPage--;
-        renderizarDepartamentos();
-        actualizarPaginacion();
-    }
-});
-
-nextPageBtn.addEventListener('click', () => {
-    if (currentPage < totalPages) {
-        currentPage++;
-        renderizarDepartamentos();
-        actualizarPaginacion();
-    }
-});
-
-// Botones de paginación de divisiones
-prevDivisionPageBtn.addEventListener('click', () => {
-    if (currentDivisionPage > 1) {
-        currentDivisionPage--;
-        renderizarDivisiones();
-        actualizarPaginacionDivisiones();
-    }
-});
-
-nextDivisionPageBtn.addEventListener('click', () => {
-    if (currentDivisionPage < totalDivisionPages) {
-        currentDivisionPage++;
-        renderizarDivisiones();
-        actualizarPaginacionDivisiones();
-    }
-});
-
-// Modal de departamento
-modalCloseBtn.addEventListener('click', () => {
-    departmentModal.classList.remove('show');
-});
-
-// Clicks fuera del modal para cerrarlo
-departmentModal.addEventListener('click', (e) => {
-    if (e.target === departmentModal) {
-        departmentModal.classList.remove('show');
-    }
-});
-
-// Modal de división
-divisionModalCloseBtn.addEventListener('click', () => {
-    divisionModal.classList.remove('show');
-});
-
-// Clicks fuera del modal para cerrarlo
-divisionModal.addEventListener('click', (e) => {
-    if (e.target === divisionModal) {
-        divisionModal.classList.remove('show');
-    }
-});
-
-// Botones del modal de departamento
-cancelBtn.addEventListener('click', () => {
-    departmentModal.classList.remove('show');
-});
-
-saveBtn.addEventListener('click', guardarDepartamento);
-
-// Botones del modal de división
-cancelDivisionBtn.addEventListener('click', () => {
-    divisionModal.classList.remove('show');
-});
-
-saveDivisionBtn.addEventListener('click', guardarDivision);
-
-// Modal de confirmación
-confirmModalCloseBtn.addEventListener('click', () => {
-    confirmModal.classList.remove('show');
-});
-
-// Clicks fuera del modal para cerrarlo
-confirmModal.addEventListener('click', (e) => {
-    if (e.target === confirmModal) {
-        confirmModal.classList.remove('show');
-    }
-});
-
-// Botones del modal de confirmación
-cancelConfirmBtn.addEventListener('click', () => {
-    confirmModal.classList.remove('show');
-});
-
-confirmBtn.addEventListener('click', () => {
-    // Determinar qué acción realizar según el atributo data-action
-    const action = confirmBtn.getAttribute('data-action');
-    
-    if (action === 'eliminar-division') {
-        eliminarDivision();
-    } else {
-        eliminarDepartamento();
-    }
-});
-
-// Eventos para la carga del logo
-selectLogoBtn.addEventListener('click', () => {
-    logoFileInput.click();
-});
-
-logoFileInput.addEventListener('change', async (e) => {
-    if (e.target.files.length > 0) {
-        const file = e.target.files[0];
-        
-        try {
-            // Cargar la imagen como Base64
-            const base64String = await cargarImagenComoBase64(file);
-            
-            // Actualizar la vista previa
-            currentLogo.src = `data:image/png;base64,${base64String}`;
-            
-            // Guardar en el input oculto
-            logoBase64Input.value = base64String;
-            currentLogoBase64 = base64String;
-            
-            // Ocultar el overlay "Sin logo"
-            const logoOverlay = logoPreview.querySelector('.logo-overlay');
-            if (logoOverlay) {
-                logoOverlay.style.opacity = '0';
-            }
-            
-            // Limpiar el input de archivo para permitir seleccionar el mismo archivo nuevamente
-            logoFileInput.value = '';
+            await refrescarDatos();
             
         } catch (error) {
-            mostrarNotificacion(error, 'error');
-            logoFileInput.value = '';
+            console.error('Error al eliminar departamento:', error);
+            
+            await Swal.fire({
+                icon: 'error',
+                title: 'Error al eliminar',
+                text: 'No se pudo eliminar el departamento. Puede que tenga registros asociados.',
+                confirmButtonColor: '#FF9800'
+            });
         }
     }
-});
+}
 
-removeLogoBtn.addEventListener('click', () => {
-    // Limpiar la imagen
-    currentLogo.src = '../Imagenes/no-logo.png';
+// === FUNCIONES DEL MODAL DE PUESTOS ===
+
+// Ver puestos de un departamento
+async function verPuestos(idDepartamento) {
+    const departamento = departamentosData.find(d => d.IdDepartamento == idDepartamento);
     
-    // Limpiar el valor del logo
-    logoBase64Input.value = '';
-    currentLogoBase64 = null;
-    
-    // Mostrar el overlay "Sin logo"
-    const logoOverlay = logoPreview.querySelector('.logo-overlay');
-    if (logoOverlay) {
-        logoOverlay.style.opacity = '1';
+    if (!departamento) {
+        await Swal.fire({
+            icon: 'error',
+            title: 'Error',
+            text: 'No se pudo encontrar el departamento seleccionado.',
+            confirmButtonColor: '#FF9800'
+        });
+        return;
     }
     
-    // Mostrar notificación
-    mostrarNotificacion('Logo eliminado', 'info');
-});
+    currentDepartamento = departamento;
+    
+    // Actualizar información del departamento en el modal
+    document.getElementById('modalPuestosTitle').textContent = `Puestos - ${departamento.NombreDepartamento}`;
+    document.getElementById('deptNombre').textContent = departamento.NombreDepartamento;
+    document.getElementById('deptRegion').textContent = departamento.NombreRegion;
+    document.getElementById('deptPlanFijo').textContent = departamento.PlanFijo || 0;
+    document.getElementById('deptPlanParcial').textContent = departamento.PlanParcial || 0;
+    document.getElementById('deptPlanVacacionista').textContent = departamento.PlanVacacionista || 0;
+    
+    // Mostrar el modal
+    document.getElementById('modalPuestos').style.display = 'flex';
+    
+    // Cargar puestos
+    await cargarPuestos(idDepartamento);
+}
 
-// Inicializar la página
-document.addEventListener('DOMContentLoaded', async () => {
-    // Cargar información del usuario
-    cargarInfoUsuario();
+// Cargar puestos del departamento
+async function cargarPuestos(idDepartamento) {
+    try {
+        const tableBody = document.getElementById('puestosTableBody');
+        tableBody.innerHTML = `
+            <tr class="loading-row">
+                <td colspan="6" class="text-center">
+                    <div class="loading-spinner">
+                        <i class="fas fa-spinner fa-spin"></i>
+                        Cargando puestos...
+                    </div>
+                </td>
+            </tr>
+        `;
+        
+        const connection = await connectionString();
+        
+        // Cargar puestos del departamento
+        const puestosResult = await connection.query(`
+            SELECT 
+                p.IdPuesto,
+                p.Nombre,
+                p.PagosDominicales,
+                p.PagosDiasEspeciales,
+                p.Id_PuestoGeneral,
+                pg.Nombre as PuestoGeneral,
+                COUNT(per.IdPersonal) as TotalColaboradores
+            FROM Puestos p
+            LEFT JOIN PuestosGenerales pg ON p.Id_PuestoGeneral = pg.Id_Puesto
+            LEFT JOIN personal per ON p.IdPuesto = per.IdPuesto AND per.Estado = 1 AND per.IdSucuDepa = ?
+            WHERE p.IdDepartamento = ?
+            GROUP BY p.IdPuesto, p.Nombre, p.PagosDominicales, p.PagosDiasEspeciales, p.Id_PuestoGeneral, pg.Nombre
+            ORDER BY p.Nombre ASC
+        `, [idDepartamento, idDepartamento]);
+        
+        await connection.close();
+        
+        puestosData = puestosResult;
+        actualizarTablaPuestos();
+        
+    } catch (error) {
+        console.error('Error al cargar puestos:', error);
+        
+        const tableBody = document.getElementById('puestosTableBody');
+        tableBody.innerHTML = `
+            <tr>
+                <td colspan="6" class="text-center">
+                    <div class="empty-state">
+                        <i class="fas fa-exclamation-triangle"></i>
+                        <h3>Error al cargar puestos</h3>
+                        <p>No se pudieron cargar los puestos del departamento.</p>
+                    </div>
+                </td>
+            </tr>
+        `;
+    }
+}
+
+// Actualizar tabla de puestos
+function actualizarTablaPuestos(filteredPuestos = null) {
+    const tableBody = document.getElementById('puestosTableBody');
+    const dataToShow = filteredPuestos || puestosData;
     
-    // Cargar datos para los selectores
-    await cargarRegiones();
-    await cargarDivisiones();
+    if (dataToShow.length === 0) {
+        tableBody.innerHTML = `
+            <tr>
+                <td colspan="6" class="text-center">
+                    <div class="empty-state">
+                        <i class="fas fa-briefcase"></i>
+                        <h3>No hay puestos</h3>
+                        <p>Este departamento no tiene puestos registrados.</p>
+                    </div>
+                </td>
+            </tr>
+        `;
+        return;
+    }
     
-    // Cargar departamentos
-    await cargarDepartamentos();
+    tableBody.innerHTML = dataToShow.map(puesto => `
+        <tr>
+            <td class="text-center">${puesto.IdPuesto}</td>
+            <td>
+                <strong>${puesto.Nombre}</strong>
+                <br>
+                <small class="text-muted">${puesto.PuestoGeneral || 'Sin categoría'}</small>
+            </td>
+            <td class="text-center">
+                <span class="collaborators-count ${puesto.TotalColaboradores == 0 ? 'zero' : ''}">
+                    ${puesto.TotalColaboradores}
+                </span>
+            </td>
+            <td class="text-center">
+                <span class="money-display">Q${parseFloat(puesto.PagosDominicales || 0).toFixed(2)}</span>
+            </td>
+            <td class="text-center">
+                <span class="money-display">Q${parseFloat(puesto.PagosDiasEspeciales || 0).toFixed(2)}</span>
+            </td>
+            <td class="text-center">
+                <div class="action-buttons">
+                    <button class="btn-action btn-collaborators" onclick="verColaboradores(${puesto.IdPuesto}, '${puesto.Nombre.replace(/'/g, "\\'")}')" title="Ver Colaboradores">
+                        <i class="fas fa-users"></i>
+                    </button>
+                    <button class="btn-action btn-edit" onclick="editarPuesto(${puesto.IdPuesto})" title="Editar">
+                        <i class="fas fa-edit"></i>
+                    </button>
+                    <button class="btn-action btn-delete" onclick="eliminarPuesto(${puesto.IdPuesto})" title="Eliminar">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                </div>
+            </td>
+        </tr>
+    `).join('');
+}
+
+// Filtrar puestos
+function filtrarPuestos() {
+    const searchTerm = document.getElementById('searchPuestos').value.toLowerCase().trim();
     
-    // Mostrar notificación de bienvenida después de un breve retraso
-    setTimeout(() => {
-        mostrarNotificacion('Bienvenido a la gestión de departamentos y divisiones', 'info');
-    }, 1000);
-});
+    if (searchTerm === '') {
+        actualizarTablaPuestos();
+    } else {
+        const filteredPuestos = puestosData.filter(puesto => 
+            puesto.Nombre.toLowerCase().includes(searchTerm) ||
+            puesto.IdPuesto.toString().includes(searchTerm) ||
+            (puesto.PuestoGeneral && puesto.PuestoGeneral.toLowerCase().includes(searchTerm))
+        );
+        actualizarTablaPuestos(filteredPuestos);
+    }
+}
+
+// Refrescar puestos
+async function refrescarPuestos() {
+    if (currentDepartamento) {
+        await cargarPuestos(currentDepartamento.IdDepartamento);
+        
+        Swal.fire({
+            icon: 'success',
+            title: 'Puestos actualizados',
+            text: 'Los datos se han refrescado correctamente.',
+            timer: 1000,
+            showConfirmButton: false,
+            toast: true,
+            position: 'top-end'
+        });
+    }
+}
+
+// Cerrar modal de puestos
+function cerrarModalPuestos() {
+    document.getElementById('modalPuestos').style.display = 'none';
+    document.getElementById('colaboradoresSection').style.display = 'none';
+    currentDepartamento = null;
+    puestosData = [];
+    colaboradoresData = [];
+}
+
+// Mostrar formulario para agregar/editar puesto
+async function mostrarFormularioPuesto(puestoData = null) {
+    const isEditing = puestoData !== null;
+    const title = isEditing ? 'Editar Puesto' : 'Agregar Nuevo Puesto';
+    
+    // Generar opciones de puestos generales
+    const puestosGeneralesOptions = puestosGenerales.map(pg => 
+        `<option value="${pg.Id_Puesto}" ${isEditing && puestoData && puestoData.Id_PuestoGeneral == pg.Id_Puesto ? 'selected' : ''}>
+            ${pg.Nombre}
+        </option>`
+    ).join('');
+    
+    const { value: formValues } = await Swal.fire({
+        title: title,
+        html: `
+            <div style="text-align: left; max-width: 500px;">
+                <div style="margin-bottom: 20px;">
+                    <label style="display: block; margin-bottom: 8px; font-weight: 600; color: #654321;">
+                        Nombre del Puesto *
+                    </label>
+                    <input type="text" id="nombrePuesto" class="swal2-input" 
+                           value="${isEditing ? puestoData.Nombre || '' : ''}"
+                           placeholder="Ingrese el nombre del puesto"
+                           style="width: 100%; margin: 0;">
+                </div>
+                
+                <div style="margin-bottom: 20px;">
+                    <label style="display: block; margin-bottom: 8px; font-weight: 600; color: #654321;">
+                        Categoría de Puesto *
+                    </label>
+                    <select id="puestoGeneral" class="swal2-input" style="width: 100%; margin: 0;">
+                        <option value="">Seleccione una categoría</option>
+                        ${puestosGeneralesOptions}
+                    </select>
+                </div>
+                
+                <div style="margin-bottom: 15px;">
+                    <h4 style="color: #654321; margin-bottom: 15px; border-bottom: 2px solid #FF9800; padding-bottom: 5px;">
+                        Información de Pagos
+                    </h4>
+                    
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px;">
+                        <div>
+                            <label style="display: block; margin-bottom: 8px; font-weight: 600; color: #654321;">
+                                Pago Dominical (Q)
+                            </label>
+                            <input type="number" id="pagoDominical" class="swal2-input money-input" 
+                                   value="${isEditing ? (parseFloat(puestoData.PagosDominicales) || 0) : 0}"
+                                   min="0" step="0.01"
+                                   placeholder="0.00"
+                                   style="width: 100%; margin: 0; text-align: right;">
+                        </div>
+                        
+                        <div>
+                            <label style="display: block; margin-bottom: 8px; font-weight: 600; color: #654321;">
+                                Pago Días Especiales (Q)
+                            </label>
+                            <input type="number" id="pagoDiasEspeciales" class="swal2-input money-input" 
+                                   value="${isEditing ? (parseFloat(puestoData.PagosDiasEspeciales) || 0) : 0}"
+                                   min="0" step="0.01"
+                                   placeholder="0.00"
+                                   style="width: 100%; margin: 0; text-align: right;">
+                        </div>
+                    </div>
+                    
+                    <div style="background: #e3f2fd; padding: 12px; border-radius: 8px; margin-top: 15px;">
+                        <p style="margin: 0; color: #1976d2; font-size: 0.85rem; text-align: center;">
+                            💰 Configure los montos de pago para días especiales
+                        </p>
+                    </div>
+                </div>
+                
+                ${!isEditing ? `
+                <div style="background: #fff3e0; padding: 12px; border-radius: 8px; margin-top: 15px;">
+                    <p style="margin: 0; color: #f57c00; font-size: 0.85rem; text-align: center;">
+                        📍 Este puesto se creará para el departamento: <strong>${currentDepartamento.NombreDepartamento}</strong>
+                    </p>
+                </div>
+                ` : ''}
+            </div>
+        `,
+        focusConfirm: false,
+        showCancelButton: true,
+        confirmButtonText: isEditing ? 'Actualizar' : 'Agregar',
+        cancelButtonText: 'Cancelar',
+        confirmButtonColor: '#FF9800',
+        width: '600px',
+        customClass: {
+            popup: 'swal2-no-scroll'
+        },
+        preConfirm: () => {
+            const nombre = document.getElementById('nombrePuesto').value.trim();
+            const puestoGeneralValue = document.getElementById('puestoGeneral').value;
+            const pagoDominicalValue = document.getElementById('pagoDominical').value;
+            const pagoDiasEspecialesValue = document.getElementById('pagoDiasEspeciales').value;
+            
+            if (!nombre) {
+                Swal.showValidationMessage('El nombre del puesto es requerido');
+                return false;
+            }
+            
+            if (!puestoGeneralValue) {
+                Swal.showValidationMessage('Debe seleccionar una categoría de puesto');
+                return false;
+            }
+            
+            const puestoGeneral = parseInt(puestoGeneralValue);
+            const pagoDominical = parseFloat(pagoDominicalValue) || 0;
+            const pagoDiasEspeciales = parseFloat(pagoDiasEspecialesValue) || 0;
+            
+            if (isNaN(puestoGeneral)) {
+                Swal.showValidationMessage('La categoría de puesto debe ser válida');
+                return false;
+            }
+            
+            if (pagoDominical < 0 || pagoDiasEspeciales < 0) {
+                Swal.showValidationMessage('Los montos no pueden ser negativos');
+                return false;
+            }
+            
+            return { 
+                nombre, 
+                puestoGeneral,
+                pagoDominical: pagoDominical.toFixed(2), 
+                pagoDiasEspeciales: pagoDiasEspeciales.toFixed(2)
+            };
+        }
+    });
+    
+    if (formValues) {
+        if (isEditing) {
+            await actualizarPuesto(puestoData.IdPuesto, formValues);
+        } else {
+            await crearPuesto(formValues);
+        }
+    }
+}
+
+// Crear nuevo puesto
+async function crearPuesto(data) {
+    try {
+        if (!currentDepartamento) {
+            throw new Error('No hay departamento seleccionado');
+        }
+        
+        const connection = await connectionString();
+        
+        await connection.query(`
+            INSERT INTO Puestos (Nombre, PagosDominicales, PagosDiasEspeciales, IdDepartamento, Id_PuestoGeneral)
+            VALUES (?, ?, ?, ?, ?)
+        `, [
+            data.nombre,
+            data.pagoDominical,
+            data.pagoDiasEspeciales,
+            currentDepartamento.IdDepartamento,
+            data.puestoGeneral
+        ]);
+        
+        await connection.close();
+        
+        await Swal.fire({
+            icon: 'success',
+            title: '¡Puesto creado!',
+            text: 'El puesto se ha agregado correctamente.',
+            confirmButtonColor: '#4CAF50'
+        });
+        
+        await refrescarPuestos();
+        
+    } catch (error) {
+        console.error('Error al crear puesto:', error);
+        
+        await Swal.fire({
+            icon: 'error',
+            title: 'Error al crear',
+            text: error.message || 'No se pudo crear el puesto.',
+            confirmButtonColor: '#FF9800'
+        });
+    }
+}
+
+// Actualizar puesto existente
+async function actualizarPuesto(id, data) {
+    try {
+        const connection = await connectionString();
+        
+        await connection.query(`
+            UPDATE Puestos 
+            SET Nombre = ?, PagosDominicales = ?, PagosDiasEspeciales = ?, Id_PuestoGeneral = ?
+            WHERE IdPuesto = ?
+        `, [
+            data.nombre,
+            data.pagoDominical,
+            data.pagoDiasEspeciales,
+            data.puestoGeneral,
+            parseInt(id)
+        ]);
+        
+        await connection.close();
+        
+        await Swal.fire({
+            icon: 'success',
+            title: '¡Puesto actualizado!',
+            text: 'Los cambios se han guardado correctamente.',
+            confirmButtonColor: '#4CAF50'
+        });
+        
+        await refrescarPuestos();
+        
+    } catch (error) {
+        console.error('Error al actualizar puesto:', error);
+        
+        await Swal.fire({
+            icon: 'error',
+            title: 'Error al actualizar',
+            text: 'No se pudo actualizar el puesto.',
+            confirmButtonColor: '#FF9800'
+        });
+    }
+}
+
+// Editar puesto
+async function editarPuesto(id) {
+    const puesto = puestosData.find(p => p.IdPuesto == id);
+    
+    if (puesto) {
+        await mostrarFormularioPuesto(puesto);
+    } else {
+        await Swal.fire({
+            icon: 'error',
+            title: 'Error',
+            text: 'No se pudo encontrar el puesto seleccionado.',
+            confirmButtonColor: '#FF9800'
+        });
+    }
+}
+
+// Eliminar puesto
+async function eliminarPuesto(id) {
+    try {
+        const puesto = puestosData.find(p => p.IdPuesto == id);
+        
+        if (!puesto) return;
+        
+        // Verificar si hay colaboradores asignados
+        if (puesto.TotalColaboradores > 0) {
+            await Swal.fire({
+                icon: 'warning',
+                title: 'No se puede eliminar',
+                html: `
+                    <div style="text-align: center;">
+                        <div style="font-size: 3rem; color: #FF9800; margin-bottom: 15px;">
+                            <i class="fas fa-users"></i>
+                        </div>
+                        <p style="margin-bottom: 15px;">
+                            El puesto <strong>"${puesto.Nombre}"</strong> tiene <strong>${puesto.TotalColaboradores}</strong> colaborador(es) asignado(s).
+                        </p>
+                        <div style="background: #fff3e0; padding: 12px; border-radius: 8px; border-left: 4px solid #FF9800;">
+                            <p style="color: #f57c00; margin: 0; font-weight: 500;">
+                                ⚠️ Debe reasignar o dar de baja a los colaboradores antes de eliminar el puesto
+                            </p>
+                        </div>
+                    </div>
+                `,
+                confirmButtonText: 'Entendido',
+                confirmButtonColor: '#FF9800',
+                width: '500px'
+            });
+            return;
+        }
+        
+        const result = await Swal.fire({
+            title: '¿Confirmar eliminación?',
+            html: `
+                <div style="text-align: center;">
+                    <div style="font-size: 3rem; color: #FF5252; margin-bottom: 15px;">
+                        <i class="fas fa-exclamation-triangle"></i>
+                    </div>
+                    <p style="margin-bottom: 15px;">
+                        Está a punto de eliminar el puesto:
+                    </p>
+                    <div style="background: #f8f9fa; padding: 15px; border-radius: 8px; margin: 15px 0;">
+                        <h4 style="color: #654321; margin-bottom: 5px;">${puesto.Nombre}</h4>
+                        <p style="color: #777; margin: 0;">Departamento: ${currentDepartamento.NombreDepartamento}</p>
+                    </div>
+                    <div style="background: #ffebee; padding: 12px; border-radius: 8px; border-left: 4px solid #FF5252;">
+                        <p style="color: #c62828; margin: 0; font-weight: 500;">
+                            ⚠️ Esta acción no se puede deshacer
+                        </p>
+                    </div>
+                </div>
+            `,
+            showCancelButton: true,
+            confirmButtonText: 'Sí, eliminar',
+            cancelButtonText: 'Cancelar',
+            confirmButtonColor: '#FF5252',
+            cancelButtonColor: '#6c757d',
+            width: '500px'
+        });
+        
+        if (result.isConfirmed) {
+            const connection = await connectionString();
+            await connection.query('DELETE FROM Puestos WHERE IdPuesto = ?', [id]);
+            await connection.close();
+            
+            await Swal.fire({
+                icon: 'success',
+                title: '¡Puesto eliminado!',
+                text: 'El puesto se ha eliminado correctamente.',
+                confirmButtonColor: '#4CAF50',
+                timer: 2000
+            });
+            
+            await refrescarPuestos();
+        }
+        
+    } catch (error) {
+        console.error('Error al eliminar puesto:', error);
+        
+        await Swal.fire({
+            icon: 'error',
+            title: 'Error al eliminar',
+            text: 'No se pudo eliminar el puesto.',
+            confirmButtonColor: '#FF9800'
+        });
+    }
+}
+
+// Ver colaboradores de un puesto
+async function verColaboradores(idPuesto, nombrePuesto) {
+    try {
+        if (!currentDepartamento) return;
+        
+        const connection = await connectionString();
+        
+        const result = await connection.query(`
+            SELECT
+                personal.IdPersonal,
+                CONCAT_WS(' ', 
+                    personal.PrimerNombre, 
+                    personal.SegundoNombre, 
+                    personal.TercerNombre,
+                    personal.PrimerApellido, 
+                    personal.SegundoApellido
+                ) AS NombreCompleto,
+                Puestos.Nombre AS Puesto,
+                Puestos.PagosDominicales,
+                Puestos.PagosDiasEspeciales
+            FROM personal
+            INNER JOIN Puestos ON personal.IdPuesto = Puestos.IdPuesto
+            WHERE personal.IdSucuDepa = ? AND personal.IdPuesto = ? AND personal.Estado = 1
+            ORDER BY personal.PrimerNombre ASC
+        `, [currentDepartamento.IdDepartamento, idPuesto]);
+        
+        await connection.close();
+        
+        colaboradoresData = result;
+        
+        // Mostrar sección de colaboradores
+        document.getElementById('puestoSeleccionado').textContent = nombrePuesto;
+        document.getElementById('colaboradoresSection').style.display = 'block';
+        
+        // Actualizar grid de colaboradores
+        actualizarGridColaboradores();
+        
+        // Scroll suave hacia la sección
+        document.getElementById('colaboradoresSection').scrollIntoView({ behavior: 'smooth' });
+        
+    } catch (error) {
+        console.error('Error al cargar colaboradores:', error);
+        
+        await Swal.fire({
+            icon: 'error',
+            title: 'Error al cargar',
+            text: 'No se pudieron cargar los colaboradores del puesto.',
+            confirmButtonColor: '#FF9800'
+        });
+    }
+}
+
+// Actualizar grid de colaboradores
+function actualizarGridColaboradores() {
+    const grid = document.getElementById('colaboradoresGrid');
+    
+    if (colaboradoresData.length === 0) {
+        grid.innerHTML = `
+            <div style="grid-column: 1 / -1; text-align: center; padding: 40px; color: #777;">
+                <i class="fas fa-user-slash" style="font-size: 3rem; margin-bottom: 15px; color: #ddd;"></i>
+                <h3>Sin colaboradores</h3>
+                <p>Este puesto no tiene colaboradores asignados.</p>
+            </div>
+        `;
+        return;
+    }
+    
+    grid.innerHTML = colaboradoresData.map(colaborador => {
+        const iniciales = colaborador.NombreCompleto
+            .split(' ')
+            .slice(0, 2)
+            .map(name => name.charAt(0))
+            .join('');
+            
+        return `
+            <div class="colaborador-card">
+                <div class="colaborador-header">
+                    <div class="colaborador-avatar">
+                        ${iniciales}
+                    </div>
+                    <div class="colaborador-info">
+                        <h4>${colaborador.NombreCompleto}</h4>
+                        <span class="colaborador-id">ID: ${colaborador.IdPersonal}</span>
+                    </div>
+                </div>
+                <div class="colaborador-details">
+                    <div class="detail-item">
+                        <span class="detail-label">Pago Dominical</span>
+                        <span class="detail-value money">Q${parseFloat(colaborador.PagosDominicales || 0).toFixed(2)}</span>
+                    </div>
+                    <div class="detail-item">
+                        <span class="detail-label">Días Especiales</span>
+                        <span class="detail-value money">Q${parseFloat(colaborador.PagosDiasEspeciales || 0).toFixed(2)}</span>
+                    </div>
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+// Mostrar filtros avanzados
+async function mostrarFiltros() {
+    const regionesOptions = regiones.map(region => 
+        `<option value="${region.IdRegion}">${region.NombreRegion}</option>`
+    ).join('');
+    
+    const { value: filtros, isDismissed } = await Swal.fire({
+        title: 'Filtros Avanzados',
+        html: `
+            <div style="text-align: left; max-width: 400px;">
+                <div style="margin-bottom: 20px;">
+                    <label style="display: block; margin-bottom: 8px; font-weight: 600;">Región:</label>
+                    <select id="filtroRegion" class="swal2-input" style="width: 100%; margin: 0;">
+                        <option value="">Todas las regiones</option>
+                        ${regionesOptions}
+                    </select>
+                </div>
+                
+                <div style="margin-bottom: 20px;">
+                    <label style="display: block; margin-bottom: 12px; font-weight: 600;">Cantidad mínima por plan:</label>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                        <div>
+                            <label style="font-size: 0.85rem; margin-bottom: 4px; display: block;">Plan Fijo:</label>
+                            <input type="number" id="filtroFijoMin" class="swal2-input" 
+                                   placeholder="Min" min="0" 
+                                   style="width: 100%; margin: 0; font-size: 0.9rem;">
+                        </div>
+                        <div>
+                            <label style="font-size: 0.85rem; margin-bottom: 4px; display: block;">Plan Parcial:</label>
+                            <input type="number" id="filtroParcialMin" class="swal2-input" 
+                                   placeholder="Min" min="0"
+                                   style="width: 100%; margin: 0; font-size: 0.9rem;">
+                        </div>
+                    </div>
+                    <div style="margin-top: 10px;">
+                        <label style="font-size: 0.85rem; margin-bottom: 4px; display: block;">Plan Vacacionista:</label>
+                        <input type="number" id="filtroVacacionistaMin" class="swal2-input" 
+                               placeholder="Mínimo" min="0"
+                               style="width: 100%; margin: 0; font-size: 0.9rem;">
+                    </div>
+                </div>
+                
+                <div style="background: #f0f8ff; padding: 12px; border-radius: 6px;">
+                    <p style="margin: 0; font-size: 0.8rem; color: #1976d2;">
+                        💡 Deje los campos vacíos para no aplicar filtro por cantidad
+                    </p>
+                </div>
+            </div>
+        `,
+        showCancelButton: true,
+        confirmButtonText: 'Aplicar Filtros',
+        cancelButtonText: 'Limpiar Filtros',
+        confirmButtonColor: '#FF9800',
+        width: '500px',
+        preConfirm: () => {
+            return {
+                region: document.getElementById('filtroRegion').value,
+                planFijoMin: parseInt(document.getElementById('filtroFijoMin').value) || null,
+                planParcialMin: parseInt(document.getElementById('filtroParcialMin').value) || null,
+                planVacacionistaMin: parseInt(document.getElementById('filtroVacacionistaMin').value) || null
+            };
+        }
+    });
+    
+    if (filtros !== undefined) {
+        if (isDismissed) {
+            // Limpiar filtros
+            filteredData = [...departamentosData];
+        } else {
+            // Aplicar filtros
+            aplicarFiltrosAvanzados(filtros);
+        }
+        
+        currentPage = 1;
+        actualizarTabla();
+    }
+}
+
+// Aplicar filtros avanzados
+function aplicarFiltrosAvanzados(filtros) {
+    filteredData = departamentosData.filter(dept => {
+        // Filtro por región
+        if (filtros.region && dept.IdRegion.toString() !== filtros.region) {
+            return false;
+        }
+        
+        // Filtros por cantidad mínima
+        if (filtros.planFijoMin !== null && (parseInt(dept.PlanFijo) || 0) < filtros.planFijoMin) {
+            return false;
+        }
+        
+        if (filtros.planParcialMin !== null && (parseInt(dept.PlanParcial) || 0) < filtros.planParcialMin) {
+            return false;
+        }
+        
+        if (filtros.planVacacionistaMin !== null && (parseInt(dept.PlanVacacionista) || 0) < filtros.planVacacionistaMin) {
+            return false;
+        }
+        
+        return true;
+    });
+    
+    actualizarContadores();
+}

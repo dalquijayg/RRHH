@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Reporte de Planillas Parciales - Recursos Humanos</title>
+    <link rel="stylesheet" href="../Disenos/Reportes/ReportePlanillasParciales.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+</head>
+<body>
+    <!-- Header con logo y título -->
+    <div class="header">
+        <img src="../Imagenes/Logo Recursos Humanos new.png" alt="Logo RRHH" class="logo">
+        <div class="header-content">
+            <h1>Reporte de Planillas Parciales</h1>
+            <div class="color-strip">
+                <div class="color-strip-item color-red"></div>
+                <div class="color-strip-item color-blue"></div>
+                <div class="color-strip-item color-green"></div>
+                <div class="color-strip-item color-yellow"></div>
+                <div class="color-strip-item color-orange"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Container principal que ocupa toda la pantalla -->
+    <div class="main-container">
+        <!-- Panel de filtros -->
+        <div class="filters-panel">
+            <div class="filters-header">
+                <h3><i class="fas fa-filter"></i> Filtros de Búsqueda</h3>
+                <button class="toggle-filters-btn" id="toggleFilters">
+                    <i class="fas fa-chevron-up"></i>
+                </button>
+            </div>
+            
+            <div class="filters-content" id="filtersContent">
+                <!-- FILA DE FILTROS -->
+                <div class="filter-row">
+                    <div class="filter-group">
+                        <label for="filtro-departamento">
+                            <i class="fas fa-building"></i> Departamento
+                        </label>
+                        <select id="filtro-departamento" class="filter-select">
+                            <option value="">Todos los departamentos</option>
+                            <!-- Las opciones se cargarán dinámicamente -->
+                        </select>
+                    </div>
+                    
+                    <div class="filter-group">
+                        <label for="filtro-estado">
+                            <i class="fas fa-flag"></i> Estado
+                        </label>
+                        <select id="filtro-estado" class="filter-select">
+                            <option value="">Todos los estados</option>
+                            <option value="0">En espera por Autorización</option>
+                            <option value="1">Autorizado</option>
+                            <option value="2">Pendiente por Subir Comprobante</option>
+                            <option value="3">Completado</option>
+                            <option value="4">Anulado</option>
+                        </select>
+                    </div>
+                    
+                    <div class="filter-group">
+                        <label for="filtro-fecha-inicio">
+                            <i class="fas fa-calendar-alt"></i> Fecha Inicio
+                        </label>
+                        <input type="date" id="filtro-fecha-inicio" class="filter-input">
+                    </div>
+                    
+                    <div class="filter-group">
+                        <label for="filtro-fecha-fin">
+                            <i class="fas fa-calendar-check"></i> Fecha Fin
+                        </label>
+                        <input type="date" id="filtro-fecha-fin" class="filter-input">
+                    </div>
+                </div>
+                
+                <!-- FILA DE ESTADÍSTICAS SEPARADA -->
+                <div class="stats-row">
+                    <div class="stat-card stat-total">
+                        <div class="stat-icon">
+                            <i class="fas fa-file-invoice"></i>
+                        </div>
+                        <div class="stat-content">
+                            <span class="stat-number" id="totalPlanillas">0</span>
+                            <span class="stat-label">Total Planillas</span>
+                        </div>
+                    </div>
+                    
+                    <div class="stat-card stat-pending">
+                        <div class="stat-icon">
+                            <i class="fas fa-clock"></i>
+                        </div>
+                        <div class="stat-content">
+                            <span class="stat-number" id="planillasPendientes">0</span>
+                            <span class="stat-label">En Espera</span>
+                        </div>
+                    </div>
+                    
+                    <div class="stat-card stat-authorized">
+                        <div class="stat-icon">
+                            <i class="fas fa-check-circle"></i>
+                        </div>
+                        <div class="stat-content">
+                            <span class="stat-number" id="planillasAutorizadas">0</span>
+                            <span class="stat-label">Autorizadas</span>
+                        </div>
+                    </div>
+                    
+                    <div class="stat-card stat-completed">
+                        <div class="stat-icon">
+                            <i class="fas fa-trophy"></i>
+                        </div>
+                        <div class="stat-content">
+                            <span class="stat-number" id="planillasCompletadas">0</span>
+                            <span class="stat-label">Completadas</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- FILA DE BOTONES -->
+                <div class="filter-actions">
+                    <button class="btn btn-search" id="btnBuscar">
+                        <i class="fas fa-search"></i> Buscar
+                    </button>
+                    <button class="btn btn-clear" id="btnLimpiar">
+                        <i class="fas fa-eraser"></i> Limpiar
+                    </button>
+                    <button class="btn btn-export" id="btnExportar">
+                        <i class="fas fa-file-excel"></i> Exportar
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Panel de resultados - Ocupa el resto del espacio -->
+        <div class="results-panel">
+            <div class="table-container">
+                <div class="table-header">
+                    <h3><i class="fas fa-table"></i> Listado de Planillas</h3>
+                    <div class="table-actions">
+                        <button class="btn btn-refresh" id="btnRefresh">
+                            <i class="fas fa-sync-alt"></i>
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="table-wrapper">
+                    <table class="planillas-table" id="planillasTable">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Departamento</th>
+                                <th>Colaboradores</th>
+                                <th>Período</th>
+                                <th>Estado</th>
+                                <th>Registrado por</th>
+                                <th>Fecha Registro</th>
+                                <th>Autorizado por</th>
+                                <th>Fecha Autorización</th>
+                                <th>Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody id="planillasTableBody">
+                            <!-- Los datos se cargarán dinámicamente -->
+                        </tbody>
+                    </table>
+                    
+                    <!-- Loading state -->
+                    <div class="loading-state" id="loadingState">
+                        <div class="spinner"></div>
+                        <p>Cargando planillas...</p>
+                    </div>
+                    
+                    <!-- Empty state -->
+                    <div class="empty-state" id="emptyState" style="display: none;">
+                        <div class="empty-icon">
+                            <i class="fas fa-search"></i>
+                        </div>
+                        <h4>No se encontraron planillas</h4>
+                        <p>Intenta ajustar los filtros de búsqueda</p>
+                    </div>
+                </div>
+                
+                <!-- Paginación -->
+                <div class="pagination-container">
+                    <div class="pagination-info">
+                        <span id="paginationInfo">Mostrando 0 - 0 de 0 resultados</span>
+                    </div>
+                    <div class="pagination-controls">
+                        <button class="btn btn-pagination" id="btnPrevious" disabled>
+                            <i class="fas fa-chevron-left"></i>
+                        </button>
+                        <div class="page-numbers" id="pageNumbers">
+                            <!-- Los números de página se generarán dinámicamente -->
+                        </div>
+                        <button class="btn btn-pagination" id="btnNext" disabled>
+                            <i class="fas fa-chevron-right"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal para ver detalle de planilla -->
+    <div class="modal-overlay" id="modalDetalle">
+        <div class="modal-container">
+            <div class="modal-header">
+                <h3><i class="fas fa-eye"></i> Detalle de Planilla</h3>
+                <button class="modal-close" id="btnCerrarModal">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            
+            <div class="modal-content">
+                <!-- Información general de la planilla -->
+                <div class="planilla-info">
+                    <div class="info-row">
+                        <div class="info-group">
+                            <label>ID Planilla:</label>
+                            <span id="detalleIdPlanilla">-</span>
+                        </div>
+                        <div class="info-group">
+                            <label>Departamento:</label>
+                            <span id="detalleDepartamento">-</span>
+                        </div>
+                        <div class="info-group">
+                            <label>Período:</label>
+                            <span id="detallePeriodo">-</span>
+                        </div>
+                        <div class="info-group">
+                            <label>Estado:</label>
+                            <span class="estado-badge" id="detalleEstado">-</span>
+                        </div>
+                    </div>
+                    
+                    <div class="info-row">
+                        <div class="info-group">
+                            <label>Registrado por:</label>
+                            <span id="detalleRegistradoPor">-</span>
+                        </div>
+                        <div class="info-group">
+                            <label>Fecha Registro:</label>
+                            <span id="detalleFechaRegistro">-</span>
+                        </div>
+                        <div class="info-group">
+                            <label>Autorizado por:</label>
+                            <span id="detalleAutorizadoPor">-</span>
+                        </div>
+                        <div class="info-group">
+                            <label>Fecha Autorización:</label>
+                            <span id="detalleFechaAutorizacion">-</span>
+                        </div>
+                    </div>
+                    
+                    <div class="info-row" id="motivoRechazoRow" style="display: none;">
+                        <div class="info-group full-width">
+                            <label>Motivo de Rechazo:</label>
+                            <span id="detalleMotivoRechazo" class="motivo-rechazo">-</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Tabla de detalle de colaboradores -->
+                <div class="detalle-colaboradores">
+                    <h4><i class="fas fa-users"></i> Detalle de Colaboradores</h4>
+                    <div class="detalle-table-wrapper">
+                        <table class="detalle-table">
+                            <thead>
+                                <tr>
+                                    <th>Colaborador</th>
+                                    <th>Fecha Laborada</th>
+                                    <th>Tipo Turno</th>
+                                    <th>Monto Pagado</th>
+                                </tr>
+                            </thead>
+                            <tbody id="detalleColaboradoresBody">
+                                <!-- Los datos se cargarán dinámicamente -->
+                            </tbody>
+                        </table>
+                    </div>
+                    
+                    <!-- Resumen del detalle -->
+                    <div class="detalle-resumen">
+                        <div class="resumen-item">
+                            <span class="resumen-label">Total Colaboradores:</span>
+                            <span class="resumen-value" id="totalColaboradores">0</span>
+                        </div>
+                        <div class="resumen-item">
+                            <span class="resumen-label">Monto Total:</span>
+                            <span class="resumen-value" id="montoTotal">Q 0.00</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="modal-footer">
+                <button class="btn btn-secondary" id="btnCerrarDetalle">
+                    <i class="fas fa-times"></i> Cerrar
+                </button>
+                <button class="btn btn-primary" id="btnImprimirDetalle">
+                    <i class="fas fa-print"></i> Imprimir
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="../Logica/Reportes/ReportePlanillasParciales.js"></script>
+    <script>
+        // Integración con Electron para actualizaciones
+        if (typeof require !== 'undefined') {
+            const { ipcRenderer } = require('electron');
+            
+            ipcRenderer.on('update_available', () => {
+                ipcRenderer.removeAllListeners('update_available');
+                // Manejar notificación de actualización disponible
+            });
+            
+            ipcRenderer.on('update_downloaded', () => {
+                ipcRenderer.removeAllListeners('update_downloaded');
+                // Manejar notificación de actualización descargada
+            });
+        }
+    </script>
+</body>
+</html>

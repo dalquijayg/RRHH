@@ -1369,7 +1369,7 @@ async function ejecutarRechazo(idPlanilla, motivo = '') {
         }
 
         // Actualizar en base de datos
-        await actualizarEstadoPlanilla(idPlanilla, 6, motivo, 'Rechazada'); // Estado 6 = Rechazado
+        await actualizarEstadoPlanilla(idPlanilla, 4, motivo, 'Rechazada'); // Estado 6 = Rechazado
 
         // Remover planilla de la lista (ya no está pendiente)
         allPlanillas = allPlanillas.filter(p => p.IdPlanillaParcial !== idPlanilla);
