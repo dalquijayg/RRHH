@@ -2502,7 +2502,18 @@ async function cargarPlanillas() {
         throw error;
     }
 }
-
+function formatearFechaSinTimezone(fechaString) {
+    if (!fechaString) return 'No registrada';
+    
+    // Si la fecha viene en formato YYYY-MM-DD, la parseamos directamente
+    const partes = fechaString.toString().split('T')[0].split('-');
+    if (partes.length === 3) {
+        const fecha = new Date(parseInt(partes[0]), parseInt(partes[1]) - 1, parseInt(partes[2]));
+        return fecha.toLocaleDateString();
+    }
+    
+    return 'Fecha inválida';
+}
 // Cargar estados laborales
 async function cargarEstadosLaborales() {
     try {
@@ -4869,8 +4880,7 @@ function renderizarResultadosPMA(resultados) {
             (factores.reduce((a, b) => a + b, 0) / factores.length).toFixed(1) : '-';
         
         // Formatear fecha
-        const fecha = resultado.FechaEvaluacion ? 
-            new Date(resultado.FechaEvaluacion).toLocaleDateString() : 'No registrada';
+        const fecha = formatearFechaSinTimezone(resultado.FechaEvaluacion);
         
         html += `
             <tr data-pma-id="${resultado.IdPMA}">
@@ -5215,8 +5225,7 @@ async function verDetallePMA(idPMA) {
         const evaluacion = result[0];
         
         // Asignar valores a los elementos de detalle
-        pmaDetailDate.textContent = evaluacion.FechaEvaluacion ? 
-            new Date(evaluacion.FechaEvaluacion).toLocaleDateString() : 'No registrada';
+        pmaDetailDate.textContent = formatearFechaSinTimezone(evaluacion.FechaEvaluacion);
         pmaDetailEvaluator.textContent = evaluacion.NombreEvaluador || 'No registrado';
         
         // Valores de factores
