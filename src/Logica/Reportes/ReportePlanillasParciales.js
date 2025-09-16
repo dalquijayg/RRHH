@@ -5,7 +5,7 @@ const Swal = require('sweetalert2');
 let planillasData = [];
 let filteredData = [];
 let currentPage = 1;
-const itemsPerPage = 25;
+const itemsPerPage = 50;
 let userData = null;
 
 // Estados de planilla
@@ -68,8 +68,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         document.getElementById('filtro-fecha-fin').addEventListener('change', validarRangoFechas);
         
         await cargarDepartamentos();
-        await cargarPlanillas();
-        
+        mostrarEstadoInicial();
         // Ocultar loading inicial
         document.getElementById('loadingState').style.display = 'none';
         
@@ -78,14 +77,45 @@ document.addEventListener('DOMContentLoaded', async () => {
         mostrarError('Error al cargar la aplicación');
     }
 });
-
+function mostrarEstadoInicial() {
+    // Limpiar datos
+    planillasData = [];
+    filteredData = [];
+    currentPage = 1;
+    
+    // Actualizar estadísticas a cero
+    document.getElementById('totalPlanillas').textContent = '0';
+    document.getElementById('planillasPendientes').textContent = '0';
+    document.getElementById('planillasAutorizadas').textContent = '0';
+    document.getElementById('planillasCompletadas').textContent = '0';
+    
+    // Limpiar tabla
+    document.getElementById('planillasTableBody').innerHTML = '';
+    
+    // Mostrar mensaje inicial en lugar de empty state
+    const emptyState = document.getElementById('emptyState');
+    emptyState.style.display = 'block';
+    emptyState.innerHTML = `
+        <div class="empty-icon">
+            <i class="fas fa-search"></i>
+        </div>
+        <h4>Listo para buscar</h4>
+        <p>Selecciona tus filtros y haz clic en "Buscar" para ver las planillas</p>
+    `;
+    
+    // Actualizar paginación
+    document.getElementById('paginationInfo').textContent = 'Mostrando 0 - 0 de 0 resultados';
+    document.getElementById('btnPrevious').disabled = true;
+    document.getElementById('btnNext').disabled = true;
+    document.getElementById('pageNumbers').innerHTML = '';
+}
 // Event Listeners
 function initializeEventListeners() {
-    // Filtros
+    // Filtros - SOLO el botón buscar
     document.getElementById('btnBuscar').addEventListener('click', aplicarFiltros);
     document.getElementById('btnLimpiar').addEventListener('click', limpiarFiltros);
     document.getElementById('btnExportar').addEventListener('click', exportarDatos);
-    document.getElementById('btnRefresh').addEventListener('click', () => cargarPlanillas());
+    document.getElementById('btnRefresh').addEventListener('click', aplicarFiltros); // Cambiar para que use la misma lógica
     
     // Toggle filtros
     document.getElementById('toggleFilters').addEventListener('click', toggleFiltros);
@@ -106,12 +136,13 @@ function initializeEventListeners() {
     document.getElementById('btnPrevious').addEventListener('click', () => cambiarPagina(currentPage - 1));
     document.getElementById('btnNext').addEventListener('click', () => cambiarPagina(currentPage + 1));
     
-    // Filtros en tiempo real
-    document.getElementById('filtro-departamento').addEventListener('change', aplicarFiltros);
-    document.getElementById('filtro-estado').addEventListener('change', aplicarFiltros);
-    // NUEVOS: Filtros de fecha en tiempo real
-    document.getElementById('filtro-fecha-inicio').addEventListener('change', aplicarFiltros);
-    document.getElementById('filtro-fecha-fin').addEventListener('change', aplicarFiltros);
+    // OPCIONAL: Agregar búsqueda con Enter en los campos
+    document.getElementById('filtro-departamento').addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') aplicarFiltros();
+    });
+    document.getElementById('filtro-estado').addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') aplicarFiltros();
+    });
 }
 
 // Cargar departamentos para el filtro
@@ -189,51 +220,22 @@ async function cargarPlanillas() {
 }
 
 // Aplicar filtros
-function aplicarFiltros() {
-    const departamento = document.getElementById('filtro-departamento').value;
-    const estado = document.getElementById('filtro-estado').value;
-    const fechaInicio = document.getElementById('filtro-fecha-inicio').value;
-    const fechaFin = document.getElementById('filtro-fecha-fin').value;
-    
-    filteredData = planillasData.filter(planilla => {
-        let cumpleFiltros = true;
+async function aplicarFiltros() {
+    try {
+        // Mostrar loading
+        mostrarCargando(true);
         
-        // Filtro por departamento
-        if (departamento && planilla.IdDepartamento != departamento) {
-            cumpleFiltros = false;
-        }
+        // Cargar planillas desde la base de datos
+        await cargarPlanillasConFiltros();
         
-        // Filtro por estado
-        if (estado !== '' && planilla.Estado != estado) {
-            cumpleFiltros = false;
-        }
+        // Ocultar loading
+        mostrarCargando(false);
         
-        // Filtro por rango de fechas
-        if (fechaInicio || fechaFin) {
-            const fechaRegistro = new Date(planilla.FechaHoraRegistro);
-            
-            if (fechaInicio) {
-                const fechaInicioObj = new Date(fechaInicio + 'T00:00:00');
-                if (fechaRegistro < fechaInicioObj) {
-                    cumpleFiltros = false;
-                }
-            }
-            
-            if (fechaFin) {
-                const fechaFinObj = new Date(fechaFin + 'T23:59:59');
-                if (fechaRegistro > fechaFinObj) {
-                    cumpleFiltros = false;
-                }
-            }
-        }
-        
-        return cumpleFiltros;
-    });
-    
-    currentPage = 1;
-    actualizarEstadisticas();
-    actualizarTabla();
-    actualizarPaginacion();
+    } catch (error) {
+        console.error('Error al aplicar filtros:', error);
+        mostrarError('Error al buscar planillas');
+        mostrarCargando(false);
+    }
 }
 
 // Limpiar filtros
@@ -243,14 +245,79 @@ function limpiarFiltros() {
     document.getElementById('filtro-fecha-inicio').value = '';
     document.getElementById('filtro-fecha-fin').value = '';
     
-    filteredData = [...planillasData];
-    currentPage = 1;
-    
-    actualizarEstadisticas();
-    actualizarTabla();
-    actualizarPaginacion();
+    // Volver al estado inicial en lugar de mostrar todos los datos
+    mostrarEstadoInicial();
 }
-
+async function cargarPlanillasConFiltros() {
+    try {
+        const departamento = document.getElementById('filtro-departamento').value;
+        const estado = document.getElementById('filtro-estado').value;
+        const fechaInicio = document.getElementById('filtro-fecha-inicio').value;
+        const fechaFin = document.getElementById('filtro-fecha-fin').value;
+        
+        // Construir consulta con filtros
+        let whereClause = '';
+        let params = [];
+        
+        if (departamento) {
+            whereClause += ' AND PagoPlanillaParcial.IdDepartamentoSucursal = ?';
+            params.push(departamento);
+        }
+        
+        if (estado !== '') {
+            whereClause += ' AND PagoPlanillaParcial.Estado = ?';
+            params.push(estado);
+        }
+        
+        if (fechaInicio) {
+            whereClause += ' AND PagoPlanillaParcial.FechaHoraRegistro >= ?';
+            params.push(fechaInicio + ' 00:00:00');
+        }
+        
+        if (fechaFin) {
+            whereClause += ' AND PagoPlanillaParcial.FechaHoraRegistro <= ?';
+            params.push(fechaFin + ' 23:59:59');
+        }
+        
+        const connection = await connectionString();
+        const result = await connection.query(`
+            SELECT
+                PagoPlanillaParcial.IdPlanillaParcial, 
+                departamentos.IdDepartamento,
+                departamentos.NombreDepartamento, 
+                PagoPlanillaParcial.CantidadColaboradores, 
+                PagoPlanillaParcial.PeriodoPago, 
+                PagoPlanillaParcial.NombreUsuario, 
+                PagoPlanillaParcial.FechaHoraRegistro, 
+                PagoPlanillaParcialEstados.NombreEstado, 
+                PagoPlanillaParcial.Estado,
+                PagoPlanillaParcial.NombreUsuarioAutoriza, 
+                PagoPlanillaParcial.FechaHoraAutorizacion, 
+                PagoPlanillaParcial.MotivoRechazo
+            FROM
+                PagoPlanillaParcial
+                INNER JOIN departamentos ON PagoPlanillaParcial.IdDepartamentoSucursal = departamentos.IdDepartamento
+                INNER JOIN PagoPlanillaParcialEstados ON PagoPlanillaParcial.Estado = PagoPlanillaParcialEstados.IdEstadoPagoPlanillaParcial
+            WHERE 1=1 ${whereClause}
+            ORDER BY PagoPlanillaParcial.FechaHoraRegistro DESC
+        `, params);
+        await connection.close();
+        
+        // Actualizar datos
+        planillasData = result;
+        filteredData = [...planillasData];
+        currentPage = 1;
+        
+        // Actualizar interfaz
+        actualizarEstadisticas();
+        actualizarTabla();
+        actualizarPaginacion();
+        
+    } catch (error) {
+        console.error('Error al cargar planillas con filtros:', error);
+        throw error;
+    }
+}
 // Actualizar estadísticas
 function actualizarEstadisticas() {
     const total = filteredData.length;
@@ -301,14 +368,176 @@ function actualizarTabla() {
             <td>${planilla.NombreUsuarioAutoriza || '-'}</td>
             <td>${planilla.FechaHoraAutorizacion ? formatearFecha(planilla.FechaHoraAutorizacion) : '-'}</td>
             <td>
-                <button class="btn btn-detalle" onclick="verDetalle(${planilla.IdPlanillaParcial})">
-                    <i class="fas fa-eye"></i> Ver Detalle
-                </button>
+                <div class="action-buttons">
+                    <button class="btn btn-detalle" onclick="verDetalle(${planilla.IdPlanillaParcial})">
+                        <i class="fas fa-eye"></i> Ver Detalle
+                    </button>
+                    ${planilla.Estado == 3 ? `
+                        <button class="btn btn-pdf" onclick="verPDF(${planilla.IdPlanillaParcial})">
+                            <i class="fas fa-file-pdf"></i> Ver PDF
+                        </button>
+                    ` : ''}
+                </div>
             </td>
         </tr>
     `).join('');
 }
-
+async function verPDF(idPlanilla) {
+    try {
+        // Mostrar loading
+        Swal.fire({
+            title: 'Cargando...',
+            text: 'Buscando documento PDF',
+            allowOutsideClick: false,
+            allowEscapeKey: false,
+            showConfirmButton: false,
+            didOpen: () => {
+                Swal.showLoading();
+            }
+        });
+        
+        // Consultar documento PDF
+        const connection = await connectionString();
+        const result = await connection.query(`
+            SELECT
+                DocumentosPlanillasParciales.NombreArchivo, 
+                DocumentosPlanillasParciales.DocumentoPDF, 
+                DocumentosPlanillasParciales.FechaSubida, 
+                DocumentosPlanillasParciales.NombreUsuario
+            FROM
+                DocumentosPlanillasParciales
+            WHERE
+                DocumentosPlanillasParciales.IdPlanillaParcial = ?
+        `, [idPlanilla]);
+        await connection.close();
+        
+        if (result.length === 0) {
+            Swal.fire({
+                icon: 'warning',
+                title: 'Documento no encontrado',
+                text: 'No se encontró ningún documento PDF para esta planilla.',
+                confirmButtonColor: '#FF9800'
+            });
+            return;
+        }
+        
+        const documento = result[0];
+        
+        // Cerrar loading
+        Swal.close();
+        
+        // Mostrar opciones al usuario
+        const resultado = await Swal.fire({
+            title: 'Documento PDF encontrado',
+            html: `
+                <div style="text-align: left; margin: 20px 0;">
+                    <p><strong>Nombre del archivo:</strong> ${documento.NombreArchivo}</p>
+                    <p><strong>Fecha de subida:</strong> ${formatearFecha(documento.FechaSubida)}</p>
+                    <p><strong>Subido por:</strong> ${documento.NombreUsuario}</p>
+                </div>
+            `,
+            icon: 'info',
+            showCancelButton: true,
+            showDenyButton: true,
+            confirmButtonText: '<i class="fas fa-eye"></i> Ver PDF',
+            denyButtonText: '<i class="fas fa-download"></i> Descargar',
+            cancelButtonText: 'Cancelar',
+            confirmButtonColor: '#448AFF',
+            denyButtonColor: '#4CAF50',
+            cancelButtonColor: '#6c757d'
+        });
+        
+        if (resultado.isConfirmed) {
+            // Ver PDF en nueva ventana
+            mostrarPDFEnVentana(documento.DocumentoPDF, documento.NombreArchivo);
+        } else if (resultado.isDenied) {
+            // Descargar PDF
+            descargarPDF(documento.DocumentoPDF, documento.NombreArchivo);
+        }
+        
+    } catch (error) {
+        console.error('Error al cargar PDF:', error);
+        Swal.fire({
+            icon: 'error',
+            title: 'Error',
+            text: 'Error al cargar el documento PDF',
+            confirmButtonColor: '#FF9800'
+        });
+    }
+}
+function mostrarPDFEnVentana(documentoPDF, nombreArchivo) {
+    try {
+        // Crear URL del blob
+        const byteCharacters = atob(documentoPDF);
+        const byteNumbers = new Array(byteCharacters.length);
+        for (let i = 0; i < byteCharacters.length; i++) {
+            byteNumbers[i] = byteCharacters.charCodeAt(i);
+        }
+        const byteArray = new Uint8Array(byteNumbers);
+        const blob = new Blob([byteArray], { type: 'application/pdf' });
+        const url = URL.createObjectURL(blob);
+        
+        // Abrir en nueva ventana
+        const ventana = window.open(url, '_blank');
+        if (!ventana) {
+            // Si el popup fue bloqueado, mostrar alternativa
+            Swal.fire({
+                icon: 'warning',
+                title: 'Popup bloqueado',
+                text: 'Tu navegador bloqueó la ventana emergente. Haz clic en "Descargar" para obtener el archivo.',
+                showCancelButton: true,
+                confirmButtonText: 'Descargar',
+                cancelButtonText: 'Cancelar',
+                confirmButtonColor: '#4CAF50'
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    descargarPDF(documentoPDF, nombreArchivo);
+                }
+            });
+        } else {
+            // Limpiar la URL después de un tiempo
+            setTimeout(() => {
+                URL.revokeObjectURL(url);
+            }, 60000); // 1 minuto
+        }
+        
+    } catch (error) {
+        console.error('Error al mostrar PDF:', error);
+        mostrarError('Error al mostrar el PDF. Intenta descargarlo.');
+    }
+}
+function descargarPDF(documentoPDF, nombreArchivo) {
+    try {
+        // Crear URL del blob
+        const byteCharacters = atob(documentoPDF);
+        const byteNumbers = new Array(byteCharacters.length);
+        for (let i = 0; i < byteCharacters.length; i++) {
+            byteNumbers[i] = byteCharacters.charCodeAt(i);
+        }
+        const byteArray = new Uint8Array(byteNumbers);
+        const blob = new Blob([byteArray], { type: 'application/pdf' });
+        const url = URL.createObjectURL(blob);
+        
+        // Crear enlace temporal para descarga
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = nombreArchivo;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        
+        // Limpiar la URL
+        setTimeout(() => {
+            URL.revokeObjectURL(url);
+        }, 1000);
+        
+        mostrarExito('Descarga iniciada');
+        
+    } catch (error) {
+        console.error('Error al descargar PDF:', error);
+        mostrarError('Error al descargar el PDF');
+    }
+}
 // Ver detalle de planilla
 async function verDetalle(idPlanilla) {
     try {

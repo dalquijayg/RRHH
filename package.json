@@ -1,6 +1,6 @@
 {
   "name": "recursos",
-  "version": "1.0.42",
+  "version": "1.0.43",
   "main": "src/Index.js",
   "scripts": {
     "start": "electron .",

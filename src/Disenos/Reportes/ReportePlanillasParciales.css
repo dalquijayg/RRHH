@@ -1041,3 +1041,148 @@ body {
 .main-container > *:nth-child(1) { animation-delay: 0.1s; }
 .main-container > *:nth-child(2) { animation-delay: 0.2s; }
 .main-container > *:nth-child(3) { animation-delay: 0.3s; }
+/* Estilos para botones de acciones - Agregar al final de ReportePlanillasParciales.css */
+
+.action-buttons {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-start;
+}
+
+.btn-pdf {
+    background: linear-gradient(135deg, #e53e3e, #c53030);
+    color: white;
+    padding: 6px 10px;
+    border-radius: 6px;
+    font-size: 11px;
+    min-width: auto;
+    white-space: nowrap;
+    border: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    transition: all 0.3s ease;
+    font-weight: 500;
+}
+
+.btn-pdf:hover {
+    background: linear-gradient(135deg, #c53030, #9c2626);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(197, 48, 48, 0.3);
+}
+
+.btn-pdf:active {
+    transform: translateY(0);
+    box-shadow: 0 2px 8px rgba(197, 48, 48, 0.4);
+}
+
+.btn-detalle,
+.btn-pdf {
+    flex-shrink: 0;
+}
+
+/* Ajuste para el ancho de la columna de acciones */
+.planillas-table th:last-child,
+.planillas-table td:last-child {
+    min-width: 180px;
+    width: 180px;
+}
+
+/* Responsive design para botones de acción */
+@media (max-width: 1024px) {
+    .action-buttons {
+        gap: 6px;
+    }
+    
+    .btn-detalle,
+    .btn-pdf {
+        font-size: 10px;
+        padding: 5px 8px;
+    }
+    
+    .planillas-table th:last-child,
+    .planillas-table td:last-child {
+        min-width: 160px;
+        width: 160px;
+    }
+}
+
+@media (max-width: 768px) {
+    .action-buttons {
+        flex-direction: column;
+        gap: 4px;
+        width: 100%;
+    }
+    
+    .btn-detalle,
+    .btn-pdf {
+        width: 100%;
+        font-size: 10px;
+        padding: 6px 8px;
+        justify-content: center;
+    }
+    
+    .planillas-table th:last-child,
+    .planillas-table td:last-child {
+        min-width: 120px;
+        width: 120px;
+    }
+}
+
+@media (max-width: 480px) {
+    .action-buttons {
+        gap: 2px;
+    }
+    
+    .btn-detalle,
+    .btn-pdf {
+        padding: 4px 6px;
+        font-size: 9px;
+    }
+    
+    .btn-detalle i,
+    .btn-pdf i {
+        font-size: 8px;
+    }
+}
+
+/* Animación para cuando aparece el botón PDF */
+.btn-pdf {
+    animation: fadeInPDF 0.3s ease-out;
+}
+
+@keyframes fadeInPDF {
+    from {
+        opacity: 0;
+        transform: translateX(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
+/* Tooltip para el botón PDF (opcional) */
+.btn-pdf:hover::after {
+    content: "Solo disponible para planillas completadas";
+    position: absolute;
+    bottom: -25px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(0, 0, 0, 0.8);
+    color: white;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 10px;
+    white-space: nowrap;
+    z-index: 1000;
+    pointer-events: none;
+}
+
+/* Ajuste para que el tooltip funcione */
+.action-buttons {
+    position: relative;
+}

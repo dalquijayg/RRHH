@@ -5,6 +5,10 @@ const { authenticator } = require('otplib');
 const qrcode = require('qrcode');
 const Swal = require('sweetalert2');
 
+// Variable global para controlar el estado de actualización
+let updateAvailable = false;
+let updateDownloaded = false;
+
 // Configurar otplib con parámetros más tolerantes
 authenticator.options = {
     step: 30,    // Período de 30 segundos
@@ -57,6 +61,87 @@ async function verificarDPI(dpi) {
         console.error('Error de conexión o consulta:', error);
         throw error;
     }
+}
+
+// Función para mostrar el modal de actualización obligatoria
+function mostrarActualizacionObligatoria() {
+    return Swal.fire({
+        title: 'Actualización Requerida',
+        html: `
+            <div style="text-align: center; padding: 20px;">
+                <div style="font-size: 4rem; color: #FF9800; margin-bottom: 20px;">🔄</div>
+                <h3 style="color: #654321; margin-bottom: 15px;">Nueva versión disponible</h3>
+                <p style="color: #666; margin-bottom: 20px;">
+                    Se ha detectado una nueva versión del sistema. Por seguridad y para obtener las últimas características, 
+                    debe actualizar antes de continuar.
+                </p>
+                <div style="background: #fff3e0; padding: 15px; border-radius: 8px; margin: 20px 0;">
+                    <p style="color: #e65100; font-size: 0.9rem; margin: 0;">
+                        <strong>⚠️ El acceso está temporalmente bloqueado hasta completar la actualización</strong>
+                    </p>
+                </div>
+                <div class="update-progress" style="margin: 20px 0;">
+                    <div style="background: #e0e0e0; height: 6px; border-radius: 3px; overflow: hidden;">
+                        <div id="progressBar" style="background: #FF9800; height: 100%; width: 0%; transition: width 0.3s ease; border-radius: 3px;"></div>
+                    </div>
+                    <p id="progressText" style="color: #666; font-size: 0.85rem; margin-top: 10px;">Preparando descarga...</p>
+                </div>
+            </div>
+        `,
+        icon: null,
+        allowOutsideClick: false,
+        allowEscapeKey: false,
+        showConfirmButton: false,
+        showCancelButton: false,
+        width: '500px',
+        customClass: {
+            popup: 'no-close-popup'
+        }
+    });
+}
+
+// Función para actualizar el progreso de descarga
+function actualizarProgreso(progreso, texto) {
+    const progressBar = document.getElementById('progressBar');
+    const progressText = document.getElementById('progressText');
+    
+    if (progressBar) {
+        progressBar.style.width = progreso + '%';
+    }
+    if (progressText) {
+        progressText.textContent = texto;
+    }
+}
+
+// Función para mostrar que la actualización está lista para instalar
+function mostrarActualizacionLista() {
+    return Swal.fire({
+        title: 'Actualización Lista',
+        html: `
+            <div style="text-align: center; padding: 20px;">
+                <div style="font-size: 4rem; color: #4CAF50; margin-bottom: 20px;">✅</div>
+                <h3 style="color: #654321; margin-bottom: 15px;">Actualización descargada</h3>
+                <p style="color: #666; margin-bottom: 20px;">
+                    La nueva versión ha sido descargada correctamente. 
+                    La aplicación se reiniciará para completar la instalación.
+                </p>
+                <div style="background: #e8f5e8; padding: 15px; border-radius: 8px; margin: 20px 0;">
+                    <p style="color: #2e7d32; font-size: 0.9rem; margin: 0;">
+                        <strong>🎉 ¡Todo listo! El proceso tomará solo unos segundos</strong>
+                    </p>
+                </div>
+            </div>
+        `,
+        icon: null,
+        allowOutsideClick: false,
+        allowEscapeKey: false,
+        confirmButtonText: 'Reiniciar Ahora',
+        confirmButtonColor: '#4CAF50',
+        showCancelButton: false,
+        width: '450px',
+        timer: 5000, // Auto-reinicio después de 5 segundos
+        timerProgressBar: true
+    });
 }
 
 async function guardarSecret2FA(id, secret) {
@@ -290,7 +375,8 @@ function validarEntrada(event) {
 function habilitarBoton() {
     const input = document.getElementById('dpi');
     const boton = document.querySelector('.btn');
-    boton.disabled = input.value.length !== 13;
+    // Bloquear botón si hay actualización disponible
+    boton.disabled = input.value.length !== 13 || updateAvailable;
 }
 
 function mostrarCargando(mensaje = "Verificando...") {
@@ -306,8 +392,31 @@ function mostrarCargando(mensaje = "Verificando...") {
     });
 }
 
+// Función principal del formulario de login - MODIFICADA
 document.getElementById('loginForm').addEventListener('submit', async (event) => {
     event.preventDefault();
+    
+    // Verificar si hay una actualización disponible antes de proceder
+    if (updateAvailable && !updateDownloaded) {
+        await Swal.fire({
+            icon: 'warning',
+            title: 'Actualización en progreso',
+            text: 'Se está descargando una actualización. Por favor espera a que termine la descarga.',
+            confirmButtonText: 'Entendido',
+            confirmButtonColor: '#FF9800'
+        });
+        return;
+    }
+    
+    if (updateDownloaded) {
+        const result = await mostrarActualizacionLista();
+        if (result.isConfirmed || result.isDismissed) {
+            const { ipcRenderer } = require('electron');
+            ipcRenderer.send('restart_app');
+        }
+        return;
+    }
+    
     const dpi = document.getElementById('dpi').value;
     
     document.querySelector('.login-box').classList.add('submitting');
@@ -522,6 +631,16 @@ document.addEventListener('DOMContentLoaded', () => {
                 padding: 0 !important;
             }
 
+            /* Estilos para modal sin botón de cerrar */
+            .swal2-popup.no-close-popup .swal2-close {
+                display: none !important;
+            }
+
+            /* Progreso de actualización */
+            .update-progress {
+                user-select: none;
+            }
+
             @media screen and (max-width: 768px) {
                 .swal2-popup {
                     width: 95% !important;
@@ -585,4 +704,58 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         </style>
     `);
+});
+
+// Event listeners para manejar las notificaciones de actualización desde Electron
+document.addEventListener('DOMContentLoaded', () => {
+    const { ipcRenderer } = require('electron');
+    
+    // Manejar notificación de actualización disponible
+    ipcRenderer.on('update_available', () => {
+        ipcRenderer.removeAllListeners('update_available');
+        updateAvailable = true;
+        
+        // Deshabilitar el botón de login
+        habilitarBoton();
+        
+        // Mostrar modal de actualización obligatoria
+        const updateModal = mostrarActualizacionObligatoria();
+        
+        // Simular progreso de descarga (esto debería venir del proceso principal)
+        let progress = 0;
+        const progressInterval = setInterval(() => {
+            progress += Math.random() * 15;
+            if (progress > 95) {
+                progress = 95;
+                actualizarProgreso(progress, 'Finalizando descarga...');
+                clearInterval(progressInterval);
+            } else if (progress > 80) {
+                actualizarProgreso(progress, 'Casi terminando...');
+            } else if (progress > 50) {
+                actualizarProgreso(progress, 'Descargando actualización...');
+            } else {
+                actualizarProgreso(progress, 'Iniciando descarga...');
+            }
+        }, 800);
+    });
+    
+    // Manejar notificación de actualización descargada
+    ipcRenderer.on('update_downloaded', () => {
+        ipcRenderer.removeAllListeners('update_downloaded');
+        updateDownloaded = true;
+        updateAvailable = false; // Ya no está descargando
+        
+        // Actualizar progreso al 100%
+        actualizarProgreso(100, 'Descarga completada');
+        
+        // Cerrar modal actual y mostrar el de actualización lista
+        setTimeout(async () => {
+            Swal.close();
+            
+            const result = await mostrarActualizacionLista();
+            if (result.isConfirmed || result.isDismissed) {
+                ipcRenderer.send('restart_app');
+            }
+        }, 1500);
+    });
 });

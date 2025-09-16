@@ -760,3 +760,289 @@ h2::after {
 .swal2-content::-webkit-scrollbar-thumb:hover {
     background: #a1a1a1;
 }
+.swal2-popup.no-close-popup .swal2-close {
+    display: none !important;
+}
+
+/* Estilos para la barra de progreso de actualización */
+.update-progress {
+    user-select: none;
+    margin: 20px 0;
+}
+
+.update-progress .progress-container {
+    background: #e0e0e0;
+    height: 8px;
+    border-radius: 4px;
+    overflow: hidden;
+    position: relative;
+}
+
+.update-progress #progressBar {
+    background: linear-gradient(90deg, #FF9800, #F57C00);
+    height: 100%;
+    width: 0%;
+    transition: width 0.3s ease;
+    border-radius: 4px;
+    position: relative;
+}
+
+/* Efecto de brillo en la barra de progreso */
+.update-progress #progressBar::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: linear-gradient(90deg, 
+        rgba(255, 255, 255, 0) 0%,
+        rgba(255, 255, 255, 0.3) 50%,
+        rgba(255, 255, 255, 0) 100%);
+    animation: progressShine 2s infinite ease-in-out;
+}
+
+@keyframes progressShine {
+    0% {
+        transform: translateX(-100%);
+    }
+    100% {
+        transform: translateX(100%);
+    }
+}
+
+/* Texto de progreso */
+.update-progress #progressText {
+    color: #666;
+    font-size: 0.85rem;
+    margin-top: 10px;
+    font-weight: 500;
+}
+
+.update-progress #progressDetails {
+    color: #999;
+    font-size: 0.75rem;
+    margin-top: 5px;
+    font-family: 'Courier New', monospace;
+}
+
+/* Iconos animados para los modales */
+.update-icon {
+    font-size: 4rem;
+    margin-bottom: 20px;
+    display: inline-block;
+}
+
+.update-icon.downloading {
+    color: #FF9800;
+    animation: rotateDownload 2s infinite linear;
+}
+
+.update-icon.completed {
+    color: #4CAF50;
+    animation: bounceSuccess 0.6s ease-out;
+}
+
+.update-icon.error {
+    color: #F44336;
+    animation: shakeError 0.5s ease-in-out;
+}
+
+@keyframes rotateDownload {
+    from {
+        transform: rotate(0deg);
+    }
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+@keyframes bounceSuccess {
+    0% {
+        transform: scale(0.3);
+        opacity: 0;
+    }
+    50% {
+        transform: scale(1.1);
+    }
+    100% {
+        transform: scale(1);
+        opacity: 1;
+    }
+}
+
+@keyframes shakeError {
+    0%, 100% {
+        transform: translateX(0);
+    }
+    10%, 30%, 50%, 70%, 90% {
+        transform: translateX(-5px);
+    }
+    20%, 40%, 60%, 80% {
+        transform: translateX(5px);
+    }
+}
+
+/* Estilos para el contenido del modal de actualización */
+.update-modal-content {
+    text-align: center;
+    padding: 20px;
+}
+
+.update-modal-content h3 {
+    color: #654321;
+    margin-bottom: 15px;
+    font-size: 1.2rem;
+}
+
+.update-modal-content .version-info {
+    color: #666;
+    margin-bottom: 10px;
+    font-weight: 500;
+}
+
+.update-modal-content .description {
+    color: #666;
+    margin-bottom: 20px;
+    line-height: 1.5;
+}
+
+.update-modal-content .warning-box {
+    background: #fff3e0;
+    padding: 15px;
+    border-radius: 8px;
+    margin: 20px 0;
+    border-left: 4px solid #FF9800;
+}
+
+.update-modal-content .warning-box p {
+    color: #e65100;
+    font-size: 0.9rem;
+    margin: 0;
+    font-weight: 500;
+}
+
+.update-modal-content .success-box {
+    background: #e8f5e8;
+    padding: 15px;
+    border-radius: 8px;
+    margin: 20px 0;
+    border-left: 4px solid #4CAF50;
+}
+
+.update-modal-content .success-box p {
+    color: #2e7d32;
+    font-size: 0.9rem;
+    margin: 0;
+    font-weight: 500;
+}
+
+.update-modal-content .error-box {
+    background: #ffebee;
+    padding: 12px;
+    border-radius: 8px;
+    margin: 15px 0;
+    text-align: left;
+    border-left: 4px solid #F44336;
+}
+
+.update-modal-content .error-box p {
+    color: #c62828;
+    font-size: 0.9rem;
+    margin: 0;
+    font-family: 'Courier New', monospace;
+    word-break: break-word;
+}
+
+/* Botón deshabilitado durante actualización */
+.btn:disabled.updating {
+    background-color: #bbb !important;
+    cursor: not-allowed !important;
+    opacity: 0.6;
+    position: relative;
+}
+
+.btn:disabled.updating::before {
+    content: '🔄 Actualización en progreso...';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 0.8rem;
+    white-space: nowrap;
+}
+
+.btn:disabled.updating i,
+.btn:disabled.updating > *:not(::before) {
+    opacity: 0;
+}
+
+/* Formulario deshabilitado durante actualización */
+.login-box.updating {
+    pointer-events: none;
+    opacity: 0.7;
+    position: relative;
+}
+
+.login-box.updating::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(255, 255, 255, 0.8);
+    backdrop-filter: blur(2px);
+    z-index: 10;
+}
+
+/* Responsive para modales de actualización */
+@media screen and (max-width: 640px) {
+    .update-modal-content {
+        padding: 15px;
+    }
+    
+    .update-icon {
+        font-size: 3rem;
+        margin-bottom: 15px;
+    }
+    
+    .update-modal-content h3 {
+        font-size: 1.1rem;
+    }
+    
+    .update-progress {
+        margin: 15px 0;
+    }
+    
+    .update-progress #progressText {
+        font-size: 0.8rem;
+    }
+    
+    .update-progress #progressDetails {
+        font-size: 0.7rem;
+    }
+}
+
+/* Animación del timer progress bar */
+.swal2-timer-progress-bar {
+    background: rgba(76, 175, 80, 0.8) !important;
+}
+
+/* Estilo para el modal en modo oscuro (opcional) */
+@media (prefers-color-scheme: dark) {
+    .update-modal-content .warning-box {
+        background: rgba(255, 243, 224, 0.1);
+        border-left-color: #FFB74D;
+    }
+    
+    .update-modal-content .success-box {
+        background: rgba(232, 245, 233, 0.1);
+        border-left-color: #81C784;
+    }
+    
+    .update-modal-content .error-box {
+        background: rgba(255, 235, 238, 0.1);
+        border-left-color: #E57373;
+    }
+}
