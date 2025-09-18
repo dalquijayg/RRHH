@@ -4440,6 +4440,164 @@ function obtenerFechaLocalString() {
     const dia = String(hoy.getDate()).padStart(2, '0');
     return `${año}-${mes}-${dia}`;
 }
+async function verificarPlanillasPendientesAlCargar() {
+    try {
+        // Obtener el departamento del usuario
+        const userData = JSON.parse(localStorage.getItem('userData'));
+        const idDepartamentoUsuario = userData?.IdSucuDepa;
+        
+        // Si es administrador, verificar si hay un departamento seleccionado
+        const esAdministrador = window.esUsuarioAdministrador || false;
+        let idDepartamentoVerificar = null;
+        
+        if (esAdministrador) {
+            // Si es administrador y no hay departamento seleccionado, no verificar aún
+            const departamentoSeleccionado = departamentoSelect.value;
+            if (departamentoSeleccionado) {
+                idDepartamentoVerificar = departamentoSeleccionado;
+            } else {
+                return; // No verificar hasta que seleccione un departamento
+            }
+        } else if (idDepartamentoUsuario) {
+            // Usuario normal, usar su departamento asignado
+            idDepartamentoVerificar = idDepartamentoUsuario;
+        } else {
+            return; // No hay departamento disponible
+        }
+        
+        // Verificar planillas pendientes
+        const connection = await connectionString();
+        
+        const queryPendientes = `
+            SELECT 
+                IdPlanillaEspecial,
+                FechaLaboral,
+                DescripcionLaboral,
+                CantColaboradores,
+                MontoTotalGasto,
+                FechaCreacion
+            FROM 
+                PlanillasEspeciales 
+            WHERE 
+                IdDepartamento = ? 
+                AND Estado = 0
+            ORDER BY
+                FechaLaboral DESC
+            LIMIT 1
+        `;
+        
+        const resultPendientes = await connection.query(queryPendientes, [idDepartamentoVerificar]);
+        await connection.close();
+        
+        if (resultPendientes && resultPendientes.length > 0) {
+            // Hay una planilla pendiente, mostrarla inmediatamente
+            mostrarPlanillaPendienteEnTabla(resultPendientes[0]);
+            
+            // Deshabilitar controles de búsqueda
+            const esAdministrador = window.esUsuarioAdministrador || false;
+            inhabilitarControlesBusquedaRespetandoPermisos(true, esAdministrador, idDepartamentoUsuario);
+            
+            // Mostrar notificación
+            mostrarNotificacion(
+                `Hay una planilla pendiente de documento para este departamento (ID: ${resultPendientes[0].IdPlanillaEspecial})`, 
+                'warning',
+                'Documento Pendiente'
+            );
+        }
+        
+    } catch (error) {
+        console.error('Error al verificar planillas pendientes:', error);
+        // No mostrar error al usuario ya que es una verificación de fondo
+    }
+}
+function mostrarPlanillaPendienteEnTabla(planillaPendiente) {
+    // Formatear fecha de la planilla pendiente
+    const fechaFormateada = formatearFechaBD(planillaPendiente.FechaLaboral, false);
+    
+    // Mostrar mensaje en la tabla
+    personalTableBody.innerHTML = `
+        <tr class="empty-row">
+            <td colspan="6">
+                <div class="empty-message">
+                    <i class="fas fa-exclamation-triangle" style="color: var(--color-warning); font-size: 3rem; margin-bottom: 15px;"></i>
+                    <h4 style="color: var(--color-warning); margin-bottom: 10px;">Planilla Pendiente de Documento</h4>
+                    <p style="margin-bottom: 15px;">
+                        Hay una planilla pendiente de documento PDF para este departamento.<br>
+                        <strong>Debe subir el documento antes de generar una nueva planilla.</strong>
+                    </p>
+                    <div style="background-color: var(--color-dark-lighter); padding: 15px; border-radius: var(--border-radius); margin: 15px 0; border-left: 4px solid var(--color-warning);">
+                        <div style="display: grid; grid-template-columns: auto 1fr; gap: 10px; font-size: 0.9rem;">
+                            <span style="font-weight: 600;">ID Planilla:</span>
+                            <span>${planillaPendiente.IdPlanillaEspecial}</span>
+                            <span style="font-weight: 600;">Fecha:</span>
+                            <span>${fechaFormateada}</span>
+                            <span style="font-weight: 600;">Descripción:</span>
+                            <span>${planillaPendiente.DescripcionLaboral}</span>
+                            <span style="font-weight: 600;">Colaboradores:</span>
+                            <span>${planillaPendiente.CantColaboradores}</span>
+                            <span style="font-weight: 600;">Monto:</span>
+                            <span>Q ${Number(planillaPendiente.MontoTotalGasto).toFixed(2)}</span>
+                        </div>
+                    </div>
+                    <button class="btn btn-primary" id="btnSubirDocumento" data-id="${planillaPendiente.IdPlanillaEspecial}" style="animation: callToAction 2s infinite;">
+                        <i class="fas fa-file-upload"></i> Subir Documento PDF
+                    </button>
+                </div>
+            </td>
+        </tr>
+    `;
+    
+    // Añadir evento al botón de subir documento
+    const btnSubirDocumento = document.getElementById('btnSubirDocumento');
+    if (btnSubirDocumento) {
+        btnSubirDocumento.addEventListener('click', (e) => {
+            const idPlanilla = e.target.dataset.id || e.target.parentElement.dataset.id;
+            mostrarModalSubirDocumento(idPlanilla);
+        });
+    }
+    
+    // Actualizar información de totales
+    totalPersonalElement.querySelector('.status-value').textContent = '0';
+    totalPagoElement.querySelector('.status-value').textContent = 'Q 0.00';
+    
+    // Deshabilitar botones de acción
+    generatePlanillaBtn.disabled = true;
+    deleteSelectedBtn.disabled = true;
+}
+departamentoSelect.addEventListener('change', async () => {
+    const esAdministrador = window.esUsuarioAdministrador || false;
+    
+    if (esAdministrador && departamentoSelect.value) {
+        // Limpiar tabla actual
+        personalTableBody.innerHTML = `
+            <tr class="empty-row">
+                <td colspan="6">
+                    <div class="empty-message">
+                        <i class="fas fa-spinner fa-spin"></i>
+                        <p>Verificando planillas pendientes...</p>
+                    </div>
+                </td>
+            </tr>
+        `;
+        
+        // Verificar planillas pendientes para el nuevo departamento
+        await verificarPlanillasPendientesAlCargar();
+        
+        // Si no hay planillas pendientes, mostrar mensaje normal
+        if (!personalTableBody.innerHTML.includes('Planilla Pendiente de Documento')) {
+            personalTableBody.innerHTML = `
+                <tr class="empty-row">
+                    <td colspan="6">
+                        <div class="empty-message">
+                            <i class="fas fa-search"></i>
+                            <p>Seleccione los filtros y presione "Buscar" para mostrar el personal</p>
+                        </div>
+                    </td>
+                </tr>
+            `;
+        }
+    }
+});
 // Agregar estilos adicionales para elementos externos
 document.addEventListener('DOMContentLoaded', async() => {
     try {
@@ -4501,11 +4659,13 @@ document.addEventListener('DOMContentLoaded', async() => {
     lastPageBtn.addEventListener('click', () => cambiarPagina(totalPages));
     
     // Cargar datos iniciales
-    Promise.all([
+     Promise.all([
         cargarDepartamentos(),
         cargarTiposPersonal()
-    ]).then(() => {
+    ]).then(async () => {
         mostrarNotificacion('Datos iniciales cargados correctamente', 'success');
+    
+        await verificarPlanillasPendientesAlCargar();
         
     }).catch(error => {
         mostrarNotificacion('Error al cargar los datos iniciales', 'error');

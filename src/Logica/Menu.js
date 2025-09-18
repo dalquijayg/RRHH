@@ -82,7 +82,7 @@ function cargarInfoUsuario() {
             rol = 'Gerente';
         } else if (userData.Id_Puesto === 140) {
             rol = 'Supervisor Dashboard';
-        } else if ([94, 95, 175].includes(userData.Id_Puesto)) {
+        } else if ([94, 95, 175, 221].includes(userData.Id_Puesto)) {
             rol = 'Encargado Regional';
         } else {
             rol = 'Colaborador';
@@ -2854,7 +2854,7 @@ function verificarPermisosEncargadoRegional() {
     const userData = JSON.parse(localStorage.getItem('userData'));
     
     // Verificar si el usuario tiene uno de los puestos de encargado regional
-    if (!userData || ![94, 95, 175].includes(userData.Id_Puesto)) {
+    if (!userData || ![94, 95, 175, 221].includes(userData.Id_Puesto)) {
         return false;
     }
     return true;
