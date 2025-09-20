@@ -2022,7 +2022,12 @@ async function generarPDFOficial(idPlanilla, correlativo = null) {
        // Esperar un momento antes de cerrar el modal de proceso y mostrar el PDF
        setTimeout(() => {
            ocultarModal(processModal);
-           
+           const nombreDepartamento = departamentoSelect.options[departamentoSelect.selectedIndex].text;
+            const fechaArchivo = fechaInput.value.replace(/-/g, ''); // YYYYMMDD
+            const nombreArchivo = `Planilla_${numeroMostrar}_${nombreDepartamento}_${fechaArchivo}.pdf`;
+            
+            // Descargar automáticamente el PDF
+            doc.save(nombreArchivo);
            // Abrir PDF en nueva ventana e imprimir automáticamente
            const pdfBlob = doc.output('blob');
            const pdfUrl = URL.createObjectURL(pdfBlob);
