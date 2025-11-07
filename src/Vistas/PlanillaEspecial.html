@@ -326,14 +326,14 @@
             </div>
             <div class="modal-body">
                 <div class="help-intro">
-                    <p>Este módulo permite generar planillas de pago para días especiales (feriados) y domingos. A continuación, encontrará instrucciones detalladas sobre cómo utilizar cada función.</p>
+                    <p>Este módulo permite generar planillas de pago para días especiales feriados, asuetos y domingos. A continuación, encontrará instrucciones detalladas sobre cómo utilizar cada función.</p>
                 </div>
                 
                 <div class="help-section">
                     <h4><i class="fas fa-filter"></i> Paso 1: Selección de Filtros</h4>
                     <p>Para comenzar, debe seleccionar los filtros iniciales:</p>
                     <ul class="help-list">
-                        <li><strong>Departamento:</strong> Seleccione el departamento para el cual desea generar la planilla. Si es usuario normal, este campo estará bloqueado con su departamento asignado.</li>
+                        <li><strong>Departamento:</strong> Seleccione el departamento/surcusal para el cual desea generar la planilla. Si es usuario normal, este campo estará bloqueado con su departamento asignado.</li>
                         <li><strong>Tipo de Personal:</strong> Puede filtrar por un tipo específico o seleccionar "Todos" para incluir todos los tipos.</li>
                         <li><strong>Fecha:</strong> Seleccione la fecha para la cual desea generar la planilla. Solo se pueden generar planillas para la fecha actual o fechas futuras.</li>
                         <li>Presione el botón <strong>"Buscar"</strong> para cargar el personal según los filtros seleccionados.</li>
@@ -349,7 +349,7 @@
                     <p>El sistema determina si un día es especial siguiendo estas reglas:</p>
                     <ul class="help-list">
                         <li>Si la fecha seleccionada es domingo, se aplicará automáticamente el pago dominical.</li>
-                        <li>Si la fecha existe en la tabla DiasEspeciales para el departamento seleccionado, se considerará como día especial para ese departamento.</li>
+                        <li>Si la fecha es un feriado o asueto para el departamento seleccionado, se considerará como día especial para ese departamento.</li>
                         <li>Si no existe para el departamento específico pero existe con IdDepartamento = 0, se considerará como día especial global que aplica para todos los departamentos.</li>
                         <li>Si no cumple ninguna de las condiciones anteriores, se considerará como día regular y no se podrá generar planilla especial.</li>
                     </ul>

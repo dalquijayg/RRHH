@@ -545,7 +545,20 @@ function calcularDiasBono14(fechaPlanilla, estadoSalida = null) {
 }
 function normalizarFechaComercial(año, mes, dia) {
     // En año comercial, todos los meses tienen 30 días máximo
-    const diaComercial = Math.min(dia, 30);
+    let diaComercial = dia;
+    
+    // CORRECCIÓN: Si es febrero (mes 2) y el día es 28 o 29, ajustar a 30
+    if (mes === 2) {
+        // Febrero siempre debe considerarse con 30 días en año comercial
+        if (dia === 28 || dia === 29) {
+            diaComercial = 30;
+        } else {
+            diaComercial = Math.min(dia, 30);
+        }
+    } else {
+        // Para otros meses, limitar a 30 días
+        diaComercial = Math.min(dia, 30);
+    }
     
     return {
         año: año,
