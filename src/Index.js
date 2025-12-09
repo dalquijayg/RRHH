@@ -32,6 +32,8 @@ let AutorizarPagoPlanillasWindow = null;
 let AutorizarLiquidacionesWindow = null;
 let ReporteDiasDisponiblesVacacionesWindow = null;
 let DocumentosWindow = null;
+let ReportePlanillasParcialesWindow = null;
+
 if(process.env.NODE_ENV !=='production'){
     require('electron-reload')(__dirname,{
         
@@ -825,6 +827,35 @@ function createDocumentosWindow() {
         DocumentosWindow = null;
     });
 }
+function createReportePlanillasParcialesWindow() {
+    // Verifica si la ventana ya está abierta
+    if (ReportePlanillasParcialesWindow) {
+        // Si ya está abierta, simplemente enfócala
+        if (ReportePlanillasParcialesWindow.isMinimized()) ReportePlanillasParcialesWindow.restore();
+        ReportePlanillasParcialesWindow.focus();
+        return;
+    }
+    
+    // Crea una nueva ventana si no existe
+    ReportePlanillasParcialesWindow = new BrowserWindow({
+        width: 1200,
+        height: 800,
+        webPreferences: {
+            nodeIntegration: true,
+            contextIsolation: false,
+        },
+        icon: path.join(__dirname, 'LogoRecursos.ico'),
+        title: 'Permisos',
+        autoHideMenuBar: true
+    });
+
+    ReportePlanillasParcialesWindow.loadURL(`file://${__dirname}/Vistas/ReportePlanillasParciales.html`);
+    
+    // Elimina la referencia a la ventana cuando se cierre
+    ReportePlanillasParcialesWindow.on('closed', () => {
+        ReportePlanillasParcialesWindow = null;
+    });
+}
 // Añade este receptor para abrir la ventana de pago nómina
 ipcMain.on('open_pago_nomina', () => {
     createPagoNominaWindow();
@@ -907,6 +938,9 @@ ipcMain.on('open_Ventana_ReporteDiasDisponiblesVacaciones', () => {
 });
 ipcMain.on('open_Ventana_Documentos', () => {
     createDocumentosWindow();
+});
+ipcMain.on('open_Ventana_RPP', () => {
+    createReportePlanillasParcialesWindow();
 });
 ipcMain.handle('show-save-dialog', async (event, options) => {
     const result = await dialog.showOpenDialog(options);

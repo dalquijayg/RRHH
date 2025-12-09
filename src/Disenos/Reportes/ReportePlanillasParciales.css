@@ -103,8 +103,8 @@ body {
     flex: 1;
     display: flex;
     flex-direction: column;
-    padding: 20px;
-    gap: 15px;
+    padding: 15px;
+    gap: 10px;
     overflow: hidden;
     min-height: 0;
 }
@@ -120,7 +120,7 @@ body {
 }
 
 .filters-header {
-    padding: 15px 20px;
+    padding: 10px 15px;
     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
     color: white;
     display: flex;
@@ -129,11 +129,11 @@ body {
 }
 
 .filters-header h3 {
-    font-size: 1rem;
+    font-size: 0.9rem;
     font-weight: 600;
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 8px;
 }
 
 .toggle-filters-btn {
@@ -152,7 +152,7 @@ body {
 }
 
 .filters-content {
-    padding: 20px;
+    padding: 12px 15px;
     transition: all 0.3s ease;
 }
 
@@ -163,26 +163,26 @@ body {
 /* NUEVO: Fila de filtros - mantiene el grid original */
 .filter-row {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-    gap: 15px;
-    margin-bottom: 25px;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 10px;
+    margin-bottom: 12px;
     border-bottom: 1px solid #f0f0f0;
-    padding-bottom: 20px;
+    padding-bottom: 12px;
 }
 
 /* NUEVO: Fila para las estadísticas */
 .stats-row {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-    gap: 15px;
-    margin-bottom: 20px;
-    padding: 5px 0;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 10px;
+    margin-bottom: 12px;
+    padding: 0;
 }
 
 .filter-group {
     display: flex;
     flex-direction: column;
-    gap: 6px;
+    gap: 4px;
 }
 
 .filter-group label {
@@ -190,13 +190,13 @@ body {
     color: #555;
     display: flex;
     align-items: center;
-    gap: 8px;
-    font-size: 13px;
+    gap: 6px;
+    font-size: 11px;
 }
 
 .filter-select,
 .filter-input {
-    padding: 10px 12px;
+    padding: 6px 10px;
     border: 2px solid #e1e5e9;
     border-radius: 8px;
     font-size: 13px;
@@ -250,10 +250,10 @@ body {
 /* MODIFICADO: Acciones de filtros */
 .filter-actions {
     display: flex;
-    gap: 10px;
+    gap: 8px;
     flex-wrap: wrap;
     justify-content: flex-start;
-    padding-top: 15px;
+    padding-top: 10px;
     border-top: 1px solid #f0f0f0;
 }
 
@@ -267,12 +267,12 @@ body {
 
 .stat-card {
     background: white;
-    border-radius: 10px;
-    padding: 15px;
+    border-radius: 8px;
+    padding: 10px;
     display: flex;
     align-items: center;
-    gap: 12px;
-    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.06);
+    gap: 10px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
     border: 1px solid #f0f0f0;
     transition: all 0.3s ease;
 }
@@ -283,13 +283,13 @@ body {
 }
 
 .stat-icon {
-    width: 45px;
-    height: 45px;
-    border-radius: 10px;
+    width: 35px;
+    height: 35px;
+    border-radius: 8px;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 18px;
+    font-size: 14px;
     color: white;
     flex-shrink: 0;
 }
@@ -317,14 +317,14 @@ body {
 
 .stat-number {
     display: block;
-    font-size: 1.6rem;
+    font-size: 1.3rem;
     font-weight: 700;
     color: #2c3e50;
     line-height: 1;
 }
 
 .stat-label {
-    font-size: 0.8rem;
+    font-size: 0.7rem;
     color: #666;
     font-weight: 500;
     white-space: nowrap;
@@ -416,19 +416,19 @@ body {
 
 /* Botones */
 .btn {
-    padding: 10px 16px;
+    padding: 7px 12px;
     border: none;
-    border-radius: 8px;
-    font-size: 13px;
+    border-radius: 6px;
+    font-size: 12px;
     font-weight: 500;
     cursor: pointer;
     display: flex;
     align-items: center;
-    gap: 6px;
+    gap: 5px;
     transition: all 0.3s ease;
     text-decoration: none;
     justify-content: center;
-    min-width: 100px;
+    min-width: 90px;
 }
 
 .btn:hover {

@@ -579,37 +579,23 @@ function mostrarResultados(resultados) {
         const tr = document.createElement('tr');
 
         // Formatear fechas (corregir el problema de zona horaria)
-        const fechaNacimiento = persona.FechaNacimiento ?
-            formatearFecha(persona.FechaNacimiento) : 'N/A';
         const inicioLaboral = persona.InicioLaboral ?
             formatearFecha(persona.InicioLaboral) : 'N/A';
-
-        // Calcular edad
-        const edad = persona.FechaNacimiento ?
-            calcularEdad(persona.FechaNacimiento) : null;
 
         // Calcular tiempo laborado
         const tiempoLaborado = persona.InicioLaboral ?
             calcularTiempoLaborado(persona.InicioLaboral) : 'N/A';
-        
+
         // Determinar clase de badge para estado
-        const estadoClass = persona.EstadoPersonal.toLowerCase().includes('activo') ? 
+        const estadoClass = persona.EstadoPersonal.toLowerCase().includes('activo') ?
             'badge-activo' : 'badge-inactivo';
-        
+
         // Determinar clase de badge para tipo
         const tipoClass = persona.TipoPersonal.toLowerCase().includes('planilla') ?
             'badge-planilla' : 'badge-jornal';
 
         // Foto del colaborador
         const fotoSrc = persona.FotoBase64 || '../Imagenes/user-default.png';
-
-        // Formatear fecha y hora de registro
-        const fechaHoraRegistro = persona.Fechahoraregistro ?
-            formatearFechaHora(persona.Fechahoraregistro) : 'N/A';
-
-        // Usuario que registró (puede ser null si no existe)
-        const usuarioRegistro = persona.UsuarioRegistro ?
-            persona.UsuarioRegistro.trim() : 'N/A';
 
         tr.innerHTML = `
             <td>${persona.IdPersonal}</td>
@@ -619,16 +605,12 @@ function mostrarResultados(resultados) {
                     <span>${persona.NombreCompleto}</span>
                 </div>
             </td>
-            <td>${fechaNacimiento}${edad ? ` <span style="color: #FF9800; font-size: 0.85rem; font-weight: 500;">(${edad} años)</span>` : ''}</td>
-            <td>${persona.Telefono1 || 'N/A'}</td>
             <td>${persona.NombreDepartamento}</td>
             <td>${persona.NombrePuesto}</td>
             <td>${inicioLaboral}</td>
             <td>${tiempoLaborado}</td>
             <td><span class="badge ${estadoClass}">${persona.EstadoPersonal}</span></td>
             <td><span class="badge ${tipoClass}">${persona.TipoPersonal}</span></td>
-            <td>${usuarioRegistro}</td>
-            <td>${fechaHoraRegistro}</td>
             <td>
                 <div style="display: flex; gap: 4px; justify-content: center; flex-wrap: wrap;">
                     <button class="btn-action btn-edit" onclick="editarColaborador(${persona.IdPersonal})" title="Editar Colaborador">
@@ -968,7 +950,9 @@ async function verInfoLaboral(idPersonal) {
                 TipoPersonal.TipoPersonal,
                 personal.FechaContrato,
                 planillas.Nombre_Planilla,
-                personal.FechaPlanilla
+                personal.FechaPlanilla,
+                personal.Fechahoraregistro,
+                CONCAT(usuario.PrimerNombre, ' ', IFNULL(usuario.SegundoNombre, ''), ' ', IFNULL(usuario.TercerNombre, ''), ' ', usuario.PrimerApellido, ' ', IFNULL(usuario.SegundoApellido, '')) AS UsuarioRegistro
             FROM
                 personal
                 INNER JOIN
@@ -991,6 +975,10 @@ async function verInfoLaboral(idPersonal) {
                 planillas
                 ON
                     personal.IdPlanilla = planillas.IdPlanilla
+                LEFT JOIN
+                personal AS usuario
+                ON
+                    personal.IdUsuario = usuario.IdPersonal
             WHERE personal.IdPersonal = ?
         `;
 
@@ -1033,6 +1021,14 @@ async function verInfoLaboral(idPersonal) {
                 month: 'long',
                 day: 'numeric'
             }) : 'N/A';
+
+        // Formatear fecha y hora de registro
+        const fechaHoraRegistro = infoLab.Fechahoraregistro ?
+            formatearFechaHora(infoLab.Fechahoraregistro) : 'N/A';
+
+        // Usuario que registró (puede ser null si no existe)
+        const usuarioRegistro = infoLab.UsuarioRegistro ?
+            infoLab.UsuarioRegistro.trim() : 'N/A';
 
         await Swal.fire({
             title: '<i class="fas fa-briefcase"></i> Información Laboral',
@@ -1123,6 +1119,21 @@ async function verInfoLaboral(idPersonal) {
                                     ${persona.EstadoPersonal}
                                 </span>
                             </p>
+                        </div>
+
+                        <!-- Información de Registro -->
+                        <div style="background: #e8f5e9; padding: 12px; border-radius: 8px; border-left: 3px solid #4CAF50; margin-top: 15px;">
+                            <p style="margin: 0 0 10px 0; color: #2E7D32; font-size: 0.9rem; font-weight: 600;">
+                                <i class="fas fa-user-check"></i> Información de Registro
+                            </p>
+                            <div style="margin-bottom: 8px;">
+                                <p style="margin: 0; color: #555; font-size: 0.8rem;">Registrado por</p>
+                                <p style="margin: 3px 0 0 0; font-weight: 600; color: #333; font-size: 0.85rem;">${usuarioRegistro}</p>
+                            </div>
+                            <div>
+                                <p style="margin: 0; color: #555; font-size: 0.8rem;">Fecha y Hora de Registro</p>
+                                <p style="margin: 3px 0 0 0; font-weight: 600; color: #333; font-size: 0.85rem;">${fechaHoraRegistro}</p>
+                            </div>
                         </div>
                     </div>
                 </div>

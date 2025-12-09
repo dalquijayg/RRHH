@@ -518,24 +518,24 @@ body {
 /* Columnas específicas */
 .data-table th:nth-child(1),
 .data-table td:nth-child(1) {
-    width: 3%;
+    width: 4%;
     text-align: center;
 }
 
 .data-table th:nth-child(2),
 .data-table td:nth-child(2) {
-    width: 13%;
+    width: 20%;
     font-weight: 500;
 }
 
 .data-table th:nth-child(3),
 .data-table td:nth-child(3) {
-    width: 8%;
+    width: 15%;
 }
 
 .data-table th:nth-child(4),
 .data-table td:nth-child(4) {
-    width: 7%;
+    width: 14%;
 }
 
 .data-table th:nth-child(5),
@@ -545,42 +545,22 @@ body {
 
 .data-table th:nth-child(6),
 .data-table td:nth-child(6) {
-    width: 10%;
+    width: 11%;
 }
 
 .data-table th:nth-child(7),
 .data-table td:nth-child(7) {
-    width: 7%;
+    width: 8%;
 }
 
 .data-table th:nth-child(8),
 .data-table td:nth-child(8) {
-    width: 9%;
+    width: 8%;
 }
 
 .data-table th:nth-child(9),
 .data-table td:nth-child(9) {
-    width: 6%;
-}
-
-.data-table th:nth-child(10),
-.data-table td:nth-child(10) {
-    width: 5%;
-}
-
-.data-table th:nth-child(11),
-.data-table td:nth-child(11) {
     width: 10%;
-}
-
-.data-table th:nth-child(12),
-.data-table td:nth-child(12) {
-    width: 9%;
-}
-
-.data-table th:nth-child(13),
-.data-table td:nth-child(13) {
-    width: 9%;
     text-align: center;
 }
 
