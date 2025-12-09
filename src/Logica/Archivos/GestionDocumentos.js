@@ -391,7 +391,6 @@ function actualizarTabla() {
             <td>${generarBadgeEstado(empleado.Estados.nit, 'NIT')}</td>
             <td>${generarBadgeEstado(empleado.Estados.tarjetaSalud, 'T.Salud', empleado.FechaVencimientoTS)}</td>
             <td>${generarBadgeEstado(empleado.Estados.tarjetaManipulacion, 'T.Manipulación', empleado.FechaVencimientoTM)}</td>
-            <td>${generarBadgeEstadoGeneral(empleado.EstadoGeneral)}</td>
             <td>
                 <button class="btn btn-primary btn-sm" onclick="verDetalleEmpleado(${empleado.IdPersonal})" title="Ver detalle">
                     <i class="fas fa-eye"></i>
@@ -430,10 +429,10 @@ function actualizarTabla() {
                 }
             },
             pageLength: 25,
-            order: [[8, 'desc'], [1, 'asc']], // Ordenar por estado general y nombre
+            order: [[1, 'asc']], // Ordenar por nombre
             columnDefs: [
-                { orderable: false, targets: [9] }, // Columna de acciones no ordenable
-                { className: 'text-center', targets: [0, 2, 3, 4, 5, 6, 7, 8, 9] },
+                { orderable: false, targets: [8] }, // Columna de acciones no ordenable
+                { className: 'text-center', targets: [0, 2, 3, 4, 5, 6, 7, 8] },
                 { className: 'text-start', targets: [1] }
             ],
             dom: '<"top"lf>rt<"bottom"ip><"clear">',
@@ -454,12 +453,14 @@ function actualizarTabla() {
 function generarBadgeEstado(estado, tipo, fecha = null) {
     let badge = '';
     let tooltip = '';
-    
+
     switch (estado) {
         case 'completo':
-            badge = '<span class="badge badge-success"><i class="fas fa-check"></i> Completo</span>';
             if (fecha) {
-                tooltip = `Vence: ${formatearFecha(fecha)}`;
+                badge = `<span class="badge badge-success"><i class="fas fa-check"></i> ${formatearFecha(fecha)}</span>`;
+                tooltip = `Vigente hasta: ${formatearFecha(fecha)}`;
+            } else {
+                badge = '<span class="badge badge-success"><i class="fas fa-check"></i> Completo</span>';
             }
             break;
         case 'faltante':
@@ -467,33 +468,18 @@ function generarBadgeEstado(estado, tipo, fecha = null) {
             tooltip = `${tipo} no registrado`;
             break;
         case 'vencido':
-            badge = '<span class="badge badge-danger"><i class="fas fa-exclamation-triangle"></i> Vencido</span>';
+            badge = `<span class="badge badge-danger"><i class="fas fa-exclamation-triangle"></i> ${formatearFecha(fecha)}</span>`;
             tooltip = `Venció: ${formatearFecha(fecha)}`;
             break;
         case 'proximo':
-            badge = '<span class="badge badge-warning"><i class="fas fa-clock"></i> Próximo</span>';
-            tooltip = `Vence: ${formatearFecha(fecha)}`;
+            badge = `<span class="badge badge-warning"><i class="fas fa-clock"></i> ${formatearFecha(fecha)}</span>`;
+            tooltip = `Vence pronto: ${formatearFecha(fecha)}`;
             break;
     }
-    
+
     return tooltip ? `<span title="${tooltip}">${badge}</span>` : badge;
 }
 
-/**
- * Generar badge de estado general
- */
-function generarBadgeEstadoGeneral(estado) {
-    switch (estado) {
-        case 'completo':
-            return '<span class="badge badge-success"><i class="fas fa-check-circle"></i> Completo</span>';
-        case 'advertencia':
-            return '<span class="badge badge-warning"><i class="fas fa-exclamation-triangle"></i> Atención</span>';
-        case 'critico':
-            return '<span class="badge badge-danger"><i class="fas fa-times-circle"></i> Crítico</span>';
-        default:
-            return '<span class="badge badge-secondary">Desconocido</span>';
-    }
-}
 /**
  * Ver detalle de empleado
  */
@@ -1099,12 +1085,19 @@ function obtenerCambios() {
         }
         
         if (valorNuevoNorm != valorOriginalNorm) {
-            cambios.push({
-                campo: mapeoNombres[campo] || campo,
-                campoReal: campo,
-                valorAnterior: valorOriginalNorm || 'Sin datos',
-                valorNuevo: valorNuevoNorm || 'Sin datos'
-            });
+            // Evitar registrar cambios de vacío a vacío (null, undefined, '')
+            const esVacioOriginal = !valorOriginalNorm || valorOriginalNorm === '' || valorOriginalNorm === '0';
+            const esVacioNuevo = !valorNuevoNorm || valorNuevoNorm === '' || valorNuevoNorm === '0';
+
+            // Si ambos están vacíos, no es un cambio real - saltar este campo
+            if (!(esVacioOriginal && esVacioNuevo)) {
+                cambios.push({
+                    campo: mapeoNombres[campo] || campo,
+                    campoReal: campo,
+                    valorAnterior: valorOriginalNorm || 'Sin datos',
+                    valorNuevo: valorNuevoNorm || 'Sin datos'
+                });
+            }
         }
     }
     
@@ -1145,25 +1138,30 @@ async function guardarCambiosEmpleado(cambios) {
         
         cambios.forEach(cambio => {
             camposUpdate.push(`${cambio.campoReal} = ?`);
-            
+
             // Convertir valores según el tipo de campo
             let valorParaBD = cambio.valorNuevo;
-            
+
+            // Si el valor es 'Sin datos', tratarlo como vacío
+            if (valorParaBD === 'Sin datos') {
+                valorParaBD = '';
+            }
+
             // Campos de fecha - convertir vacío a NULL
             if (['FechaContrato', 'FechaVencimientoTS', 'FechaVencimientoTM'].includes(cambio.campoReal)) {
-                valorParaBD = cambio.valorNuevo && cambio.valorNuevo.trim() !== '' ? cambio.valorNuevo : null;
+                valorParaBD = valorParaBD && valorParaBD.trim() !== '' ? valorParaBD : null;
             }
-            
+
             // Campos numéricos - convertir vacío a 0
             if (['IGSS', 'IRTRA', 'Contrato'].includes(cambio.campoReal)) {
-                valorParaBD = cambio.valorNuevo && cambio.valorNuevo.toString().trim() !== '' ? parseInt(cambio.valorNuevo) : 0;
+                valorParaBD = valorParaBD && valorParaBD.toString().trim() !== '' ? parseInt(valorParaBD) : 0;
             }
-            
-            // Campo NIT - convertir vacío a NULL
-            if (cambio.campoReal === 'NIT') {
-                valorParaBD = cambio.valorNuevo && cambio.valorNuevo.trim() !== '' ? cambio.valorNuevo : null;
+
+            // Campos de texto (nombres, NIT) - convertir vacío a NULL o string vacío
+            if (['PrimerNombre', 'SegundoNombre', 'TercerNombre', 'PrimerApellido', 'SegundoApellido', 'NIT'].includes(cambio.campoReal)) {
+                valorParaBD = valorParaBD && valorParaBD.trim() !== '' ? valorParaBD : null;
             }
-            
+
             valoresUpdate.push(valorParaBD);
         });
         

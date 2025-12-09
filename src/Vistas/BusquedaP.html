@@ -3,622 +3,169 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Búsqueda de Colaborador - Recursos Humanos</title>
+    <title>Búsqueda de Personal</title>
     <link rel="stylesheet" href="../Disenos/BusquedaP.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css">
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.7.1/chart.min.js"></script>
 </head>
 <body>
+    <!-- Header compacto -->
+    <header class="header">
+        <div class="header-content">
+            <div class="header-left">
+                <i class="fas fa-users-cog"></i>
+                <h1>Búsqueda de Personal</h1>
+            </div>
+            <div class="header-right">
+                <button class="btn-export" title="Exportar a Excel">
+                    <i class="fas fa-file-excel"></i>
+                    Exportar
+                </button>
+                <button class="btn-refresh" title="Actualizar">
+                    <i class="fas fa-sync-alt"></i>
+                </button>
+            </div>
+        </div>
+    </header>
+
     <!-- Contenedor principal -->
     <div class="container">
-        <!-- Título de la página con animación -->
-        <div class="page-title-container animate__animated animate__fadeInDown">
-            <div class="page-icon">
-                <i class="fas fa-search"></i>
-            </div>
-            <h2 class="page-title">Búsqueda de Personal</h2>
-        </div>
-
-        <!-- Filtros de búsqueda (acordeón) -->
-        <div class="search-filters animate__animated animate__fadeIn" style="--delay: 0.2s">
-            <div class="filters-title" id="filtersToggle">
-                <div class="filters-title-text">
-                    <i class="fas fa-filter"></i>
-                    <span>Filtros</span>
-                </div>
-                <div class="filters-summary" id="filtersSummary" style="display: none;">
-                    <span class="filter-tag">Nombre: <b>Juan</b></span>
-                    <span class="filter-tag">Depto: <b>Sistemas</b></span>
-                </div>
-                <i class="fas fa-chevron-down toggle-icon"></i>
-            </div>
-            <div class="filters-container" id="filtersContainer">
-                <div class="filter-group-container">
-                    <!-- Primera fila con todos los filtros -->
-                    <div class="filter-row">
-                        <!-- Campo de búsqueda -->
-                        <div class="filter-group search-group">
-                            <label for="searchText">Buscar por nombre o DPI:</label>
-                            <div class="input-with-icon">
-                                <i class="fas fa-user-tag"></i>
-                                <input type="text" id="searchText" placeholder="Ingrese nombre o DPI">
-                                <button class="clear-input" id="clearSearch">
-                                    <i class="fas fa-times"></i>
-                                </button>
-                            </div>
-                        </div>
-                        
-                        <!-- Selects en la misma fila -->
-                        <div class="filter-group">
-                            <label for="departamentoFilter">Departamento:</label>
-                            <div class="select-wrapper">
-                                <select id="departamentoFilter">
-                                    <option value="0">Todos</option>
-                                </select>
-                                <i class="fas fa-chevron-down"></i>
-                            </div>
-                        </div>
-                        
-                        <div class="filter-group">
-                            <label for="tipoPersonalFilter">Tipo Personal:</label>
-                            <div class="select-wrapper">
-                                <select id="tipoPersonalFilter">
-                                    <option value="0">Todos</option>
-                                </select>
-                                <i class="fas fa-chevron-down"></i>
-                            </div>
-                        </div>
-                        
-                        <div class="filter-group">
-                            <label for="estadoFilter">Estado:</label>
-                            <div class="select-wrapper">
-                                <select id="estadoFilter">
-                                    <option value="0">Cargando...</option>
-                                </select>
-                                <i class="fas fa-chevron-down"></i>
-                            </div>
+        <!-- Panel de filtros compacto -->
+        <div class="filters-panel">
+            <div class="filters-grid">
+                <!-- Filtro Nombre del Colaborador -->
+                <div class="filter-group">
+                    <label for="nombreColaborador">
+                        <i class="fas fa-user"></i>
+                        Nombre
+                    </label>
+                    <div class="autocomplete-wrapper">
+                        <input
+                            type="text"
+                            id="nombreColaborador"
+                            placeholder="Buscar colaborador..."
+                            autocomplete="off"
+                        >
+                        <i class="fas fa-user-search search-icon"></i>
+                        <!-- Dropdown de resultados de nombres -->
+                        <div class="autocomplete-results" id="nombreResults"></div>
+                        <!-- Tag del colaborador seleccionado -->
+                        <div class="selected-tag" id="nombreTag" style="display: none;">
+                            <span class="tag-text"></span>
+                            <i class="fas fa-times tag-remove"></i>
                         </div>
                     </div>
                 </div>
-                
-                <!-- Botones de acción -->
-                <div class="filters-actions">
-                    <button class="btn btn-secondary" id="resetFilters">
-                        <i class="fas fa-undo"></i> <span class="btn-text">Reiniciar</span>
-                    </button>
-                    <button class="btn btn-primary" id="searchButton">
-                        <i class="fas fa-search"></i> <span class="btn-text">Buscar</span>
-                    </button>
-                </div>
-            </div>
-        </div>
 
-        <!-- Resultados de búsqueda -->
-        <div class="search-results animate__animated animate__fadeIn" style="--delay: 0.4s">
-            <div class="results-header">
-                <div class="results-counter">
-                    <i class="fas fa-users"></i>
-                    <span id="resultsCount">0</span> Colaboradores encontrados
-                </div>
-                <div class="results-actions">
-                    <!-- Añadir botón de exportar antes del toggle de vista -->
-                    <button id="exportToExcel" class="btn btn-export" title="Exportar a Excel">
-                        <i class="fas fa-file-excel"></i> <span class="btn-text">Exportar a Excel</span>
-                    </button>
-                </div>
-            </div>
-            
-            <!-- Contenedor de resultados -->
-            <div class="results-container">
-                <!-- Indicador de carga -->
-                <div id="loadingIndicator" class="loading-container">
-                    <div class="loading-spinner"></div>
-                    <p>Cargando personal...</p>
-                </div>
-                
-                <!-- Solo vista de tabla -->
-                <div id="tableView" class="table-view">
-                    <div class="table-responsive">
-                        <table class="data-table">
-                            <thead>
-                                <tr>
-                                    <th>Nombre</th>
-                                    <th>Departamento</th>
-                                    <th>Puesto</th>
-                                    <th>Tipo</th>
-                                    <th>Planilla</th>
-                                    <th>Estado</th>
-                                    <th>Registrado por</th>
-                                    <th>Fecha Registro</th>
-                                    <th>Acciones</th>
-                                </tr>
-                            </thead>
-                            <tbody id="tableResults">
-                                <!-- Las filas se cargarán dinámicamente aquí -->
-                            </tbody>
-                        </table>
+                <!-- Filtro Departamento con autocompletado -->
+                <div class="filter-group">
+                    <label for="departamento">
+                        <i class="fas fa-building"></i>
+                        Depto
+                    </label>
+                    <div class="autocomplete-wrapper">
+                        <input
+                            type="text"
+                            id="departamento"
+                            placeholder="Buscar departamento..."
+                            autocomplete="off"
+                        >
+                        <i class="fas fa-search search-icon"></i>
+                        <!-- Dropdown de resultados -->
+                        <div class="autocomplete-results" id="departamentoResults"></div>
+                        <!-- Tag del departamento seleccionado -->
+                        <div class="selected-tag" id="departamentoTag" style="display: none;">
+                            <span class="tag-text"></span>
+                            <i class="fas fa-times tag-remove"></i>
+                        </div>
                     </div>
                 </div>
-                
-                <!-- Mensaje de no resultados -->
-                <div id="noResults" class="no-results-container" style="display: none;">
-                    <div class="no-results-icon">
+
+                <!-- Filtro Tipo de Personal -->
+                <div class="filter-group">
+                    <label for="tipoPersonal">
+                        <i class="fas fa-user-tag"></i>
+                        Tipo
+                    </label>
+                    <select id="tipoPersonal" class="filter-select">
+                        <option value="">Todos</option>
+                        <!-- Se llenará dinámicamente -->
+                    </select>
+                </div>
+
+                <!-- Filtro Estado Personal -->
+                <div class="filter-group">
+                    <label for="estadoPersonal">
+                        <i class="fas fa-check-circle"></i>
+                        Estado
+                    </label>
+                    <select id="estadoPersonal" class="filter-select">
+                        <option value="">Todos</option>
+                        <!-- Se llenará dinámicamente -->
+                    </select>
+                </div>
+
+                <!-- Botón de búsqueda -->
+                <div class="filter-actions">
+                    <button class="btn-search" id="btnBuscar">
                         <i class="fas fa-search"></i>
-                    </div>
-                    <h3>No se encontraron resultados</h3>
-                    <p>Intenta con otros criterios de búsqueda</p>
+                        Buscar
+                    </button>
+                    <button class="btn-clear" id="btnLimpiar" title="Limpiar filtros">
+                        <i class="fas fa-eraser"></i>
+                    </button>
                 </div>
             </div>
-            
-            <!-- Paginación -->
-            <div class="pagination-container">
-                <button class="pagination-btn" id="prevPage" disabled>
-                    <i class="fas fa-chevron-left"></i> Anterior
-                </button>
-                <div class="pagination-info">
-                    Página <span id="currentPage">1</span> de <span id="totalPages">1</span>
-                </div>
-                <button class="pagination-btn" id="nextPage" disabled>
-                    Siguiente <i class="fas fa-chevron-right"></i>
-                </button>
-            </div>
-        </div>
-    </div>
-    
-    <!-- Modal para detalles de empleado -->
-    <div class="modal-overlay" id="employeeModal">
-        <!-- Elementos decorativos de fondo -->
-        <div class="modal-bg-decoration bubble bubble1"></div>
-        <div class="modal-bg-decoration bubble bubble2"></div>
-        <div class="modal-bg-decoration bubble bubble3"></div>
-        <div class="modal-bg-decoration wave wave1"></div>
-        <div class="modal-bg-decoration wave wave2"></div>
-        <div class="modal-bg-decoration pattern pattern1"></div>
-        <div class="modal-bg-decoration pattern pattern2"></div>
-        
-        <div class="modal">
-            <div class="modal-header">
-                <div class="modal-title-container">
-                    <i class="fas fa-user-circle"></i>
-                    <h3>Detalles del Colaborador/a</h3>
-                </div>
-                <div class="color-strip">
-                    <div class="color-strip-item color-red"></div>
-                    <div class="color-strip-item color-blue"></div>
-                    <div class="color-strip-item color-green"></div>
-                    <div class="color-strip-item color-yellow"></div>
-                    <div class="color-strip-item color-orange"></div>
-                </div>
-                <button class="close-modal">
-                    <i class="fas fa-times"></i>
-                </button>
-            </div>
-            <div class="modal-body">
-                <!-- Perfil principal siempre visible -->
-                <div class="employee-profile">
-                    <div class="employee-photo">
-                        <div class="photo-inner">
-                            <img id="modalEmployeePhoto" src="../Imagenes/user-default.png" alt="Foto de empleado">
-                        </div>
-                        <div class="photo-shine"></div>
-                    </div>
-                    <div class="employee-basic-info">
-                        <h2 id="modalEmployeeName">Nombre del Colaborador</h2>
-                        <div class="employee-position">
-                            <i class="fas fa-briefcase"></i>
-                            <span id="modalEmployeePosition">Cargo</span> - 
-                            <span id="modalEmployeeDepartment">Departamento</span>
-                        </div>
-                        <div class="status-badge" id="modalEmployeeStatus">Activo</div>
-                        <div class="employee-id-tag">
-                            <span>ID: </span>
-                            <span id="modalEmployeeId">12345</span>
-                        </div>
-                    </div>
-                </div>
-                
-                <!-- Sistema de pestañas -->
-                <div class="tabs-container">
-                    <div class="tabs-header">
-                        <button class="tab-btn active" data-tab="personal">
-                            <i class="fas fa-user"></i> <span>Datos Personal</span>
-                        </button>
-                        <button class="tab-btn" data-tab="location">
-                            <i class="fas fa-map-marker-alt"></i> <span>Ubicación</span>
-                        </button>
-                        <button class="tab-btn" data-tab="contact">
-                            <i class="fas fa-phone-alt"></i> <span>Contacto</span>
-                        </button>
-                        <button class="tab-btn" data-tab="work">
-                            <i class="fas fa-briefcase"></i> <span>Info. Laboral</span>
-                        </button>
-                        <button class="tab-btn" data-tab="academic">
-                            <i class="fas fa-graduation-cap"></i> <span>Info. Académica</span>
-                        </button>
-                        <button class="tab-btn" data-tab="pma">
-                            <i class="fas fa-brain"></i> <span>Evaluación PMA</span>
-                        </button>
-                        <button class="tab-btn" data-tab="registro">
-                            <i class="fas fa-user-plus"></i> <span>Info. Registro</span>
-                        </button>
-                    </div>
-                    
-                    <div class="tabs-content">
-                        <!-- Pestaña 1: Información Personal -->
-                        <div class="tab-pane active" id="tab-personal">
-                            <div class="details-section">
-                                <h4><i class="fas fa-id-card"></i> Datos Personales</h4>
-                                <div class="details-grid">
-                                    <div class="detail-item">
-                                        <label>DPI:</label>
-                                        <span id="modalEmployeeDpi">No registrado</span>
-                                    </div>
-                                    <div class="detail-item">
-                                        <label>Estado Civil:</label>
-                                        <span id="modalEmployeeCivilStatus">Soltero</span>
-                                    </div>
-                                    <div class="detail-item">
-                                        <label>Fecha de Nacimiento:</label>
-                                        <span id="modalEmployeeBirthdate">No registrado</span>
-                                    </div>
-                                    <div class="detail-item">
-                                        <label>Edad:</label>
-                                        <span id="modalEmployeeAge">No registrada</span>
-                                    </div>
-                                    <div class="detail-item">
-                                        <label>Número de Hijos:</label>
-                                        <span id="modalEmployeeChildren">No tiene</span>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                        
-                        <!-- Pestaña 2: Ubicación -->
-                        <div class="tab-pane" id="tab-location">
-                            <!-- Lugar de Origen -->
-                            <div class="details-section">
-                                <h4><i class="fas fa-map-marker-alt"></i> Lugar de Origen</h4>
-                                <div class="details-grid">
-                                    <div class="detail-item">
-                                        <label>Departamento:</label>
-                                        <span id="modalEmployeeOriginDept">No especificado</span>
-                                    </div>
-                                    <div class="detail-item">
-                                        <label>Municipio:</label>
-                                        <span id="modalEmployeeOriginMuni">No especificado</span>
-                                    </div>
-                                </div>
-                            </div>
-                            
-                            <!-- Residencia -->
-                            <div class="details-section">
-                                <h4><i class="fas fa-home"></i> Residencia Actual</h4>
-                                <div class="details-grid">
-                                    <div class="detail-item">
-                                        <label>Dirección:</label>
-                                        <span id="modalEmployeeAddress">No registrada</span>
-                                    </div>
-                                    <div class="detail-item">
-                                        <label>Departamento:</label>
-                                        <span id="modalEmployeeResidenceDept">No especificado</span>
-                                    </div>
-                                    <div class="detail-item">
-                                        <label>Municipio:</label>
-                                        <span id="modalEmployeeResidenceMuni">No especificado</span>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                        
-                        <!-- Pestaña 3: Contacto -->
-                        <div class="tab-pane" id="tab-contact">
-                            <!-- Información de Contacto -->
-                            <div class="details-section">
-                                <h4><i class="fas fa-phone-alt"></i> Información de Contacto</h4>
-                                <div class="details-grid">
-                                    <div class="detail-item">
-                                        <label>Teléfono Principal:</label>
-                                        <span id="modalEmployeePhone1">No registrado</span>
-                                    </div>
-                                    <div class="detail-item">
-                                        <label>Teléfono Secundario:</label>
-                                        <span id="modalEmployeePhone2">No registrado</span>
-                                    </div>
-                                    <div class="detail-item">
-                                        <label>Correo Electrónico:</label>
-                                        <span id="modalEmployeeEmail">No registrado</span>
-                                    </div>
-                                </div>
-                            </div>
-                            
-                            <!-- Contacto de Emergencia -->
-                            <div class="details-section">
-                                <h4><i class="fas fa-exclamation-circle"></i> Contacto de Emergencia</h4>
-                                <div class="details-grid">
-                                    <div class="detail-item">
-                                        <label>Nombre:</label>
-                                        <span id="modalEmergencyContact">No registrado</span>
-                                    </div>
-                                    <div class="detail-item">
-                                        <label>Teléfono:</label>
-                                        <span id="modalEmergencyPhone">No registrado</span>
-                                    </div>
-                                    <div class="detail-item">
-                                        <label>Parentesco:</label>
-                                        <span id="modalEmergencyRelationship">No especificado</span>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                        
-                        <!-- Pestaña 4: Información Laboral -->
-                        <div class="tab-pane" id="tab-work">
-                            <div class="details-section">
-                                <h4><i class="fas fa-briefcase"></i> Datos Laborales</h4>
-                                <div class="details-grid">
-                                    <div class="detail-item">
-                                        <label>Tipo de Personal:</label>
-                                        <span id="modalEmployeeType">Fijo</span>
-                                    </div>
-                                    <div class="detail-item">
-                                        <label>Planilla:</label>
-                                        <span id="modalEmployeePayroll">General</span>
-                                    </div>
-                                    <div class="detail-item">
-                                        <label>Fecha de Inicio Laboral:</label>
-                                        <span id="modalEmployeeStartDate">No registrado</span>
-                                    </div>
-                                    <div class="detail-item">
-                                        <label>Tiempo Trabajando:</label>
-                                        <span id="modalEmployeeWorkTime">No registrado</span>
-                                    </div>
-                                    <div class="detail-item">
-                                        <label>Fecha de Contrato:</label>
-                                        <span id="modalEmployeeContractDate">No registrado</span>
-                                    </div>
-                                    <div class="detail-item">
-                                        <label>Fecha de Planilla:</label>
-                                        <span id="modalEmployeePayrollDate">No registrado</span>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-    
-                        <!-- Pestaña: Información Académica -->
-                        <div class="tab-pane" id="tab-academic">
-                            <!-- Primaria -->
-                            <div class="details-section">
-                                <h4><i class="fas fa-school"></i> Educación Primaria</h4>
-                                <div class="details-grid">
-                                    <div class="detail-item">
-                                        <label>Estado:</label>
-                                        <span id="modalPrimariaEstado">No registrado</span>
-                                    </div>
-                                    <div class="detail-item">
-                                        <label>Plan de Estudios:</label>
-                                        <span id="modalPrimariaPlan">No registrado</span>
-                                    </div>
-                                    <div class="detail-item">
-                                        <label>Nivel Académico:</label>
-                                        <span id="modalPrimariaNivel">No registrado</span>
-                                    </div>
-                                </div>
-                            </div>
-                            
-                            <!-- Básico -->
-                            <div class="details-section">
-                                <h4><i class="fas fa-school"></i> Educación Básica</h4>
-                                <div class="details-grid">
-                                    <div class="detail-item">
-                                        <label>Estado:</label>
-                                        <span id="modalBasicoEstado">No registrado</span>
-                                    </div>
-                                    <div class="detail-item">
-                                        <label>Plan de Estudios:</label>
-                                        <span id="modalBasicoPlan">No registrado</span>
-                                    </div>
-                                    <div class="detail-item">
-                                        <label>Nivel Académico:</label>
-                                        <span id="modalBasicoNivel">No registrado</span>
-                                    </div>
-                                </div>
-                            </div>
-                            
-                            <!-- Diversificado -->
-                            <div class="details-section">
-                                <h4><i class="fas fa-user-graduate"></i> Diversificado</h4>
-                                <div class="details-grid">
-                                    <div class="detail-item">
-                                        <label>Estado:</label>
-                                        <span id="modalDiversificadoEstado">No registrado</span>
-                                    </div>
-                                    <div class="detail-item">
-                                        <label>Plan de Estudios:</label>
-                                        <span id="modalDiversificadoPlan">No registrado</span>
-                                    </div>
-                                    <div class="detail-item">
-                                        <label>Nivel Académico:</label>
-                                        <span id="modalDiversificadoNivel">No registrado</span>
-                                    </div>
-                                    <div class="detail-item">
-                                        <label>Grado Académico:</label>
-                                        <span id="modalDiversificadoGrado">No registrado</span>
-                                    </div>
-                                </div>
-                            </div>
-                            
-                            <!-- Universidad -->
-                            <div class="details-section">
-                                <h4><i class="fas fa-university"></i> Educación Universitaria</h4>
-                                <div class="details-grid">
-                                    <div class="detail-item">
-                                        <label>Estado:</label>
-                                        <span id="modalUniversidadEstado">No registrado</span>
-                                    </div>
-                                    <div class="detail-item">
-                                        <label>Plan de Estudios:</label>
-                                        <span id="modalUniversidadPlan">No registrado</span>
-                                    </div>
-                                    <div class="detail-item">
-                                        <label>Nivel Académico:</label>
-                                        <span id="modalUniversidadNivel">No registrado</span>
-                                    </div>
-                                    <div class="detail-item">
-                                        <label>Universidad:</label>
-                                        <span id="modalUniversidadNombre">No registrado</span>
-                                    </div>
-                                    <div class="detail-item">
-                                        <label>Carrera:</label>
-                                        <span id="modalUniversidadCarrera">No registrado</span>
-                                    </div>
-                                </div>
-                            </div>
-                            
-                            <!-- Maestría -->
-                            <div class="details-section">
-                                <h4><i class="fas fa-award"></i> Maestría</h4>
-                                <div class="details-grid">
-                                    <div class="detail-item">
-                                        <label>Estado:</label>
-                                        <span id="modalMaestriaEstado">No registrado</span>
-                                    </div>
-                                    <div class="detail-item">
-                                        <label>Plan de Estudios:</label>
-                                        <span id="modalMaestriaPlan">No registrado</span>
-                                    </div>
-                                    <div class="detail-item">
-                                        <label>Trimestre:</label>
-                                        <span id="modalMaestriaTrimestre">No registrado</span>
-                                    </div>
-                                    <div class="detail-item">
-                                        <label>Universidad:</label>
-                                        <span id="modalMaestriaUniversidad">No registrado</span>
-                                    </div>
-                                    <div class="detail-item">
-                                        <label>Maestría:</label>
-                                        <span id="modalMaestriaNombre">No registrado</span>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-    
-                        <!-- Pestaña: Evaluación PMA -->
-                        <div class="tab-pane" id="tab-pma">
-                            <div class="details-section">
-                                <h4><i class="fas fa-brain"></i> Resultados Evaluación PMA</h4>
-                                <div class="details-grid pma-grid">
-                                    <div class="detail-item">
-                                        <label>Fecha de Evaluación:</label>
-                                        <span id="modalPmaFecha">No registrado</span>
-                                    </div>
-                                </div>
-                                
-                                <!-- Gráfico de radar para visualizar resultados PMA -->
-                                <div class="pma-chart-container">
-                                    <canvas id="pmaRadarChart" height="250"></canvas>
-                                </div>
-                                
-                                <!-- Tabla de resultados detallados -->
-                                <div class="pma-table-container">
-                                    <table class="pma-table">
-                                        <thead>
-                                            <tr>
-                                                <th>Factor</th>
-                                                <th>Descripción</th>
-                                                <th>Puntuación</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            <tr>
-                                                <td><strong>V</strong></td>
-                                                <td>Comprensión Verbal</td>
-                                                <td id="modalPmaV">-</td>
-                                            </tr>
-                                            <tr>
-                                                <td><strong>E</strong></td>
-                                                <td>Concepción Espacial</td>
-                                                <td id="modalPmaE">-</td>
-                                            </tr>
-                                            <tr>
-                                                <td><strong>R</strong></td>
-                                                <td>Razonamiento</td>
-                                                <td id="modalPmaR">-</td>
-                                            </tr>
-                                            <tr>
-                                                <td><strong>N</strong></td>
-                                                <td>Cálculo Numérico</td>
-                                                <td id="modalPmaN">-</td>
-                                            </tr>
-                                            <tr>
-                                                <td><strong>F</strong></td>
-                                                <td>Fluidez Verbal</td>
-                                                <td id="modalPmaF">-</td>
-                                            </tr>
-                                            <tr class="pma-average-row">
-                                                <td colspan="2"><strong>PROMEDIO</strong></td>
-                                                <td id="modalPmaPromedio">-</td>
-                                            </tr>
-                                        </tbody>
-                                    </table>
-                                </div>
-                            </div>
-                        </div>
-                        <div class="tab-pane" id="tab-registro">
-                            <div class="details-section">
-                                <h4><i class="fas fa-user-plus"></i> Información de Registro</h4>
-                                <div class="details-grid registro-grid">
-                                    <div class="detail-item">
-                                        <label>Registrado por:</label>
-                                        <span id="modalUsuarioRegistro">No registrado</span>
-                                    </div>
-                                    <div class="detail-item">
-                                        <label>Fecha y Hora de Registro:</label>
-                                        <span id="modalFechaHoraRegistro">No registrado</span>
-                                    </div>
-                                    <div class="detail-item">
-                                        <label>ID Usuario:</label>
-                                        <span id="modalIdUsuarioRegistro">No registrado</span>
-                                    </div>
-                                </div>
-                                
-                                <!-- Información adicional del registro -->
-                                <div class="registro-info-card">
-                                    <div class="registro-info-header">
-                                        <i class="fas fa-info-circle"></i>
-                                        <span>Detalles del Registro</span>
-                                    </div>
-                                    <div class="registro-info-content">
-                                        <p>Esta información muestra quién registró este colaborador en el sistema y cuándo se realizó el registro inicial.</p>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            <div class="modal-footer">
-                <button class="btn btn-secondary close-modal-btn">
-                    <i class="fas fa-times"></i> Cerrar
-                </button>
-            </div>
-        </div>
-    </div>
-    
-    <!-- Visor de fotos mejorado -->
-    <div class="photo-viewer-overlay" id="photoViewer">
-        <div class="photo-viewer-container">
-            <img src="../Imagenes/user-default.png" alt="Foto ampliada" id="photoViewerImage" class="photo-viewer-image">
-            <div class="photo-viewer-name" id="photoViewerName">Nombre del Colaborador</div>
-            <button class="photo-viewer-close" id="closePhotoViewer">
-                <i class="fas fa-times"></i>
-            </button>
-        </div>
-    </div>
-    <!-- Contenedor de notificaciones toast -->
-    <div class="toast-container"></div>
 
-    <!-- Scripts -->
+            <!-- Contador de resultados -->
+            <div class="results-info">
+                <span class="results-count">
+                    <i class="fas fa-users"></i>
+                    <span id="totalResultados">0</span> colaboradores encontrados
+                </span>
+            </div>
+        </div>
+
+        <!-- Contenedor de la tabla con scroll independiente -->
+        <div class="table-container">
+            <!-- Loader -->
+            <div class="loader" id="loader">
+                <div class="spinner"></div>
+                <p>Cargando datos...</p>
+            </div>
+
+            <!-- Mensaje cuando no hay resultados -->
+            <div class="no-results" id="noResults" style="display: none;">
+                <i class="fas fa-search"></i>
+                <h3>No se encontraron resultados</h3>
+                <p>Intenta ajustar los filtros de búsqueda</p>
+            </div>
+
+            <!-- Tabla de resultados -->
+            <table class="data-table" id="tablaPersonal" style="display: none;">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Nombre Completo</th>
+                        <th>Fecha Nacimiento</th>
+                        <th>Teléfono</th>
+                        <th>Departamento</th>
+                        <th>Puesto</th>
+                        <th>Inicio Laboral</th>
+                        <th>Tiempo Laborado</th>
+                        <th>Estado</th>
+                        <th>Tipo</th>
+                        <th>Usuario Registro</th>
+                        <th>Fecha Registro</th>
+                        <th>Acciones</th>
+                    </tr>
+                </thead>
+                <tbody id="tbodyPersonal">
+                    <!-- Los datos se llenarán dinámicamente -->
+                </tbody>
+            </table>
+        </div>
+    </div>
+
     <script src="../Logica/BusquedaP.js"></script>
 </body>
 </html>

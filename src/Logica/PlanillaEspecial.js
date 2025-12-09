@@ -1699,15 +1699,14 @@ async function generarPDFOficial(idPlanilla, correlativo = null) {
         doc.setFontSize(12);
         doc.text(`Número de Planilla: ${numeroMostrar}`, 105, 37, { align: 'center' });
         
-        // Agregar logo con mejor tamaño
+        // Agregar logo optimizado para reducir tamaño del PDF
         try {
             let logoSrc = null;
-            
+
+            // Obtener logo de cualquier fuente (BD o DOM)
             if (logoDivisionActual) {
-                // Si tenemos un logo de la división, usamos ese
                 logoSrc = logoDivisionActual;
             } else {
-                // Si no, intentamos usar el logo predeterminado
                 const logoImg = document.getElementById('logoImage') || document.querySelector('.sidebar-logo');
                 if (logoImg) {
                     const canvas = document.createElement('canvas');
@@ -1718,24 +1717,45 @@ async function generarPDFOficial(idPlanilla, correlativo = null) {
                     logoSrc = canvas.toDataURL('image/png');
                 }
             }
-            
-            // Si tenemos algún logo (de división o predeterminado), lo agregamos al PDF
+
+            // 🔄 OPTIMIZAR CUALQUIER LOGO (tanto de BD como predeterminado)
             if (logoSrc) {
-                // Crear una imagen temporal para obtener las dimensiones reales
+                // Crear imagen temporal para cargar el logo original
                 const tempImg = new Image();
                 tempImg.src = logoSrc;
-                
-                // Esperar a que la imagen cargue
+
+                // Esperar a que cargue
                 await new Promise((resolve) => {
                     tempImg.onload = resolve;
                 });
-                
-                // Calcular proporciones para mantener el aspect ratio
-                const imgWidth = 30; // Ancho fijo deseado
-                const imgHeight = (tempImg.height / tempImg.width) * imgWidth; // Altura proporcional
-                
-                // Agregar la imagen con las dimensiones corregidas
-                doc.addImage(logoSrc, 'PNG', 25, 10, imgWidth, imgHeight);
+
+                // Crear canvas para redimensionar y comprimir
+                const canvas = document.createElement('canvas');
+                const context = canvas.getContext('2d');
+
+                // Tamaño objetivo: 200px de ancho (suficiente para impresión de calidad)
+                const targetWidth = 200;
+                const targetHeight = (tempImg.height / tempImg.width) * targetWidth;
+
+                canvas.width = targetWidth;
+                canvas.height = targetHeight;
+
+                // 🔄 RELLENAR CON BLANCO ANTES DE DIBUJAR (para evitar fondo negro en JPEG)
+                context.fillStyle = '#FFFFFF';
+                context.fillRect(0, 0, targetWidth, targetHeight);
+
+                // Dibujar imagen redimensionada encima del fondo blanco
+                context.drawImage(tempImg, 0, 0, targetWidth, targetHeight);
+
+                // Convertir a JPEG con compresión del 85%
+                const logoOptimizado = canvas.toDataURL('image/jpeg', 0.85);
+
+                // Calcular dimensiones en el PDF (en mm)
+                const imgWidth = 30;
+                const imgHeight = (targetHeight / targetWidth) * imgWidth;
+
+                // Agregar logo optimizado al PDF
+                doc.addImage(logoOptimizado, 'JPEG', 25, 10, imgWidth, imgHeight);
             } else {
             }
         } catch (e) {
@@ -2025,23 +2045,23 @@ async function generarPDFOficial(idPlanilla, correlativo = null) {
            const nombreDepartamento = departamentoSelect.options[departamentoSelect.selectedIndex].text;
             const fechaArchivo = fechaInput.value.replace(/-/g, ''); // YYYYMMDD
             const nombreArchivo = `Planilla_${numeroMostrar}_${nombreDepartamento}_${fechaArchivo}.pdf`;
-            
-            // Descargar automáticamente el PDF
-            doc.save(nombreArchivo);
-           // Abrir PDF en nueva ventana e imprimir automáticamente
-           const pdfBlob = doc.output('blob');
-           const pdfUrl = URL.createObjectURL(pdfBlob);
-           const newWindow = window.open(pdfUrl, '_blank');
-           
-           // Intentar imprimir automáticamente
-           if (newWindow) {
-               newWindow.addEventListener('load', function() {
-                   newWindow.print();
-               });
-           }
-           
-           // 🔄 MOSTRAR NOTIFICACIÓN CON CORRELATIVO
-           mostrarNotificacion(`Planilla ${numeroMostrar} generada con éxito. Se ha creado un documento oficial.`, 'success');
+
+            // 🔄 GUARDAR DIRECTAMENTE EN DESCARGAS usando Electron IPC
+            const { ipcRenderer } = require('electron');
+            const pdfArrayBuffer = doc.output('arraybuffer');
+
+            ipcRenderer.invoke('save-pdf-to-downloads', nombreArchivo, pdfArrayBuffer)
+                .then(result => {
+                    if (result.success) {
+                        // 🔄 MOSTRAR NOTIFICACIÓN CON CORRELATIVO
+                        mostrarNotificacion(`Planilla ${numeroMostrar} guardada exitosamente en Descargas`, 'success');
+                    } else {
+                        mostrarNotificacion(`Error al guardar PDF: ${result.error}`, 'error');
+                    }
+                })
+                .catch(error => {
+                    mostrarNotificacion(`Error al guardar PDF: ${error.message}`, 'error');
+                });
            
        }, 1000);
        
@@ -4307,8 +4327,8 @@ async function generarCorrelativo(tipoPlanilla, fecha) {
             LIMIT 1
         `;
         
-        // Patrón regex para el formato YYYY-NNN-X
-        const patronRegex = `^${anio}-[0-9]{3}-${sufijo}$`;
+        // Patrón regex para el formato YYYY-NNNN-X (4 dígitos)
+        const patronRegex = `^${anio}-[0-9]{4}-${sufijo}$`;
         
         const result = await connection.query(query, [tipoPlanilla, anio, patronRegex]);
         await connection.close();
@@ -4318,17 +4338,17 @@ async function generarCorrelativo(tipoPlanilla, fecha) {
         if (result && result.length > 0) {
             // Extraer el número del correlativo encontrado
             const ultimoCorrelativo = result[0].Correlativo;
-            
-            // Extraer el número del medio (posiciones 5-7: "YYYY-NNN-X")
-            const numeroStr = ultimoCorrelativo.substring(5, 8); // "001", "002", etc.
+
+            // Extraer el número del medio (posiciones 5-8: "YYYY-NNNN-X")
+            const numeroStr = ultimoCorrelativo.substring(5, 9); // "0001", "0002", etc.
             const ultimoNumero = parseInt(numeroStr, 10);
             
             // 🔄 CONVERSIÓN EXPLÍCITA PARA EVITAR BIGINT
             siguienteNumero = Number(ultimoNumero) + 1;
         }
         
-        // Formatear con ceros a la izquierda (3 dígitos)
-        const numeroFormateado = siguienteNumero.toString().padStart(3, '0');
+        // Formatear con ceros a la izquierda (4 dígitos)
+        const numeroFormateado = siguienteNumero.toString().padStart(4, '0');
         
         // Generar el correlativo completo
         const correlativo = `${anio}-${numeroFormateado}-${sufijo}`;

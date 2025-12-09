@@ -1,1670 +1,2321 @@
-// Configuración e inicialización
-const { ipcRenderer } = require('electron');
 const { connectionString } = require('../Conexion/Conexion');
+const path = require('path');
+const fs = require('fs');
+const { ipcRenderer } = require('electron');
 const Swal = require('sweetalert2');
-const XLSX = require('xlsx');
-const fotoCache = new Map();
+
 // Variables globales
-let currentPage = 1;
-let totalPages = 1;
-let itemsPerPage = 20;
-let allEmployees = [];
-let filteredEmployees = [];
-let filtersCollapsed = false;
+let departamentos = [];
+let tiposPersonal = [];
+let estadosPersonal = [];
+let departamentoSeleccionado = null;
+let colaboradorSeleccionado = null;
+let todosLosResultados = [];
+let timeoutBusquedaNombre = null;
 
-// Obtener datos del usuario de localStorage
-const userData = JSON.parse(localStorage.getItem('userData'));
+// ==================== INICIALIZACIÓN ====================
+document.addEventListener('DOMContentLoaded', async () => {
+    await cargarFiltros();
+    configurarEventos();
 
-// Referencias a elementos DOM
-const searchText = document.getElementById('searchText');
-const departamentoFilter = document.getElementById('departamentoFilter');
-const tipoPersonalFilter = document.getElementById('tipoPersonalFilter');
-const estadoFilter = document.getElementById('estadoFilter');
-const searchButton = document.getElementById('searchButton');
-const resetFiltersButton = document.getElementById('resetFilters');
-const clearSearchButton = document.getElementById('clearSearch');
-const resultsCount = document.getElementById('resultsCount');
-const tableView = document.getElementById('tableView');
-const tableResults = document.getElementById('tableResults');
-const loadingIndicator = document.getElementById('loadingIndicator');
-const noResults = document.getElementById('noResults');
-const prevPageBtn = document.getElementById('prevPage');
-const nextPageBtn = document.getElementById('nextPage');
-const currentPageSpan = document.getElementById('currentPage');
-const totalPagesSpan = document.getElementById('totalPages');
-const employeeModal = document.getElementById('employeeModal');
-const btnBack = document.getElementById('btnVolver');
-const filtersToggle = document.getElementById('filtersToggle');
-const filtersContainer = document.getElementById('filtersContainer');
-const filtersSummary = document.getElementById('filtersSummary');
-const photoViewer = document.getElementById('photoViewer');
-const photoViewerImage = document.getElementById('photoViewerImage');
-const photoViewerName = document.getElementById('photoViewerName');
-const closePhotoViewer = document.getElementById('closePhotoViewer');
-
-function abrirVisorFoto(src, nombre) {
-    photoViewerImage.src = src;
-    photoViewerName.textContent = nombre;
-    photoViewer.classList.add('show');
-    
-    // Evitar que se desplace la página mientras el visor está abierto
-    document.body.style.overflow = 'hidden';
-}
-
-// Función para cerrar el visor de fotos
-function cerrarVisorFoto() {
-    photoViewer.classList.remove('show');
-    
-    // Restaurar el desplazamiento de la página
-    document.body.style.overflow = '';
-}
-
-// Cargar datos de departamentos
-async function cargarDepartamentos() {
-    try {
-        const connection = await connectionString();
-        const result = await connection.query(`
-            SELECT IdDepartamento, NombreDepartamento
-            FROM departamentos
-            ORDER BY NombreDepartamento
-        `);
-        await connection.close();
-        
-        // Agregar opciones al select
-        let options = '<option value="0">Todos</option>';
-        result.forEach(depto => {
-            options += `<option value="${depto.IdDepartamento}">${depto.NombreDepartamento}</option>`;
-        });
-        
-        departamentoFilter.innerHTML = options;
-    } catch (error) {
-        console.error('Error al cargar departamentos:', error);
-        mostrarNotificacion('Error al cargar departamentos', 'error');
-    }
-}
-
-// Cargar tipos de personal
-async function cargarTiposPersonal() {
-    try {
-        const connection = await connectionString();
-        const result = await connection.query(`
-            SELECT IdTipo, TipoPersonal
-            FROM TipoPersonal
-            ORDER BY IdTipo
-        `);
-        await connection.close();
-        
-        // Agregar opciones al select
-        let options = '<option value="0">Todos</option>';
-        result.forEach(tipo => {
-            options += `<option value="${tipo.IdTipo}">${tipo.TipoPersonal}</option>`;
-        });
-        
-        tipoPersonalFilter.innerHTML = options;
-    } catch (error) {
-        console.error('Error al cargar tipos de personal:', error);
-        mostrarNotificacion('Error al cargar tipos de personal', 'error');
-    }
-}
-
-async function cargarEstadosPersonal() {
-    try {
-        const connection = await connectionString();
-        const result = await connection.query(`
-            SELECT IdEstado, EstadoPersonal
-            FROM EstadoPersonal
-            ORDER BY IdEstado
-        `);
-        await connection.close();
-        
-        // Agregar opciones al select
-        let options = '<option value="0">Todos</option>';
-        result.forEach(estado => {
-            // Valor por defecto: si es IdEstado=1 (asumiendo que es "Activo"), seleccionarlo
-            const selected = estado.IdEstado === 1 ? 'selected' : '';
-            options += `<option value="${estado.IdEstado}" ${selected}>${estado.EstadoPersonal}</option>`;
-        });
-        
-        estadoFilter.innerHTML = options;
-    } catch (error) {
-        console.error('Error al cargar estados de personal:', error);
-        mostrarNotificacion('Error al cargar estados de personal', 'error');
-    }
-}
-
-// Función para realizar la búsqueda
-async function buscarPersonal() {
-    mostrarCargando(true);
-    
-    try {
-        const connection = await connectionString();
-
-        // Obtener los valores de los filtros
-        const searchTermValue = searchText.value.trim();
-        const departamentoValue = departamentoFilter.value;
-        const tipoPersonalValue = tipoPersonalFilter.value;
-        const estadoValue = estadoFilter.value;
-        
-        // CONSULTA OPTIMIZADA - SIN FOTOS INICIALMENTE
-        let query = `
-            SELECT
-                personal.IdPersonal, 
-                CONCAT(personal.PrimerNombre, ' ', IFNULL(personal.SegundoNombre, ''), ' ', IFNULL(personal.TercerNombre, ''), ' ', personal.PrimerApellido, ' ', IFNULL(personal.SegundoApellido, '')) AS NombreCompleto, 
-                departamentos.NombreDepartamento, 
-                Puestos.Nombre AS Puesto,
-                estadocivil.EstadoCivil, 
-                TipoPersonal.TipoPersonal, 
-                IFNULL(planillas.Nombre_Planilla, 'Sin Planilla') AS Nombre_Planilla,
-                IFNULL(personal.FechaContrato, 'No asignado') AS FechaContrato, 
-                IFNULL(personal.FechaPlanilla, 'No asignado') AS FechaPlanilla,
-                IFNULL(personal.InicioLaboral, 'No asignado') AS InicioLaboral,
-                EstadoPersonal.EstadoPersonal,
-                personal.Estado as EstadoId,
-                personal.DPI,
-                personal.FechaNacimiento,
-                personal.IdDepartamentoOrigen,
-                personal.IdMunicipioOrigen,
-                personal.Hijos,
-                personal.DireccionRecidencia,
-                personal.IdDepartamentoG,
-                personal.IdMunicipioG,
-                personal.Telefono1,
-                personal.Telefono2,
-                personal.CorreoElectronico,
-                personal.NombreContactoEmergencia,
-                personal.TelefonoContactoEmergencia,
-                personal.IdParentesco,
-                parentesco.Parentesco AS ParentescoEmergencia,
-                deptoOrigen.NombreDepartamento AS DepartamentoOrigen,
-                muniOrigen.NombreMunicipio AS MunicipioOrigen,
-                deptoResidencia.NombreDepartamento AS DepartamentoResidencia,
-                muniResidencia.NombreMunicipio AS MunicipioResidencia,
-                personal.IdUsuario,
-                personal.Fechahoraregistro,
-                CONCAT(usuarioRegistro.PrimerNombre, ' ', IFNULL(usuarioRegistro.SegundoNombre, ''), ' ', IFNULL(usuarioRegistro.TercerNombre, ''), ' ', usuarioRegistro.PrimerApellido, ' ', IFNULL(usuarioRegistro.SegundoApellido, '')) AS UsuarioRegistro,
-                -- INDICADOR DE SI TIENE FOTO (sin cargar la foto)
-                CASE WHEN FotosPersonal.Foto IS NOT NULL AND LENGTH(FotosPersonal.Foto) > 0 THEN 1 ELSE 0 END AS TieneFoto
-            FROM
-                personal 
-                LEFT JOIN departamentos ON personal.IdSucuDepa = departamentos.IdDepartamento
-                LEFT JOIN Puestos ON personal.IdPuesto = Puestos.IdPuesto
-                LEFT JOIN PuestosGenerales ON Puestos.Id_PuestoGeneral = PuestosGenerales.Id_Puesto
-                LEFT JOIN FotosPersonal ON personal.IdPersonal = FotosPersonal.IdPersonal
-                LEFT JOIN estadocivil ON personal.IdEstadoCivil = estadocivil.IdCivil
-                LEFT JOIN TipoPersonal ON personal.TipoPersonal = TipoPersonal.IdTipo
-                LEFT JOIN planillas ON personal.IdPlanilla = planillas.IdPlanilla
-                INNER JOIN EstadoPersonal ON personal.Estado = EstadoPersonal.IdEstado
-                LEFT JOIN departamentosguatemala deptoOrigen ON personal.IdDepartamentoOrigen = deptoOrigen.IdDepartamentoG
-                LEFT JOIN municipios muniOrigen ON personal.IdMunicipioOrigen = muniOrigen.IdMunicipio
-                LEFT JOIN departamentosguatemala deptoResidencia ON personal.IdDepartamentoG = deptoResidencia.IdDepartamentoG
-                LEFT JOIN municipios muniResidencia ON personal.IdMunicipioG = muniResidencia.IdMunicipio
-                LEFT JOIN parentesco ON personal.IdParentesco = parentesco.IdParentesco
-                LEFT JOIN personal usuarioRegistro ON personal.IdUsuario = usuarioRegistro.IdPersonal
-            WHERE 1=1
-        `;
-        
-        // Resto de la consulta igual...
-        const params = [];
-        
-        if (estadoValue != 0) {
-            query += " AND personal.Estado = ?";
-            params.push(Number(estadoValue));
-        }
-        
-        if (tipoPersonalValue != 0) {
-            query += " AND personal.TipoPersonal = ?";
-            params.push(Number(tipoPersonalValue));
-        }
-        
-        if (departamentoValue != 0) {
-            query += " AND personal.IdSucuDepa = ?";
-            params.push(Number(departamentoValue));
-        }
-        
-        if (searchTermValue) {
-            query += " AND (CONCAT(personal.PrimerNombre, ' ', IFNULL(personal.SegundoNombre, ''), ' ', IFNULL(personal.TercerNombre, ''), ' ', personal.PrimerApellido, ' ', IFNULL(personal.SegundoApellido, '')) LIKE ? OR personal.DPI LIKE ?)";
-            params.push(`%${searchTermValue}%`, `%${searchTermValue}%`);
-        }
-        
-        query += " ORDER BY NombreCompleto";
-        
-        const result = await connection.query(query, params);
-        await connection.close();
-        
-        // Procesar resultados SIN cargar fotos
-        allEmployees = result.map(employee => {
-            // Calcular edad
-            let edad = 'No registrada';
-            if (employee.FechaNacimiento) {
-                const fechaNac = new Date(employee.FechaNacimiento);
-                const hoy = new Date();
-                edad = hoy.getFullYear() - fechaNac.getFullYear();
-                const m = hoy.getMonth() - fechaNac.getMonth();
-                if (m < 0 || (m === 0 && hoy.getDate() < fechaNac.getDate())) {
-                    edad--;
-                }
-                edad = `${edad} años`;
-            }
-            
-            // Calcular tiempo trabajado
-            let tiempoTrabajado = 'No registrado';
-            if (employee.InicioLaboral) {
-                const fechaInicio = new Date(employee.InicioLaboral);
-                const hoy = new Date();
-                let años = hoy.getFullYear() - fechaInicio.getFullYear();
-                const m = hoy.getMonth() - fechaInicio.getMonth();
-                if (m < 0 || (m === 0 && hoy.getDate() < fechaInicio.getDate())) {
-                    años--;
-                }
-                
-                if (años < 1) {
-                    let meses = hoy.getMonth() - fechaInicio.getMonth();
-                    if (meses < 0) meses += 12;
-                    if (hoy.getDate() < fechaInicio.getDate()) {
-                        meses--;
-                    }
-                    tiempoTrabajado = `${meses} meses`;
-                } else {
-                    tiempoTrabajado = `${años} años`;
-                }
-            }
-            
-            const formatearFechaSinZonaHoraria = (fecha) => {
-                if (!fecha) return 'No registrado';
-                const fechaObj = new Date(fecha);
-                if (isNaN(fechaObj.getTime())) return 'No registrado';
-                const dia = fechaObj.getUTCDate().toString().padStart(2, '0');
-                const mes = (fechaObj.getUTCMonth() + 1).toString().padStart(2, '0');
-                const año = fechaObj.getUTCFullYear();
-                return `${dia}/${mes}/${año}`;
-            };
-            
-            const formatearFechaHora = (fechaHora) => {
-                if (!fechaHora) return 'No registrado';
-                const fecha = new Date(fechaHora);
-                if (isNaN(fecha.getTime())) return 'No registrado';
-                const dia = fecha.getUTCDate().toString().padStart(2, '0');
-                const mes = (fecha.getUTCMonth() + 1).toString().padStart(2, '0');
-                const año = fecha.getUTCFullYear();
-                const horas = fecha.getUTCHours().toString().padStart(2, '0');
-                const minutos = fecha.getUTCMinutes().toString().padStart(2, '0');
-                return `${dia}/${mes}/${año} ${horas}:${minutos}`;
-            };
-            
-            return {
-                id: employee.IdPersonal,
-                nombre: employee.NombreCompleto,
-                departamento: employee.NombreDepartamento,
-                puesto: employee.Puesto,
-                estadoCivil: employee.EstadoCivil,
-                tipoPersonal: employee.TipoPersonal,
-                planilla: employee.Nombre_Planilla,
-                fechaContrato: employee.FechaContrato === 'No asignado' ? 
-                    'No asignado' : formatearFechaSinZonaHoraria(employee.FechaContrato),
-                fechaPlanilla: employee.FechaPlanilla === 'No asignado' ? 
-                    'No asignado' : formatearFechaSinZonaHoraria(employee.FechaPlanilla),
-                inicioLaboral: employee.InicioLaboral === 'No asignado' ? 
-                    'No registrado' : formatearFechaSinZonaHoraria(employee.InicioLaboral),
-                tiempoTrabajado: tiempoTrabajado,
-                estado: employee.EstadoPersonal,
-                estadoId: employee.EstadoId,
-                dpi: employee.DPI || 'No registrado',
-                fechaNacimiento: employee.FechaNacimiento ? 
-                    formatearFechaSinZonaHoraria(employee.FechaNacimiento) : 'No registrado',
-                edad: edad,
-                departamentoOrigen: employee.DepartamentoOrigen || 'No especificado',
-                municipioOrigen: employee.MunicipioOrigen || 'No especificado',
-                hijos: employee.Hijos > 0 ? employee.Hijos : 'No tiene',
-                direccionResidencia: employee.DireccionRecidencia || 'No registrada',
-                departamentoResidencia: employee.DepartamentoResidencia || 'No especificado',
-                municipioResidencia: employee.MunicipioResidencia || 'No especificado',
-                telefono1: employee.Telefono1 || 'No registrado',
-                telefono2: employee.Telefono2 || 'No registrado',
-                correoElectronico: employee.CorreoElectronico || 'No registrado',
-                nombreContactoEmergencia: employee.NombreContactoEmergencia || 'No registrado',
-                telefonoContactoEmergencia: employee.TelefonoContactoEmergencia || 'No registrado',
-                parentescoEmergencia: employee.ParentescoEmergencia || 'No especificado',
-                // FOTO SE CARGA DINÁMICAMENTE
-                foto: '../Imagenes/user-default.png', // Imagen por defecto
-                tieneFoto: employee.TieneFoto === 1,
-                fotoReal: null, // Se cargará bajo demanda
-                idUsuarioRegistro: employee.IdUsuario || null,
-                usuarioRegistro: employee.UsuarioRegistro || 'No registrado',
-                fechaHoraRegistro: formatearFechaHora(employee.Fechahoraregistro)
-            };
-        });
-        
-        filteredEmployees = [...allEmployees];
-        
-        actualizarResumenFiltros(searchTermValue, departamentoValue, tipoPersonalValue, estadoValue);
-        
-        if (window.innerWidth < 768) {
-            colapsarFiltros(true);
-        }
-        
-        actualizarResultados();
-        mostrarCargando(false);
-        
-        mostrarNotificacion(`Se encontraron ${allEmployees.length} empleados`, 'success');
-        
-    } catch (error) {
-        console.error('Error al buscar personal:', error);
-        mostrarNotificacion('Error al buscar personal', 'error');
-        mostrarCargando(false);
-    }
-}
-
-// Actualiza el resumen de filtros para mostrar cuando el acordeón está colapsado
-function actualizarResumenFiltros(searchTerm, departamento, tipoPersonal, estado) {
-    const tags = [];
-    
-    if (searchTerm) {
-        tags.push(`<span class="filter-tag">Buscar: <b>${searchTerm}</b></span>`);
-    }
-    
-    if (departamento != 0) {
-        const deptoText = departamentoFilter.options[departamentoFilter.selectedIndex].text;
-        tags.push(`<span class="filter-tag">Depto: <b>${deptoText}</b></span>`);
-    }
-    
-    if (tipoPersonal != 0) {
-        const tipoText = tipoPersonalFilter.options[tipoPersonalFilter.selectedIndex].text;
-        tags.push(`<span class="filter-tag">Tipo: <b>${tipoText}</b></span>`);
-    }
-    
-    if (estado != 0) {
-        const estadoText = estadoFilter.options[estadoFilter.selectedIndex].text;
-        tags.push(`<span class="filter-tag">Estado: <b>${estadoText}</b></span>`);
-    }
-    
-    if (tags.length > 0) {
-        filtersSummary.innerHTML = tags.join('');
-        filtersSummary.style.display = 'flex';
+    // Verificar si hay una búsqueda guardada para restaurar
+    const busquedaGuardada = localStorage.getItem('busquedaPersonalEstado');
+    if (busquedaGuardada) {
+        await restaurarBusqueda(JSON.parse(busquedaGuardada));
+        localStorage.removeItem('busquedaPersonalEstado'); // Limpiar después de restaurar
     } else {
-        filtersSummary.style.display = 'none';
-    }
-}
-
-// Función para colapsar/expandir los filtros
-function colapsarFiltros(colapsar) {
-    const searchFilters = document.querySelector('.search-filters');
-    
-    if (colapsar) {
-        searchFilters.classList.add('collapsed');
-        filtersCollapsed = true;
-    } else {
-        searchFilters.classList.remove('collapsed');
-        filtersCollapsed = false;
-    }
-}
-
-// Función para mostrar/ocultar el indicador de carga
-function mostrarCargando(mostrar, mensaje = 'Cargando personal...') {
-    if (mostrar) {
-        loadingIndicator.style.display = 'flex';
-        loadingIndicator.innerHTML = `
-            <div class="loading-spinner"></div>
-            <p>${mensaje}</p>
-        `;
-        
-        // Si es exportación, añadir clase especial
-        if (mensaje.includes('Excel')) {
-            loadingIndicator.querySelector('p').classList.add('export-loading');
-        }
-        tableView.style.display = 'none';
-        noResults.style.display = 'none';
-    } else {
-        loadingIndicator.style.display = 'none';
-    }
-}
-// Actualizar resultados según los filtros actuales
-function actualizarResultados() {
-    // Actualizar contadores
-    resultsCount.textContent = filteredEmployees.length;
-    
-    // Calcular paginación
-    totalPages = Math.ceil(filteredEmployees.length / itemsPerPage);
-    if (currentPage > totalPages) {
-        currentPage = 1;
-    }
-    
-    // Actualizar información de paginación
-    currentPageSpan.textContent = currentPage;
-    totalPagesSpan.textContent = totalPages;
-    
-    // Habilitar/deshabilitar botones de paginación
-    prevPageBtn.disabled = currentPage === 1;
-    nextPageBtn.disabled = currentPage === totalPages || totalPages === 0;
-    
-    // Obtener elementos para la página actual
-    const startIndex = (currentPage - 1) * itemsPerPage;
-    const endIndex = Math.min(startIndex + itemsPerPage, filteredEmployees.length);
-    const currentItems = filteredEmployees.slice(startIndex, endIndex);
-    
-    // Mostrar solo vista de tabla
-    if (filteredEmployees.length === 0) {
-        noResults.style.display = 'flex';
-        tableView.style.display = 'none';
-    } else {
-        noResults.style.display = 'none';
-        renderizarTableView(currentItems);
-        tableView.style.display = 'block';
-    }
-}
-async function cargarFotoEmpleado(idPersonal) {
-    
-    // Si ya está en cache, devolverla
-    if (fotoCache.has(idPersonal)) {
-        return fotoCache.get(idPersonal);
-    }
-    
-    try {
-        const connection = await connectionString();
-        const result = await connection.query(`
-            SELECT CASE 
-                WHEN Foto IS NOT NULL AND LENGTH(Foto) > 0 THEN CONCAT('data:image/jpeg;base64,', TO_BASE64(Foto))
-                ELSE NULL 
-            END AS FotoBase64
-            FROM FotosPersonal 
-            WHERE IdPersonal = ?
-        `, [idPersonal]);
-        await connection.close();
-        
-        let fotoUrl = '../Imagenes/user-default.png';
-        
-        if (result.length > 0 && result[0].FotoBase64 && result[0].FotoBase64.trim() !== '') {
-            fotoUrl = result[0].FotoBase64;
-        } else {
-            console.log(`No se encontró foto real para ID: ${idPersonal}, usando imagen por defecto`);
-        }
-        
-        // Guardar en cache
-        fotoCache.set(idPersonal, fotoUrl);
-        
-        return fotoUrl;
-    } catch (error) {
-        console.error(`Error al cargar foto para ID: ${idPersonal}:`, error);
-        
-        // Guardar error en cache para evitar reintentos
-        const defaultPhoto = '../Imagenes/user-default.png';
-        fotoCache.set(idPersonal, defaultPhoto);
-        
-        return defaultPhoto;
-    }
-}
-
-// Renderizar vista de tabla (MODIFICADA PARA INCLUIR INFO DE REGISTRO)
-function renderizarTableView(empleados) {
-    let html = '';
-    
-    empleados.forEach(empleado => {
-        html += `
-            <tr data-id="${empleado.id}">
-                <td>
-                    <div class="table-name">${empleado.nombre}</div>
-                </td>
-                <td>${empleado.departamento}</td>
-                <td>${empleado.puesto}</td>
-                <td>${empleado.tipoPersonal}</td>
-                <td>${empleado.planilla}</td>
-                <td>
-                    <span class="table-status ${empleado.estadoId === 1 ? 'status-active' : 'status-inactive'}">
-                        ${empleado.estado}
-                    </span>
-                </td>
-                <td title="${empleado.usuarioRegistro}">${empleado.usuarioRegistro.length > 20 ? empleado.usuarioRegistro.substring(0, 20) + '...' : empleado.usuarioRegistro}</td>
-                <td>${empleado.fechaHoraRegistro}</td>
-                <td>
-                    <div class="table-actions">
-                        <button class="table-btn view-btn" title="Ver detalles" onclick="mostrarDetallesEmpleado(${empleado.id})">
-                            <i class="fas fa-eye"></i>
-                        </button>
-                        <button class="table-btn edit-btn" title="Editar empleado" onclick="editarEmpleado(${empleado.id})">
-                            <i class="fas fa-edit"></i>
-                        </button>
-                    </div>
-                </td>
-            </tr>
-        `;
-    });
-    
-    tableResults.innerHTML = html;
-}
-function initTabs() {
-    const tabButtons = document.querySelectorAll('.tab-btn');
-    const tabPanes = document.querySelectorAll('.tab-pane');
-    
-    tabButtons.forEach(button => {
-        button.addEventListener('click', () => {
-            // Desactivar todas las pestañas
-            tabButtons.forEach(btn => btn.classList.remove('active'));
-            tabPanes.forEach(pane => pane.classList.remove('active'));
-            
-            // Activar la pestaña seleccionada
-            button.classList.add('active');
-            const tabId = button.dataset.tab;
-            document.getElementById(`tab-${tabId}`).classList.add('active');
-        });
-    });
-}
-
-// Mostrar detalles de un empleado (MODIFICADA PARA INCLUIR INFO DE REGISTRO)
-async function mostrarDetallesEmpleado(id) {
-    // Encuentra el empleado en la lista
-    const empleado = filteredEmployees.find(emp => emp.id === id);
-    
-    if (!empleado) {
-        mostrarNotificacion('Empleado no encontrado', 'error');
-        return;
-    }
-    
-    // MOSTRAR MODAL INMEDIATAMENTE CON INDICADOR DE CARGA
-    employeeModal.classList.add('show');
-    
-    // Crear overlay de carga dentro del modal
-    const modalBody = document.querySelector('#employeeModal .modal-body');
-    const loadingOverlay = document.createElement('div');
-    loadingOverlay.className = 'modal-loading-overlay';
-    loadingOverlay.innerHTML = `
-        <div class="modal-loading-content">
-            <div class="modal-loading-spinner"></div>
-            <p class="modal-loading-text">Cargando información del colaborador...</p>
-            <div class="modal-loading-dots">
-                <span></span>
-                <span></span>
-                <span></span>
-            </div>
-        </div>
-    `;
-    modalBody.appendChild(loadingOverlay);
-    
-    try {
-        // Inicializar datos básicos inmediatamente
-        document.getElementById('modalEmployeeName').textContent = empleado.nombre;
-        document.getElementById('modalEmployeePosition').textContent = empleado.puesto;
-        document.getElementById('modalEmployeeDepartment').textContent = empleado.departamento;
-        
-        // Inicializar la foto por defecto
-        let fotoParaMostrar = '../Imagenes/user-default.png';
-        const modalPhoto = document.getElementById('modalEmployeePhoto');
-        modalPhoto.src = fotoParaMostrar;
-        
-        // Actualizar el texto de carga
-        const loadingText = loadingOverlay.querySelector('.modal-loading-text');
-        loadingText.textContent = 'Cargando foto del colaborador...';
-        
-        // CARGAR FOTO
-        try {
-            const fotoReal = await cargarFotoEmpleado(id);
-            
-            if (fotoReal && fotoReal !== '../Imagenes/user-default.png') {
-                empleado.fotoReal = fotoReal;
-                fotoParaMostrar = fotoReal;
-                modalPhoto.src = fotoParaMostrar;
-            }
-        } catch (error) {
-            console.error(`Error al cargar foto para empleado ID: ${id}:`, error);
-        }
-        
-        // Actualizar el texto de carga
-        loadingText.textContent = 'Cargando información académica...';
-        
-        // CARGAR DATOS ACADÉMICOS
-        let datosAcademicos = null;
-        try {
-            datosAcademicos = await cargarInfoAcademica(empleado.id);
-        } catch (error) {
-            console.error('Error al cargar datos académicos:', error);
-        }
-        
-        // Actualizar el texto de carga
-        loadingText.textContent = 'Cargando evaluación PMA...';
-        
-        // CARGAR DATOS PMA
-        let datosPMA = null;
-        try {
-            datosPMA = await cargarResultadosPMA(empleado.id);
-        } catch (error) {
-            console.error('Error al cargar resultados PMA:', error);
-        }
-        
-        // Actualizar el texto de carga
-        loadingText.textContent = 'Finalizando...';
-        
-        // Pequeña pausa para efecto visual
-        await new Promise(resolve => setTimeout(resolve, 300));
-        
-        // REMOVER INDICADOR DE CARGA
-        loadingOverlay.remove();
-        
-        // LLENAR TODOS LOS DATOS DEL MODAL
-        
-        const statusBadge = document.getElementById('modalEmployeeStatus');
-        statusBadge.textContent = empleado.estado;
-        statusBadge.className = `status-badge ${empleado.estadoId === 1 ? '' : 'inactive'}`;
-        
-        // Información Personal
-        document.getElementById('modalEmployeeId').textContent = empleado.id;
-        document.getElementById('modalEmployeeDpi').textContent = empleado.dpi;
-        document.getElementById('modalEmployeeCivilStatus').textContent = empleado.estadoCivil;
-        
-        // Corrección para la fecha de nacimiento
-        if (empleado.fechaNacimiento && empleado.fechaNacimiento !== 'No registrado') {
-            const fechaNacPartes = empleado.fechaNacimiento.split('/');
-            if (fechaNacPartes.length === 3) {
-                const fechaCorrecta = `${fechaNacPartes[0]}/${fechaNacPartes[1]}/${fechaNacPartes[2]}`;
-                document.getElementById('modalEmployeeBirthdate').textContent = fechaCorrecta;
-            } else {
-                document.getElementById('modalEmployeeBirthdate').textContent = empleado.fechaNacimiento;
-            }
-        } else {
-            document.getElementById('modalEmployeeBirthdate').textContent = 'No registrado';
-        }
-        
-        document.getElementById('modalEmployeeAge').textContent = empleado.edad;
-        document.getElementById('modalEmployeeChildren').textContent = empleado.hijos;
-        
-        // Lugar de Origen
-        document.getElementById('modalEmployeeOriginDept').textContent = empleado.departamentoOrigen;
-        document.getElementById('modalEmployeeOriginMuni').textContent = empleado.municipioOrigen;
-        
-        // Residencia Actual
-        document.getElementById('modalEmployeeAddress').textContent = empleado.direccionResidencia;
-        document.getElementById('modalEmployeeResidenceDept').textContent = empleado.departamentoResidencia;
-        document.getElementById('modalEmployeeResidenceMuni').textContent = empleado.municipioResidencia;
-        
-        // Información de Contacto
-        document.getElementById('modalEmployeePhone1').textContent = empleado.telefono1;
-        document.getElementById('modalEmployeePhone2').textContent = empleado.telefono2;
-        document.getElementById('modalEmployeeEmail').textContent = empleado.correoElectronico;
-        
-        // Contacto de Emergencia
-        document.getElementById('modalEmergencyContact').textContent = empleado.nombreContactoEmergencia;
-        document.getElementById('modalEmergencyPhone').textContent = empleado.telefonoContactoEmergencia;
-        document.getElementById('modalEmergencyRelationship').textContent = empleado.parentescoEmergencia;
-        
-        // Información Laboral
-        document.getElementById('modalEmployeeType').textContent = empleado.tipoPersonal;
-        document.getElementById('modalEmployeePayroll').textContent = empleado.planilla;
-        
-        // Corrección para la fecha de inicio laboral
-        if (empleado.inicioLaboral && empleado.inicioLaboral !== 'No registrado') {
-            const fechaInicioPartes = empleado.inicioLaboral.split('/');
-            if (fechaInicioPartes.length === 3) {
-                const fechaCorrecta = `${fechaInicioPartes[0]}/${fechaInicioPartes[1]}/${fechaInicioPartes[2]}`;
-                document.getElementById('modalEmployeeStartDate').textContent = fechaCorrecta;
-            } else {
-                document.getElementById('modalEmployeeStartDate').textContent = empleado.inicioLaboral;
-            }
-        } else {
-            document.getElementById('modalEmployeeStartDate').textContent = 'No registrado';
-        }
-        
-        document.getElementById('modalEmployeeWorkTime').textContent = empleado.tiempoTrabajado;
-        document.getElementById('modalEmployeeContractDate').textContent = empleado.fechaContrato;
-        document.getElementById('modalEmployeePayrollDate').textContent = empleado.fechaPlanilla;
-        
-        // Información de Registro
-        document.getElementById('modalUsuarioRegistro').textContent = empleado.usuarioRegistro;
-        document.getElementById('modalFechaHoraRegistro').textContent = empleado.fechaHoraRegistro;
-        document.getElementById('modalIdUsuarioRegistro').textContent = empleado.idUsuarioRegistro || 'No registrado';
-        
-        // Mostrar datos académicos
-        mostrarDatosAcademicos(datosAcademicos);
-        
-        // Mostrar resultados PMA
-        mostrarResultadosPMA(datosPMA);
-        
-        // Inicializar pestañas
-        initTabs();
-        
-    } catch (error) {
-        // En caso de error, remover el indicador de carga
-        const existingOverlay = modalBody.querySelector('.modal-loading-overlay');
-        if (existingOverlay) {
-            existingOverlay.remove();
-        }
-        
-        console.error('Error al cargar detalles del empleado:', error);
-        mostrarNotificacion('Error al cargar los detalles del empleado', 'error');
-    }
-}
-
-// Cerrar modal
-document.querySelectorAll('.close-modal, .close-modal-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-        employeeModal.classList.remove('show');
-    });
-});
-
-// Si el usuario hace clic fuera del modal, cerrar el modal
-employeeModal.addEventListener('click', event => {
-    if (event.target === employeeModal) {
-        employeeModal.classList.remove('show');
+        // NO cargar datos al iniciar - esperar a que el usuario busque
+        mostrarMensajeInicial();
     }
 });
 
-document.getElementById('modalEmployeePhoto').addEventListener('click', function() {
-    const fotoSrc = this.src;
-    const nombreEmpleado = document.getElementById('modalEmployeeName').textContent;
-    abrirVisorFoto(fotoSrc, nombreEmpleado);
-});
+// ==================== MENSAJE INICIAL ====================
+function mostrarMensajeInicial() {
+    const noResults = document.getElementById('noResults');
+    const tabla = document.getElementById('tablaPersonal');
 
-// Editar empleado
-async function editarEmpleado(id) {
-    try {
-        // Mostrar cargando
-        mostrarCargando(true, 'Verificando permisos...');
-        
-        // Obtener datos del usuario desde localStorage
-        const userData = JSON.parse(localStorage.getItem('userData'));
-        
-        if (!userData || !userData.IdPersonal) {
-            mostrarNotificacion('No se puede identificar al usuario. Inicie sesión nuevamente.', 'error');
-            mostrarCargando(false);
-            return;
-        }
-        
-        // Verificar si el usuario tiene la transacción 103 activa
-        const connection = await connectionString();
-        const query = `
-            SELECT Activo 
-            FROM TransaccionesRRHH 
-            WHERE IdPersonal = ? AND Codigo = 103 AND Activo = 1
-        `;
-        
-        const result = await connection.query(query, [userData.IdPersonal]);
-        await connection.close();
-        
-        if (result.length === 0 || result[0].Activo !== 1) {
-            // El usuario no tiene permisos
-            mostrarCargando(false);
-            mostrarNotificacion('No tiene permisos para editar colaboradores. Se requiere la transacción 103 activa.', 'warning');
-            return;
-        }
-        
-        // Si tiene permisos, redirigir a la página de edición
-        mostrarCargando(false);
-        window.location.href = `Editar.html?id=${id}`;
-        
-    } catch (error) {
-        console.error('Error al verificar permisos:', error);
-        mostrarCargando(false);
-        mostrarNotificacion('Error al verificar permisos de edición', 'error');
-    }
-}
-
-// Función para mostrar notificaciones
-function mostrarNotificacion(mensaje, tipo = 'info') {
-    // Verificar si ya existe el contenedor de toast
-    let toastContainer = document.querySelector('.toast-container');
-    
-    if (!toastContainer) {
-        toastContainer = document.createElement('div');
-        toastContainer.className = 'toast-container';
-        document.body.appendChild(toastContainer);
-    }
-    
-    // Crear el toast
-    const toast = document.createElement('div');
-    toast.className = `toast toast-${tipo}`;
-    
-    // Definir iconos según el tipo
-    const iconMap = {
-        success: 'check-circle',
-        error: 'times-circle',
-        warning: 'exclamation-triangle',
-        info: 'info-circle'
-    };
-    
-    // Crear contenido del toast
-    toast.innerHTML = `
-        <div class="toast-icon">
-            <i class="fas fa-${iconMap[tipo]}"></i>
-        </div>
-        <div class="toast-content">${mensaje}</div>
-        <button class="toast-close">
-            <i class="fas fa-times"></i>
-        </button>
-    `;
-    
-    // Agregar al contenedor
-    toastContainer.appendChild(toast);
-    
-    // Manejar el cierre del toast
-    const closeBtn = toast.querySelector('.toast-close');
-    closeBtn.addEventListener('click', () => {
-        toast.classList.add('toast-hiding');
-        setTimeout(() => {
-            if (toast.parentElement) toast.remove();
-        }, 300);
-    });
-    
-    // Auto-cierre después de 5 segundos
-    setTimeout(() => {
-        if (toast.parentElement) {
-            toast.classList.add('toast-hiding');
-            setTimeout(() => {
-                if (toast.parentElement) toast.remove();
-            }, 300);
-        }
-    }, 5000);
-}
-
-// Resetear filtros
-function resetearFiltros() {
-    searchText.value = '';
-    departamentoFilter.value = '0';
-    tipoPersonalFilter.value = '0';
-    estadoFilter.value = '1'; // Por defecto, filtrar por empleados activos
-    
-    // Si los filtros estaban colapsados, expandirlos
-    if (filtersCollapsed) {
-        colapsarFiltros(false);
-    }
-    
-    // En su lugar, mostrar instrucciones
-    mostrarInstruccionesBusqueda();
-    
-    // Mostrar notificación
-    mostrarNotificacion('Filtros restablecidos', 'info');
-}
-
-// Limpiar campo de búsqueda
-function limpiarBusqueda() {
-    searchText.value = '';
-    searchText.focus();
-}
-
-// Función para cargar la información académica
-async function cargarInfoAcademica(idPersonal) {
-    try {
-        const connection = await connectionString();
-        const query = `
-            SELECT
-                -- Información de Primaria
-                ee1.DescripcionEstado AS EstadoPrimaria, 
-                pe1.Plan AS PlanPrimaria, 
-                s1.Semestre AS NivelPrimaria,
-
-                -- Información de Básico
-                ee2.DescripcionEstado AS EstadoBasico, 
-                pe2.Plan AS PlanBasico, 
-                s2.Semestre AS NivelBasico,
-                    
-                -- Información de Diversificado
-                ee3.DescripcionEstado AS EstadoDiversificado,
-                pe3.Plan AS PlanDiversificado,
-                s3.Semestre AS NivelDiversificado,
-                ga3.GradoAcademico AS GradoAcademico,
-                
-                -- Información de Universidad
-                ee4.DescripcionEstado as EstadoUniversidad,
-                pe4.Plan AS PlanUniversitario,
-                s4.Semestre AS NivelUniversidad,
-                cu4.NombreCarrera as CarrerasUniversitarias,
-                u4.NombreUniversidad AS Universidad,
-                
-                -- Información de Maestría
-                ee5.DescripcionEstado AS EstadoMaestria,
-                pe5.Plan AS NivelMaestria,
-                t5.Trimestre AS Trimestrecursando,
-                m5.NombreMaestria AS Maestria,
-                u5.NombreUniversidad AS UniversidadMaestria
-            FROM
-                InfoAcademica
-                -- Relacionando datos de Primaria
-                LEFT JOIN EstadosEducacion ee1 ON InfoAcademica.EstadoPrimaria = ee1.IdEstadoEducacion
-                LEFT JOIN planestudios pe1 ON InfoAcademica.IdPlanEstudioPrimaria = pe1.IdPlanEstudio
-                LEFT JOIN semestres s1 ON InfoAcademica.IdNivelAcademicoPrimaria = s1.Id_semestre
-
-                -- Relacionando datos de Básico
-                LEFT JOIN EstadosEducacion ee2 ON InfoAcademica.EstadoBasico = ee2.IdEstadoEducacion
-                LEFT JOIN planestudios pe2 ON InfoAcademica.IdPlanEstudioBasico = pe2.IdPlanEstudio
-                LEFT JOIN semestres s2 ON InfoAcademica.IdNivelAcademicoBasico = s2.Id_semestre
-                
-                -- Relacionando datos de Diversificado
-                LEFT JOIN EstadosEducacion ee3 ON InfoAcademica.EstadoDiversificado = ee3.IdEstadoEducacion
-                LEFT JOIN planestudios pe3 ON InfoAcademica.IdPlanEstudioDiversificado = pe3.IdPlanEstudio
-                LEFT JOIN semestres s3 ON InfoAcademica.IdNivelAcademicoDiversificado = s3.Id_semestre
-                LEFT JOIN GradosAcademicos ga3 ON InfoAcademica.IdCarreraDiversificado = ga3.IdGrado
-                
-                -- Relacionando datos de Universidades
-                LEFT JOIN EstadosEducacion ee4 ON InfoAcademica.EstadoUniversidad = ee4.IdEstadoEducacion
-                LEFT JOIN planestudios pe4 ON InfoAcademica.IdPlanEstudioUniversitario = pe4.IdPlanEstudio
-                LEFT JOIN semestres s4 ON InfoAcademica.IdNivelAcademicoUnivesitario = s4.Id_semestre
-                LEFT JOIN CarrerasUniversitarias cu4 ON InfoAcademica.IdCarreraUniversitaria = cu4.IdCarreraUniversitaria
-                LEFT JOIN Universidades u4 ON InfoAcademica.IdUniversidad = u4.IdUniversidad
-                
-                -- Relacionando datos de Maestrías
-                LEFT JOIN EstadosEducacion ee5 ON InfoAcademica.EstadoMaestria = ee5.IdEstadoEducacion
-                LEFT JOIN planestudios pe5 ON InfoAcademica.IdPlanEstudio = pe5.IdPlanEstudio
-                LEFT JOIN Trimestres t5 ON InfoAcademica.IdNivelAcademicoMaestria = t5.IdTrimestre
-                LEFT JOIN Maestrias m5 ON InfoAcademica.IdMaestria = m5.IdMaestria
-                LEFT JOIN Universidades u5 ON InfoAcademica.IdUniversidadMaestria = u5.IdUniversidad
-                    
-            WHERE
-                InfoAcademica.IdPersonal = ?
-        `;
-        
-        const result = await connection.query(query, [idPersonal]);
-        await connection.close();
-        
-        return result.length > 0 ? result[0] : null;
-    } catch (error) {
-        console.error('Error al cargar información académica:', error);
-        mostrarNotificacion('Error al cargar información académica', 'error');
-        return null;
-    }
-}
-
-// Función para cargar resultados PMA
-async function cargarResultadosPMA(idPersonal) {
-    try {
-        const connection = await connectionString();
-        const query = `
-            SELECT
-                ResultadosPMA.FactorV, 
-                ResultadosPMA.FactorE, 
-                ResultadosPMA.FactorR, 
-                ResultadosPMA.FactorN, 
-                ResultadosPMA.FactorF, 
-                ResultadosPMA.FechaEvaluacion,
-                CONCAT(personal.PrimerNombre, ' ', IFNULL(personal.SegundoNombre, ''), ' ', 
-                IFNULL(personal.TercerNombre, ''), ' ', personal.PrimerApellido, ' ', 
-                IFNULL(personal.SegundoApellido, '')) AS NombreEvaluador
-            FROM
-                ResultadosPMA
-                LEFT JOIN personal ON ResultadosPMA.IdUsuarioEvaluo = personal.IdPersonal
-            WHERE
-                ResultadosPMA.IdPersonal = ?
-            ORDER BY
-                ResultadosPMA.FechaEvaluacion DESC
-            LIMIT 1
-        `;
-        
-        const result = await connection.query(query, [idPersonal]);
-        await connection.close();
-        
-        return result.length > 0 ? result[0] : null;
-    } catch (error) {
-        console.error('Error al cargar resultados PMA:', error);
-        mostrarNotificacion('Error al cargar resultados PMA', 'error');
-        return null;
-    }
-}
-// Función para mostrar datos académicos en el modal
-function mostrarDatosAcademicos(datosAcademicos) {
-    if (!datosAcademicos) {
-        // Ocultar todas las secciones académicas si no hay datos
-        document.querySelectorAll('#tab-academic .details-section').forEach(section => {
-            section.style.display = 'none';
-        });
-        
-        // Mostrar mensaje de no hay datos
-        const noDataMsg = document.createElement('div');
-        noDataMsg.className = 'no-data-message';
-        noDataMsg.innerHTML = '<i class="fas fa-info-circle"></i> No hay información académica registrada para este colaborador.';
-        document.querySelector('#tab-academic').appendChild(noDataMsg);
-        return;
-    }
-    
-    // Primaria - Verificar si hay datos
-    const primariaTieneDatos = datosAcademicos.EstadoPrimaria || datosAcademicos.PlanPrimaria || datosAcademicos.NivelPrimaria;
-    const seccionPrimaria = document.querySelector('#tab-academic .details-section:nth-child(1)');
-    
-    if (primariaTieneDatos) {
-        seccionPrimaria.style.display = 'block';
-        document.getElementById('modalPrimariaEstado').textContent = datosAcademicos.EstadoPrimaria || 'No registrado';
-        document.getElementById('modalPrimariaPlan').textContent = datosAcademicos.PlanPrimaria || 'No registrado';
-        document.getElementById('modalPrimariaNivel').textContent = datosAcademicos.NivelPrimaria || 'No registrado';
-    } else {
-        seccionPrimaria.style.display = 'none';
-    }
-    
-    // Básico
-    const basicoTieneDatos = datosAcademicos.EstadoBasico || datosAcademicos.PlanBasico || datosAcademicos.NivelBasico;
-    const seccionBasico = document.querySelector('#tab-academic .details-section:nth-child(2)');
-    
-    if (basicoTieneDatos) {
-        seccionBasico.style.display = 'block';
-        document.getElementById('modalBasicoEstado').textContent = datosAcademicos.EstadoBasico || 'No registrado';
-        document.getElementById('modalBasicoPlan').textContent = datosAcademicos.PlanBasico || 'No registrado';
-        document.getElementById('modalBasicoNivel').textContent = datosAcademicos.NivelBasico || 'No registrado';
-    } else {
-        seccionBasico.style.display = 'none';
-    }
-    
-    // Diversificado
-    const diversificadoTieneDatos = datosAcademicos.EstadoDiversificado || datosAcademicos.PlanDiversificado || 
-                                  datosAcademicos.NivelDiversificado || datosAcademicos.GradoAcademico;
-    const seccionDiversificado = document.querySelector('#tab-academic .details-section:nth-child(3)');
-    
-    if (diversificadoTieneDatos) {
-        seccionDiversificado.style.display = 'block';
-        document.getElementById('modalDiversificadoEstado').textContent = datosAcademicos.EstadoDiversificado || 'No registrado';
-        document.getElementById('modalDiversificadoPlan').textContent = datosAcademicos.PlanDiversificado || 'No registrado';
-        document.getElementById('modalDiversificadoNivel').textContent = datosAcademicos.NivelDiversificado || 'No registrado';
-        document.getElementById('modalDiversificadoGrado').textContent = datosAcademicos.GradoAcademico || 'No registrado';
-    } else {
-        seccionDiversificado.style.display = 'none';
-    }
-    
-    // Universidad
-    const universidadTieneDatos = datosAcademicos.EstadoUniversidad || datosAcademicos.PlanUniversitario || 
-                                datosAcademicos.NivelUniversidad || datosAcademicos.Universidad || 
-                                datosAcademicos.CarrerasUniversitarias;
-    const seccionUniversidad = document.querySelector('#tab-academic .details-section:nth-child(4)');
-    
-    if (universidadTieneDatos) {
-        seccionUniversidad.style.display = 'block';
-        document.getElementById('modalUniversidadEstado').textContent = datosAcademicos.EstadoUniversidad || 'No registrado';
-        document.getElementById('modalUniversidadPlan').textContent = datosAcademicos.PlanUniversitario || 'No registrado';
-        document.getElementById('modalUniversidadNivel').textContent = datosAcademicos.NivelUniversidad || 'No registrado';
-        document.getElementById('modalUniversidadNombre').textContent = datosAcademicos.Universidad || 'No registrado';
-        document.getElementById('modalUniversidadCarrera').textContent = datosAcademicos.CarrerasUniversitarias || 'No registrado';
-    } else {
-        seccionUniversidad.style.display = 'none';
-    }
-    
-    // Maestría
-    const maestriaTieneDatos = datosAcademicos.EstadoMaestria || datosAcademicos.NivelMaestria || 
-                             datosAcademicos.Trimestrecursando || datosAcademicos.UniversidadMaestria || 
-                             datosAcademicos.Maestria;
-    const seccionMaestria = document.querySelector('#tab-academic .details-section:nth-child(5)');
-    
-    if (maestriaTieneDatos) {
-        seccionMaestria.style.display = 'block';
-        document.getElementById('modalMaestriaEstado').textContent = datosAcademicos.EstadoMaestria || 'No registrado';
-        document.getElementById('modalMaestriaPlan').textContent = datosAcademicos.NivelMaestria || 'No registrado';
-        document.getElementById('modalMaestriaTrimestre').textContent = datosAcademicos.Trimestrecursando || 'No registrado';
-        document.getElementById('modalMaestriaUniversidad').textContent = datosAcademicos.UniversidadMaestria || 'No registrado';
-        document.getElementById('modalMaestriaNombre').textContent = datosAcademicos.Maestria || 'No registrado';
-    } else {
-        seccionMaestria.style.display = 'none';
-    }
-    
-    // Verificar si no hay datos en ninguna sección
-    const hayDatosAcademicos = primariaTieneDatos || basicoTieneDatos || diversificadoTieneDatos || 
-                              universidadTieneDatos || maestriaTieneDatos;
-    
-    if (!hayDatosAcademicos) {
-        // Mostrar mensaje de no hay datos
-        const noDataMsg = document.createElement('div');
-        noDataMsg.className = 'no-data-message';
-        noDataMsg.innerHTML = '<i class="fas fa-info-circle"></i> No hay información académica registrada para este colaborador.';
-        document.querySelector('#tab-academic').appendChild(noDataMsg);
-    } else {
-        // Eliminar mensaje de no hay datos si existe
-        const noDataMsg = document.querySelector('#tab-academic .no-data-message');
-        if (noDataMsg) {
-            noDataMsg.remove();
-        }
-    }
-}
-
-// Variable para almacenar la instancia del gráfico PMA
-let pmaChart = null;
-
-// Función para mostrar resultados PMA
-// Función para mostrar resultados PMA (CORREGIDA)
-function mostrarResultadosPMA(datosPMA) {
-    const seccionPMA = document.querySelector('#tab-pma .details-section');
-    
-    if (!datosPMA) {
-        // Mostrar mensaje de no hay datos
-        seccionPMA.innerHTML = `
-            <div class="no-data-message">
-                <i class="fas fa-info-circle"></i> No hay resultados de evaluación PMA registrados para este colaborador.
-            </div>
-        `;
-        return;
-    }
-    
-    // Verificar si hay datos válidos en los factores
-    const factorV = datosPMA.FactorV !== null ? datosPMA.FactorV : '-';
-    const factorE = datosPMA.FactorE !== null ? datosPMA.FactorE : '-';
-    const factorR = datosPMA.FactorR !== null ? datosPMA.FactorR : '-';
-    const factorN = datosPMA.FactorN !== null ? datosPMA.FactorN : '-';
-    const factorF = datosPMA.FactorF !== null ? datosPMA.FactorF : '-';
-    
-    const hayDatosPMA = [factorV, factorE, factorR, factorN, factorF].some(factor => factor !== '-');
-    
-    if (!hayDatosPMA) {
-        seccionPMA.innerHTML = `
-            <div class="no-data-message">
-                <i class="fas fa-info-circle"></i> No hay resultados de evaluación PMA válidos para este colaborador.
-            </div>
-        `;
-        return;
-    }
-    
-    // Función para formatear fechas sin problemas de zona horaria
-    const formatearFechaSinZonaHoraria = (fecha) => {
-        if (!fecha) return 'No registrado';
-        const fechaObj = new Date(fecha);
-        if (isNaN(fechaObj.getTime())) return 'No registrado';
-        const dia = fechaObj.getUTCDate().toString().padStart(2, '0');
-        const mes = (fechaObj.getUTCMonth() + 1).toString().padStart(2, '0');
-        const año = fechaObj.getUTCFullYear();
-        return `${dia}/${mes}/${año}`;
-    };
-    
-    // Reconstruir completamente el contenido del contenedor PMA
-    seccionPMA.innerHTML = `
-        <h4><i class="fas fa-brain"></i> Resultados Evaluación PMA</h4>
-        <div class="details-grid pma-grid">
-            <div class="detail-item">
-                <label>Fecha de Evaluación:</label>
-                <span id="modalPmaFecha">No registrado</span>
-            </div>
-            <div class="detail-item">
-                <label>Evaluador:</label>
-                <span id="modalPmaEvaluador">No registrado</span>
-            </div>
-        </div>
-        
-        <!-- Gráfico de radar para visualizar resultados PMA -->
-        <div class="pma-chart-container">
-            <canvas id="pmaRadarChart" height="250"></canvas>
-        </div>
-        
-        <!-- Tabla de resultados detallados -->
-        <div class="pma-table-container">
-            <table class="pma-table">
-                <thead>
-                    <tr>
-                        <th>Factor</th>
-                        <th>Descripción</th>
-                        <th>Puntuación</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <tr>
-                        <td><strong>V</strong></td>
-                        <td>Comprensión Verbal</td>
-                        <td id="modalPmaV">-</td>
-                    </tr>
-                    <tr>
-                        <td><strong>E</strong></td>
-                        <td>Concepción Espacial</td>
-                        <td id="modalPmaE">-</td>
-                    </tr>
-                    <tr>
-                        <td><strong>R</strong></td>
-                        <td>Razonamiento</td>
-                        <td id="modalPmaR">-</td>
-                    </tr>
-                    <tr>
-                        <td><strong>N</strong></td>
-                        <td>Cálculo Numérico</td>
-                        <td id="modalPmaN">-</td>
-                    </tr>
-                    <tr>
-                        <td><strong>F</strong></td>
-                        <td>Fluidez Verbal</td>
-                        <td id="modalPmaF">-</td>
-                    </tr>
-                    <tr class="pma-average-row">
-                        <td colspan="2"><strong>PROMEDIO</strong></td>
-                        <td id="modalPmaPromedio">-</td>
-                    </tr>
-                </tbody>
-            </table>
-        </div>
-    `;
-    
-    // Formatear fecha correctamente - AQUÍ ESTÁ EL CAMBIO PRINCIPAL
-    const fechaEvaluacion = formatearFechaSinZonaHoraria(datosPMA.FechaEvaluacion);
-    document.getElementById('modalPmaFecha').textContent = fechaEvaluacion;
-    
-    // Mostrar el nombre del evaluador
-    const nombreEvaluador = datosPMA.NombreEvaluador || 'No registrado';
-    document.getElementById('modalPmaEvaluador').textContent = nombreEvaluador;
-    
-    // Mostrar factores individuales
-    document.getElementById('modalPmaV').textContent = factorV;
-    document.getElementById('modalPmaE').textContent = factorE;
-    document.getElementById('modalPmaR').textContent = factorR;
-    document.getElementById('modalPmaN').textContent = factorN;
-    document.getElementById('modalPmaF').textContent = factorF;
-    
-    // Calcular promedio
-    const valoresValidos = [factorV, factorE, factorR, factorN, factorF].filter(valor => 
-        valor !== '-' && valor !== null && valor !== undefined && !isNaN(parseFloat(valor))
-    ).map(valor => parseFloat(valor));
-    
-    let promedio = '-';
-    
-    if (valoresValidos.length > 0) {
-        const suma = valoresValidos.reduce((total, valor) => total + valor, 0);
-        promedio = (suma / valoresValidos.length).toFixed(1);
-    }
-    
-    document.getElementById('modalPmaPromedio').textContent = promedio;
-    
-    // Crear gráfico de radar
-    const ctx = document.getElementById('pmaRadarChart').getContext('2d');
-    
-    // Destruir gráfico previo si existe
-    if (pmaChart) {
-        pmaChart.destroy();
-    }
-    
-    // Convertir valores a números para el gráfico (usar 0 si no hay valor)
-    const valoresGrafico = [
-        factorV !== '-' ? parseFloat(factorV) : 0,
-        factorE !== '-' ? parseFloat(factorE) : 0,
-        factorR !== '-' ? parseFloat(factorR) : 0,
-        factorN !== '-' ? parseFloat(factorN) : 0,
-        factorF !== '-' ? parseFloat(factorF) : 0
-    ];
-    
-    // Crear nuevo gráfico
-    pmaChart = new Chart(ctx, {
-        type: 'radar',
-        data: {
-            labels: ['Comprensión Verbal (V)', 'Concepción Espacial (E)', 'Razonamiento (R)', 'Cálculo Numérico (N)', 'Fluidez Verbal (F)'],
-            datasets: [{
-                label: 'Puntuación PMA',
-                data: valoresGrafico,
-                backgroundColor: 'rgba(255, 127, 39, 0.2)',
-                borderColor: 'rgba(255, 127, 39, 0.8)',
-                pointBackgroundColor: 'rgba(255, 127, 39, 1)',
-                pointBorderColor: '#fff',
-                pointHoverBackgroundColor: '#fff',
-                pointHoverBorderColor: 'rgba(255, 127, 39, 1)',
-                pointRadius: 5,
-                pointHoverRadius: 7
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: {
-                title: {
-                    display: true,
-                    text: 'Perfil de Aptitudes Mentales',
-                    color: '#2C3E50',
-                    font: {
-                        size: 16,
-                        weight: 'bold'
-                    }
-                },
-                legend: {
-                    display: true,
-                    position: 'bottom'
-                },
-                tooltip: {
-                    callbacks: {
-                        label: function(context) {
-                            const value = context.raw;
-                            return `Puntuación: ${value}`;
-                        }
-                    }
-                }
-            },
-            scales: {
-                r: {
-                    angleLines: {
-                        display: true,
-                        color: 'rgba(0, 0, 0, 0.1)'
-                    },
-                    suggestedMin: 0,
-                    suggestedMax: 100,
-                    ticks: {
-                        stepSize: 20,
-                        color: '#666',
-                        backdropColor: 'transparent'
-                    },
-                    grid: {
-                        color: 'rgba(0, 0, 0, 0.05)'
-                    },
-                    pointLabels: {
-                        font: {
-                            size: 11
-                        },
-                        color: '#2C3E50'
-                    }
-                }
-            }
-        }
-    });
-}
-
-function mostrarInstruccionesBusqueda() {
-    // Ocultar indicador de carga
-    loadingIndicator.style.display = 'none';
-    tableView.style.display = 'none';
-    
-    // Actualizar contador de resultados
-    resultsCount.textContent = '0';
-    currentPageSpan.textContent = '1';
-    totalPagesSpan.textContent = '1';
-    
-    // Deshabilitar botones de paginación
-    prevPageBtn.disabled = true;
-    nextPageBtn.disabled = true;
-    
-    // Mostrar mensaje de selección de filtros
-    noResults.style.display = 'flex';
     noResults.innerHTML = `
-        <div class="no-results-icon">
-            <i class="fas fa-search"></i>
-        </div>
-        <h3>Seleccione filtros para buscar</h3>
-        <p>Utilice los filtros de búsqueda y haga clic en "Buscar" para ver resultados</p>
+        <i class="fas fa-search" style="font-size: 4rem; color: #FF9800;"></i>
+        <h3 style="color: #666;">Utiliza los filtros para buscar colaboradores</h3>
+        <p style="font-size: 0.9rem;">Selecciona un departamento o aplica filtros y presiona "Buscar"</p>
     `;
+    noResults.style.display = 'flex';
+    tabla.style.display = 'none';
+    document.getElementById('totalResultados').textContent = '0';
 }
 
-// Función para calcular promedio PMA
-function calcularPromedioPMA(pma) {
-    if (!pma) return 'No registrado';
-    
-    const valores = [
-        pma.FactorV ? parseFloat(pma.FactorV) : null,
-        pma.FactorE ? parseFloat(pma.FactorE) : null,
-        pma.FactorR ? parseFloat(pma.FactorR) : null,
-        pma.FactorN ? parseFloat(pma.FactorN) : null,
-        pma.FactorF ? parseFloat(pma.FactorF) : null
-    ].filter(v => v !== null);
-    
-    if (valores.length === 0) return 'No registrado';
-    
-    const suma = valores.reduce((a, b) => a + b, 0);
-    return (suma / valores.length).toFixed(1);
-}
-
-// Función para obtener datos completos de empleados
-async function obtenerDatosCompletosEmpleados() {
-    // Copia profunda de los empleados filtrados
-    const empleadosCompletos = JSON.parse(JSON.stringify(filteredEmployees));
-    
-    // Para cada empleado, obtener datos académicos y PMA
-    for (const empleado of empleadosCompletos) {
-        try {
-            // Obtener datos académicos
-            const datosAcademicos = await cargarInfoAcademica(empleado.id);
-            empleado.datosAcademicos = datosAcademicos;
-            
-            // Obtener resultados PMA
-            const datosPMA = await cargarResultadosPMA(empleado.id);
-            empleado.datosPMA = datosPMA;
-        } catch (error) {
-            console.error(`Error al obtener datos completos para empleado ID ${empleado.id}:`, error);
-        }
-    }
-    
-    return empleadosCompletos;
-}
-
-// Función de exportación a Excel (MODIFICADA PARA INCLUIR INFO DE REGISTRO)
-async function exportarAExcel() {
+// ==================== CARGAR FILTROS ==================== 
+async function cargarFiltros() {
     try {
-        // Mostrar indicador de carga
-        mostrarNotificacion('Preparando exportación a Excel...', 'info');
-        mostrarCargando(true);
+        mostrarLoader(true);
         
-        // Verificar si hay datos para exportar
-        if (filteredEmployees.length === 0) {
-            mostrarNotificacion('No hay datos para exportar', 'warning');
-            mostrarCargando(false);
-            return;
-        }
-        
-        // Obtener todos los datos con detalles académicos y PMA
-        const datosCompletos = await obtenerDatosCompletosEmpleados();
-        
-        // Estructurar los datos para Excel (una hoja principal y hojas adicionales)
-        const workbook = XLSX.utils.book_new();
-        
-        // Hoja 1: Información General
-        const datosGenerales = datosCompletos.map(empleado => ({
-            'ID': empleado.id,
-            'Nombre Completo': empleado.nombre,
-            'DPI': empleado.dpi,
-            'Departamento': empleado.departamento,
-            'Puesto': empleado.puesto,
-            'Estado': empleado.estado,
-            'Tipo Personal': empleado.tipoPersonal,
-            'Planilla': empleado.planilla,
-            'Fecha Contrato': empleado.fechaContrato,
-            'Fecha Planilla': empleado.fechaPlanilla,
-            'Inicio Laboral': empleado.inicioLaboral,
-            'Tiempo Trabajado': empleado.tiempoTrabajado,
-            'Estado Civil': empleado.estadoCivil,
-            'Fecha Nacimiento': empleado.fechaNacimiento,
-            'Edad': empleado.edad,
-            'Hijos': empleado.hijos
-        }));
-        
-        const worksheetGeneral = XLSX.utils.json_to_sheet(datosGenerales);
-        XLSX.utils.book_append_sheet(workbook, worksheetGeneral, 'Información General');
-        
-        // Hoja 2: Ubicación y Contacto
-        const datosUbicacion = datosCompletos.map(empleado => ({
-            'ID': empleado.id,
-            'Nombre Completo': empleado.nombre,
-            'Depto. Origen': empleado.departamentoOrigen,
-            'Municipio Origen': empleado.municipioOrigen,
-            'Dirección Residencia': empleado.direccionResidencia,
-            'Depto. Residencia': empleado.departamentoResidencia,
-            'Municipio Residencia': empleado.municipioResidencia,
-            'Teléfono 1': empleado.telefono1,
-            'Teléfono 2': empleado.telefono2,
-            'Correo Electrónico': empleado.correoElectronico,
-            'Contacto Emergencia': empleado.nombreContactoEmergencia,
-            'Teléfono Emergencia': empleado.telefonoContactoEmergencia,
-            'Parentesco': empleado.parentescoEmergencia
-        }));
-        
-        const worksheetUbicacion = XLSX.utils.json_to_sheet(datosUbicacion);
-        XLSX.utils.book_append_sheet(workbook, worksheetUbicacion, 'Ubicación y Contacto');
-        
-        // Hoja 3: Información Académica
-        const datosAcademicos = datosCompletos.map(empleado => {
-            const academica = empleado.datosAcademicos || {};
-            return {
-                'ID': empleado.id,
-                'Nombre Completo': empleado.nombre,
-                // Primaria
-                'Estado Primaria': academica.EstadoPrimaria || 'No registrado',
-                'Plan Primaria': academica.PlanPrimaria || 'No registrado',
-                'Nivel Primaria': academica.NivelPrimaria || 'No registrado',
-                // Básico
-                'Estado Básico': academica.EstadoBasico || 'No registrado',
-                'Plan Básico': academica.PlanBasico || 'No registrado',
-                'Nivel Básico': academica.NivelBasico || 'No registrado',
-                // Diversificado
-                'Estado Diversificado': academica.EstadoDiversificado || 'No registrado',
-                'Plan Diversificado': academica.PlanDiversificado || 'No registrado',
-                'Nivel Diversificado': academica.NivelDiversificado || 'No registrado',
-                'Grado Académico': academica.GradoAcademico || 'No registrado',
-                // Universidad
-                'Estado Universidad': academica.EstadoUniversidad || 'No registrado',
-                'Plan Universitario': academica.PlanUniversitario || 'No registrado',
-                'Nivel Universidad': academica.NivelUniversidad || 'No registrado',
-                'Universidad': academica.Universidad || 'No registrado',
-                'Carrera': academica.CarrerasUniversitarias || 'No registrado',
-                // Maestría
-                'Estado Maestría': academica.EstadoMaestria || 'No registrado',
-                'Plan Maestría': academica.NivelMaestria || 'No registrado',
-                'Trimestre Maestría': academica.Trimestrecursando || 'No registrado',
-                'Universidad Maestría': academica.UniversidadMaestria || 'No registrado',
-                'Nombre Maestría': academica.Maestria || 'No registrado'
-            };
-        });
-        
-        const worksheetAcademica = XLSX.utils.json_to_sheet(datosAcademicos);
-        XLSX.utils.book_append_sheet(workbook, worksheetAcademica, 'Información Académica');
-        
-        // Hoja 4: Evaluación PMA
-        const datosPMA = datosCompletos.map(empleado => {
-            const pma = empleado.datosPMA || {};
-            return {
-                'ID': empleado.id,
-                'Nombre Completo': empleado.nombre,
-                'Fecha Evaluación': pma.FechaEvaluacion ? new Date(pma.FechaEvaluacion).toLocaleDateString() : 'No registrado',
-                'Evaluador': pma.NombreEvaluador || 'No registrado',
-                'Factor V (Comprensión Verbal)': pma.FactorV || 'No registrado',
-                'Factor E (Concepción Espacial)': pma.FactorE || 'No registrado',
-                'Factor R (Razonamiento)': pma.FactorR || 'No registrado',
-                'Factor N (Cálculo Numérico)': pma.FactorN || 'No registrado',
-                'Factor F (Fluidez Verbal)': pma.FactorF || 'No registrado',
-                'Promedio': calcularPromedioPMA(pma)
-            };
-        });
-        
-        const worksheetPMA = XLSX.utils.json_to_sheet(datosPMA);
-        XLSX.utils.book_append_sheet(workbook, worksheetPMA, 'Evaluación PMA');
-        
-        // Hoja 5: Información Laboral
-        const datosLaborales = datosCompletos.map(empleado => ({
-            'ID': empleado.id,
-            'Nombre Completo': empleado.nombre,
-            'Departamento': empleado.departamento,
-            'Puesto': empleado.puesto,
-            'Tipo Personal': empleado.tipoPersonal,
-            'Planilla': empleado.planilla,
-            'Estado': empleado.estado,
-            'Fecha Contrato': empleado.fechaContrato,
-            'Fecha Planilla': empleado.fechaPlanilla,
-            'Inicio Laboral': empleado.inicioLaboral,
-            'Tiempo Trabajado': empleado.tiempoTrabajado
-        }));
+        // Cargar departamentos
+        const connection = await connectionString();
+        const resultDepartamentos = await connection.query(`
+            SELECT
+                departamentos.IdDepartamento, 
+                departamentos.NombreDepartamento
+            FROM
+                departamentos
+            ORDER BY departamentos.NombreDepartamento
+        `);
+        departamentos = resultDepartamentos;
 
-        const worksheetLaboral = XLSX.utils.json_to_sheet(datosLaborales);
-        XLSX.utils.book_append_sheet(workbook, worksheetLaboral, 'Información Laboral');
-        
-        // Hoja 6: Información de Registro (NUEVA)
-        const datosRegistro = datosCompletos.map(empleado => ({
-            'ID': empleado.id,
-            'Nombre Completo': empleado.nombre,
-            'Registrado por': empleado.usuarioRegistro,
-            'Fecha y Hora de Registro': empleado.fechaHoraRegistro,
-            'ID Usuario Registro': empleado.idUsuarioRegistro || 'No registrado'
-        }));
+        // Cargar tipos de personal
+        const resultTipos = await connection.query(`
+            SELECT
+                TipoPersonal.IdTipo, 
+                TipoPersonal.TipoPersonal
+            FROM
+                TipoPersonal
+            ORDER BY TipoPersonal.TipoPersonal
+        `);
+        tiposPersonal = resultTipos;
 
-        const worksheetRegistro = XLSX.utils.json_to_sheet(datosRegistro);
-        XLSX.utils.book_append_sheet(workbook, worksheetRegistro, 'Información de Registro');
-        
-        // Generar el archivo y descargarlo
-        // Crear nombre de archivo con fecha actual
-        const fecha = new Date();
-        const fechaStr = `${fecha.getDate()}-${fecha.getMonth() + 1}-${fecha.getFullYear()}_${fecha.getHours()}-${fecha.getMinutes()}`;
-        const fileName = `Personal_Filtrado_${fechaStr}.xlsx`;
-        
-        // Convertir a ArrayBuffer
-        const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
-        
-        // Crear un Blob a partir del ArrayBuffer
-        const blob = new Blob([excelBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
-        
-        // Crear un enlace temporal para descargar
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = fileName;
-        document.body.appendChild(a);
-        a.click();
-        
-        // Limpiar
-        window.URL.revokeObjectURL(url);
-        document.body.removeChild(a);
-        
-        // Ocultar cargando y mostrar notificación
-        mostrarCargando(false);
-        mostrarNotificacion(`Exportación exitosa: ${fileName}`, 'success');
+        // Cargar estados de personal
+        const resultEstados = await connection.query(`
+            SELECT
+                EstadoPersonal.IdEstado, 
+                EstadoPersonal.EstadoPersonal
+            FROM
+                EstadoPersonal
+            ORDER BY EstadoPersonal.EstadoPersonal
+        `);
+        estadosPersonal = resultEstados;
+
+        await connection.close();
+
+        // Llenar los selects
+        llenarSelectTipoPersonal();
+        llenarSelectEstadoPersonal();
+
+        mostrarLoader(false);
     } catch (error) {
-        console.error('Error al exportar a Excel:', error);
-        mostrarCargando(false);
-        mostrarNotificacion('Error al exportar a Excel: ' + error.message, 'error');
+        console.error('Error al cargar filtros:', error);
+        mostrarLoader(false);
+        await Swal.fire({
+            icon: 'error',
+            title: 'Error al cargar filtros',
+            text: 'No se pudieron cargar los filtros. Por favor, recarga la página.',
+            confirmButtonColor: '#FF9800'
+        });
     }
 }
 
-// Event Listeners
-document.addEventListener('DOMContentLoaded', () => {
+function llenarSelectTipoPersonal() {
+    const select = document.getElementById('tipoPersonal');
+    select.innerHTML = '<option value="">Todos los tipos</option>';
     
-    // Cargar datos iniciales para los filtros
-    cargarDepartamentos();
-    cargarTiposPersonal();
-    cargarEstadosPersonal();
-    mostrarInstruccionesBusqueda();
-    
-    // Event listeners para filtros
-    searchButton.addEventListener('click', buscarPersonal);
-    resetFiltersButton.addEventListener('click', resetearFiltros);
-    clearSearchButton.addEventListener('click', limpiarBusqueda);
-    
-    // Event listener para alternar los filtros
-    filtersToggle.addEventListener('click', () => {
-        colapsarFiltros(!filtersCollapsed);
+    tiposPersonal.forEach(tipo => {
+        const option = document.createElement('option');
+        option.value = tipo.IdTipo;
+        option.textContent = tipo.TipoPersonal;
+        select.appendChild(option);
     });
+}
+
+function llenarSelectEstadoPersonal() {
+    const select = document.getElementById('estadoPersonal');
+    select.innerHTML = '<option value="">Todos los estados</option>';
     
-    // Event listeners para paginación
-    prevPageBtn.addEventListener('click', () => {
-        if (currentPage > 1) {
-            currentPage--;
-            actualizarResultados();
+    estadosPersonal.forEach(estado => {
+        const option = document.createElement('option');
+        option.value = estado.IdEstado;
+        option.textContent = estado.EstadoPersonal;
+        select.appendChild(option);
+    });
+}
+
+// ==================== CONFIGURAR EVENTOS ====================
+function configurarEventos() {
+    const inputNombre = document.getElementById('nombreColaborador');
+    const inputDepartamento = document.getElementById('departamento');
+    const btnBuscar = document.getElementById('btnBuscar');
+    const btnLimpiar = document.getElementById('btnLimpiar');
+    const btnRefresh = document.querySelector('.btn-refresh');
+    const btnExport = document.querySelector('.btn-export');
+
+    // Búsqueda de nombre mientras escribe (con debounce)
+    inputNombre.addEventListener('input', () => {
+        clearTimeout(timeoutBusquedaNombre);
+        timeoutBusquedaNombre = setTimeout(() => {
+            buscarNombresColaboradores();
+        }, 300); // 300ms de delay para no sobrecargar
+    });
+
+    // Búsqueda de nombre con Enter
+    inputNombre.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            const query = inputNombre.value.trim();
+            if (query.length >= 2) {
+                ocultarResultadosNombres();
+                buscarPersonal();
+            }
         }
     });
-    
-    nextPageBtn.addEventListener('click', () => {
-        if (currentPage < totalPages) {
-            currentPage++;
-            actualizarResultados();
+
+    // Búsqueda de departamento mientras escribe
+    inputDepartamento.addEventListener('input', () => {
+        buscarDepartamentos();
+    });
+
+    // Búsqueda de departamento con Enter
+    inputDepartamento.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            buscarDepartamentos();
         }
     });
-    
-    // Event listener para cerrar modal
-    document.querySelectorAll('.close-modal, .close-modal-btn').forEach(btn => {
-        btn.addEventListener('click', () => {
-            employeeModal.classList.remove('show');
-        });
-    });
-    
-    // Event listener para cerrar modal al hacer clic fuera de él
-    employeeModal.addEventListener('click', event => {
-        if (event.target === employeeModal) {
-            employeeModal.classList.remove('show');
+
+    // Ocultar resultados al hacer clic fuera
+    document.addEventListener('click', (e) => {
+        if (!e.target.closest('.autocomplete-wrapper')) {
+            ocultarResultadosDepartamentos();
+            ocultarResultadosNombres();
         }
     });
-    
-    // Event listener para tecla Enter en campo de búsqueda
-    searchText.addEventListener('keypress', event => {
-        if (event.key === 'Enter') {
+
+    // Eliminar departamento seleccionado
+    document.getElementById('departamentoTag').addEventListener('click', (e) => {
+        if (e.target.closest('.tag-remove')) {
+            removerDepartamentoSeleccionado();
+        }
+    });
+
+    // Eliminar colaborador seleccionado
+    document.getElementById('nombreTag').addEventListener('click', (e) => {
+        if (e.target.closest('.tag-remove')) {
+            removerColaboradorSeleccionado();
+        }
+    });
+
+    // Botón buscar
+    btnBuscar.addEventListener('click', () => {
+        buscarPersonal();
+    });
+
+    // Búsqueda con Enter en los selects
+    document.getElementById('tipoPersonal').addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
             buscarPersonal();
         }
     });
-    
-    // Event listener para exportar a Excel
-    document.getElementById('exportToExcel').addEventListener('click', () => {
-        if (filteredEmployees.length > 0) {
-            exportarAExcel();
-        } else {
-            mostrarNotificacion('No hay datos para exportar', 'warning');
+
+    document.getElementById('estadoPersonal').addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+            buscarPersonal();
         }
     });
-});
 
-// Event listeners para el visor de fotos
-closePhotoViewer.addEventListener('click', cerrarVisorFoto);
-photoViewer.addEventListener('click', event => {
-    if (event.target === photoViewer) {
-        cerrarVisorFoto();
+    // Botón limpiar
+    btnLimpiar.addEventListener('click', limpiarFiltros);
+
+    // Botón refresh
+    btnRefresh.addEventListener('click', async () => {
+        if (todosLosResultados.length > 0) {
+            btnRefresh.querySelector('i').style.animation = 'spin 1s linear';
+            await buscarPersonal();
+            setTimeout(() => {
+                btnRefresh.querySelector('i').style.animation = '';
+            }, 1000);
+        }
+    });
+
+    // Botón exportar
+    btnExport.addEventListener('click', exportarExcel);
+}
+
+// ==================== AUTOCOMPLETADO NOMBRES ====================
+async function buscarNombresColaboradores() {
+    const input = document.getElementById('nombreColaborador');
+    const query = input.value.trim();
+
+    // Si hay un colaborador seleccionado, no buscar
+    if (colaboradorSeleccionado) {
+        return;
     }
-});
 
-// Cerrar el visor con la tecla Escape
-document.addEventListener('keydown', event => {
-    if (event.key === 'Escape' && photoViewer.classList.contains('show')) {
-        cerrarVisorFoto();
+    if (query.length < 2) {
+        ocultarResultadosNombres();
+        return;
     }
-});
 
-// Hacer funciones disponibles globalmente
-window.abrirVisorFoto = abrirVisorFoto;
-window.cerrarVisorFoto = cerrarVisorFoto;
-window.mostrarDetallesEmpleado = mostrarDetallesEmpleado;
-window.editarEmpleado = editarEmpleado;
-window.exportarAExcel = exportarAExcel;
+    try {
+        const connection = await connectionString();
+
+        // Búsqueda optimizada en la BD con LIKE
+        const queryBD = `
+            SELECT
+                personal.IdPersonal,
+                CONCAT(
+                    personal.PrimerNombre, ' ',
+                    IFNULL(personal.SegundoNombre, ''), ' ',
+                    IFNULL(personal.TercerNombre, ''), ' ',
+                    personal.PrimerApellido, ' ',
+                    IFNULL(personal.SegundoApellido, '')
+                ) AS NombreCompleto
+            FROM personal
+            WHERE
+                CONCAT(
+                    personal.PrimerNombre, ' ',
+                    IFNULL(personal.SegundoNombre, ''), ' ',
+                    IFNULL(personal.TercerNombre, ''), ' ',
+                    personal.PrimerApellido, ' ',
+                    IFNULL(personal.SegundoApellido, '')
+                ) LIKE ?
+            ORDER BY personal.PrimerNombre, personal.PrimerApellido
+            LIMIT 50
+        `;
+
+        const resultados = await connection.query(queryBD, [`%${query}%`]);
+        await connection.close();
+
+        mostrarResultadosNombres(resultados);
+
+    } catch (error) {
+        console.error('Error al buscar nombres:', error);
+        ocultarResultadosNombres();
+    }
+}
+
+function mostrarResultadosNombres(resultados) {
+    const container = document.getElementById('nombreResults');
+    container.innerHTML = '';
+
+    if (resultados.length === 0) {
+        container.innerHTML = '<div class="autocomplete-item" style="color: #999; cursor: default;">No se encontraron colaboradores</div>';
+        container.classList.add('show');
+        return;
+    }
+
+    resultados.forEach(colaborador => {
+        const item = document.createElement('div');
+        item.className = 'autocomplete-item';
+        item.innerHTML = `
+            <span style="font-weight: 500;">${colaborador.NombreCompleto.trim()}</span>
+            <span style="font-size: 0.75rem; color: #999; margin-left: 8px;">ID: ${colaborador.IdPersonal}</span>
+        `;
+        item.dataset.id = colaborador.IdPersonal;
+        item.dataset.nombre = colaborador.NombreCompleto.trim();
+
+        item.addEventListener('click', () => {
+            seleccionarColaborador(colaborador);
+        });
+
+        container.appendChild(item);
+    });
+
+    container.classList.add('show');
+}
+
+function ocultarResultadosNombres() {
+    const container = document.getElementById('nombreResults');
+    container.classList.remove('show');
+}
+
+function seleccionarColaborador(colaborador) {
+    colaboradorSeleccionado = colaborador;
+
+    // Mostrar tag
+    const tag = document.getElementById('nombreTag');
+    tag.querySelector('.tag-text').textContent = colaborador.NombreCompleto.trim();
+    tag.style.display = 'inline-flex';
+
+    // Limpiar y deshabilitar input
+    const input = document.getElementById('nombreColaborador');
+    input.value = '';
+    input.disabled = true;
+    input.style.display = 'none';
+
+    ocultarResultadosNombres();
+
+    // Ejecutar búsqueda automáticamente
+    buscarPersonal();
+}
+
+function removerColaboradorSeleccionado() {
+    colaboradorSeleccionado = null;
+
+    // Ocultar tag
+    const tag = document.getElementById('nombreTag');
+    tag.style.display = 'none';
+
+    // Habilitar input
+    const input = document.getElementById('nombreColaborador');
+    input.disabled = false;
+    input.style.display = 'block';
+    input.focus();
+}
+
+// ==================== AUTOCOMPLETADO DEPARTAMENTOS ==================== 
+function buscarDepartamentos() {
+    const input = document.getElementById('departamento');
+    const query = input.value.trim().toLowerCase();
+    
+    if (!query) {
+        ocultarResultadosDepartamentos();
+        return;
+    }
+
+    // Búsqueda inteligente - permite abreviaturas y espacios
+    const resultados = departamentos.filter(dept => {
+        const nombre = dept.NombreDepartamento.toLowerCase();
+        
+        // Búsqueda exacta
+        if (nombre.includes(query)) return true;
+        
+        // Búsqueda sin espacios
+        const nombreSinEspacios = nombre.replace(/\s+/g, '');
+        const querySinEspacios = query.replace(/\s+/g, '');
+        if (nombreSinEspacios.includes(querySinEspacios)) return true;
+        
+        // Búsqueda por iniciales
+        const iniciales = nombre.split(' ').map(palabra => palabra[0]).join('');
+        if (iniciales.includes(query)) return true;
+        
+        return false;
+    });
+
+    mostrarResultadosDepartamentos(resultados);
+}
+
+function mostrarResultadosDepartamentos(resultados) {
+    const container = document.getElementById('departamentoResults');
+    container.innerHTML = '';
+
+    if (resultados.length === 0) {
+        container.innerHTML = '<div class="autocomplete-item" style="color: #999; cursor: default;">No se encontraron departamentos</div>';
+        container.classList.add('show');
+        return;
+    }
+
+    resultados.forEach(dept => {
+        const item = document.createElement('div');
+        item.className = 'autocomplete-item';
+        item.textContent = dept.NombreDepartamento;
+        item.dataset.id = dept.IdDepartamento;
+        
+        item.addEventListener('click', () => {
+            seleccionarDepartamento(dept);
+        });
+        
+        container.appendChild(item);
+    });
+
+    container.classList.add('show');
+}
+
+function ocultarResultadosDepartamentos() {
+    const container = document.getElementById('departamentoResults');
+    container.classList.remove('show');
+}
+
+function seleccionarDepartamento(dept) {
+    departamentoSeleccionado = dept;
+    
+    // Mostrar tag
+    const tag = document.getElementById('departamentoTag');
+    tag.querySelector('.tag-text').textContent = dept.NombreDepartamento;
+    tag.style.display = 'inline-flex';
+    
+    // Limpiar y deshabilitar input
+    const input = document.getElementById('departamento');
+    input.value = '';
+    input.disabled = true;
+    input.style.display = 'none';
+    
+    ocultarResultadosDepartamentos();
+}
+
+function removerDepartamentoSeleccionado() {
+    departamentoSeleccionado = null;
+    
+    // Ocultar tag
+    const tag = document.getElementById('departamentoTag');
+    tag.style.display = 'none';
+    
+    // Habilitar input
+    const input = document.getElementById('departamento');
+    input.disabled = false;
+    input.style.display = 'block';
+    input.focus();
+}
+
+// ==================== BUSCAR PERSONAL ====================
+async function buscarPersonal() {
+    try {
+        mostrarLoader(true);
+
+        const nombreColaborador = document.getElementById('nombreColaborador').value.trim();
+        const tipoPersonal = document.getElementById('tipoPersonal').value;
+        const estadoPersonal = document.getElementById('estadoPersonal').value;
+
+        // Construir query con filtros opcionales - INCLUYE LA FOTO
+        let query = `
+            SELECT
+                personal.IdPersonal,
+                CONCAT(personal.PrimerNombre, ' ', IFNULL(personal.SegundoNombre, ''), ' ', IFNULL(personal.TercerNombre, ''), ' ', personal.PrimerApellido, ' ', IFNULL(personal.SegundoApellido, '')) AS NombreCompleto,
+                personal.FechaNacimiento,
+                personal.Telefono1,
+                departamentos.NombreDepartamento,
+                Puestos.Nombre AS NombrePuesto,
+                personal.InicioLaboral,
+                EstadoPersonal.EstadoPersonal,
+                TipoPersonal.TipoPersonal,
+                CASE
+                    WHEN FotosPersonal.Foto IS NOT NULL THEN CONCAT('data:image/jpeg;base64,', TO_BASE64(FotosPersonal.Foto))
+                    ELSE NULL
+                END AS FotoBase64,
+                CONCAT(usuario.PrimerNombre, ' ', IFNULL(usuario.SegundoNombre, ''), ' ', IFNULL(usuario.TercerNombre, ''), ' ', usuario.PrimerApellido, ' ', IFNULL(usuario.SegundoApellido, '')) AS UsuarioRegistro,
+                personal.Fechahoraregistro
+            FROM
+                personal
+                INNER JOIN
+                departamentos
+                ON
+                    personal.IdSucuDepa = departamentos.IdDepartamento
+                INNER JOIN
+                Puestos
+                ON
+                    personal.IdPuesto = Puestos.IdPuesto
+                INNER JOIN
+                EstadoPersonal
+                ON
+                    personal.Estado = EstadoPersonal.IdEstado
+                INNER JOIN
+                TipoPersonal
+                ON
+                    personal.TipoPersonal = TipoPersonal.IdTipo
+                LEFT JOIN
+                FotosPersonal
+                ON
+                    personal.IdPersonal = FotosPersonal.IdPersonal
+                LEFT JOIN
+                personal AS usuario
+                ON
+                    personal.IdUsuario = usuario.IdPersonal
+            WHERE 1=1
+        `;
+
+        const params = [];
+
+        // Filtro por colaborador seleccionado (prioridad máxima)
+        if (colaboradorSeleccionado) {
+            query += ' AND personal.IdPersonal = ?';
+            params.push(colaboradorSeleccionado.IdPersonal);
+        }
+        // Filtro por nombre si está escribiendo (sin seleccionar)
+        else if (nombreColaborador && nombreColaborador.length >= 2) {
+            query += ` AND CONCAT(personal.PrimerNombre, ' ', IFNULL(personal.SegundoNombre, ''), ' ', IFNULL(personal.TercerNombre, ''), ' ', personal.PrimerApellido, ' ', IFNULL(personal.SegundoApellido, '')) LIKE ?`;
+            params.push(`%${nombreColaborador}%`);
+        }
+
+        // Filtro departamento (solo si se seleccionó uno)
+        if (departamentoSeleccionado) {
+            query += ' AND departamentos.IdDepartamento = ?';
+            params.push(departamentoSeleccionado.IdDepartamento);
+        }
+
+        // Filtro tipo personal
+        if (tipoPersonal) {
+            query += ' AND TipoPersonal.IdTipo = ?';
+            params.push(tipoPersonal);
+        }
+
+        // Filtro estado personal
+        if (estadoPersonal) {
+            query += ' AND EstadoPersonal.IdEstado = ?';
+            params.push(estadoPersonal);
+        }
+
+        query += ' ORDER BY personal.PrimerNombre, personal.PrimerApellido LIMIT 500';
+
+        const connection = await connectionString();
+        const resultados = await connection.query(query, params);
+        await connection.close();
+
+        todosLosResultados = resultados;
+        mostrarResultados(resultados);
+        mostrarLoader(false);
+
+    } catch (error) {
+        console.error('Error al buscar personal:', error);
+        mostrarLoader(false);
+        await Swal.fire({
+            icon: 'error',
+            title: 'Error en la búsqueda',
+            text: 'Hubo un problema al buscar el personal. Intenta nuevamente.',
+            confirmButtonColor: '#FF9800'
+        });
+    }
+}
+
+// ==================== MOSTRAR RESULTADOS ====================
+function mostrarResultados(resultados) {
+    const tbody = document.getElementById('tbodyPersonal');
+    const noResults = document.getElementById('noResults');
+    const totalResultados = document.getElementById('totalResultados');
+    const tabla = document.getElementById('tablaPersonal');
+
+    tbody.innerHTML = '';
+    totalResultados.textContent = resultados.length;
+
+    if (resultados.length === 0) {
+        noResults.innerHTML = `
+            <i class="fas fa-search"></i>
+            <h3>No se encontraron resultados</h3>
+            <p>Intenta ajustar los filtros de búsqueda</p>
+        `;
+        noResults.style.display = 'flex';
+        tabla.style.display = 'none';
+        return;
+    }
+
+    noResults.style.display = 'none';
+    tabla.style.display = 'table';
+
+    resultados.forEach(persona => {
+        const tr = document.createElement('tr');
+
+        // Formatear fechas (corregir el problema de zona horaria)
+        const fechaNacimiento = persona.FechaNacimiento ?
+            formatearFecha(persona.FechaNacimiento) : 'N/A';
+        const inicioLaboral = persona.InicioLaboral ?
+            formatearFecha(persona.InicioLaboral) : 'N/A';
+
+        // Calcular edad
+        const edad = persona.FechaNacimiento ?
+            calcularEdad(persona.FechaNacimiento) : null;
+
+        // Calcular tiempo laborado
+        const tiempoLaborado = persona.InicioLaboral ?
+            calcularTiempoLaborado(persona.InicioLaboral) : 'N/A';
+        
+        // Determinar clase de badge para estado
+        const estadoClass = persona.EstadoPersonal.toLowerCase().includes('activo') ? 
+            'badge-activo' : 'badge-inactivo';
+        
+        // Determinar clase de badge para tipo
+        const tipoClass = persona.TipoPersonal.toLowerCase().includes('planilla') ?
+            'badge-planilla' : 'badge-jornal';
+
+        // Foto del colaborador
+        const fotoSrc = persona.FotoBase64 || '../Imagenes/user-default.png';
+
+        // Formatear fecha y hora de registro
+        const fechaHoraRegistro = persona.Fechahoraregistro ?
+            formatearFechaHora(persona.Fechahoraregistro) : 'N/A';
+
+        // Usuario que registró (puede ser null si no existe)
+        const usuarioRegistro = persona.UsuarioRegistro ?
+            persona.UsuarioRegistro.trim() : 'N/A';
+
+        tr.innerHTML = `
+            <td>${persona.IdPersonal}</td>
+            <td>
+                <div class="employee-cell">
+                    <img src="${fotoSrc}" alt="${persona.NombreCompleto}" class="employee-photo" data-foto-id="${persona.IdPersonal}">
+                    <span>${persona.NombreCompleto}</span>
+                </div>
+            </td>
+            <td>${fechaNacimiento}${edad ? ` <span style="color: #FF9800; font-size: 0.85rem; font-weight: 500;">(${edad} años)</span>` : ''}</td>
+            <td>${persona.Telefono1 || 'N/A'}</td>
+            <td>${persona.NombreDepartamento}</td>
+            <td>${persona.NombrePuesto}</td>
+            <td>${inicioLaboral}</td>
+            <td>${tiempoLaborado}</td>
+            <td><span class="badge ${estadoClass}">${persona.EstadoPersonal}</span></td>
+            <td><span class="badge ${tipoClass}">${persona.TipoPersonal}</span></td>
+            <td>${usuarioRegistro}</td>
+            <td>${fechaHoraRegistro}</td>
+            <td>
+                <div style="display: flex; gap: 4px; justify-content: center; flex-wrap: wrap;">
+                    <button class="btn-action btn-edit" onclick="editarColaborador(${persona.IdPersonal})" title="Editar Colaborador">
+                        <i class="fas fa-edit"></i>
+                    </button>
+                    <button class="btn-action btn-personal" onclick="verInfoPersonal(${persona.IdPersonal})" title="Información Personal">
+                        <i class="fas fa-user"></i>
+                    </button>
+                    <button class="btn-action btn-laboral" onclick="verInfoLaboral(${persona.IdPersonal})" title="Información Laboral">
+                        <i class="fas fa-briefcase"></i>
+                    </button>
+                    <button class="btn-action btn-academica" onclick="verInfoAcademica(${persona.IdPersonal})" title="Información Académica">
+                        <i class="fas fa-graduation-cap"></i>
+                    </button>
+                    <button class="btn-action btn-documentacion" onclick="verInfoDocumentacion(${persona.IdPersonal})" title="Documentación">
+                        <i class="fas fa-file-alt"></i>
+                    </button>
+                    <button class="btn-action btn-pma" onclick="verInfoPMA(${persona.IdPersonal})" title="Información PMA">
+                        <i class="fas fa-chart-line"></i>
+                    </button>
+                </div>
+            </td>
+        `;
+
+        // Agregar evento click a la foto usando addEventListener
+        const img = tr.querySelector('.employee-photo');
+        img.addEventListener('click', () => {
+            mostrarFotoAmpliada(fotoSrc, persona.NombreCompleto);
+        });
+
+        tbody.appendChild(tr);
+    });
+}
+
+// ==================== LIMPIAR FILTROS ====================
+function limpiarFiltros() {
+    // Limpiar nombre
+    removerColaboradorSeleccionado();
+    document.getElementById('nombreColaborador').value = '';
+
+    // Limpiar departamento
+    removerDepartamentoSeleccionado();
+    document.getElementById('departamento').value = '';
+
+    // Limpiar selects
+    document.getElementById('tipoPersonal').value = '';
+    document.getElementById('estadoPersonal').value = '';
+
+    // Limpiar resultados
+    todosLosResultados = [];
+    document.getElementById('tbodyPersonal').innerHTML = '';
+    document.getElementById('tablaPersonal').style.display = 'none';
+
+    // Limpiar estado guardado en localStorage
+    localStorage.removeItem('busquedaPersonalEstado');
+
+    // Mostrar mensaje inicial
+    mostrarMensajeInicial();
+}
+
+// ==================== INFORMACIÓN PERSONAL ====================
+// ==================== EDITAR COLABORADOR ====================
+async function editarColaborador(idPersonal) {
+    try {
+        // Obtener datos del usuario actual de localStorage
+        const userData = JSON.parse(localStorage.getItem('userData'));
+
+        if (!userData || !userData.IdPersonal) {
+            await Swal.fire({
+                icon: 'error',
+                title: 'Error de sesión',
+                text: 'No se encontraron datos de sesión. Por favor inicie sesión nuevamente.',
+                confirmButtonColor: '#FF9800'
+            });
+            return;
+        }
+
+        // Verificar autorización del usuario
+        const connection = await connectionString();
+        const queryAutorizacion = `
+            SELECT TransaccionesRRHH.Codigo
+            FROM TransaccionesRRHH
+            WHERE TransaccionesRRHH.Activo = 1
+            AND TransaccionesRRHH.IdPersonal = ?
+            AND TransaccionesRRHH.Codigo = 103
+        `;
+
+        const autorizacion = await connection.query(queryAutorizacion, [userData.IdPersonal]);
+        await connection.close();
+
+        // Verificar si el usuario tiene el código 103 activo
+        if (!autorizacion || autorizacion.length === 0) {
+            await Swal.fire({
+                icon: 'warning',
+                title: 'Acceso Denegado',
+                text: 'No tienes autorización para editar colaboradores. Contacta al administrador.',
+                confirmButtonColor: '#FF9800'
+            });
+            return;
+        }
+
+        // Si está autorizado, guardar el estado de la búsqueda actual
+        guardarEstadoBusqueda();
+
+        // Navegar a la ventana de edición con el ID del colaborador
+        window.location.href = `Editar.html?id=${idPersonal}`;
+
+    } catch (error) {
+        console.error('Error al verificar autorización:', error);
+        await Swal.fire({
+            icon: 'error',
+            title: 'Error',
+            text: 'Ocurrió un error al verificar los permisos. Por favor intenta nuevamente.',
+            confirmButtonColor: '#FF9800'
+        });
+    }
+}
+
+async function verInfoPersonal(idPersonal) {
+    try {
+        const persona = todosLosResultados.find(p => p.IdPersonal === idPersonal);
+
+        if (!persona) {
+            await Swal.fire({
+                icon: 'error',
+                title: 'Error',
+                text: 'No se encontró la información del colaborador',
+                confirmButtonColor: '#2196F3'
+            });
+            return;
+        }
+
+        // Obtener información personal detallada de la base de datos
+        const connection = await connectionString();
+        const query = `
+            SELECT
+                personal.DPI,
+                departamentosguatemala.NombreDepartamento,
+                municipios.NombreMunicipio,
+                estadocivil.EstadoCivil,
+                TipoSangre.TipoSangre,
+                personal.Hijos,
+                personal.Sexo,
+                personal.DireccionRecidencia,
+                personal.Telefono1,
+                personal.Telefono2,
+                personal.NombreContactoEmergencia,
+                personal.TelefonoContactoEmergencia,
+                parentesco.Parentesco
+            FROM
+                personal
+                INNER JOIN
+                departamentosguatemala
+                ON
+                    personal.IdDepartamentoOrigen = departamentosguatemala.IdDepartamentoG
+                INNER JOIN
+                municipios
+                ON
+                    personal.IdMunicipioOrigen = municipios.IdMunicipio
+                INNER JOIN
+                estadocivil
+                ON
+                    personal.IdEstadoCivil = estadocivil.IdCivil
+                INNER JOIN
+                TipoSangre
+                ON
+                    personal.IdTipoSangre = TipoSangre.IdSangre
+                INNER JOIN
+                parentesco
+                ON
+                    personal.IdParentesco = parentesco.IdParentesco
+            WHERE personal.IdPersonal = ?
+        `;
+
+        const resultados = await connection.query(query, [idPersonal]);
+        await connection.close();
+
+        if (resultados.length === 0) {
+            await Swal.fire({
+                icon: 'warning',
+                title: 'Sin datos',
+                text: 'No se encontró información personal para este colaborador',
+                confirmButtonColor: '#2196F3'
+            });
+            return;
+        }
+
+        const infoPer = resultados[0];
+        const fotoBase64 = persona.FotoBase64 || '../Imagenes/user-default.png';
+        const fechaNacimiento = persona.FechaNacimiento ?
+            new Date(persona.FechaNacimiento + 'T00:00:00').toLocaleDateString('es-GT', {
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric'
+            }) : 'N/A';
+        const edad = persona.FechaNacimiento ? calcularEdad(persona.FechaNacimiento) : null;
+
+        await Swal.fire({
+            title: '<i class="fas fa-user"></i> Información Personal',
+            html: `
+                <div style="text-align: center;">
+                    <div id="fotoPersonalContainer" style="width: 120px; height: 120px; border-radius: 50%; overflow: hidden; margin: 0 auto 20px; border: 4px solid #2196F3; box-shadow: 0 4px 10px rgba(0,0,0,0.2); cursor: pointer;">
+                        <img src="${fotoBase64}" style="width: 100%; height: 100%; object-fit: cover;">
+                    </div>
+
+                    <h3 style="color: #2196F3; margin-bottom: 20px; font-size: 1.3rem;">${persona.NombreCompleto}</h3>
+
+                    <div style="background: #f9f9f9; padding: 20px; border-radius: 10px; text-align: left; max-height: 400px; overflow-y: auto;">
+                        <!-- Información Básica -->
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px;">
+                            <div>
+                                <p style="margin: 0; color: #777; font-size: 0.85rem;"><i class="fas fa-id-card"></i> DPI</p>
+                                <p style="margin: 5px 0 0 0; font-weight: 600; color: #333;">${infoPer.DPI || 'N/A'}</p>
+                            </div>
+                            <div>
+                                <p style="margin: 0; color: #777; font-size: 0.85rem;"><i class="fas fa-venus-mars"></i> Sexo</p>
+                                <p style="margin: 5px 0 0 0; font-weight: 600; color: #333;">${infoPer.Sexo || 'N/A'}</p>
+                            </div>
+                        </div>
+
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px;">
+                            <div>
+                                <p style="margin: 0; color: #777; font-size: 0.85rem;"><i class="fas fa-birthday-cake"></i> Fecha de Nacimiento</p>
+                                <p style="margin: 5px 0 0 0; font-weight: 600; color: #333;">${fechaNacimiento}${edad ? ` <span style="color: #2196F3;">(${edad} años)</span>` : ''}</p>
+                            </div>
+                            <div>
+                                <p style="margin: 0; color: #777; font-size: 0.85rem;"><i class="fas fa-tint"></i> Tipo de Sangre</p>
+                                <p style="margin: 5px 0 0 0; font-weight: 600; color: #d32f2f;">${infoPer.TipoSangre || 'N/A'}</p>
+                            </div>
+                        </div>
+
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px;">
+                            <div>
+                                <p style="margin: 0; color: #777; font-size: 0.85rem;"><i class="fas fa-heart"></i> Estado Civil</p>
+                                <p style="margin: 5px 0 0 0; font-weight: 600; color: #333;">${infoPer.EstadoCivil || 'N/A'}</p>
+                            </div>
+                            <div>
+                                <p style="margin: 0; color: #777; font-size: 0.85rem;"><i class="fas fa-baby"></i> Hijos</p>
+                                <p style="margin: 5px 0 0 0; font-weight: 600; color: #333;">${infoPer.Hijos !== null ? infoPer.Hijos : 'N/A'}</p>
+                            </div>
+                        </div>
+
+                        <!-- Origen -->
+                        <div style="margin-bottom: 15px;">
+                            <p style="margin: 0; color: #777; font-size: 0.85rem;"><i class="fas fa-map-marker-alt"></i> Lugar de Origen</p>
+                            <p style="margin: 5px 0 0 0; font-weight: 600; color: #333;">${infoPer.NombreMunicipio}, ${infoPer.NombreDepartamento}</p>
+                        </div>
+
+                        <!-- Dirección -->
+                        <div style="margin-bottom: 15px;">
+                            <p style="margin: 0; color: #777; font-size: 0.85rem;"><i class="fas fa-home"></i> Dirección de Residencia</p>
+                            <p style="margin: 5px 0 0 0; font-weight: 600; color: #333;">${infoPer.DireccionRecidencia || 'N/A'}</p>
+                        </div>
+
+                        <!-- Teléfonos -->
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px;">
+                            <div>
+                                <p style="margin: 0; color: #777; font-size: 0.85rem;"><i class="fas fa-phone"></i> Teléfono 1</p>
+                                <p style="margin: 5px 0 0 0; font-weight: 600; color: #333;">${infoPer.Telefono1 || 'N/A'}</p>
+                            </div>
+                            <div>
+                                <p style="margin: 0; color: #777; font-size: 0.85rem;"><i class="fas fa-phone-alt"></i> Teléfono 2</p>
+                                <p style="margin: 5px 0 0 0; font-weight: 600; color: #333;">${infoPer.Telefono2 || 'N/A'}</p>
+                            </div>
+                        </div>
+
+                        <!-- Contacto de Emergencia -->
+                        <div style="background: #e3f2fd; padding: 12px; border-radius: 8px; border-left: 3px solid #2196F3; margin-top: 15px;">
+                            <p style="margin: 0 0 10px 0; color: #1976D2; font-size: 0.9rem; font-weight: 600;">
+                                <i class="fas fa-ambulance"></i> Contacto de Emergencia
+                            </p>
+                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                                <div>
+                                    <p style="margin: 0; color: #555; font-size: 0.8rem;">Nombre</p>
+                                    <p style="margin: 3px 0 0 0; font-weight: 600; color: #333; font-size: 0.85rem;">${infoPer.NombreContactoEmergencia || 'N/A'}</p>
+                                </div>
+                                <div>
+                                    <p style="margin: 0; color: #555; font-size: 0.8rem;">Parentesco</p>
+                                    <p style="margin: 3px 0 0 0; font-weight: 600; color: #333; font-size: 0.85rem;">${infoPer.Parentesco || 'N/A'}</p>
+                                </div>
+                            </div>
+                            <div style="margin-top: 8px;">
+                                <p style="margin: 0; color: #555; font-size: 0.8rem;">Teléfono</p>
+                                <p style="margin: 3px 0 0 0; font-weight: 600; color: #d32f2f; font-size: 0.9rem;">${infoPer.TelefonoContactoEmergencia || 'N/A'}</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `,
+            width: '650px',
+            confirmButtonText: 'Cerrar',
+            confirmButtonColor: '#2196F3',
+            didOpen: () => {
+                const fotoContainer = document.getElementById('fotoPersonalContainer');
+                if (fotoContainer) {
+                    fotoContainer.addEventListener('click', () => {
+                        mostrarFotoAmpliada(fotoBase64, persona.NombreCompleto);
+                    });
+                }
+            }
+        });
+
+    } catch (error) {
+        console.error('Error al ver información personal:', error);
+        await Swal.fire({
+            icon: 'error',
+            title: 'Error',
+            text: 'No se pudo cargar la información personal',
+            confirmButtonColor: '#2196F3'
+        });
+    }
+}
+
+// ==================== INFORMACIÓN LABORAL ====================
+async function verInfoLaboral(idPersonal) {
+    try {
+        const persona = todosLosResultados.find(p => p.IdPersonal === idPersonal);
+
+        if (!persona) {
+            await Swal.fire({
+                icon: 'error',
+                title: 'Error',
+                text: 'No se encontró la información del colaborador',
+                confirmButtonColor: '#FF9800'
+            });
+            return;
+        }
+
+        // Obtener información laboral detallada de la base de datos
+        const connection = await connectionString();
+        const query = `
+            SELECT
+                departamentos.NombreDepartamento,
+                Regiones.NombreRegion,
+                Puestos.Nombre AS NombrePuesto,
+                personal.InicioLaboral,
+                TipoPersonal.TipoPersonal,
+                personal.FechaContrato,
+                planillas.Nombre_Planilla,
+                personal.FechaPlanilla
+            FROM
+                personal
+                INNER JOIN
+                departamentos
+                ON
+                    personal.IdSucuDepa = departamentos.IdDepartamento
+                INNER JOIN
+                Regiones
+                ON
+                    departamentos.IdRegion = Regiones.IdRegion
+                INNER JOIN
+                Puestos
+                ON
+                    personal.IdPuesto = Puestos.IdPuesto
+                INNER JOIN
+                TipoPersonal
+                ON
+                    personal.TipoPersonal = TipoPersonal.IdTipo
+                LEFT JOIN
+                planillas
+                ON
+                    personal.IdPlanilla = planillas.IdPlanilla
+            WHERE personal.IdPersonal = ?
+        `;
+
+        const resultados = await connection.query(query, [idPersonal]);
+        await connection.close();
+
+        if (resultados.length === 0) {
+            await Swal.fire({
+                icon: 'warning',
+                title: 'Sin datos',
+                text: 'No se encontró información laboral para este colaborador',
+                confirmButtonColor: '#FF9800'
+            });
+            return;
+        }
+
+        const infoLab = resultados[0];
+
+        // Formatear fechas
+        const inicioLaboral = infoLab.InicioLaboral ?
+            new Date(infoLab.InicioLaboral + 'T00:00:00').toLocaleDateString('es-GT', {
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric'
+            }) : 'N/A';
+
+        const tiempoLaborado = infoLab.InicioLaboral ?
+            calcularTiempoLaborado(infoLab.InicioLaboral) : 'N/A';
+
+        const fechaContrato = infoLab.FechaContrato ?
+            new Date(infoLab.FechaContrato + 'T00:00:00').toLocaleDateString('es-GT', {
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric'
+            }) : 'N/A';
+
+        const fechaPlanilla = infoLab.FechaPlanilla ?
+            new Date(infoLab.FechaPlanilla + 'T00:00:00').toLocaleDateString('es-GT', {
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric'
+            }) : 'N/A';
+
+        await Swal.fire({
+            title: '<i class="fas fa-briefcase"></i> Información Laboral',
+            html: `
+                <div style="text-align: center;">
+                    <h3 style="color: #FF9800; margin-bottom: 20px; font-size: 1.3rem;">${persona.NombreCompleto}</h3>
+
+                    <div style="background: #f9f9f9; padding: 20px; border-radius: 10px; text-align: left; max-height: 400px; overflow-y: auto;">
+                        <!-- Ubicación Laboral -->
+                        <div style="margin-bottom: 15px;">
+                            <p style="margin: 0; color: #777; font-size: 0.85rem;"><i class="fas fa-building"></i> Departamento</p>
+                            <p style="margin: 5px 0 0 0; font-weight: 600; color: #333;">${infoLab.NombreDepartamento}</p>
+                        </div>
+
+                        <div style="margin-bottom: 15px;">
+                            <p style="margin: 0; color: #777; font-size: 0.85rem;"><i class="fas fa-map-marked-alt"></i> Región</p>
+                            <p style="margin: 5px 0 0 0; font-weight: 600; color: #333;">${infoLab.NombreRegion}</p>
+                        </div>
+
+                        <div style="margin-bottom: 15px;">
+                            <p style="margin: 0; color: #777; font-size: 0.85rem;"><i class="fas fa-user-tie"></i> Puesto</p>
+                            <p style="margin: 5px 0 0 0; font-weight: 600; color: #333;">${infoLab.NombrePuesto}</p>
+                        </div>
+
+                        <!-- Tipo de Personal -->
+                        <div style="margin-bottom: 15px;">
+                            <p style="margin: 0; color: #777; font-size: 0.85rem;"><i class="fas fa-id-badge"></i> Tipo de Personal</p>
+                            <p style="margin: 5px 0 0 0;">
+                                <span style="background: ${infoLab.TipoPersonal.toLowerCase().includes('planilla') ? '#e3f2fd' : '#fff3e0'};
+                                             color: ${infoLab.TipoPersonal.toLowerCase().includes('planilla') ? '#2196F3' : '#FF9800'};
+                                             padding: 5px 12px; border-radius: 12px; font-size: 0.8rem; font-weight: 600;">
+                                    ${infoLab.TipoPersonal}
+                                </span>
+                            </p>
+                        </div>
+
+                        <!-- Fechas Importantes -->
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px;">
+                            <div>
+                                <p style="margin: 0; color: #777; font-size: 0.85rem;"><i class="fas fa-calendar-check"></i> Inicio Laboral</p>
+                                <p style="margin: 5px 0 0 0; font-weight: 600; color: #333;">${inicioLaboral}</p>
+                            </div>
+                            <div>
+                                <p style="margin: 0; color: #777; font-size: 0.85rem;"><i class="fas fa-clock"></i> Tiempo Laborado</p>
+                                <p style="margin: 5px 0 0 0; font-weight: 600; color: #4CAF50;">${tiempoLaborado}</p>
+                            </div>
+                        </div>
+
+                        ${infoLab.FechaContrato ? `
+                        <div style="margin-bottom: 15px;">
+                            <p style="margin: 0; color: #777; font-size: 0.85rem;"><i class="fas fa-file-signature"></i> Fecha de Contrato</p>
+                            <p style="margin: 5px 0 0 0; font-weight: 600; color: #333;">${fechaContrato}</p>
+                        </div>
+                        ` : ''}
+
+                        <!-- Información de Planilla (si aplica) -->
+                        ${infoLab.Nombre_Planilla ? `
+                        <div style="background: #fff3e0; padding: 12px; border-radius: 8px; border-left: 3px solid #FF9800; margin-top: 15px;">
+                            <p style="margin: 0 0 10px 0; color: #E65100; font-size: 0.9rem; font-weight: 600;">
+                                <i class="fas fa-file-invoice-dollar"></i> Información de Planilla
+                            </p>
+                            <div style="margin-bottom: 8px;">
+                                <p style="margin: 0; color: #555; font-size: 0.8rem;">Nombre de Planilla</p>
+                                <p style="margin: 3px 0 0 0; font-weight: 600; color: #333; font-size: 0.85rem;">${infoLab.Nombre_Planilla}</p>
+                            </div>
+                            ${infoLab.FechaPlanilla ? `
+                            <div>
+                                <p style="margin: 0; color: #555; font-size: 0.8rem;">Fecha en Planilla</p>
+                                <p style="margin: 3px 0 0 0; font-weight: 600; color: #333; font-size: 0.85rem;">${fechaPlanilla}</p>
+                            </div>
+                            ` : ''}
+                        </div>
+                        ` : `
+                        <div style="background: #f5f5f5; padding: 12px; border-radius: 8px; border-left: 3px solid #999; margin-top: 15px;">
+                            <p style="margin: 0; color: #666; font-size: 0.85rem; text-align: center;">
+                                <i class="fas fa-info-circle"></i> No asignado a planilla fija
+                            </p>
+                        </div>
+                        `}
+
+                        <!-- Estado -->
+                        <div style="margin-top: 15px;">
+                            <p style="margin: 0; color: #777; font-size: 0.85rem;"><i class="fas fa-toggle-on"></i> Estado Actual</p>
+                            <p style="margin: 5px 0 0 0;">
+                                <span style="background: ${persona.EstadoPersonal.toLowerCase().includes('activo') ? '#e8f5e9' : '#ffebee'};
+                                             color: ${persona.EstadoPersonal.toLowerCase().includes('activo') ? '#4CAF50' : '#f44336'};
+                                             padding: 5px 12px; border-radius: 12px; font-size: 0.8rem; font-weight: 600;">
+                                    ${persona.EstadoPersonal}
+                                </span>
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            `,
+            width: '600px',
+            confirmButtonText: 'Cerrar',
+            confirmButtonColor: '#FF9800'
+        });
+
+    } catch (error) {
+        console.error('Error al ver información laboral:', error);
+        await Swal.fire({
+            icon: 'error',
+            title: 'Error',
+            text: 'No se pudo cargar la información laboral',
+            confirmButtonColor: '#FF9800'
+        });
+    }
+}
+
+// ==================== INFORMACIÓN ACADÉMICA ====================
+async function verInfoAcademica(idPersonal) {
+    try {
+        const persona = todosLosResultados.find(p => p.IdPersonal === idPersonal);
+
+        if (!persona) {
+            await Swal.fire({
+                icon: 'error',
+                title: 'Error',
+                text: 'No se encontró la información del colaborador',
+                confirmButtonColor: '#9C27B0'
+            });
+            return;
+        }
+
+        // Obtener información académica detallada de la base de datos
+        const connection = await connectionString();
+        const query = `
+            (
+                -- ===== PRIMARIA =====
+                SELECT
+                    'Primaria' AS Nivel,
+                    EstadosEducacion.DescripcionEstado AS Estado,
+                    GradosAcademicos.GradoAcademico,
+                    planestudios.Plan,
+                    NULL AS Carrera,
+                    NULL AS Universidad,
+                    NULL AS Semestre,
+                    NULL AS Maestria
+                FROM InfoAcademica
+                INNER JOIN EstadosEducacion
+                    ON InfoAcademica.EstadoPrimaria = EstadosEducacion.IdEstadoEducacion
+                LEFT JOIN GradosAcademicos
+                    ON InfoAcademica.IdNivelAcademicoPrimaria = GradosAcademicos.IdGrado
+                LEFT JOIN planestudios
+                    ON InfoAcademica.IdPlanEstudioPrimaria = planestudios.IdPlanEstudio
+                WHERE InfoAcademica.IdPersonal = ?
+            )
+
+            UNION ALL
+
+            (
+                -- ===== BÁSICO =====
+                SELECT
+                    'Básico' AS Nivel,
+                    EstadosEducacion.DescripcionEstado AS Estado,
+                    GradosAcademicos.GradoAcademico,
+                    planestudios.Plan,
+                    NULL AS Carrera,
+                    NULL AS Universidad,
+                    NULL AS Semestre,
+                    NULL AS Maestria
+                FROM InfoAcademica
+                INNER JOIN EstadosEducacion
+                    ON InfoAcademica.EstadoBasico = EstadosEducacion.IdEstadoEducacion
+                LEFT JOIN GradosAcademicos
+                    ON InfoAcademica.IdNivelAcademicoBasico = GradosAcademicos.IdGrado
+                LEFT JOIN planestudios
+                    ON InfoAcademica.IdPlanEstudioBasico = planestudios.IdPlanEstudio
+                WHERE InfoAcademica.IdPersonal = ?
+            )
+
+            UNION ALL
+
+            (
+                -- ===== DIVERSIFICADO =====
+                SELECT
+                    'Diversificado' AS Nivel,
+                    EstadosEducacion.DescripcionEstado AS Estado,
+                    GradosAcademicos.GradoAcademico,
+                    planestudios.Plan,
+                    NULL AS Carrera,
+                    NULL AS Universidad,
+                    NULL AS Semestre,
+                    NULL AS Maestria
+                FROM InfoAcademica
+                INNER JOIN EstadosEducacion
+                    ON InfoAcademica.EstadoDiversificado = EstadosEducacion.IdEstadoEducacion
+                LEFT JOIN GradosAcademicos
+                    ON InfoAcademica.IdNivelAcademicoDiversificado = GradosAcademicos.IdGrado
+                LEFT JOIN planestudios
+                    ON InfoAcademica.IdPlanEstudioDiversificado = planestudios.IdPlanEstudio
+                WHERE InfoAcademica.IdPersonal = ?
+            )
+
+            UNION ALL
+
+            (
+                -- ===== UNIVERSIDAD =====
+                SELECT
+                    'Universidad' AS Nivel,
+                    EstadosEducacion.DescripcionEstado AS Estado,
+                    semestres.Semestre AS GradoAcademico,
+                    planestudios.Plan,
+                    CarrerasUniversitarias.NombreCarrera AS Carrera,
+                    Universidades.NombreUniversidad AS Universidad,
+                    semestres.Semestre,
+                    NULL AS Maestria
+                FROM InfoAcademica
+                INNER JOIN EstadosEducacion
+                    ON InfoAcademica.EstadoUniversidad = EstadosEducacion.IdEstadoEducacion
+                LEFT JOIN CarrerasUniversitarias
+                    ON InfoAcademica.IdCarreraUniversitaria = CarrerasUniversitarias.IdCarreraUniversitaria
+                LEFT JOIN planestudios
+                    ON InfoAcademica.IdPlanEstudioUniversitario = planestudios.IdPlanEstudio
+                LEFT JOIN Universidades
+                    ON InfoAcademica.IdUniversidad = Universidades.IdUniversidad
+                LEFT JOIN semestres
+                    ON InfoAcademica.IdNivelAcademicoUnivesitario = semestres.Id_semestre
+                WHERE InfoAcademica.IdPersonal = ?
+            )
+
+            UNION ALL
+
+            (
+                -- ===== MAESTRÍA =====
+                SELECT
+                    'Maestría' AS Nivel,
+                    EstadosEducacion.DescripcionEstado AS Estado,
+                    semestres.Semestre AS GradoAcademico,
+                    planestudios.Plan,
+                    NULL AS Carrera,
+                    Universidades.NombreUniversidad,
+                    semestres.Semestre,
+                    Maestrias.NombreMaestria
+                FROM InfoAcademica
+                INNER JOIN EstadosEducacion
+                    ON InfoAcademica.EstadoMaestria = EstadosEducacion.IdEstadoEducacion
+                LEFT JOIN Maestrias
+                    ON InfoAcademica.IdMaestria = Maestrias.IdMaestria
+                LEFT JOIN Universidades
+                    ON InfoAcademica.IdUniversidadMaestria = Universidades.IdUniversidad
+                LEFT JOIN planestudios
+                    ON InfoAcademica.IdPlanEstudio = planestudios.IdPlanEstudio
+                LEFT JOIN semestres
+                    ON InfoAcademica.IdNivelAcademicoMaestria = semestres.Id_semestre
+                WHERE InfoAcademica.IdPersonal = ?
+            )
+        `;
+
+        const resultados = await connection.query(query, [idPersonal, idPersonal, idPersonal, idPersonal, idPersonal]);
+        await connection.close();
+
+        if (resultados.length === 0) {
+            await Swal.fire({
+                icon: 'info',
+                title: 'Sin información',
+                text: 'No se encontró información académica registrada para este colaborador',
+                confirmButtonColor: '#9C27B0'
+            });
+            return;
+        }
+
+        // Configuración de colores e iconos por nivel
+        const config = {
+            'Primaria': { icono: 'fas fa-child', color: '#e3f2fd', borde: '#2196F3' },
+            'Básico': { icono: 'fas fa-book', color: '#f1f8e9', borde: '#8BC34A' },
+            'Diversificado': { icono: 'fas fa-user-graduate', color: '#fff3e0', borde: '#FF9800' },
+            'Universidad': { icono: 'fas fa-university', color: '#f3e5f5', borde: '#9C27B0' },
+            'Maestría': { icono: 'fas fa-medal', color: '#fce4ec', borde: '#E91E63' }
+        };
+
+        // Procesar cada nivel educativo
+        let educacionBasica = '';
+        let educacionSuperior = '';
+
+        resultados.forEach(nivel => {
+            const cfg = config[nivel.Nivel];
+            if (!cfg) return;
+
+            let html = `
+                <div style="background: ${cfg.color}; padding: 12px; border-radius: 8px; margin-bottom: 10px; border-left: 3px solid ${cfg.borde};">
+                    <p style="margin: 0 0 8px 0; color: #555; font-size: 0.95rem; font-weight: 600;">
+                        <i class="${cfg.icono}"></i> ${nivel.Nivel}
+                    </p>
+            `;
+
+            // Estado
+            if (nivel.Estado) {
+                html += `
+                    <div style="margin-bottom: 6px;">
+                        <span style="background: #fff; padding: 4px 10px; border-radius: 12px; font-size: 0.75rem; color: #666; font-weight: 500; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+                            ${nivel.Estado}
+                        </span>
+                    </div>
+                `;
+            }
+
+            // Universidad (solo para Universidad y Maestría)
+            if (nivel.Universidad) {
+                html += `<p style="margin: 4px 0; font-size: 0.8rem; color: #555;"><i class="fas fa-building" style="color: #999; font-size: 0.7rem; margin-right: 5px;"></i><strong>Universidad:</strong> ${nivel.Universidad}</p>`;
+            }
+
+            // Carrera (solo para Universidad)
+            if (nivel.Carrera) {
+                html += `<p style="margin: 4px 0; font-size: 0.8rem; color: #555;"><i class="fas fa-user-graduate" style="color: #999; font-size: 0.7rem; margin-right: 5px;"></i><strong>Carrera:</strong> ${nivel.Carrera}</p>`;
+            }
+
+            // Maestría (solo para Maestría)
+            if (nivel.Maestria) {
+                html += `<p style="margin: 4px 0; font-size: 0.8rem; color: #555;"><i class="fas fa-award" style="color: #999; font-size: 0.7rem; margin-right: 5px;"></i><strong>Maestría:</strong> ${nivel.Maestria}</p>`;
+            }
+
+            // Grado Académico o Semestre/Trimestre
+            if (nivel.GradoAcademico) {
+                let label = 'Grado';
+                if (nivel.Semestre) {
+                    label = nivel.Nivel === 'Maestría' ? 'Trimestre' : 'Semestre';
+                }
+                html += `<p style="margin: 4px 0; font-size: 0.8rem; color: #555;"><i class="fas fa-graduation-cap" style="color: #999; font-size: 0.7rem; margin-right: 5px;"></i><strong>${label}:</strong> ${nivel.GradoAcademico}</p>`;
+            }
+
+            // Plan
+            if (nivel.Plan) {
+                html += `<p style="margin: 4px 0; font-size: 0.8rem; color: #555;"><i class="fas fa-book-open" style="color: #999; font-size: 0.7rem; margin-right: 5px;"></i><strong>Plan:</strong> ${nivel.Plan}</p>`;
+            }
+
+            html += `</div>`;
+
+            // Agrupar por tipo de educación
+            if (nivel.Nivel === 'Primaria' || nivel.Nivel === 'Básico' || nivel.Nivel === 'Diversificado') {
+                educacionBasica += html;
+            } else {
+                educacionSuperior += html;
+            }
+        });
+
+        const hayInformacion = educacionBasica || educacionSuperior;
+
+        await Swal.fire({
+            title: '<i class="fas fa-graduation-cap"></i> Información Académica',
+            html: `
+                <div style="text-align: center;">
+                    <h3 style="color: #9C27B0; margin-bottom: 20px; font-size: 1.3rem;">${persona.NombreCompleto}</h3>
+
+                    <div style="background: #f9f9f9; padding: 20px; border-radius: 10px; text-align: left; max-height: 450px; overflow-y: auto;">
+                        ${hayInformacion ? `
+                            ${educacionBasica ? `
+                                <div style="margin-bottom: 20px;">
+                                    <p style="margin: 0 0 12px 0; color: #9C27B0; font-weight: 600; font-size: 0.95rem; border-bottom: 2px solid #9C27B0; padding-bottom: 5px;">
+                                        <i class="fas fa-school"></i> Educación Básica
+                                    </p>
+                                    ${educacionBasica}
+                                </div>
+                            ` : ''}
+
+                            ${educacionSuperior ? `
+                                <div>
+                                    <p style="margin: 0 0 12px 0; color: #9C27B0; font-weight: 600; font-size: 0.95rem; border-bottom: 2px solid #9C27B0; padding-bottom: 5px;">
+                                        <i class="fas fa-university"></i> Educación Superior
+                                    </p>
+                                    ${educacionSuperior}
+                                </div>
+                            ` : ''}
+                        ` : `
+                            <div style="background: #f3e5f5; padding: 20px; border-radius: 8px; border-left: 3px solid #9C27B0; text-align: center;">
+                                <i class="fas fa-info-circle" style="font-size: 2rem; color: #9C27B0; margin-bottom: 10px;"></i>
+                                <p style="margin: 0; color: #666; font-size: 0.9rem;">
+                                    No hay información académica registrada para este colaborador
+                                </p>
+                            </div>
+                        `}
+                    </div>
+                </div>
+            `,
+            width: '650px',
+            confirmButtonText: 'Cerrar',
+            confirmButtonColor: '#9C27B0'
+        });
+
+    } catch (error) {
+        console.error('Error al ver información académica:', error);
+        await Swal.fire({
+            icon: 'error',
+            title: 'Error',
+            text: 'No se pudo cargar la información académica',
+            confirmButtonColor: '#9C27B0'
+        });
+    }
+}
+
+// ==================== INFORMACIÓN PMA ====================
+async function verInfoPMA(idPersonal) {
+    try {
+        const persona = todosLosResultados.find(p => p.IdPersonal === idPersonal);
+
+        if (!persona) {
+            await Swal.fire({
+                icon: 'error',
+                title: 'Error',
+                text: 'No se encontró la información del colaborador',
+                confirmButtonColor: '#4CAF50'
+            });
+            return;
+        }
+
+        // Obtener evaluaciones PMA de la base de datos
+        const connection = await connectionString();
+        const query = `
+            SELECT
+                ResultadosPMA.FactorV,
+                ResultadosPMA.FactorE,
+                ResultadosPMA.FactorR,
+                ResultadosPMA.FactorN,
+                ResultadosPMA.FactorF,
+                personal.PrimerNombre,
+                personal.SegundoNombre,
+                personal.TercerNombre,
+                personal.PrimerApellido,
+                personal.SegundoApellido,
+                ResultadosPMA.FechaHoraRegistro
+            FROM
+                ResultadosPMA
+                INNER JOIN
+                personal
+                ON
+                    ResultadosPMA.IdUsuarioEvaluo = personal.IdPersonal
+            WHERE
+                ResultadosPMA.IdPersonal = ?
+            ORDER BY ResultadosPMA.FechaHoraRegistro DESC
+        `;
+
+        const resultados = await connection.query(query, [idPersonal]);
+        await connection.close();
+
+        // Construir HTML de evaluaciones
+        let evaluacionesHTML = '';
+
+        if (resultados.length === 0) {
+            evaluacionesHTML = `
+                <div style="background: #e8f5e9; padding: 20px; border-radius: 8px; border-left: 3px solid #4CAF50; text-align: center;">
+                    <i class="fas fa-info-circle" style="font-size: 2rem; color: #4CAF50; margin-bottom: 10px;"></i>
+                    <p style="margin: 0; color: #666; font-size: 0.9rem;">
+                        No hay evaluaciones PMA registradas para este colaborador
+                    </p>
+                </div>
+            `;
+        } else {
+            resultados.forEach((evaluacion, index) => {
+                const nombreEvaluador = `${evaluacion.PrimerNombre} ${evaluacion.SegundoNombre || ''} ${evaluacion.TercerNombre || ''} ${evaluacion.PrimerApellido} ${evaluacion.SegundoApellido || ''}`.trim().replace(/\s+/g, ' ');
+
+                const fecha = evaluacion.FechaHoraRegistro ?
+                    new Date(evaluacion.FechaHoraRegistro).toLocaleDateString('es-GT', {
+                        year: 'numeric',
+                        month: 'long',
+                        day: 'numeric',
+                        hour: '2-digit',
+                        minute: '2-digit'
+                    }) : 'N/A';
+
+                evaluacionesHTML += `
+                    <div style="background: #ffffff; padding: 15px; border-radius: 8px; margin-bottom: 15px; border: 2px solid #4CAF50; box-shadow: 0 2px 8px rgba(76, 175, 80, 0.15);">
+                        <!-- Header de la evaluación -->
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; padding-bottom: 10px; border-bottom: 2px solid #e8f5e9;">
+                            <div>
+                                <p style="margin: 0; color: #4CAF50; font-weight: 700; font-size: 0.9rem;">
+                                    <i class="fas fa-clipboard-check"></i> Evaluación #${resultados.length - index}
+                                </p>
+                                <p style="margin: 4px 0 0 0; color: #666; font-size: 0.75rem;">
+                                    <i class="fas fa-calendar-alt"></i> ${fecha}
+                                </p>
+                            </div>
+                            <div style="text-align: right;">
+                                <p style="margin: 0; color: #777; font-size: 0.7rem;">Evaluado por:</p>
+                                <p style="margin: 2px 0 0 0; color: #333; font-weight: 600; font-size: 0.8rem;">
+                                    <i class="fas fa-user-tie"></i> ${nombreEvaluador}
+                                </p>
+                            </div>
+                        </div>
+
+                        <!-- Factores PMA -->
+                        <div style="display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px;">
+                            <div style="background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%); padding: 10px; border-radius: 6px; text-align: center; border: 1px solid #2196F3;">
+                                <p style="margin: 0; color: #1976D2; font-size: 0.7rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">Factor V</p>
+                                <p style="margin: 5px 0 0 0; color: #0d47a1; font-size: 1.4rem; font-weight: 700;">${evaluacion.FactorV !== null ? evaluacion.FactorV : '-'}</p>
+                            </div>
+                            <div style="background: linear-gradient(135deg, #f3e5f5 0%, #e1bee7 100%); padding: 10px; border-radius: 6px; text-align: center; border: 1px solid #9C27B0;">
+                                <p style="margin: 0; color: #7B1FA2; font-size: 0.7rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">Factor E</p>
+                                <p style="margin: 5px 0 0 0; color: #4a148c; font-size: 1.4rem; font-weight: 700;">${evaluacion.FactorE !== null ? evaluacion.FactorE : '-'}</p>
+                            </div>
+                            <div style="background: linear-gradient(135deg, #fff3e0 0%, #ffe0b2 100%); padding: 10px; border-radius: 6px; text-align: center; border: 1px solid #FF9800;">
+                                <p style="margin: 0; color: #F57C00; font-size: 0.7rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">Factor R</p>
+                                <p style="margin: 5px 0 0 0; color: #e65100; font-size: 1.4rem; font-weight: 700;">${evaluacion.FactorR !== null ? evaluacion.FactorR : '-'}</p>
+                            </div>
+                            <div style="background: linear-gradient(135deg, #fce4ec 0%, #f8bbd0 100%); padding: 10px; border-radius: 6px; text-align: center; border: 1px solid #E91E63;">
+                                <p style="margin: 0; color: #C2185B; font-size: 0.7rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">Factor N</p>
+                                <p style="margin: 5px 0 0 0; color: #880e4f; font-size: 1.4rem; font-weight: 700;">${evaluacion.FactorN !== null ? evaluacion.FactorN : '-'}</p>
+                            </div>
+                            <div style="background: linear-gradient(135deg, #e8f5e9 0%, #c8e6c9 100%); padding: 10px; border-radius: 6px; text-align: center; border: 1px solid #4CAF50;">
+                                <p style="margin: 0; color: #388E3C; font-size: 0.7rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">Factor F</p>
+                                <p style="margin: 5px 0 0 0; color: #1b5e20; font-size: 1.4rem; font-weight: 700;">${evaluacion.FactorF !== null ? evaluacion.FactorF : '-'}</p>
+                            </div>
+                        </div>
+
+                        <!-- Promedio -->
+                        ${(() => {
+                            const suma = (evaluacion.FactorV || 0) + (evaluacion.FactorE || 0) + (evaluacion.FactorR || 0) + (evaluacion.FactorN || 0) + (evaluacion.FactorF || 0);
+                            const promedio = (suma / 5).toFixed(2);
+                            return `
+                                <div style="background: linear-gradient(135deg, #fff9e6 0%, #ffecb3 100%); padding: 12px; border-radius: 8px; margin-top: 12px; border: 2px solid #FFC107; text-align: center;">
+                                    <p style="margin: 0; color: #F57F17; font-size: 0.75rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">
+                                        <i class="fas fa-calculator"></i> Promedio
+                                    </p>
+                                    <p style="margin: 5px 0 0 0; color: #E65100; font-size: 1.8rem; font-weight: 700;">${promedio}</p>
+                                    <p style="margin: 3px 0 0 0; color: #666; font-size: 0.7rem;">(Suma: ${suma} / 100)</p>
+                                </div>
+                            `;
+                        })()}
+                    </div>
+                `;
+            });
+        }
+
+        await Swal.fire({
+            title: '<i class="fas fa-chart-line"></i> Evaluaciones PMA',
+            html: `
+                <div style="text-align: center;">
+                    <h3 style="color: #4CAF50; margin-bottom: 20px; font-size: 1.3rem;">${persona.NombreCompleto}</h3>
+
+                    <div style="background: #f9f9f9; padding: 20px; border-radius: 10px; text-align: left; max-height: 500px; overflow-y: auto;">
+                        ${resultados.length > 0 ? `
+                            <div style="margin-bottom: 15px; text-align: center;">
+                                <p style="margin: 0; color: #4CAF50; font-weight: 600; font-size: 0.9rem;">
+                                    <i class="fas fa-clipboard-list"></i> Total de evaluaciones: ${resultados.length}
+                                </p>
+                            </div>
+                        ` : ''}
+                        ${evaluacionesHTML}
+                    </div>
+                </div>
+            `,
+            width: '700px',
+            confirmButtonText: 'Cerrar',
+            confirmButtonColor: '#4CAF50'
+        });
+
+    } catch (error) {
+        console.error('Error al ver información PMA:', error);
+        await Swal.fire({
+            icon: 'error',
+            title: 'Error',
+            text: 'No se pudo cargar la información PMA',
+            confirmButtonColor: '#4CAF50'
+        });
+    }
+}
+
+// ==================== INFORMACIÓN DOCUMENTACIÓN ====================
+async function verInfoDocumentacion(idPersonal) {
+    try {
+        const persona = todosLosResultados.find(p => p.IdPersonal === idPersonal);
+
+        if (!persona) {
+            await Swal.fire({
+                icon: 'error',
+                title: 'Error',
+                text: 'No se encontró la información del colaborador',
+                confirmButtonColor: '#607D8B'
+            });
+            return;
+        }
+
+        // Obtener información de documentación de la base de datos
+        const connection = await connectionString();
+        const query = `
+            SELECT
+                tipolicencias.TipoLicencia,
+                personal.NIT,
+                personal.FechaVencimientoTS,
+                personal.FechaVencimientoTM,
+                personal.IGSS,
+                personal.IRTRA
+            FROM
+                personal
+                LEFT JOIN
+                tipolicencias
+                ON
+                    personal.IdLicencia = tipolicencias.IdLicencia
+            WHERE personal.IdPersonal = ?
+        `;
+
+        const resultados = await connection.query(query, [idPersonal]);
+        await connection.close();
+
+        if (resultados.length === 0) {
+            await Swal.fire({
+                icon: 'warning',
+                title: 'Sin datos',
+                text: 'No se encontró información de documentación para este colaborador',
+                confirmButtonColor: '#607D8B'
+            });
+            return;
+        }
+
+        const infoDoc = resultados[0];
+
+        // Formatear fechas de vencimiento
+        const fechaVencimientoTS = infoDoc.FechaVencimientoTS ?
+            new Date(infoDoc.FechaVencimientoTS + 'T00:00:00').toLocaleDateString('es-GT', {
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric'
+            }) : 'N/A';
+
+        const fechaVencimientoTM = infoDoc.FechaVencimientoTM ?
+            new Date(infoDoc.FechaVencimientoTM + 'T00:00:00').toLocaleDateString('es-GT', {
+                year: 'numeric',
+                month: 'long',
+                day: 'numeric'
+            }) : 'N/A';
+
+        // Calcular si está vencido o próximo a vencer
+        const calcularEstadoVencimiento = (fecha) => {
+            if (!fecha || fecha === 'N/A') return { estado: 'sin-fecha', texto: 'Sin fecha', color: '#999', icon: 'fa-minus-circle' };
+
+            const fechaVenc = new Date(fecha);
+            const hoy = new Date();
+            const diferenciaDias = Math.ceil((fechaVenc - hoy) / (1000 * 60 * 60 * 24));
+
+            if (diferenciaDias < 0) {
+                return { estado: 'vencido', texto: 'VENCIDO', color: '#f44336', icon: 'fa-times-circle' };
+            } else if (diferenciaDias <= 30) {
+                return { estado: 'proximo', texto: `Vence en ${diferenciaDias} días`, color: '#FF9800', icon: 'fa-exclamation-triangle' };
+            } else {
+                return { estado: 'vigente', texto: 'Vigente', color: '#4CAF50', icon: 'fa-check-circle' };
+            }
+        };
+
+        const estadoTS = calcularEstadoVencimiento(infoDoc.FechaVencimientoTS);
+        const estadoTM = calcularEstadoVencimiento(infoDoc.FechaVencimientoTM);
+
+        await Swal.fire({
+            title: '<i class="fas fa-file-alt"></i> Documentación',
+            html: `
+                <div style="text-align: center;">
+                    <h3 style="color: #607D8B; margin-bottom: 20px; font-size: 1.3rem;">${persona.NombreCompleto}</h3>
+
+                    <div style="background: #f9f9f9; padding: 20px; border-radius: 10px; text-align: left;">
+                        <!-- Tipo de Licencia -->
+                        <div style="background: #ffffff; padding: 15px; border-radius: 8px; margin-bottom: 15px; border-left: 4px solid #607D8B; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+                            <p style="margin: 0; color: #777; font-size: 0.85rem;">
+                                <i class="fas fa-id-card"></i> Tipo de Licencia
+                            </p>
+                            <p style="margin: 5px 0 0 0; font-weight: 600; color: #333; font-size: 1.1rem;">
+                                ${infoDoc.TipoLicencia || 'N/A'}
+                            </p>
+                        </div>
+
+                        <!-- NIT -->
+                        <div style="background: #ffffff; padding: 15px; border-radius: 8px; margin-bottom: 15px; border-left: 4px solid #2196F3; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+                            <p style="margin: 0; color: #777; font-size: 0.85rem;">
+                                <i class="fas fa-file-invoice"></i> NIT
+                            </p>
+                            <p style="margin: 5px 0 0 0; font-weight: 600; color: #333; font-size: 1.1rem;">
+                                ${infoDoc.NIT || 'N/A'}
+                            </p>
+                        </div>
+
+                        <!-- IGSS -->
+                        <div style="background: #ffffff; padding: 15px; border-radius: 8px; margin-bottom: 15px; border-left: 4px solid #4CAF50; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+                            <p style="margin: 0; color: #777; font-size: 0.85rem;">
+                                <i class="fas fa-hospital"></i> IGSS
+                            </p>
+                            <p style="margin: 5px 0 0 0; font-weight: 600; color: #333; font-size: 1.1rem;">
+                                ${infoDoc.IGSS || 'N/A'}
+                            </p>
+                        </div>
+
+                        <!-- IRTRA -->
+                        <div style="background: #ffffff; padding: 15px; border-radius: 8px; margin-bottom: 15px; border-left: 4px solid #9C27B0; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+                            <p style="margin: 0; color: #777; font-size: 0.85rem;">
+                                <i class="fas fa-building"></i> IRTRA
+                            </p>
+                            <p style="margin: 5px 0 0 0; font-weight: 600; color: #333; font-size: 1.1rem;">
+                                ${infoDoc.IRTRA || 'N/A'}
+                            </p>
+                        </div>
+
+                        <!-- Tarjeta de Salud -->
+                        <div style="background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%); padding: 15px; border-radius: 8px; margin-bottom: 15px; border: 2px solid #2196F3; box-shadow: 0 2px 8px rgba(33, 150, 243, 0.2);">
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                                <p style="margin: 0; color: #1976D2; font-size: 0.9rem; font-weight: 600;">
+                                    <i class="fas fa-notes-medical"></i> Tarjeta de Salud
+                                </p>
+                                <span style="background: ${estadoTS.color}; color: white; padding: 4px 12px; border-radius: 12px; font-size: 0.75rem; font-weight: 600;">
+                                    <i class="fas ${estadoTS.icon}"></i> ${estadoTS.texto}
+                                </span>
+                            </div>
+                            <p style="margin: 0; color: #555; font-size: 0.8rem;">Fecha de Vencimiento</p>
+                            <p style="margin: 5px 0 0 0; font-weight: 600; color: #0d47a1; font-size: 1rem;">
+                                ${fechaVencimientoTS}
+                            </p>
+                        </div>
+
+                        <!-- Tarjeta de Manipulación -->
+                        <div style="background: linear-gradient(135deg, #fff3e0 0%, #ffe0b2 100%); padding: 15px; border-radius: 8px; border: 2px solid #FF9800; box-shadow: 0 2px 8px rgba(255, 152, 0, 0.2);">
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                                <p style="margin: 0; color: #F57C00; font-size: 0.9rem; font-weight: 600;">
+                                    <i class="fas fa-hands-wash"></i> Tarjeta de Manipulación
+                                </p>
+                                <span style="background: ${estadoTM.color}; color: white; padding: 4px 12px; border-radius: 12px; font-size: 0.75rem; font-weight: 600;">
+                                    <i class="fas ${estadoTM.icon}"></i> ${estadoTM.texto}
+                                </span>
+                            </div>
+                            <p style="margin: 0; color: #555; font-size: 0.8rem;">Fecha de Vencimiento</p>
+                            <p style="margin: 5px 0 0 0; font-weight: 600; color: #e65100; font-size: 1rem;">
+                                ${fechaVencimientoTM}
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            `,
+            width: '600px',
+            confirmButtonText: 'Cerrar',
+            confirmButtonColor: '#607D8B'
+        });
+
+    } catch (error) {
+        console.error('Error al ver información de documentación:', error);
+        await Swal.fire({
+            icon: 'error',
+            title: 'Error',
+            text: 'No se pudo cargar la información de documentación',
+            confirmButtonColor: '#607D8B'
+        });
+    }
+}
+
+// ==================== EXPORTAR A EXCEL ====================
+async function exportarExcel() {
+    if (todosLosResultados.length === 0) {
+        await Swal.fire({
+            icon: 'warning',
+            title: 'Sin datos',
+            text: 'No hay datos para exportar',
+            confirmButtonColor: '#FF9800'
+        });
+        return;
+    }
+
+    try {
+        // Mostrar mensaje de progreso
+        Swal.fire({
+            title: 'Exportando...',
+            html: 'Recopilando información de <b>0</b> de <b>' + todosLosResultados.length + '</b> colaboradores',
+            allowOutsideClick: false,
+            didOpen: () => {
+                Swal.showLoading();
+            }
+        });
+
+        const XLSX = require('xlsx');
+        const connection = await connectionString();
+
+        // Arrays para almacenar datos de cada hoja
+        const datosPersonal = [];
+        const datosLaboral = [];
+        const datosAcademica = [];
+        const datosPMA = [];
+
+        // Encabezados para cada hoja
+        datosPersonal.push(['ID', 'Nombre Completo', 'DPI', 'Fecha Nacimiento', 'Edad', 'Sexo', 'Tipo Sangre', 'Estado Civil', 'Hijos', 'Lugar Origen', 'Dirección', 'Teléfono 1', 'Teléfono 2', 'Contacto Emergencia', 'Teléfono Emergencia', 'Parentesco']);
+        datosLaboral.push(['ID', 'Nombre Completo', 'Departamento', 'Región', 'Puesto', 'Tipo Personal', 'Inicio Laboral', 'Tiempo Laborado', 'Fecha Contrato', 'Planilla', 'Fecha Planilla', 'Estado']);
+        datosAcademica.push(['ID', 'Nombre Completo', 'Nivel', 'Estado', 'Grado/Semestre', 'Plan', 'Carrera', 'Universidad', 'Maestría']);
+        datosPMA.push(['ID', 'Nombre Completo', 'Evaluación #', 'Fecha', 'Evaluado Por', 'Factor V', 'Factor E', 'Factor R', 'Factor N', 'Factor F', 'Suma Total', 'Promedio']);
+
+        // Procesar cada colaborador
+        for (let i = 0; i < todosLosResultados.length; i++) {
+            const persona = todosLosResultados[i];
+
+            // Actualizar progreso
+            Swal.update({
+                html: 'Recopilando información de <b>' + (i + 1) + '</b> de <b>' + todosLosResultados.length + '</b> colaboradores'
+            });
+
+            // ===== HOJA 1: INFORMACIÓN PERSONAL =====
+            try {
+                const queryPersonal = `
+                    SELECT
+                        personal.DPI,
+                        departamentosguatemala.NombreDepartamento,
+                        municipios.NombreMunicipio,
+                        estadocivil.EstadoCivil,
+                        TipoSangre.TipoSangre,
+                        personal.Hijos,
+                        personal.Sexo,
+                        personal.DireccionRecidencia,
+                        personal.Telefono1,
+                        personal.Telefono2,
+                        personal.NombreContactoEmergencia,
+                        personal.TelefonoContactoEmergencia,
+                        parentesco.Parentesco
+                    FROM personal
+                    INNER JOIN departamentosguatemala ON personal.IdDepartamentoOrigen = departamentosguatemala.IdDepartamentoG
+                    INNER JOIN municipios ON personal.IdMunicipioOrigen = municipios.IdMunicipio
+                    INNER JOIN estadocivil ON personal.IdEstadoCivil = estadocivil.IdCivil
+                    INNER JOIN TipoSangre ON personal.IdTipoSangre = TipoSangre.IdSangre
+                    INNER JOIN parentesco ON personal.IdParentesco = parentesco.IdParentesco
+                    WHERE personal.IdPersonal = ?
+                `;
+
+                const infoPer = await connection.query(queryPersonal, [persona.IdPersonal]);
+
+                if (infoPer.length > 0) {
+                    const ip = infoPer[0];
+                    const fechaNac = persona.FechaNacimiento ? formatearFecha(persona.FechaNacimiento) : 'N/A';
+                    const edad = persona.FechaNacimiento ? calcularEdad(persona.FechaNacimiento) : 'N/A';
+                    const lugarOrigen = (ip.NombreMunicipio || '') + ', ' + (ip.NombreDepartamento || '');
+
+                    datosPersonal.push([
+                        persona.IdPersonal,
+                        persona.NombreCompleto,
+                        ip.DPI || 'N/A',
+                        fechaNac,
+                        edad,
+                        ip.Sexo || 'N/A',
+                        ip.TipoSangre || 'N/A',
+                        ip.EstadoCivil || 'N/A',
+                        ip.Hijos !== null ? ip.Hijos : 'N/A',
+                        lugarOrigen,
+                        ip.DireccionRecidencia || 'N/A',
+                        ip.Telefono1 || 'N/A',
+                        ip.Telefono2 || 'N/A',
+                        ip.NombreContactoEmergencia || 'N/A',
+                        ip.TelefonoContactoEmergencia || 'N/A',
+                        ip.Parentesco || 'N/A'
+                    ]);
+                }
+            } catch (error) {
+                console.error('Error al obtener info personal:', error);
+            }
+
+            // ===== HOJA 2: INFORMACIÓN LABORAL =====
+            try {
+                const queryLaboral = `
+                    SELECT
+                        departamentos.NombreDepartamento,
+                        Regiones.NombreRegion,
+                        Puestos.Nombre AS NombrePuesto,
+                        personal.InicioLaboral,
+                        TipoPersonal.TipoPersonal,
+                        personal.FechaContrato,
+                        planillas.Nombre_Planilla,
+                        personal.FechaPlanilla
+                    FROM personal
+                    INNER JOIN departamentos ON personal.IdSucuDepa = departamentos.IdDepartamento
+                    INNER JOIN Regiones ON departamentos.IdRegion = Regiones.IdRegion
+                    INNER JOIN Puestos ON personal.IdPuesto = Puestos.IdPuesto
+                    INNER JOIN TipoPersonal ON personal.TipoPersonal = TipoPersonal.IdTipo
+                    LEFT JOIN planillas ON personal.IdPlanilla = planillas.IdPlanilla
+                    WHERE personal.IdPersonal = ?
+                `;
+
+                const infoLab = await connection.query(queryLaboral, [persona.IdPersonal]);
+
+                if (infoLab.length > 0) {
+                    const il = infoLab[0];
+                    const inicioLab = il.InicioLaboral ? formatearFecha(il.InicioLaboral) : 'N/A';
+                    const tiempoLab = il.InicioLaboral ? calcularTiempoLaborado(il.InicioLaboral) : 'N/A';
+                    const fechaCont = il.FechaContrato ? formatearFecha(il.FechaContrato) : 'N/A';
+                    const fechaPlan = il.FechaPlanilla ? formatearFecha(il.FechaPlanilla) : 'N/A';
+
+                    datosLaboral.push([
+                        persona.IdPersonal,
+                        persona.NombreCompleto,
+                        il.NombreDepartamento || 'N/A',
+                        il.NombreRegion || 'N/A',
+                        il.NombrePuesto || 'N/A',
+                        il.TipoPersonal || 'N/A',
+                        inicioLab,
+                        tiempoLab,
+                        fechaCont,
+                        il.Nombre_Planilla || 'No asignado',
+                        fechaPlan,
+                        persona.EstadoPersonal
+                    ]);
+                }
+            } catch (error) {
+                console.error('Error al obtener info laboral:', error);
+            }
+
+            // ===== INFORMACIÓN ACADÉMICA =====
+            try {
+                const queryAcademica = `
+                    (
+                        SELECT 'Primaria' AS Nivel, EstadosEducacion.DescripcionEstado AS Estado,
+                            GradosAcademicos.GradoAcademico, planestudios.Plan,
+                            NULL AS Carrera, NULL AS Universidad, NULL AS Semestre, NULL AS Maestria
+                        FROM InfoAcademica
+                        INNER JOIN EstadosEducacion ON InfoAcademica.EstadoPrimaria = EstadosEducacion.IdEstadoEducacion
+                        LEFT JOIN GradosAcademicos ON InfoAcademica.IdNivelAcademicoPrimaria = GradosAcademicos.IdGrado
+                        LEFT JOIN planestudios ON InfoAcademica.IdPlanEstudioPrimaria = planestudios.IdPlanEstudio
+                        WHERE InfoAcademica.IdPersonal = ?
+                    )
+                    UNION ALL
+                    (
+                        SELECT 'Básico' AS Nivel, EstadosEducacion.DescripcionEstado AS Estado,
+                            GradosAcademicos.GradoAcademico, planestudios.Plan,
+                            NULL AS Carrera, NULL AS Universidad, NULL AS Semestre, NULL AS Maestria
+                        FROM InfoAcademica
+                        INNER JOIN EstadosEducacion ON InfoAcademica.EstadoBasico = EstadosEducacion.IdEstadoEducacion
+                        LEFT JOIN GradosAcademicos ON InfoAcademica.IdNivelAcademicoBasico = GradosAcademicos.IdGrado
+                        LEFT JOIN planestudios ON InfoAcademica.IdPlanEstudioBasico = planestudios.IdPlanEstudio
+                        WHERE InfoAcademica.IdPersonal = ?
+                    )
+                    UNION ALL
+                    (
+                        SELECT 'Diversificado' AS Nivel, EstadosEducacion.DescripcionEstado AS Estado,
+                            GradosAcademicos.GradoAcademico, planestudios.Plan,
+                            NULL AS Carrera, NULL AS Universidad, NULL AS Semestre, NULL AS Maestria
+                        FROM InfoAcademica
+                        INNER JOIN EstadosEducacion ON InfoAcademica.EstadoDiversificado = EstadosEducacion.IdEstadoEducacion
+                        LEFT JOIN GradosAcademicos ON InfoAcademica.IdNivelAcademicoDiversificado = GradosAcademicos.IdGrado
+                        LEFT JOIN planestudios ON InfoAcademica.IdPlanEstudioDiversificado = planestudios.IdPlanEstudio
+                        WHERE InfoAcademica.IdPersonal = ?
+                    )
+                    UNION ALL
+                    (
+                        SELECT 'Universidad' AS Nivel, EstadosEducacion.DescripcionEstado AS Estado,
+                            semestres.Semestre AS GradoAcademico, planestudios.Plan,
+                            CarrerasUniversitarias.NombreCarrera AS Carrera,
+                            Universidades.NombreUniversidad AS Universidad,
+                            semestres.Semestre, NULL AS Maestria
+                        FROM InfoAcademica
+                        INNER JOIN EstadosEducacion ON InfoAcademica.EstadoUniversidad = EstadosEducacion.IdEstadoEducacion
+                        LEFT JOIN CarrerasUniversitarias ON InfoAcademica.IdCarreraUniversitaria = CarrerasUniversitarias.IdCarreraUniversitaria
+                        LEFT JOIN planestudios ON InfoAcademica.IdPlanEstudioUniversitario = planestudios.IdPlanEstudio
+                        LEFT JOIN Universidades ON InfoAcademica.IdUniversidad = Universidades.IdUniversidad
+                        LEFT JOIN semestres ON InfoAcademica.IdNivelAcademicoUnivesitario = semestres.Id_semestre
+                        WHERE InfoAcademica.IdPersonal = ?
+                    )
+                    UNION ALL
+                    (
+                        SELECT 'Maestría' AS Nivel, EstadosEducacion.DescripcionEstado AS Estado,
+                            semestres.Semestre AS GradoAcademico, planestudios.Plan,
+                            NULL AS Carrera, Universidades.NombreUniversidad,
+                            semestres.Semestre, Maestrias.NombreMaestria
+                        FROM InfoAcademica
+                        INNER JOIN EstadosEducacion ON InfoAcademica.EstadoMaestria = EstadosEducacion.IdEstadoEducacion
+                        LEFT JOIN Maestrias ON InfoAcademica.IdMaestria = Maestrias.IdMaestria
+                        LEFT JOIN Universidades ON InfoAcademica.IdUniversidadMaestria = Universidades.IdUniversidad
+                        LEFT JOIN planestudios ON InfoAcademica.IdPlanEstudio = planestudios.IdPlanEstudio
+                        LEFT JOIN semestres ON InfoAcademica.IdNivelAcademicoMaestria = semestres.Id_semestre
+                        WHERE InfoAcademica.IdPersonal = ?
+                    )
+                `;
+
+                const infoAcad = await connection.query(queryAcademica, [persona.IdPersonal, persona.IdPersonal, persona.IdPersonal, persona.IdPersonal, persona.IdPersonal]);
+
+                if (infoAcad.length > 0) {
+                    infoAcad.forEach(nivel => {
+                        datosAcademica.push([
+                            persona.IdPersonal,
+                            persona.NombreCompleto,
+                            nivel.Nivel || 'N/A',
+                            nivel.Estado || 'N/A',
+                            nivel.GradoAcademico || 'N/A',
+                            nivel.Plan || 'N/A',
+                            nivel.Carrera || 'N/A',
+                            nivel.Universidad || 'N/A',
+                            nivel.Maestria || 'N/A'
+                        ]);
+                    });
+                }
+            } catch (error) {
+                console.error('Error al obtener info académica:', error);
+            }
+
+            // ===== HOJA 4: EVALUACIONES PMA =====
+            try {
+                const queryPMA = `
+                    SELECT
+                        ResultadosPMA.FactorV, ResultadosPMA.FactorE, ResultadosPMA.FactorR,
+                        ResultadosPMA.FactorN, ResultadosPMA.FactorF,
+                        personal.PrimerNombre, personal.SegundoNombre, personal.TercerNombre,
+                        personal.PrimerApellido, personal.SegundoApellido,
+                        ResultadosPMA.FechaHoraRegistro
+                    FROM ResultadosPMA
+                    INNER JOIN personal ON ResultadosPMA.IdUsuarioEvaluo = personal.IdPersonal
+                    WHERE ResultadosPMA.IdPersonal = ?
+                    ORDER BY ResultadosPMA.FechaHoraRegistro DESC
+                `;
+
+                const infoPMA = await connection.query(queryPMA, [persona.IdPersonal]);
+
+                if (infoPMA.length > 0) {
+                    infoPMA.forEach((evaluacion, idx) => {
+                        const nombreEvaluador = `${evaluacion.PrimerNombre} ${evaluacion.SegundoNombre || ''} ${evaluacion.TercerNombre || ''} ${evaluacion.PrimerApellido} ${evaluacion.SegundoApellido || ''}`.trim().replace(/\s+/g, ' ');
+                        const fecha = evaluacion.FechaHoraRegistro ?
+                            new Date(evaluacion.FechaHoraRegistro).toLocaleDateString('es-GT', {
+                                year: 'numeric', month: '2-digit', day: '2-digit',
+                                hour: '2-digit', minute: '2-digit'
+                            }) : 'N/A';
+
+                        const suma = (evaluacion.FactorV || 0) + (evaluacion.FactorE || 0) + (evaluacion.FactorR || 0) + (evaluacion.FactorN || 0) + (evaluacion.FactorF || 0);
+                        const promedio = (suma / 5).toFixed(2);
+
+                        datosPMA.push([
+                            persona.IdPersonal,
+                            persona.NombreCompleto,
+                            infoPMA.length - idx,
+                            fecha,
+                            nombreEvaluador,
+                            evaluacion.FactorV !== null ? evaluacion.FactorV : '-',
+                            evaluacion.FactorE !== null ? evaluacion.FactorE : '-',
+                            evaluacion.FactorR !== null ? evaluacion.FactorR : '-',
+                            evaluacion.FactorN !== null ? evaluacion.FactorN : '-',
+                            evaluacion.FactorF !== null ? evaluacion.FactorF : '-',
+                            suma,
+                            promedio
+                        ]);
+                    });
+                }
+            } catch (error) {
+                console.error('Error al obtener info PMA:', error);
+            }
+        }
+
+        await connection.close();
+
+        // Crear libro de Excel
+        const wb = XLSX.utils.book_new();
+
+        // Crear las 4 hojas
+        const wsPersonal = XLSX.utils.aoa_to_sheet(datosPersonal);
+        const wsLaboral = XLSX.utils.aoa_to_sheet(datosLaboral);
+        const wsAcademica = XLSX.utils.aoa_to_sheet(datosAcademica);
+        const wsPMA = XLSX.utils.aoa_to_sheet(datosPMA);
+
+        // Agregar hojas al libro
+        XLSX.utils.book_append_sheet(wb, wsPersonal, 'Info Personal');
+        XLSX.utils.book_append_sheet(wb, wsLaboral, 'Info Laboral');
+        XLSX.utils.book_append_sheet(wb, wsAcademica, 'Info Académica');
+        XLSX.utils.book_append_sheet(wb, wsPMA, 'Info PMA');
+
+        // Generar nombre de archivo con fecha
+        const fecha = new Date().toISOString().split('T')[0];
+        const nombreArchivo = `Personal_Completo_${fecha}.xlsx`;
+
+        // Guardar archivo usando IPC de Electron
+        const result = await ipcRenderer.invoke('save-excel-dialog', nombreArchivo);
+
+        if (result.canceled) {
+            Swal.close();
+            return;
+        }
+
+        // Escribir el archivo
+        XLSX.writeFile(wb, result.filePath);
+
+        await Swal.fire({
+            icon: 'success',
+            title: '¡Exportado!',
+            html: `El archivo se guardó correctamente<br><small>${todosLosResultados.length} colaboradores exportados en 4 hojas</small>`,
+            confirmButtonColor: '#4CAF50',
+            timer: 3000,
+            timerProgressBar: true
+        });
+
+    } catch (error) {
+        console.error('Error al exportar:', error);
+        await Swal.fire({
+            icon: 'error',
+            title: 'Error al exportar',
+            text: error.message || 'No se pudo exportar el archivo. Verifica que tengas los permisos necesarios.',
+            confirmButtonColor: '#FF9800'
+        });
+    }
+}
+
+// ==================== FUNCIONES AUXILIARES ====================
+function formatearFecha(fecha) {
+    // Crear fecha sin ajuste de zona horaria
+    const date = new Date(fecha + 'T00:00:00');
+    const dia = String(date.getDate()).padStart(2, '0');
+    const mes = String(date.getMonth() + 1).padStart(2, '0');
+    const anio = date.getFullYear();
+    return `${dia}/${mes}/${anio}`;
+}
+
+function formatearFechaHora(fechaHora) {
+    // Formatear fecha y hora completa
+    const date = new Date(fechaHora);
+    const dia = String(date.getDate()).padStart(2, '0');
+    const mes = String(date.getMonth() + 1).padStart(2, '0');
+    const anio = date.getFullYear();
+    const horas = String(date.getHours()).padStart(2, '0');
+    const minutos = String(date.getMinutes()).padStart(2, '0');
+    const segundos = String(date.getSeconds()).padStart(2, '0');
+    return `${dia}/${mes}/${anio} ${horas}:${minutos}:${segundos}`;
+}
+
+function calcularTiempoLaborado(fechaInicio) {
+    const inicio = new Date(fechaInicio + 'T00:00:00');
+    const hoy = new Date();
+
+    let anios = hoy.getFullYear() - inicio.getFullYear();
+    let meses = hoy.getMonth() - inicio.getMonth();
+    let dias = hoy.getDate() - inicio.getDate();
+
+    // Ajustar si los días son negativos
+    if (dias < 0) {
+        meses--;
+        const ultimoDiaMesAnterior = new Date(hoy.getFullYear(), hoy.getMonth(), 0).getDate();
+        dias += ultimoDiaMesAnterior;
+    }
+
+    // Ajustar si los meses son negativos
+    if (meses < 0) {
+        anios--;
+        meses += 12;
+    }
+
+    // Construir string de resultado
+    const partes = [];
+    if (anios > 0) partes.push(`${anios} ${anios === 1 ? 'año' : 'años'}`);
+    if (meses > 0) partes.push(`${meses} ${meses === 1 ? 'mes' : 'meses'}`);
+    if (dias > 0 && anios === 0) partes.push(`${dias} ${dias === 1 ? 'día' : 'días'}`);
+
+    return partes.length > 0 ? partes.join(', ') : '0 días';
+}
+
+function calcularEdad(fechaNacimiento) {
+    const nacimiento = new Date(fechaNacimiento + 'T00:00:00');
+    const hoy = new Date();
+
+    let edad = hoy.getFullYear() - nacimiento.getFullYear();
+    const mes = hoy.getMonth() - nacimiento.getMonth();
+
+    // Ajustar si aún no ha cumplido años este año
+    if (mes < 0 || (mes === 0 && hoy.getDate() < nacimiento.getDate())) {
+        edad--;
+    }
+
+    return edad;
+}
+
+// ==================== GUARDAR Y RESTAURAR ESTADO DE BÚSQUEDA ====================
+function guardarEstadoBusqueda() {
+    try {
+        const estado = {
+            // Filtros aplicados
+            nombreColaborador: document.getElementById('nombreColaborador').value,
+            departamento: document.getElementById('departamento').value,
+            tipoPersonal: document.getElementById('tipoPersonal').value,
+            estadoPersonal: document.getElementById('estadoPersonal').value,
+            // Datos seleccionados
+            departamentoSeleccionado: departamentoSeleccionado,
+            colaboradorSeleccionado: colaboradorSeleccionado,
+            // Resultados de la búsqueda
+            todosLosResultados: todosLosResultados
+        };
+
+        localStorage.setItem('busquedaPersonalEstado', JSON.stringify(estado));
+    } catch (error) {
+        console.error('Error al guardar estado de búsqueda:', error);
+    }
+}
+
+async function restaurarBusqueda(estado) {
+    try {
+        mostrarLoader(true);
+
+        // Restaurar valores de los filtros
+        document.getElementById('nombreColaborador').value = estado.nombreColaborador || '';
+        document.getElementById('departamento').value = estado.departamento || '';
+        document.getElementById('tipoPersonal').value = estado.tipoPersonal || '';
+        document.getElementById('estadoPersonal').value = estado.estadoPersonal || '';
+
+        // Restaurar variables globales
+        departamentoSeleccionado = estado.departamentoSeleccionado;
+        colaboradorSeleccionado = estado.colaboradorSeleccionado;
+        todosLosResultados = estado.todosLosResultados || [];
+
+        // Mostrar tags si aplica
+        if (estado.departamentoSeleccionado) {
+            const departamentoInput = document.getElementById('departamento');
+            const departamentoTag = document.getElementById('departamentoTag');
+            departamentoInput.style.display = 'none';
+            departamentoTag.style.display = 'inline-flex';
+            departamentoTag.querySelector('.tag-text').textContent = estado.departamento;
+        }
+
+        if (estado.colaboradorSeleccionado) {
+            const nombreInput = document.getElementById('nombreColaborador');
+            const nombreTag = document.getElementById('nombreTag');
+            nombreInput.style.display = 'none';
+            nombreTag.style.display = 'inline-flex';
+            nombreTag.querySelector('.tag-text').textContent = estado.nombreColaborador;
+        }
+
+        // Renderizar los resultados guardados
+        if (todosLosResultados.length > 0) {
+            renderizarResultados();
+        } else {
+            mostrarMensajeInicial();
+        }
+
+        mostrarLoader(false);
+    } catch (error) {
+        console.error('Error al restaurar búsqueda:', error);
+        mostrarLoader(false);
+        mostrarMensajeInicial();
+    }
+}
+
+function mostrarLoader(mostrar) {
+    const loader = document.getElementById('loader');
+    if (mostrar) {
+        loader.style.display = 'flex';
+    } else {
+        loader.style.display = 'none';
+    }
+}
+
+// ==================== MOSTRAR FOTO AMPLIADA ====================
+function mostrarFotoAmpliada(fotoSrc, nombreCompleto) {
+    Swal.fire({
+        title: nombreCompleto,
+        imageUrl: fotoSrc,
+        imageAlt: nombreCompleto,
+        width: '600px',
+        confirmButtonText: 'Cerrar',
+        confirmButtonColor: '#FF9800',
+        customClass: {
+            image: 'swal-image-zoom'
+        },
+        showCloseButton: true,
+        backdrop: `rgba(0,0,0,0.8)`
+    });
+}
+
+// Agregar estilos adicionales para el modal de detalle
+document.head.insertAdjacentHTML('beforeend', `
+    <style>
+        .swal-detalle-colaborador {
+            font-family: 'Poppins', sans-serif;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        /* Estilos para la celda con foto */
+        .employee-cell {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .employee-photo {
+            width: 35px;
+            height: 35px;
+            border-radius: 50%;
+            object-fit: cover;
+            border: 2px solid #FF9800;
+            flex-shrink: 0;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .employee-photo:hover {
+            transform: scale(1.15);
+            box-shadow: 0 4px 12px rgba(255, 152, 0, 0.4);
+        }
+
+        /* Estilos para la imagen ampliada en SweetAlert */
+        .swal-image-zoom {
+            border-radius: 10px;
+            max-height: 500px;
+            object-fit: contain;
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.3);
+        }
+    </style>
+`);  

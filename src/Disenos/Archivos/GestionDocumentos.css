@@ -686,19 +686,22 @@ body {
 
 /* Badges compactos */
 .badge {
-    padding: 2px var(--spacing-xs);
+    padding: 4px var(--spacing-sm);
     border-radius: var(--radius-sm);
-    font-size: 0.7rem;
+    font-size: 0.72rem;
     font-weight: 500;
     display: inline-flex;
     align-items: center;
-    gap: 2px;
+    gap: 4px;
     white-space: nowrap;
-    line-height: 1;
+    line-height: 1.2;
+    min-width: 85px;
+    justify-content: center;
 }
 
 .badge i {
-    font-size: 0.65rem;
+    font-size: 0.68rem;
+    flex-shrink: 0;
 }
 
 .badge-success {
