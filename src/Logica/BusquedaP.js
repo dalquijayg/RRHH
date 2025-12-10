@@ -1464,7 +1464,7 @@ async function verInfoPMA(idPersonal) {
                 personal.TercerNombre,
                 personal.PrimerApellido,
                 personal.SegundoApellido,
-                ResultadosPMA.FechaHoraRegistro
+                ResultadosPMA.FechaEvaluacion AS FechaHoraRegistro
             FROM
                 ResultadosPMA
                 INNER JOIN
@@ -1496,13 +1496,7 @@ async function verInfoPMA(idPersonal) {
                 const nombreEvaluador = `${evaluacion.PrimerNombre} ${evaluacion.SegundoNombre || ''} ${evaluacion.TercerNombre || ''} ${evaluacion.PrimerApellido} ${evaluacion.SegundoApellido || ''}`.trim().replace(/\s+/g, ' ');
 
                 const fecha = evaluacion.FechaHoraRegistro ?
-                    new Date(evaluacion.FechaHoraRegistro).toLocaleDateString('es-GT', {
-                        year: 'numeric',
-                        month: 'long',
-                        day: 'numeric',
-                        hour: '2-digit',
-                        minute: '2-digit'
-                    }) : 'N/A';
+                    formatearFecha(new Date(evaluacion.FechaHoraRegistro).toISOString().split('T')[0]) : 'N/A';
 
                 evaluacionesHTML += `
                     <div style="background: #ffffff; padding: 15px; border-radius: 8px; margin-bottom: 15px; border: 2px solid #4CAF50; box-shadow: 0 2px 8px rgba(76, 175, 80, 0.15);">
@@ -2030,7 +2024,7 @@ async function exportarExcel() {
                         ResultadosPMA.FactorN, ResultadosPMA.FactorF,
                         personal.PrimerNombre, personal.SegundoNombre, personal.TercerNombre,
                         personal.PrimerApellido, personal.SegundoApellido,
-                        ResultadosPMA.FechaHoraRegistro
+                        ResultadosPMA.FechaEvaluacion AS FechaHoraRegistro
                     FROM ResultadosPMA
                     INNER JOIN personal ON ResultadosPMA.IdUsuarioEvaluo = personal.IdPersonal
                     WHERE ResultadosPMA.IdPersonal = ?
@@ -2043,10 +2037,7 @@ async function exportarExcel() {
                     infoPMA.forEach((evaluacion, idx) => {
                         const nombreEvaluador = `${evaluacion.PrimerNombre} ${evaluacion.SegundoNombre || ''} ${evaluacion.TercerNombre || ''} ${evaluacion.PrimerApellido} ${evaluacion.SegundoApellido || ''}`.trim().replace(/\s+/g, ' ');
                         const fecha = evaluacion.FechaHoraRegistro ?
-                            new Date(evaluacion.FechaHoraRegistro).toLocaleDateString('es-GT', {
-                                year: 'numeric', month: '2-digit', day: '2-digit',
-                                hour: '2-digit', minute: '2-digit'
-                            }) : 'N/A';
+                            formatearFecha(new Date(evaluacion.FechaHoraRegistro).toISOString().split('T')[0]) : 'N/A';
 
                         const suma = (evaluacion.FactorV || 0) + (evaluacion.FactorE || 0) + (evaluacion.FactorR || 0) + (evaluacion.FactorN || 0) + (evaluacion.FactorF || 0);
                         const promedio = (suma / 5).toFixed(2);
