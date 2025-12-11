@@ -1182,7 +1182,8 @@ async function verInfoAcademica(idPersonal) {
                     NULL AS Carrera,
                     NULL AS Universidad,
                     NULL AS Semestre,
-                    NULL AS Maestria
+                    NULL AS Maestria,
+                    semestres.Semestre
                 FROM InfoAcademica
                 INNER JOIN EstadosEducacion
                     ON InfoAcademica.EstadoPrimaria = EstadosEducacion.IdEstadoEducacion
@@ -1190,6 +1191,8 @@ async function verInfoAcademica(idPersonal) {
                     ON InfoAcademica.IdNivelAcademicoPrimaria = GradosAcademicos.IdGrado
                 LEFT JOIN planestudios
                     ON InfoAcademica.IdPlanEstudioPrimaria = planestudios.IdPlanEstudio
+                LEFT JOIN semestres
+                    ON InfoAcademica.IdNivelAcademicoPrimaria = semestres.Id_semestre
                 WHERE InfoAcademica.IdPersonal = ?
             )
 
@@ -1205,7 +1208,8 @@ async function verInfoAcademica(idPersonal) {
                     NULL AS Carrera,
                     NULL AS Universidad,
                     NULL AS Semestre,
-                    NULL AS Maestria
+                    NULL AS Maestria,
+                    semestres.Semestre
                 FROM InfoAcademica
                 INNER JOIN EstadosEducacion
                     ON InfoAcademica.EstadoBasico = EstadosEducacion.IdEstadoEducacion
@@ -1213,6 +1217,8 @@ async function verInfoAcademica(idPersonal) {
                     ON InfoAcademica.IdNivelAcademicoBasico = GradosAcademicos.IdGrado
                 LEFT JOIN planestudios
                     ON InfoAcademica.IdPlanEstudioBasico = planestudios.IdPlanEstudio
+                LEFT JOIN semestres
+                    ON InfoAcademica.IdNivelAcademicoBasico = semestres.Id_semestre
                 WHERE InfoAcademica.IdPersonal = ?
             )
 
@@ -1228,14 +1234,17 @@ async function verInfoAcademica(idPersonal) {
                     NULL AS Carrera,
                     NULL AS Universidad,
                     NULL AS Semestre,
-                    NULL AS Maestria
+                    NULL AS Maestria,
+                    semestres.Semestre
                 FROM InfoAcademica
                 INNER JOIN EstadosEducacion
                     ON InfoAcademica.EstadoDiversificado = EstadosEducacion.IdEstadoEducacion
                 LEFT JOIN GradosAcademicos
-                    ON InfoAcademica.IdNivelAcademicoDiversificado = GradosAcademicos.IdGrado
+                    ON InfoAcademica.IdCarreraDiversificado = GradosAcademicos.IdGrado
                 LEFT JOIN planestudios
                     ON InfoAcademica.IdPlanEstudioDiversificado = planestudios.IdPlanEstudio
+                LEFT JOIN semestres
+                    ON InfoAcademica.IdNivelAcademicoDiversificado = semestres.Id_semestre
                 WHERE InfoAcademica.IdPersonal = ?
             )
 
@@ -1246,12 +1255,13 @@ async function verInfoAcademica(idPersonal) {
                 SELECT
                     'Universidad' AS Nivel,
                     EstadosEducacion.DescripcionEstado AS Estado,
-                    semestres.Semestre AS GradoAcademico,
+                    NULL AS GradoAcademico,
                     planestudios.Plan,
                     CarrerasUniversitarias.NombreCarrera AS Carrera,
                     Universidades.NombreUniversidad AS Universidad,
-                    semestres.Semestre,
-                    NULL AS Maestria
+                    NULL AS Semestre,
+                    NULL AS Maestria,
+                    semestres.Semestre
                 FROM InfoAcademica
                 INNER JOIN EstadosEducacion
                     ON InfoAcademica.EstadoUniversidad = EstadosEducacion.IdEstadoEducacion
@@ -1273,12 +1283,13 @@ async function verInfoAcademica(idPersonal) {
                 SELECT
                     'Maestría' AS Nivel,
                     EstadosEducacion.DescripcionEstado AS Estado,
-                    semestres.Semestre AS GradoAcademico,
+                    NULL AS GradoAcademico,
                     planestudios.Plan,
                     NULL AS Carrera,
-                    Universidades.NombreUniversidad,
-                    semestres.Semestre,
-                    Maestrias.NombreMaestria
+                    Universidades.NombreUniversidad AS Universidad,
+                    NULL AS Semestre,
+                    Maestrias.NombreMaestria AS Maestria,
+                    semestres.Semestre
                 FROM InfoAcademica
                 INNER JOIN EstadosEducacion
                     ON InfoAcademica.EstadoMaestria = EstadosEducacion.IdEstadoEducacion
@@ -1331,7 +1342,18 @@ async function verInfoAcademica(idPersonal) {
                     </p>
             `;
 
-            // Estado
+            // Mostrar GradoAcademico primero (especialmente para Diversificado)
+            if (nivel.GradoAcademico && (nivel.Nivel === 'Diversificado' || nivel.Nivel === 'Primaria' || nivel.Nivel === 'Básico')) {
+                html += `
+                    <div style="margin-bottom: 6px;">
+                        <span style="background: ${cfg.borde}; padding: 4px 10px; border-radius: 12px; font-size: 0.85rem; color: #fff; font-weight: 600; box-shadow: 0 1px 3px rgba(0,0,0,0.2);">
+                            ${nivel.GradoAcademico}
+                        </span>
+                    </div>
+                `;
+            }
+
+            // Estado (se muestra debajo del grado)
             if (nivel.Estado) {
                 html += `
                     <div style="margin-bottom: 6px;">
@@ -1357,13 +1379,21 @@ async function verInfoAcademica(idPersonal) {
                 html += `<p style="margin: 4px 0; font-size: 0.8rem; color: #555;"><i class="fas fa-award" style="color: #999; font-size: 0.7rem; margin-right: 5px;"></i><strong>Maestría:</strong> ${nivel.Maestria}</p>`;
             }
 
-            // Grado Académico o Semestre/Trimestre
-            if (nivel.GradoAcademico) {
+            // Semestre/Trimestre/Grado para todos los niveles
+            if (nivel.Semestre) {
                 let label = 'Grado';
-                if (nivel.Semestre) {
-                    label = nivel.Nivel === 'Maestría' ? 'Trimestre' : 'Semestre';
+                if (nivel.Nivel === 'Maestría') {
+                    label = 'Trimestre';
+                } else if (nivel.Nivel === 'Universidad') {
+                    label = 'Semestre';
+                } else if (nivel.Nivel === 'Diversificado') {
+                    label = 'Grado';
+                } else if (nivel.Nivel === 'Básico') {
+                    label = 'Grado';
+                } else if (nivel.Nivel === 'Primaria') {
+                    label = 'Grado';
                 }
-                html += `<p style="margin: 4px 0; font-size: 0.8rem; color: #555;"><i class="fas fa-graduation-cap" style="color: #999; font-size: 0.7rem; margin-right: 5px;"></i><strong>${label}:</strong> ${nivel.GradoAcademico}</p>`;
+                html += `<p style="margin: 4px 0; font-size: 0.8rem; color: #555;"><i class="fas fa-graduation-cap" style="color: #999; font-size: 0.7rem; margin-right: 5px;"></i><strong>${label}:</strong> ${nivel.Semestre}</p>`;
             }
 
             // Plan
@@ -1960,7 +1990,7 @@ async function exportarExcel() {
                             NULL AS Carrera, NULL AS Universidad, NULL AS Semestre, NULL AS Maestria
                         FROM InfoAcademica
                         INNER JOIN EstadosEducacion ON InfoAcademica.EstadoDiversificado = EstadosEducacion.IdEstadoEducacion
-                        LEFT JOIN GradosAcademicos ON InfoAcademica.IdNivelAcademicoDiversificado = GradosAcademicos.IdGrado
+                        LEFT JOIN GradosAcademicos ON InfoAcademica.IdCarreraDiversificado = GradosAcademicos.IdGrado
                         LEFT JOIN planestudios ON InfoAcademica.IdPlanEstudioDiversificado = planestudios.IdPlanEstudio
                         WHERE InfoAcademica.IdPersonal = ?
                     )
