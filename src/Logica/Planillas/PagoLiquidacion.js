@@ -346,7 +346,7 @@ function calcularDiasAguinaldo(fechaPlanilla, estadoSalida = null) {
     
     // Determinar fecha final (fecha de salida o fecha actual)
     let añoFinal, mesFinal, diaFinal;
-    
+
     if (estadoSalida && estadoSalida.tieneRegistro && estadoSalida.fechaFin) {
         const fechaFinString = estadoSalida.fechaFin.split('T')[0];
         [añoFinal, mesFinal, diaFinal] = fechaFinString.split('-').map(Number);
@@ -356,11 +356,20 @@ function calcularDiasAguinaldo(fechaPlanilla, estadoSalida = null) {
         mesFinal = fechaActual.getMonth() + 1;
         diaFinal = fechaActual.getDate();
     }
-    
-    // Fecha de inicio de aguinaldo: 1 de diciembre del año anterior
-    const añoInicioAguinaldo = añoFinal - 1;
-    const mesInicioAguinaldo = 12;
-    const diaInicioAguinaldo = 1;
+
+    // Fecha de inicio de aguinaldo: 1 de diciembre del año actual (o anterior si no ha llegado diciembre)
+    let añoInicioAguinaldo, mesInicioAguinaldo, diaInicioAguinaldo;
+
+    // Si la fecha final es antes de diciembre, usar 1 de diciembre del año anterior
+    if (mesFinal < 12) {
+        añoInicioAguinaldo = añoFinal - 1;
+    } else {
+        // Si ya estamos en diciembre o después, usar 1 de diciembre del año actual
+        añoInicioAguinaldo = añoFinal;
+    }
+
+    mesInicioAguinaldo = 12;
+    diaInicioAguinaldo = 1;
     
     // Fecha de ingreso del colaborador
     const fechaString = fechaPlanilla.split('T')[0];

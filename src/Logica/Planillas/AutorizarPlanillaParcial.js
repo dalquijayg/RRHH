@@ -165,9 +165,6 @@ async function cargarDepartamentosDelUsuario() {
             confirmButtonColor: '#ef4444',
             allowOutsideClick: false
         });
-        
-        // Redirigir a página principal o dashboard
-        window.location.href = '../Dashboard.html';
     }
 }
 

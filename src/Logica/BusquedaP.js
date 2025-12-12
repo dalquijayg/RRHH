@@ -450,8 +450,28 @@ async function buscarPersonal() {
         const nombreColaborador = document.getElementById('nombreColaborador').value.trim();
         const tipoPersonal = document.getElementById('tipoPersonal').value;
         const estadoPersonal = document.getElementById('estadoPersonal').value;
+        const conFoto = document.getElementById('conFoto').checked;
 
-        // Construir query con filtros opcionales - INCLUYE LA FOTO
+        // Mostrar advertencia si seleccionó "Con foto"
+        if (conFoto) {
+            const confirmar = await Swal.fire({
+                icon: 'warning',
+                title: '¿Cargar con fotos?',
+                html: '<p>Cargar las fotos puede tardar <b>varios minutos</b> dependiendo de la cantidad de registros.</p><p>¿Deseas continuar?</p>',
+                showCancelButton: true,
+                confirmButtonColor: '#FF9800',
+                cancelButtonColor: '#999',
+                confirmButtonText: 'Sí, continuar',
+                cancelButtonText: 'Cancelar'
+            });
+
+            if (!confirmar.isConfirmed) {
+                mostrarLoader(false);
+                return;
+            }
+        }
+
+        // Construir query con filtros opcionales - FOTO CONDICIONAL
         let query = `
             SELECT
                 personal.IdPersonal,
@@ -463,10 +483,10 @@ async function buscarPersonal() {
                 personal.InicioLaboral,
                 EstadoPersonal.EstadoPersonal,
                 TipoPersonal.TipoPersonal,
-                CASE
+                ${conFoto ? `CASE
                     WHEN FotosPersonal.Foto IS NOT NULL THEN CONCAT('data:image/jpeg;base64,', TO_BASE64(FotosPersonal.Foto))
                     ELSE NULL
-                END AS FotoBase64,
+                END` : 'NULL'} AS FotoBase64,
                 CONCAT(usuario.PrimerNombre, ' ', IFNULL(usuario.SegundoNombre, ''), ' ', IFNULL(usuario.TercerNombre, ''), ' ', usuario.PrimerApellido, ' ', IFNULL(usuario.SegundoApellido, '')) AS UsuarioRegistro,
                 personal.Fechahoraregistro
             FROM
@@ -487,10 +507,10 @@ async function buscarPersonal() {
                 TipoPersonal
                 ON
                     personal.TipoPersonal = TipoPersonal.IdTipo
-                LEFT JOIN
+                ${conFoto ? `LEFT JOIN
                 FotosPersonal
                 ON
-                    personal.IdPersonal = FotosPersonal.IdPersonal
+                    personal.IdPersonal = FotosPersonal.IdPersonal` : ''}
                 LEFT JOIN
                 personal AS usuario
                 ON
@@ -529,7 +549,7 @@ async function buscarPersonal() {
             params.push(estadoPersonal);
         }
 
-        query += ' ORDER BY personal.PrimerNombre, personal.PrimerApellido LIMIT 500';
+        query += ' ORDER BY personal.PrimerNombre, personal.PrimerApellido LIMIT 5000';
 
         const connection = await connectionString();
         const resultados = await connection.query(query, params);
