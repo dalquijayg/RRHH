@@ -34,6 +34,9 @@ let ReporteDiasDisponiblesVacacionesWindow = null;
 let DocumentosWindow = null;
 let ReportePlanillasParcialesWindow = null;
 let ModificaPagoNominaWindow = null;
+let PagoVacacionistasWindow = null;
+let AutorizarPagoVacacionistasWindow = null;
+let ReportePagosVacacionistasWindow = null;
 
 if(process.env.NODE_ENV !=='production'){
     require('electron-reload')(__dirname,{
@@ -60,12 +63,12 @@ function createWindow() {
 app.on('ready', createWindow);
 autoUpdater.on('update-available', (info) => {
     log.info("update available");
-    mainWindow.webContents.send('update_available');
+    mainWindow.webContents.send('update_available', info);
 });
-  
+
 autoUpdater.on('update-downloaded', (info) => {
     log.info("update-downloaded");
-    mainWindow.webContents.send('update_downloaded');
+    mainWindow.webContents.send('update_downloaded', info);
 });
   
 ipcMain.on('restart_app', () => {
@@ -712,6 +715,93 @@ function createPagoPlanillaTiempoParcialWindow() {
         PagoPlanillaTiempoParcialWindow = null;
     });
 }
+function createPagoVacacionistasWindow() {
+    // Verifica si la ventana ya está abierta
+    if (PagoVacacionistasWindow) {
+        // Si ya está abierta, simplemente enfócala
+        if (PagoVacacionistasWindow.isMinimized()) PagoVacacionistasWindow.restore();
+        PagoVacacionistasWindow.focus();
+        return;
+    }
+    
+    // Crea una nueva ventana si no existe
+    PagoVacacionistasWindow = new BrowserWindow({
+        width: 1200,
+        height: 800,
+        webPreferences: {
+            nodeIntegration: true,
+            contextIsolation: false,
+        },
+        icon: path.join(__dirname, 'LogoRecursos.ico'),
+        title: 'Permisos',
+        autoHideMenuBar: true
+    });
+
+    PagoVacacionistasWindow.loadURL(`file://${__dirname}/Vistas/PagoVacacionistas.html`);
+    
+    // Elimina la referencia a la ventana cuando se cierre
+    PagoVacacionistasWindow.on('closed', () => {
+        PagoVacacionistasWindow = null;
+    });
+}
+function createAutorizarPagoVacacionistasWindow() {
+    // Verifica si la ventana ya está abierta
+    if (AutorizarPagoVacacionistasWindow) {
+        // Si ya está abierta, simplemente enfócala
+        if (AutorizarPagoVacacionistasWindow.isMinimized()) AutorizarPagoVacacionistasWindow.restore();
+        AutorizarPagoVacacionistasWindow.focus();
+        return;
+    }
+    
+    // Crea una nueva ventana si no existe
+    AutorizarPagoVacacionistasWindow = new BrowserWindow({
+        width: 1200,
+        height: 800,
+        webPreferences: {
+            nodeIntegration: true,
+            contextIsolation: false,
+        },
+        icon: path.join(__dirname, 'LogoRecursos.ico'),
+        title: 'Autorización Pago Vacacionistas',
+        autoHideMenuBar: true
+    });
+
+    AutorizarPagoVacacionistasWindow.loadURL(`file://${__dirname}/Vistas/AutorizarPagoVacacionista.html`);
+    
+    // Elimina la referencia a la ventana cuando se cierre
+    AutorizarPagoVacacionistasWindow.on('closed', () => {
+        AutorizarPagoVacacionistasWindow = null;
+    });
+}
+function createReportePagosVacacionistasWindow() {
+    // Verifica si la ventana ya está abierta
+    if (ReportePagosVacacionistasWindow) {
+        // Si ya está abierta, simplemente enfócala
+        if (ReportePagosVacacionistasWindow.isMinimized()) ReportePagosVacacionistasWindow.restore();
+        ReportePagosVacacionistasWindow.focus();
+        return;
+    }
+    
+    // Crea una nueva ventana si no existe
+    ReportePagosVacacionistasWindow = new BrowserWindow({
+        width: 1200,
+        height: 800,
+        webPreferences: {
+            nodeIntegration: true,
+            contextIsolation: false,
+        },
+        icon: path.join(__dirname, 'LogoRecursos.ico'),
+        title: 'Reporte Pagos Vacacionistas',
+        autoHideMenuBar: true
+    });
+
+    ReportePagosVacacionistasWindow.loadURL(`file://${__dirname}/Vistas/ReportePagoPlanillaVacacionista.html`);
+    
+    // Elimina la referencia a la ventana cuando se cierre
+    ReportePagosVacacionistasWindow.on('closed', () => {
+        ReportePagosVacacionistasWindow = null;
+    });
+}
 function createAutorizacionPagoParcialWindow() {
     // Verifica si la ventana ya está abierta
     if (AutorizarPagoPlanillasWindow) {
@@ -957,11 +1047,17 @@ ipcMain.on('open_Ventana_ConsultarDocPersonales', () => {
 ipcMain.on('open_Ventana_PagoPlanillaParciales', () => {
     createPagoPlanillaTiempoParcialWindow();
 });
+ipcMain.on('open_Ventana_PagoVacacionistas', () => {
+    createPagoVacacionistasWindow();
+});
 ipcMain.on('open_Ventana_AutorizarPagoParciales', () => {
     createAutorizacionPagoParcialWindow();
 });
 ipcMain.on('open_Ventana_AutorizarLiquidacion', () => {
     createAutorizacionLiquidacionWindow();
+});
+ipcMain.on('open_Ventana_AutorizarPagoVacacionistas', () => {
+    createAutorizarPagoVacacionistasWindow();
 });
 ipcMain.on('open_Ventana_ReporteDiasDisponiblesVacaciones', () => {
     createReporteDiasDisponiblesVacacionesWindow();
@@ -974,6 +1070,9 @@ ipcMain.on('open_Ventana_RPP', () => {
 });
 ipcMain.on('open_Ventana_MPN', () => {
     createModificacionNominassWindow();
+});
+ipcMain.on('open_Ventana_ReportePagosVacacionistas', () => {
+    createReportePagosVacacionistasWindow();
 });
 ipcMain.handle('show-save-dialog', async (event, options) => {
     const result = await dialog.showOpenDialog(options);

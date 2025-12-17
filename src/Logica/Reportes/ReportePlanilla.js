@@ -204,14 +204,15 @@ async function cargarPlanillas(esCapital = null) {
         const planillaSelect = document.getElementById('planillaSelect');
         if (planillaSelect) {
             planillaSelect.innerHTML = '<option value="">Seleccione una planilla</option>';
-            
+
             // AGREGAR OPCIÓN "TODAS LAS PLANILLAS"
             const todasOption = document.createElement('option');
             todasOption.value = 'TODAS';
             todasOption.textContent = '📋 TODAS LAS PLANILLAS';
             todasOption.dataset.esCapital = esCapital !== null ? esCapital : 'todas';
+            todasOption.selected = true; // SELECCIONAR POR DEFECTO
             planillaSelect.appendChild(todasOption);
-            
+
             result.forEach(planilla => {
                 const option = document.createElement('option');
                 option.value = planilla.IdPlanilla;
@@ -219,8 +220,14 @@ async function cargarPlanillas(esCapital = null) {
                 option.dataset.esCapital = planilla.EsCapital;
                 planillaSelect.appendChild(option);
             });
-            
+
             planillaSelect.disabled = false;
+
+            // HABILITAR EL BOTÓN DE GENERAR REPORTE AUTOMÁTICAMENTE
+            const generarBtn = document.getElementById('generarReporte');
+            if (generarBtn) {
+                generarBtn.disabled = false;
+            }
         }
         
     } catch (error) {
@@ -267,7 +274,7 @@ async function generarReporte() {
         
         let query = `
             SELECT
-                personal.IdPersonal, 
+                personal.IdPersonal,
                 CONCAT(
                     IFNULL(personal.PrimerApellido, ''), ' ',
                     IFNULL(personal.SegundoApellido, ''), ' ',
@@ -275,17 +282,17 @@ async function generarReporte() {
                     IFNULL(personal.SegundoNombre, ''), ' ',
                     IFNULL(personal.TercerNombre, '')
                 ) AS NombreCompleto,
-                personal.DPI, 
-                departamentos.NombreDepartamento, 
-                Puestos.Nombre AS NombrePuesto, 
-                personal.FechaPlanilla, 
-                personal.SalarioDiario, 
-                personal.SalarioQuincena, 
-                personal.SalarioQuincenaFinMes, 
-                personal.SalarioBase, 
-                personal.Bonificacion, 
-                personal.CuentaDivision1, 
-                personal.CuentaDivision2, 
+                personal.DPI,
+                departamentos.NombreDepartamento,
+                Puestos.Nombre AS NombrePuesto,
+                personal.FechaPlanilla,
+                personal.SalarioDiario,
+                personal.SalarioQuincena,
+                personal.SalarioQuincenaFinMes,
+                personal.SalarioBase,
+                personal.Bonificacion,
+                personal.CuentaDivision1,
+                personal.CuentaDivision2,
                 personal.CuentaDivision3,
                 CONCAT(
                     IFNULL(personal.CuentaDivision1, ''), ' ',
@@ -304,17 +311,18 @@ async function generarReporte() {
                     ON personal.IdPlanilla = planillas.IdPlanilla
                 INNER JOIN divisiones
                     ON planillas.Division = divisiones.IdDivision
+            WHERE personal.Estado IN ('1', '5')
         `;
-        
+
         let params = [];
-        
+
         if (planillaId === 'TODAS') {
             if (tipoUbicacion !== '') {
-                query += ' WHERE planillas.EsCapital = ?';
+                query += ' AND planillas.EsCapital = ?';
                 params.push(tipoUbicacion);
             }
         } else {
-            query += ' WHERE personal.IdPlanilla = ?';
+            query += ' AND personal.IdPlanilla = ?';
             params.push(planillaId);
         }
         

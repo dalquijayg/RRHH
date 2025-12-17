@@ -6,6 +6,7 @@
     <title>Login - Recursos Humanos</title>
     <link rel="stylesheet" href="../Disenos/Login.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 </head>
 <body>
     <img src="../Imagenes/LogoDennis.png" alt="New Technology Logo" class="brand-logo">
@@ -71,7 +72,7 @@
             </form>
             
             <div class="footer-text">
-                <p>Sistema de Recursos Humanos. V.1.0.52</p>
+                <p>Sistema de Recursos Humanos. V.1.0.53</p>
                 <p>© New Technology 2025</p>
             </div>
         </div>
@@ -114,7 +115,7 @@
         ipcRenderer.on('update_available', (event, info) => {
             ipcRenderer.removeAllListeners('update_available');
             console.log('Actualización disponible:', info);
-            
+
             // Mostrar el modal de actualización y almacenar la referencia
             currentUpdateModal = Swal.fire({
                 title: 'Actualización Requerida',
@@ -122,7 +123,7 @@
                     <div style="text-align: center; padding: 20px;">
                         <div style="font-size: 4rem; color: #FF9800; margin-bottom: 20px;">🔄</div>
                         <h3 style="color: #654321; margin-bottom: 15px;">Nueva versión disponible</h3>
-                        ${info.version ? `<p style="color: #666; margin-bottom: 10px;"><strong>Versión:</strong> ${info.version}</p>` : ''}
+                        ${(info && info.version) ? `<p style="color: #666; margin-bottom: 10px;"><strong>Versión:</strong> ${info.version}</p>` : ''}
                         <p style="color: #666; margin-bottom: 20px;">
                             Se ha detectado una nueva versión del sistema. Por seguridad y para obtener las últimas características, 
                             debe actualizar antes de continuar.
@@ -201,7 +202,7 @@
                         <div style="text-align: center; padding: 20px;">
                             <div style="font-size: 4rem; color: #4CAF50; margin-bottom: 20px;">✅</div>
                             <h3 style="color: #654321; margin-bottom: 15px;">Actualización descargada</h3>
-                            ${info.version ? `<p style="color: #666; margin-bottom: 10px;"><strong>Nueva versión:</strong> ${info.version}</p>` : ''}
+                            ${(info && info.version) ? `<p style="color: #666; margin-bottom: 10px;"><strong>Nueva versión:</strong> ${info.version}</p>` : ''}
                             <p style="color: #666; margin-bottom: 20px;">
                                 La nueva versión ha sido descargada correctamente. 
                                 La aplicación se reiniciará para completar la instalación.

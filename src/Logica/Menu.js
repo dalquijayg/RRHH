@@ -42,12 +42,15 @@ const GestionarPagoVacaciones = document.getElementById('procesarPagosVacaciones
 const GestionProcesoPagoVacaciones = document.getElementById('gestionProcesoVacacionesBtn');
 const PagoBonificaciones = document.getElementById('registrarAdicionalesBtn');
 const reportebajas = document.getElementById('reporteBajasBtn');
+const reportepagoplanillasvacacionistas = document.getElementById('reportePagosVacacionistasBtn');
 const PagoLiquidacion = document.getElementById('pagoLiquidacionesBtn');
 const ReportePlanillasContables = document.getElementById('reportePlanillasContables');
 const GestionDocumentosPersonales = document.getElementById('gestionDocumentosPersonalBtn');
 const ConsultarArchivos = document.getElementById('consultarArchivosBtn');
 const PagoPlanillaParcial = document.getElementById('planillaTiempoParcialBtn');
+const PagoVacacionistas = document.getElementById('pagoVacacionistasBtn');
 const AutorizarPlanillasParciales = document.getElementById('autorizarPlanillasParcialesBtn')
+const AutorizarPagoVacacionistas = document.getElementById('autorizarPagoVacacionistasBtn')
 const AutorizarLiquidaciones = document.getElementById('autorizarLiquidacionesBtn')
 const ReporteDiasDisponiblesVacaciones = document.getElementById('reporteDiasDisponiblesVacacionesBtn')
 const GenerarDocumentos = document.getElementById('generarDocumentosBtn')
@@ -1630,6 +1633,44 @@ reportebajas.addEventListener('click', async () => {
         mostrarNotificacion('Error al verificar permisos', 'error');
     }
 });
+reportepagoplanillasvacacionistas.addEventListener('click', async () => {
+    try {
+        // Mostrar notificación de verificación
+        mostrarNotificacion('Verificando permisos...', 'info');
+        
+        // Obtener el ID del usuario actual
+        const idPersonal = userData.IdPersonal;
+        
+        // Verificar permisos en la base de datos
+        const connection = await getConnection();
+        
+        const permisosQuery = `
+            SELECT COUNT(*) AS tienePermiso 
+            FROM TransaccionesRRHH 
+            WHERE IdPersonal = ${idPersonal} AND Codigo = 134
+        `;
+        
+        const resultado = await connection.query(permisosQuery);
+        await connection.close();
+        
+        // Verificar si tiene permiso (si el conteo es mayor a 0)
+        if (resultado[0].tienePermiso > 0) {
+            // Tiene permiso, abrir la ventana
+            mostrarNotificacion('Abriendo Reporte de Pagos de Vacacionistas...', 'success');
+            ipcRenderer.send('open_Ventana_ReportePagosVacacionistas');
+        } else {
+            // No tiene permiso, mostrar error
+            Swal.fire({
+                icon: 'error',
+                title: 'Acceso denegado',
+                text: 'No tienes permisos para acceder a esta funcionalidad. Trans.134'
+            });
+        }
+    } catch (error) {
+        console.error('Error al verificar permisos:', error);
+        mostrarNotificacion('Error al verificar permisos', 'error');
+    }
+});
 PagoLiquidacion.addEventListener('click', async () => {
     try {
         // Mostrar notificación de verificación
@@ -1820,6 +1861,44 @@ PagoPlanillaParcial.addEventListener('click', async () => {
         mostrarNotificacion('Error al verificar permisos', 'error');
     }
 });
+PagoVacacionistas.addEventListener('click', async () => {
+    try {
+        // Mostrar notificación de verificación
+        mostrarNotificacion('Verificando permisos...', 'info');
+        
+        // Obtener el ID del usuario actual
+        const idPersonal = userData.IdPersonal;
+        
+        // Verificar permisos en la base de datos
+        const connection = await getConnection();
+        
+        const permisosQuery = `
+            SELECT COUNT(*) AS tienePermiso 
+            FROM TransaccionesRRHH 
+            WHERE IdPersonal = ${idPersonal} AND Codigo = 132
+        `;
+        
+        const resultado = await connection.query(permisosQuery);
+        await connection.close();
+        
+        // Verificar si tiene permiso (si el conteo es mayor a 0)
+        if (resultado[0].tienePermiso > 0) {
+            // Tiene permiso, abrir la ventana
+            mostrarNotificacion('Abriendo Pago de Vacacionistas...', 'success');
+            ipcRenderer.send('open_Ventana_PagoVacacionistas');
+        } else {
+            // No tiene permiso, mostrar error
+            Swal.fire({
+                icon: 'error',
+                title: 'Acceso denegado',
+                text: 'No tienes permisos para acceder a esta funcionalidad. Trans.132'
+            });
+        }
+    } catch (error) {
+        console.error('Error al verificar permisos:', error);
+        mostrarNotificacion('Error al verificar permisos', 'error');
+    }
+});
 AutorizarPlanillasParciales.addEventListener('click', async () => {
     try {
         // Mostrar notificación de verificación
@@ -1851,6 +1930,44 @@ AutorizarPlanillasParciales.addEventListener('click', async () => {
                 icon: 'error',
                 title: 'Acceso denegado',
                 text: 'No tienes permisos para acceder a esta funcionalidad. Trans.126'
+            });
+        }
+    } catch (error) {
+        console.error('Error al verificar permisos:', error);
+        mostrarNotificacion('Error al verificar permisos', 'error');
+    }
+});
+AutorizarPagoVacacionistas.addEventListener('click', async () => {
+    try {
+        // Mostrar notificación de verificación
+        mostrarNotificacion('Verificando permisos...', 'info');
+        
+        // Obtener el ID del usuario actual
+        const idPersonal = userData.IdPersonal;
+        
+        // Verificar permisos en la base de datos
+        const connection = await getConnection();
+        
+        const permisosQuery = `
+            SELECT COUNT(*) AS tienePermiso 
+            FROM TransaccionesRRHH 
+            WHERE IdPersonal = ${idPersonal} AND Codigo = 133
+        `;
+        
+        const resultado = await connection.query(permisosQuery);
+        await connection.close();
+        
+        // Verificar si tiene permiso (si el conteo es mayor a 0)
+        if (resultado[0].tienePermiso > 0) {
+            // Tiene permiso, abrir la ventana
+            mostrarNotificacion('Abriendo Autorización Pago de Vacacionistas...', 'success');
+            ipcRenderer.send('open_Ventana_AutorizarPagoVacacionistas');
+        } else {
+            // No tiene permiso, mostrar error
+            Swal.fire({
+                icon: 'error',
+                title: 'Acceso denegado',
+                text: 'No tienes permisos para acceder a esta funcionalidad. Trans.133'
             });
         }
     } catch (error) {

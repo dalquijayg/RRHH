@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Planilla de Vacacionistas - Recursos Humanos</title>
+    <link rel="stylesheet" href="../Disenos/Planilla/PagoVacacionistas.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+</head>
+<body>
+    
+    <!-- Elementos decorativos de fondo (similares al Login) -->
+    <div class="bg-decoration bubble bubble1"></div>
+    <div class="bg-decoration bubble bubble2"></div>
+    <div class="bg-decoration bubble bubble3"></div>
+    <div class="bg-decoration bubble bubble4"></div>
+    <div class="bg-decoration bubble bubble5"></div>
+    <div class="bg-decoration bubble bubble6"></div>
+    <div class="bg-decoration bubble bubble7"></div>
+    <div class="bg-decoration bubble bubble8"></div>
+    <div class="bg-decoration bubble bubble9"></div>
+    <div class="bg-decoration bubble bubble10"></div>
+    
+    <div class="bg-decoration pattern pattern1"></div>
+    <div class="bg-decoration pattern pattern2"></div>
+    <div class="bg-decoration pattern pattern3"></div>
+    <div class="bg-decoration pattern pattern4"></div>
+    
+    <div class="bg-decoration wave wave1"></div>
+    <div class="bg-decoration wave wave2"></div>
+    
+    <div class="bg-decoration particle particle1"></div>
+    <div class="bg-decoration particle particle2"></div>
+    <div class="bg-decoration particle particle3"></div>
+    <div class="bg-decoration particle particle4"></div>
+    <div class="bg-decoration particle particle5"></div>
+
+    <!-- Contenedor principal -->
+    <div class="container">
+        <!-- VISTA 1: Selección de Período -->
+        <div class="content-box" id="periodoView">
+            <div class="header-section">
+                <img src="../Imagenes/Logo Recursos Humanos new.png" alt="Logo RRHH" class="logo">
+                
+                <!-- Franja de colores -->
+                <div class="color-strip">
+                    <div class="color-strip-item color-red"></div>
+                    <div class="color-strip-item color-blue"></div>
+                    <div class="color-strip-item color-green"></div>
+                    <div class="color-strip-item color-yellow"></div>
+                    <div class="color-strip-item color-orange"></div>
+                </div>
+                
+                <h1>Pago Planilla de Vacacionistas</h1>
+                <p class="subtitle">Seleccione el período a pagar</p>
+            </div>
+
+            <div class="periodo-section">
+                <div class="info-card" id="infoCardPeriodo">
+                    <div class="info-icon">
+                        <i class="fas fa-calendar-alt"></i>
+                    </div>
+                    <div class="info-content">
+                        <h3>Información del Período</h3>
+                        <p>Seleccione el tipo de quincena y el mes para generar la planilla de pago de vacacionistas</p>
+                    </div>
+                </div>
+
+                <form id="periodoForm" class="periodo-form">
+                    <div class="form-row">
+                        <div class="input-group">
+                            <label for="tipoQuincena">
+                                <i class="fas fa-list"></i> Tipo de Quincena
+                            </label>
+                            <select id="tipoQuincena" name="tipoQuincena" required>
+                                <option value="">Seleccione...</option>
+                                <option value="primera">Quincena (1-15)</option>
+                                <option value="segunda">Quincena Fin de Mes (16-último día)</option>
+                            </select>
+                        </div>
+
+                        <div class="input-group">
+                            <label for="mesAnio">
+                                <i class="fas fa-calendar"></i> Mes y Año
+                            </label>
+                            <input type="month" id="mesAnio" name="mesAnio" required>
+                        </div>
+                    </div>
+
+                    <div class="periodo-info" id="periodoInfo">
+                        <div class="info-row">
+                            <span class="info-label">
+                                <i class="fas fa-calendar-alt"></i> Período:
+                            </span>
+                            <span class="info-value" id="periodoCalculado">Seleccione tipo y mes</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">
+                                <i class="fas fa-clock"></i> Total de días:
+                            </span>
+                            <span class="info-value" id="totalDiasPeriodo">0</span>
+                        </div>
+                    </div>
+
+                    <div class="button-group">
+                        <button type="submit" class="btn btn-primary" id="btnContinuar" disabled>
+                            <i class="fas fa-arrow-right"></i> Continuar
+                        </button>
+                        <button type="button" class="btn btn-pdf" id="btnGenerarPDF" style="display: none;">
+                            <i class="fas fa-file-pdf"></i> Generar PDF
+                        </button>
+                        <button type="button" class="btn btn-success" id="btnCargarComprobante" style="display: none;">
+                            <i class="fas fa-upload"></i> Cargar Comprobante de Planilla
+                        </button>
+                    </div>
+                </form>
+            </div>
+
+            <div class="footer-text">
+                <p>Sistema de Recursos Humanos - Módulo de Vacacionistas</p>
+            </div>
+        </div>
+
+        <!-- VISTA 2: Listado de Personal -->
+        <div class="content-box hidden" id="personalView">
+            <div class="header-section">
+                <button class="btn-back" id="btnVolver">
+                    <i class="fas fa-arrow-left"></i> Volver
+                </button>
+                
+                <img src="../Imagenes/Logo Recursos Humanos new.png" alt="Logo RRHH" class="logo-small">
+                
+                <div class="color-strip">
+                    <div class="color-strip-item color-red"></div>
+                    <div class="color-strip-item color-blue"></div>
+                    <div class="color-strip-item color-green"></div>
+                    <div class="color-strip-item color-yellow"></div>
+                    <div class="color-strip-item color-orange"></div>
+                </div>
+                
+                <h2>Personal Disponible</h2>
+            </div>
+
+            <!-- Información del período y departamento -->
+            <div class="info-banner-wrapper">
+                <!-- Información general -->
+                <div class="info-banner">
+                    <div class="info-item">
+                        <i class="fas fa-calendar-alt"></i>
+                        <div>
+                            <span class="label">Período:</span>
+                            <span class="value" id="periodoSeleccionado">-</span>
+                        </div>
+                    </div>
+                    <div class="info-item">
+                        <i class="fas fa-building"></i>
+                        <div>
+                            <span class="label">Departamento:</span>
+                            <span class="value" id="nombreDepartamento">-</span>
+                        </div>
+                    </div>
+                    <div class="info-item">
+                        <i class="fas fa-map-marker-alt"></i>
+                        <div>
+                            <span class="label">Región:</span>
+                            <span class="value" id="nombreRegion">-</span>
+                        </div>
+                    </div>
+                    <div class="info-item">
+                        <i class="fas fa-clock"></i>
+                        <div>
+                            <span class="label">Días Período:</span>
+                            <span class="value" id="diasPeriodo">-</span>
+                        </div>
+                    </div>
+                    <div class="info-item">
+                        <i class="fas fa-money-bill-wave"></i>
+                        <div>
+                            <span class="label">Monto/Día:</span>
+                            <span class="value" id="montoDiario">Q 0.00</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Resumen de selección -->
+                <div class="summary-cards-compact">
+                    <div class="compact-card">
+                        <i class="fas fa-users"></i>
+                        <div>
+                            <span class="compact-label">Total</span>
+                            <span class="compact-value" id="totalEmpleados">0</span>
+                        </div>
+                    </div>
+                    <div class="compact-card highlight">
+                        <i class="fas fa-user-check"></i>
+                        <div>
+                            <span class="compact-label">Seleccionados</span>
+                            <span class="compact-value" id="totalSeleccionados">0</span>
+                        </div>
+                    </div>
+                    <div class="compact-card">
+                        <i class="fas fa-calendar-day"></i>
+                        <div>
+                            <span class="compact-label">Total Días</span>
+                            <span class="compact-value" id="totalDias">0</span>
+                        </div>
+                    </div>
+                    <div class="compact-card success">
+                        <i class="fas fa-money-bill-wave"></i>
+                        <div>
+                            <span class="compact-label">Total a Pagar</span>
+                            <span class="compact-value" id="totalPagar">Q 0.00</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Controles de búsqueda y selección -->
+            <div class="controls-section">
+                <div class="search-box">
+                    <i class="fas fa-search"></i>
+                    <input type="text" id="searchInput" placeholder="Buscar por nombre o puesto...">
+                </div>
+                
+                <div class="selection-controls">
+                    <button class="btn btn-sm btn-outline" id="btnSeleccionarTodos">
+                        <i class="fas fa-check-double"></i> Seleccionar Todos
+                    </button>
+                    <button class="btn btn-sm btn-outline" id="btnDeseleccionarTodos">
+                        <i class="fas fa-times"></i> Deseleccionar Todos
+                    </button>
+                    <span class="selection-count">
+                        <i class="fas fa-users"></i> 
+                        <span id="selectedCount">0</span> seleccionados
+                    </span>
+                </div>
+            </div>
+
+            <!-- Tabla de personal -->
+            <div class="table-container">
+                <table class="personal-table">
+                    <thead>
+                        <tr>
+                            <th class="col-check">
+                                <input type="checkbox" id="checkAll">
+                            </th>
+                            <th class="col-id">ID</th>
+                            <th class="col-nombre">Nombre Completo</th>
+                            <th class="col-puesto">Puesto</th>
+                            <th class="col-dias">Días</th>
+                            <th class="col-total">Total a Pagar</th>
+                        </tr>
+                    </thead>
+                    <tbody id="personalTableBody">
+                        <!-- Se llenará dinámicamente con JavaScript -->
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Botones de acción -->
+            <div class="action-buttons-section">
+                <button class="btn btn-success" id="btnGenerarPlanilla" disabled>
+                    <i class="fas fa-file-invoice-dollar"></i> Generar Planilla
+                </button>
+            </div>
+
+            <div class="footer-text">
+                <p>Sistema de Recursos Humanos - Módulo de Vacacionistas</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- jsPDF Library -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
+
+    <script src="../Logica/Planillas/PagoVacacionistas.js"></script>
+</body>
+</html>

@@ -16,7 +16,7 @@ let esDiaEspecial = false;
 let esDomingo = false;
 let filtersApplied = false;
 let currentPage = 1;
-let itemsPerPage = 10;
+let itemsPerPage = 50;
 let totalPages = 0;
 let personalSeleccionado = [];
 let logoDivisionActual = null;
@@ -26,6 +26,10 @@ let externalPersonalData = [];
 let externalPersonalSelected = [];
 let currentDepartmentLimits = { planFijo: 0, planParcial: 0, planVacacionista: 0 };
 let currentPersonalCounts = { fijo: 0, parcial: 0, vacacionista: 0 };
+
+// Variables globales para el manejo de coaches
+let coachPersonalData = [];
+let coachPersonalSelected = [];
 
 // Elementos DOM
 const departamentoSelect = document.getElementById('departamento');
@@ -76,6 +80,17 @@ const selectedExternalCountSpan = document.getElementById('selectedExternalCount
 const confirmExternalBtn = document.getElementById('confirmExternalBtn');
 const cancelExternalBtn = document.getElementById('cancelExternalBtn');
 const addExternalBtn = document.getElementById('addExternalBtn');
+
+// Elementos DOM para el modal de coaches
+const coachModal = document.getElementById('coachModal');
+const searchCoachPersonalInput = document.getElementById('searchCoachPersonal');
+const clearCoachSearchBtn = document.getElementById('clearCoachSearchBtn');
+const coachPersonalTableBody = document.getElementById('coachPersonalTableBody');
+const selectAllCoachCheckbox = document.getElementById('selectAllCoach');
+const selectedCoachCountSpan = document.getElementById('selectedCoachCount');
+const confirmCoachBtn = document.getElementById('confirmCoachBtn');
+const cancelCoachBtn = document.getElementById('cancelCoachBtn');
+const addCoachBtn = document.getElementById('addCoachBtn');
 
 // Elementos para contadores
 const countFijoSpan = document.getElementById('countFijo');
@@ -616,33 +631,39 @@ function renderizarTablaPersonal(personal, paginar = true) {
         personalPaginado = personal.slice(startIndex, endIndex);
     }
     
-    // Calcular totales
-    const totalColaboradores = personal.length;
+    // Calcular totales SOLO de los seleccionados
+    const personalSeleccionado = personal.filter(p => p.selected);
+    const totalColaboradores = personalSeleccionado.length;
     let totalMonto = 0;
-    
+
+    // Calcular el monto total solo de los seleccionados
+    personalSeleccionado.forEach(persona => {
+        if (pagoAplicable === 'dominical' && esDomingo) {
+            totalMonto += persona.PagosDominicales;
+        } else if (pagoAplicable === 'especial' && esDiaEspecial) {
+            totalMonto += persona.PagosDiasEspeciales;
+        }
+    });
+
     // Renderizar cada fila
     personalPaginado.forEach(persona => {
         const tr = document.createElement('tr');
-        
+
         // Si es colaborador externo, agregar clase especial a la fila
         if (persona.esExterno) {
             tr.classList.add('external-collaborator-row');
         }
-        
+
         // Determinar el pago aplicable para este colaborador
         let montoAplicable = 0;
         let tipoPagoMostrar = 'No aplica';
-        
+
         if (pagoAplicable === 'dominical' && esDomingo) {
             montoAplicable = persona.PagosDominicales;
             tipoPagoMostrar = 'Dominical';
-            // Sumar al total general
-            totalMonto += montoAplicable;
         } else if (pagoAplicable === 'especial' && esDiaEspecial) {
             montoAplicable = persona.PagosDiasEspeciales;
             tipoPagoMostrar = 'Día Especial';
-            // Sumar al total general
-            totalMonto += montoAplicable;
         }
         
         // Crear celda de checkbox
@@ -746,7 +767,7 @@ function manejarSeleccionPersonal(e) {
     const checkbox = e.target;
     const idPersonal = parseInt(checkbox.dataset.id);
     const isChecked = checkbox.checked;
-    
+
     // Actualizar el estado en el array de datos
     personalData = personalData.map(persona => {
         if (persona.IdPersonal === idPersonal) {
@@ -754,13 +775,16 @@ function manejarSeleccionPersonal(e) {
         }
         return persona;
     });
-    
+
+    // Actualizar totales inmediatamente
+    actualizarTotales();
+
     // Actualizar botones de selección
     actualizarBotonesSeleccion();
-    
+
     // Verificar si todos están seleccionados
     actualizarSelectAll();
-    
+
     // Si hay colaboradores externos, actualizar sus contadores
     if (document.getElementById('countFijo')) {
         calcularConteoActualPorTipo();
@@ -1170,22 +1194,25 @@ function limpiarFiltros() {
 // Función para seleccionar/deseleccionar todos los elementos
 function seleccionarTodos(e) {
     const isChecked = e.target.checked;
-    
+
     // Actualizar todos los checkboxes visibles
     const checkboxes = document.querySelectorAll('.personal-check');
     checkboxes.forEach(checkbox => {
         checkbox.checked = isChecked;
     });
-    
+
     // Actualizar el estado en el array de datos
     personalData = personalData.map(persona => ({
         ...persona,
         selected: isChecked
     }));
-    
+
+    // Actualizar totales inmediatamente
+    actualizarTotales();
+
     // Actualizar botones
     actualizarBotonesSeleccion();
-    
+
     // Si hay colaboradores externos, actualizar sus contadores
     if (document.getElementById('countFijo')) {
         calcularConteoActualPorTipo();
@@ -2618,6 +2645,427 @@ function initExternalCollaborators() {
         confirmExternalBtn.addEventListener('click', agregarColaboradoresExternos);
     }
 }
+
+// ========== FUNCIONES PARA COACHES ==========
+
+// Función para inicializar los eventos de coaches
+function initCoachCollaborators() {
+    // Configurar evento para el botón "Agregar Coaches"
+    if (addCoachBtn) {
+        addCoachBtn.addEventListener('click', async () => {
+            // Verificar si hay filtros aplicados
+            const idDepartamento = departamentoSelect.value;
+            const fecha = fechaInput.value;
+
+            if (!idDepartamento || !fecha) {
+                mostrarNotificacion('Debe aplicar filtros de departamento y fecha primero', 'warning');
+                return;
+            }
+
+            // Verificar que sea día especial o domingo
+            if (!esDiaEspecial && !esDomingo) {
+                mostrarNotificacion('Los coach solo pueden agregarse en días especiales o domingos', 'warning');
+                return;
+            }
+
+            // Mostrar indicador de carga en el botón
+            const originalHTML = addCoachBtn.innerHTML;
+            addCoachBtn.disabled = true;
+            addCoachBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+            addCoachBtn.style.cursor = 'wait';
+
+            try {
+                // Mostrar notificación de carga
+                mostrarNotificacion('Cargando coach disponibles...', 'info');
+
+                // Cargar coaches del departamento 90
+                await cargarCoachesDisponibles(fecha);
+
+                // Mostrar el modal
+                mostrarModal(coachModal);
+
+                // Limpiar selecciones previas
+                limpiarSeleccionCoaches();
+            } catch (error) {
+                mostrarNotificacion('Error al cargar información de coach', 'error');
+                console.error('Error en addCoachBtn:', error);
+            } finally {
+                // Restaurar el botón a su estado original
+                addCoachBtn.disabled = false;
+                addCoachBtn.innerHTML = originalHTML;
+                addCoachBtn.style.cursor = 'pointer';
+            }
+        });
+    }
+
+    // Configurar evento para búsqueda de coaches
+    if (searchCoachPersonalInput) {
+        searchCoachPersonalInput.addEventListener('input', () => {
+            buscarCoach(searchCoachPersonalInput.value);
+        });
+    }
+
+    // Configurar evento para limpiar búsqueda
+    if (clearCoachSearchBtn) {
+        clearCoachSearchBtn.addEventListener('click', () => {
+            searchCoachPersonalInput.value = '';
+            buscarCoach('');
+        });
+    }
+
+    // Configurar evento seleccionar todos los coaches
+    if (selectAllCoachCheckbox) {
+        selectAllCoachCheckbox.addEventListener('change', seleccionarTodosCoaches);
+    }
+
+    // Configurar eventos para botones del modal
+    if (cancelCoachBtn) {
+        cancelCoachBtn.addEventListener('click', () => ocultarModal(coachModal));
+    }
+
+    if (confirmCoachBtn) {
+        confirmCoachBtn.addEventListener('click', agregarCoaches);
+    }
+}
+
+// Función para cargar coaches disponibles del departamento 90
+async function cargarCoachesDisponibles(fecha) {
+    try {
+        // Mostrar estado de carga en la tabla
+        coachPersonalTableBody.innerHTML = `
+            <tr class="empty-row">
+                <td colspan="5">
+                    <div class="loading-message">
+                        <i class="fas fa-spinner fa-spin"></i>
+                        <p>Cargando coach disponibles...</p>
+                    </div>
+                </td>
+            </tr>
+        `;
+
+        const connection = await connectionString();
+
+        // Query para obtener coaches del departamento 90
+        const query = `
+            SELECT
+                personal.IdPersonal,
+                CONCAT(personal.PrimerApellido, ' ', IFNULL(personal.SegundoApellido, ''), ', ', personal.PrimerNombre, ' ', IFNULL(personal.SegundoNombre, ''), ' ', IFNULL(personal.TercerNombre, '')) AS NombreCompleto,
+                personal.IdPuesto,
+                Puestos.Nombre AS NombrePuesto,
+                Puestos.PagosDominicales,
+                Puestos.PagosDiasEspeciales,
+                personal.TipoPersonal AS IdTipoPersonal,
+                TP.TipoPersonal AS NombreTipoPersonal
+            FROM
+                personal
+                INNER JOIN Puestos ON personal.IdPuesto = Puestos.IdPuesto
+                INNER JOIN TipoPersonal TP ON personal.TipoPersonal = TP.IdTipo
+            WHERE
+                personal.IdSucuDepa = 90
+                AND personal.Estado = 1
+            ORDER BY
+                personal.PrimerApellido, personal.PrimerNombre
+        `;
+
+        const result = await connection.query(query);
+
+        // Verificar disponibilidad de cada coach (que no esté en otra planilla para esta fecha)
+        const coachesDisponibles = [];
+
+        for (const coach of result) {
+            const verificacion = await verificarColaboradorEnPlanilla(coach.IdPersonal, fecha);
+
+            if (!verificacion.yaExiste) {
+                coachesDisponibles.push({
+                    ...coach,
+                    PagosDominicales: Number(coach.PagosDominicales),
+                    PagosDiasEspeciales: Number(coach.PagosDiasEspeciales),
+                    selected: false
+                });
+            }
+        }
+
+        await connection.close();
+
+        // Guardar datos en variable global
+        coachPersonalData = coachesDisponibles;
+
+        // Renderizar la tabla con los datos obtenidos
+        renderizarTablaCoaches(coachPersonalData);
+
+        // Mostrar notificación sobre coaches no disponibles
+        const coachesNoDisponibles = result.length - coachesDisponibles.length;
+        if (coachesNoDisponibles > 0) {
+            mostrarNotificacion(
+                `${coachesNoDisponibles} coach ya están asignados a otra planilla para esta fecha`,
+                'info'
+            );
+        }
+
+        return coachPersonalData;
+    } catch (error) {
+        mostrarNotificacion('Error al cargar coach disponibles', 'error');
+        console.error('Error en cargar Coach Disponibles:', error);
+
+        // Mostrar mensaje de error en la tabla
+        coachPersonalTableBody.innerHTML = `
+            <tr class="empty-row">
+                <td colspan="5">
+                    <div class="empty-message">
+                        <i class="fas fa-exclamation-triangle"></i>
+                        <p>Ocurrió un error al cargar los datos. Intente nuevamente.</p>
+                    </div>
+                </td>
+            </tr>
+        `;
+
+        return [];
+    }
+}
+
+// Función para renderizar la tabla de coaches
+function renderizarTablaCoaches(coaches) {
+    // Limpiar contenido actual
+    coachPersonalTableBody.innerHTML = '';
+
+    // Si no hay datos, mostrar mensaje
+    if (!coaches || coaches.length === 0) {
+        coachPersonalTableBody.innerHTML = `
+            <tr class="empty-row">
+                <td colspan="5">
+                    <div class="empty-message">
+                        <i class="fas fa-user-slash"></i>
+                        <p>No hay coach disponibles para esta fecha</p>
+                    </div>
+                </td>
+            </tr>
+        `;
+        return;
+    }
+
+    // Renderizar cada fila
+    coaches.forEach(coach => {
+        const tr = document.createElement('tr');
+
+        // Determinar el pago aplicable
+        let montoAplicable = 0;
+        let tipoPagoMostrar = 'No aplica';
+
+        if (pagoAplicable === 'dominical' && esDomingo) {
+            montoAplicable = coach.PagosDominicales;
+            tipoPagoMostrar = 'Dominical';
+        } else if (pagoAplicable === 'especial' && esDiaEspecial) {
+            montoAplicable = coach.PagosDiasEspeciales;
+            tipoPagoMostrar = 'Día Especial';
+        }
+
+        // Crear celda de checkbox
+        const tdCheck = document.createElement('td');
+        tdCheck.innerHTML = `
+            <div class="th-content">
+                <input type="checkbox" id="check_coach_${coach.IdPersonal}"
+                       class="form-check-input coach-personal-check"
+                       ${coach.selected ? 'checked' : ''}
+                       data-id="${coach.IdPersonal}">
+                <label for="check_coach_${coach.IdPersonal}"></label>
+            </div>
+        `;
+        tr.appendChild(tdCheck);
+
+        // Crear celda de ID
+        const tdId = document.createElement('td');
+        tdId.textContent = coach.IdPersonal;
+        tr.appendChild(tdId);
+
+        // Crear celda de nombre
+        const tdNombre = document.createElement('td');
+        tdNombre.textContent = coach.NombreCompleto;
+        tr.appendChild(tdNombre);
+
+        // Crear celda de puesto
+        const tdPuesto = document.createElement('td');
+        tdPuesto.textContent = coach.NombrePuesto;
+        tr.appendChild(tdPuesto);
+
+        // Crear celda de pago aplicable
+        const tdPagoAplicable = document.createElement('td');
+
+        if (montoAplicable > 0) {
+            tdPagoAplicable.innerHTML = `
+                <span class="pago-aplicable">${tipoPagoMostrar}: Q ${montoAplicable.toFixed(2)}</span>
+            `;
+        } else {
+            tdPagoAplicable.textContent = 'No aplica para esta fecha';
+        }
+
+        tr.appendChild(tdPagoAplicable);
+
+        // Añadir la fila a la tabla
+        coachPersonalTableBody.appendChild(tr);
+    });
+
+    // Añadir event listeners a los checkboxes
+    const checkboxes = document.querySelectorAll('.coach-personal-check');
+    checkboxes.forEach(checkbox => {
+        checkbox.addEventListener('change', manejarSeleccionCoach);
+    });
+}
+
+// Función para manejar la selección de coaches
+function manejarSeleccionCoach(e) {
+    const checkbox = e.target;
+    const idPersonal = parseInt(checkbox.dataset.id);
+    const isChecked = checkbox.checked;
+
+    // Actualizar el estado en el array de datos
+    coachPersonalData = coachPersonalData.map(coach => {
+        if (coach.IdPersonal === idPersonal) {
+            return {...coach, selected: isChecked};
+        }
+        return coach;
+    });
+
+    // Actualizar el contador de seleccionados
+    actualizarContadorCoaches();
+
+    // Verificar si todos están seleccionados
+    actualizarSelectAllCoach();
+
+    // Habilitar/deshabilitar botón de confirmar
+    const haySeleccionados = coachPersonalData.some(c => c.selected);
+    confirmCoachBtn.disabled = !haySeleccionados;
+}
+
+// Función para actualizar el contador de coaches seleccionados
+function actualizarContadorCoaches() {
+    const seleccionados = coachPersonalData.filter(c => c.selected).length;
+    selectedCoachCountSpan.textContent = `${seleccionados} coach${seleccionados !== 1 ? 'es' : ''} seleccionado${seleccionados !== 1 ? 's' : ''}`;
+}
+
+// Función para actualizar el checkbox de seleccionar todos
+function actualizarSelectAllCoach() {
+    const total = coachPersonalData.length;
+    const seleccionados = coachPersonalData.filter(c => c.selected).length;
+
+    selectAllCoachCheckbox.checked = total > 0 && seleccionados === total;
+    selectAllCoachCheckbox.indeterminate = seleccionados > 0 && seleccionados < total;
+}
+
+// Función para seleccionar/deseleccionar todos los coaches
+function seleccionarTodosCoaches(e) {
+    const isChecked = e.target.checked;
+
+    // Actualizar todos los checkboxes
+    const checkboxes = document.querySelectorAll('.coach-personal-check');
+    checkboxes.forEach(checkbox => {
+        checkbox.checked = isChecked;
+    });
+
+    // Actualizar el estado en el array de datos
+    coachPersonalData = coachPersonalData.map(coach => ({
+        ...coach,
+        selected: isChecked
+    }));
+
+    // Actualizar contador
+    actualizarContadorCoaches();
+
+    // Habilitar/deshabilitar botón
+    confirmCoachBtn.disabled = !isChecked;
+}
+
+// Función para buscar coaches por nombre
+function buscarCoach(searchTerm) {
+    if (!searchTerm.trim()) {
+        // Si no hay término de búsqueda, mostrar todos
+        renderizarTablaCoaches(coachPersonalData);
+        return;
+    }
+
+    // Filtrar por término de búsqueda
+    const filtrado = coachPersonalData.filter(coach =>
+        coach.NombreCompleto.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+
+    // Renderizar los resultados filtrados
+    renderizarTablaCoaches(filtrado);
+}
+
+// Función para limpiar selecciones de coaches
+function limpiarSeleccionCoaches() {
+    // Deseleccionar todos
+    coachPersonalData = coachPersonalData.map(coach => ({
+        ...coach,
+        selected: false
+    }));
+
+    // Limpiar búsqueda
+    searchCoachPersonalInput.value = '';
+
+    // Actualizar contador
+    actualizarContadorCoaches();
+
+    // Deshabilitar botón de confirmar
+    confirmCoachBtn.disabled = true;
+
+    // Renderizar tabla
+    renderizarTablaCoaches(coachPersonalData);
+}
+
+// Función para agregar coaches seleccionados a la planilla
+async function agregarCoaches() {
+    const coachesSeleccionados = coachPersonalData.filter(c => c.selected);
+
+    if (coachesSeleccionados.length === 0) {
+        mostrarNotificacion('Debe seleccionar al menos un coach', 'warning');
+        return;
+    }
+
+    try {
+        // Obtener el nombre del departamento de coaches para la marca
+        const nombreDepartamentoCoaches = 'Coaches';
+
+        // Agregar coaches al personal principal con marca de externos
+        coachesSeleccionados.forEach(coach => {
+            // Verificar que no esté ya en la lista principal
+            const yaExiste = personalData.some(p => p.IdPersonal === coach.IdPersonal);
+
+            if (!yaExiste) {
+                personalData.push({
+                    ...coach,
+                    esExterno: true,
+                    departamentoOrigen: nombreDepartamentoCoaches,
+                    selected: true // Auto-seleccionar para la planilla
+                });
+            }
+        });
+
+        // Renderizar la tabla principal actualizada
+        renderizarTablaPersonal(personalData);
+
+        // Actualizar totales después de agregar coaches
+        actualizarTotales();
+
+        // Cerrar el modal
+        ocultarModal(coachModal);
+
+        // Mostrar notificación de éxito
+        mostrarNotificacion(
+            `${coachesSeleccionados.length} coach(es) agregado(s) exitosamente`,
+            'success'
+        );
+
+        // Limpiar selecciones
+        limpiarSeleccionCoaches();
+
+    } catch (error) {
+        mostrarNotificacion('Error al agregar coach', 'error');
+        console.error('Error en agregarCoach:', error);
+    }
+}
+
+// ========== FIN FUNCIONES PARA COACHES ==========
+
 // Función para cargar departamentos en el selector de departamentos externos
 async function cargarDepartamentosExternos(idDepartamentoActual) {
     try {
@@ -4676,6 +5124,7 @@ document.addEventListener('DOMContentLoaded', async() => {
     
     // Inicializar eventos para colaboradores externos
     initExternalCollaborators();
+    initCoachCollaborators();
     
     // Event listeners para paginación
     firstPageBtn.addEventListener('click', () => cambiarPagina(1));

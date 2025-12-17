@@ -56,12 +56,6 @@
 
         <!-- Contenido principal -->
         <main class="main-content">
-            <div class="content-header">
-                <div class="page-info">
-                    <h2 class="page-title">Planilla Especial</h2>
-                </div>
-            </div>
-
             <!-- Tarjeta de filtros compacta -->
             <div class="filter-card animate__animated animate__fadeIn compact-filters">
                 <div class="card-header compact">
@@ -185,6 +179,10 @@
                         <button class="btn-card-action special-action" title="Agregar colaboradores externos" id="addExternalBtn">
                             <i class="fas fa-user-plus"></i>
                             <span class="action-tooltip">Agregar Externos</span>
+                        </button>
+                        <button class="btn-card-action special-action" title="Agregar coach" id="addCoachBtn">
+                            <i class="fas fa-user-tie"></i>
+                            <span class="action-tooltip">Agregar Coach</span>
                         </button>
                     </div>
                 </div>
@@ -590,6 +588,85 @@
                         <i class="fas fa-times"></i> Cancelar
                     </button>
                     <button class="btn btn-success" id="confirmExternalBtn" disabled>
+                        <i class="fas fa-plus-circle"></i> Agregar Seleccionados
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <!-- Modal para agregar coaches -->
+    <div class="modal" id="coachModal">
+        <div class="modal-content wider-modal">
+            <div class="modal-header">
+                <h3><i class="fas fa-user-tie"></i> Agregar Coach</h3>
+                <button class="close-modal"><i class="fas fa-times"></i></button>
+            </div>
+            <div class="modal-body">
+                <div class="external-personnel-form">
+                    <p>Seleccione los coach para agregarlos a esta planilla.</p>
+
+                    <!-- Búsqueda de Coach -->
+                    <div class="form-group">
+                        <label for="searchCoachPersonal" class="form-label">
+                            <i class="fas fa-search"></i> Buscar Coach
+                        </label>
+                        <div class="input-with-icon">
+                            <input type="text" id="searchCoachPersonal" class="form-control" placeholder="Buscar por nombre...">
+                            <button class="icon-button" id="clearCoachSearchBtn" title="Limpiar búsqueda">
+                                <i class="fas fa-times"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Tabla de coaches disponibles -->
+                    <div class="table-container limited-height">
+                        <table class="data-table" id="coachPersonalTable">
+                            <thead>
+                                <tr>
+                                    <th class="th-checkbox">
+                                        <div class="th-content">
+                                            <input type="checkbox" id="selectAllCoach" class="form-check-input">
+                                            <label for="selectAllCoach"></label>
+                                        </div>
+                                    </th>
+                                    <th class="th-id">ID</th>
+                                    <th class="th-nombre">Nombre del Coach</th>
+                                    <th class="th-puesto">Puesto</th>
+                                    <th class="th-pago">Pago Aplicable</th>
+                                </tr>
+                            </thead>
+                            <tbody id="coachPersonalTableBody">
+                                <tr class="empty-row">
+                                    <td colspan="5">
+                                        <div class="empty-message">
+                                            <i class="fas fa-spinner fa-spin"></i>
+                                            <p>Cargando coach disponibles...</p>
+                                        </div>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- Información -->
+                    <div class="transaction-info">
+                        <div class="transaction-header">
+                            <i class="fas fa-info-circle"></i>
+                            <span>Información Importante</span>
+                        </div>
+                        <p>Los coach seleccionados serán añadidos a la planilla actual. El sistema verificará que no estén ya registrados en otra planilla para la misma fecha.</p>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <div class="selection-info">
+                    <span id="selectedCoachCount">0 coach seleccionados</span>
+                </div>
+                <div class="action-buttons">
+                    <button class="btn btn-outline" id="cancelCoachBtn">
+                        <i class="fas fa-times"></i> Cancelar
+                    </button>
+                    <button class="btn btn-success" id="confirmCoachBtn" disabled>
                         <i class="fas fa-plus-circle"></i> Agregar Seleccionados
                     </button>
                 </div>

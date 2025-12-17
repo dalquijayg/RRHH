@@ -12,6 +12,8 @@ let departamentoSeleccionado = null;
 let colaboradorSeleccionado = null;
 let todosLosResultados = [];
 let timeoutBusquedaNombre = null;
+let indiceDepartamentoSeleccionado = -1; // Para navegación con teclado
+let indiceNombreSeleccionado = -1; // Para navegación con teclado en nombres
 
 // ==================== INICIALIZACIÓN ====================
 document.addEventListener('DOMContentLoaded', async () => {
@@ -137,34 +139,106 @@ function configurarEventos() {
 
     // Búsqueda de nombre mientras escribe (con debounce)
     inputNombre.addEventListener('input', () => {
+        indiceNombreSeleccionado = -1; // Reset del índice al escribir
         clearTimeout(timeoutBusquedaNombre);
         timeoutBusquedaNombre = setTimeout(() => {
             buscarNombresColaboradores();
         }, 300); // 300ms de delay para no sobrecargar
     });
 
-    // Búsqueda de nombre con Enter
+    // Navegación con teclado para nombres
     inputNombre.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter') {
-            e.preventDefault();
-            const query = inputNombre.value.trim();
-            if (query.length >= 2) {
-                ocultarResultadosNombres();
-                buscarPersonal();
+        const container = document.getElementById('nombreResults');
+        const items = container.querySelectorAll('.autocomplete-item:not([style*="cursor: default"])');
+
+        if (items.length === 0) {
+            // Si no hay resultados, permitir búsqueda con Enter
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                const query = inputNombre.value.trim();
+                if (query.length >= 2) {
+                    ocultarResultadosNombres();
+                    buscarPersonal();
+                }
             }
+            return;
+        }
+
+        switch(e.key) {
+            case 'ArrowDown':
+                e.preventDefault();
+                indiceNombreSeleccionado = Math.min(indiceNombreSeleccionado + 1, items.length - 1);
+                actualizarSeleccionVisualNombre(items);
+                break;
+
+            case 'ArrowUp':
+                e.preventDefault();
+                indiceNombreSeleccionado = Math.max(indiceNombreSeleccionado - 1, 0);
+                actualizarSeleccionVisualNombre(items);
+                break;
+
+            case 'Enter':
+                e.preventDefault();
+                if (indiceNombreSeleccionado >= 0 && indiceNombreSeleccionado < items.length) {
+                    // Seleccionar el nombre resaltado
+                    items[indiceNombreSeleccionado].click();
+                } else {
+                    // Si no hay selección, buscar directamente
+                    const query = inputNombre.value.trim();
+                    if (query.length >= 2) {
+                        ocultarResultadosNombres();
+                        buscarPersonal();
+                    }
+                }
+                break;
+
+            case 'Escape':
+                e.preventDefault();
+                ocultarResultadosNombres();
+                indiceNombreSeleccionado = -1;
+                break;
         }
     });
 
     // Búsqueda de departamento mientras escribe
     inputDepartamento.addEventListener('input', () => {
+        indiceDepartamentoSeleccionado = -1; // Reset del índice al escribir
         buscarDepartamentos();
     });
 
-    // Búsqueda de departamento con Enter
+    // Navegación con teclado para departamentos
     inputDepartamento.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter') {
-            e.preventDefault();
-            buscarDepartamentos();
+        const container = document.getElementById('departamentoResults');
+        const items = container.querySelectorAll('.autocomplete-item:not([style*="cursor: default"])');
+
+        if (items.length === 0) return;
+
+        switch(e.key) {
+            case 'ArrowDown':
+                e.preventDefault();
+                indiceDepartamentoSeleccionado = Math.min(indiceDepartamentoSeleccionado + 1, items.length - 1);
+                actualizarSeleccionVisualDepartamento(items);
+                break;
+
+            case 'ArrowUp':
+                e.preventDefault();
+                indiceDepartamentoSeleccionado = Math.max(indiceDepartamentoSeleccionado - 1, 0);
+                actualizarSeleccionVisualDepartamento(items);
+                break;
+
+            case 'Enter':
+                e.preventDefault();
+                if (indiceDepartamentoSeleccionado >= 0 && indiceDepartamentoSeleccionado < items.length) {
+                    // Seleccionar el departamento resaltado
+                    items[indiceDepartamentoSeleccionado].click();
+                }
+                break;
+
+            case 'Escape':
+                e.preventDefault();
+                ocultarResultadosDepartamentos();
+                indiceDepartamentoSeleccionado = -1;
+                break;
         }
     });
 
@@ -282,6 +356,7 @@ async function buscarNombresColaboradores() {
 function mostrarResultadosNombres(resultados) {
     const container = document.getElementById('nombreResults');
     container.innerHTML = '';
+    indiceNombreSeleccionado = -1; // Reset al mostrar nuevos resultados
 
     if (resultados.length === 0) {
         container.innerHTML = '<div class="autocomplete-item" style="color: #999; cursor: default;">No se encontraron colaboradores</div>';
@@ -309,9 +384,25 @@ function mostrarResultadosNombres(resultados) {
     container.classList.add('show');
 }
 
+// Función para actualizar la selección visual con las flechas del teclado (nombres)
+function actualizarSeleccionVisualNombre(items) {
+    // Remover clase 'selected' de todos los items
+    items.forEach(item => item.classList.remove('selected'));
+
+    // Agregar clase 'selected' al item actual
+    if (indiceNombreSeleccionado >= 0 && indiceNombreSeleccionado < items.length) {
+        const itemSeleccionado = items[indiceNombreSeleccionado];
+        itemSeleccionado.classList.add('selected');
+
+        // Hacer scroll si el item está fuera de vista
+        itemSeleccionado.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    }
+}
+
 function ocultarResultadosNombres() {
     const container = document.getElementById('nombreResults');
     container.classList.remove('show');
+    indiceNombreSeleccionado = -1; // Reset al ocultar
 }
 
 function seleccionarColaborador(colaborador) {
@@ -383,6 +474,7 @@ function buscarDepartamentos() {
 function mostrarResultadosDepartamentos(resultados) {
     const container = document.getElementById('departamentoResults');
     container.innerHTML = '';
+    indiceDepartamentoSeleccionado = -1; // Reset al mostrar nuevos resultados
 
     if (resultados.length === 0) {
         container.innerHTML = '<div class="autocomplete-item" style="color: #999; cursor: default;">No se encontraron departamentos</div>';
@@ -395,20 +487,36 @@ function mostrarResultadosDepartamentos(resultados) {
         item.className = 'autocomplete-item';
         item.textContent = dept.NombreDepartamento;
         item.dataset.id = dept.IdDepartamento;
-        
+
         item.addEventListener('click', () => {
             seleccionarDepartamento(dept);
         });
-        
+
         container.appendChild(item);
     });
 
     container.classList.add('show');
 }
 
+// Función para actualizar la selección visual con las flechas del teclado
+function actualizarSeleccionVisualDepartamento(items) {
+    // Remover clase 'selected' de todos los items
+    items.forEach(item => item.classList.remove('selected'));
+
+    // Agregar clase 'selected' al item actual
+    if (indiceDepartamentoSeleccionado >= 0 && indiceDepartamentoSeleccionado < items.length) {
+        const itemSeleccionado = items[indiceDepartamentoSeleccionado];
+        itemSeleccionado.classList.add('selected');
+
+        // Hacer scroll si el item está fuera de vista
+        itemSeleccionado.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    }
+}
+
 function ocultarResultadosDepartamentos() {
     const container = document.getElementById('departamentoResults');
     container.classList.remove('show');
+    indiceDepartamentoSeleccionado = -1; // Reset al ocultar
 }
 
 function seleccionarDepartamento(dept) {

@@ -1,6 +1,6 @@
 {
   "name": "recursos",
-  "version": "1.0.52",
+  "version": "1.0.53",
   "main": "src/Index.js",
   "scripts": {
     "start": "electron .",
@@ -21,6 +21,7 @@
     "exceljs": "^4.4.0",
     "file-saver": "^2.0.5",
     "jspdf": "^3.0.1",
+    "jspdf-autotable": "^5.0.2",
     "mysql2": "^3.14.1",
     "odbc": "^2.4.9",
     "otplib": "^12.0.1",

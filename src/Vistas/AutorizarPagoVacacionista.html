@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Autorizar Pago Vacacionistas - Recursos Humanos</title>
+    <link rel="stylesheet" href="../Disenos/Autorizaciones/AutorizarPagoVacacionista.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+</head>
+<body>
+    <!-- Header -->
+    <header class="main-header">
+        <div class="header-content">
+            <div class="header-left">
+                <button class="btn-back" id="btnBack" title="Volver al menú">
+                    <i class="fas fa-arrow-left"></i>
+                </button>
+                <div class="header-title">
+                    <h1><i class="fas fa-file-invoice-dollar"></i> Autorizar Pago Vacacionistas</h1>
+                    <p class="subtitle">Gestión de Solicitudes de Pago</p>
+                </div>
+            </div>
+            <div class="header-right">
+                <div class="user-info">
+                    <img src="../Imagenes/user-default.png" alt="Usuario" class="user-avatar" id="userAvatar">
+                    <div class="user-details">
+                        <span class="user-name" id="userName">Usuario</span>
+                        <span class="user-role" id="userRole">Regional</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="main-content">
+        <!-- Stats Cards -->
+        <div class="stats-container">
+            <div class="stat-card stat-pending">
+                <div class="stat-icon">
+                    <i class="fas fa-clock"></i>
+                </div>
+                <div class="stat-info">
+                    <span class="stat-value" id="statPending">0</span>
+                    <span class="stat-label">Pendientes</span>
+                </div>
+            </div>
+
+            <div class="stat-card stat-stores">
+                <div class="stat-icon">
+                    <i class="fas fa-store"></i>
+                </div>
+                <div class="stat-info">
+                    <span class="stat-value" id="statStores">0</span>
+                    <span class="stat-label">Tiendas a Cargo</span>
+                </div>
+            </div>
+
+            <div class="stat-card stat-amount">
+                <div class="stat-icon">
+                    <i class="fas fa-money-bill-wave"></i>
+                </div>
+                <div class="stat-info">
+                    <span class="stat-value" id="statAmount">Q 0.00</span>
+                    <span class="stat-label">Monto Total</span>
+                </div>
+            </div>
+
+            <div class="stat-card stat-employees">
+                <div class="stat-icon">
+                    <i class="fas fa-users"></i>
+                </div>
+                <div class="stat-info">
+                    <span class="stat-value" id="statEmployees">0</span>
+                    <span class="stat-label">Colaboradores</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Filters Section -->
+        <div class="filters-section">
+            <div class="filters-container">
+                <div class="filter-group">
+                    <label for="filterStore">
+                        <i class="fas fa-store"></i> Filtrar por Tienda
+                    </label>
+                    <select id="filterStore" class="filter-select">
+                        <option value="">Todas las tiendas</option>
+                    </select>
+                </div>
+
+                <div class="filter-group">
+                    <label for="searchInput">
+                        <i class="fas fa-search"></i> Buscar
+                    </label>
+                    <input 
+                        type="text" 
+                        id="searchInput" 
+                        class="filter-input" 
+                        placeholder="Buscar por tienda, período o usuario...">
+                </div>
+
+                <button class="btn-refresh" id="btnRefresh" title="Actualizar datos">
+                    <i class="fas fa-sync-alt"></i> Actualizar
+                </button>
+            </div>
+        </div>
+
+        <!-- Table Section -->
+        <div class="table-section">
+            <div class="table-container">
+                <div class="table-wrapper">
+                    <table class="data-table" id="solicitudesTable">
+                        <thead>
+                            <tr>
+                                <th>#</th>
+                                <th>
+                                    <i class="fas fa-calendar"></i> Período de Pago
+                                </th>
+                                <th>
+                                    <i class="fas fa-store"></i> Tienda/Departamento
+                                </th>
+                                <th>
+                                    <i class="fas fa-user"></i> Generado Por
+                                </th>
+                                <th>
+                                    <i class="fas fa-users"></i> Colaboradores
+                                </th>
+                                <th>
+                                    <i class="fas fa-money-bill-wave"></i> Monto Total
+                                </th>
+                                <th>
+                                    <i class="fas fa-clock"></i> Fecha Registro
+                                </th>
+                                <th class="actions-column">
+                                    <i class="fas fa-cog"></i> Acciones
+                                </th>
+                            </tr>
+                        </thead>
+                        <tbody id="solicitudesTableBody">
+                            <!-- Los datos se cargarán dinámicamente -->
+                            <tr class="no-data">
+                                <td colspan="8">
+                                    <div class="empty-state">
+                                        <i class="fas fa-inbox"></i>
+                                        <p>No hay solicitudes pendientes</p>
+                                        <small>Las solicitudes aparecerán aquí cuando estén disponibles</small>
+                                    </div>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Loading State -->
+                <div class="loading-overlay" id="loadingOverlay" style="display: none;">
+                    <div class="loading-spinner">
+                        <i class="fas fa-circle-notch fa-spin"></i>
+                        <p>Cargando solicitudes...</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Pagination -->
+            <div class="pagination-container" id="paginationContainer" style="display: none;">
+                <div class="pagination-info">
+                    Mostrando <span id="showingFrom">0</span> a <span id="showingTo">0</span> de <span id="totalRecords">0</span> registros
+                </div>
+                <div class="pagination-controls">
+                    <button class="btn-pagination" id="btnFirst" disabled>
+                        <i class="fas fa-angle-double-left"></i>
+                    </button>
+                    <button class="btn-pagination" id="btnPrev" disabled>
+                        <i class="fas fa-angle-left"></i> Anterior
+                    </button>
+                    <span class="pagination-pages" id="paginationPages">
+                        Página <span id="currentPage">1</span> de <span id="totalPages">1</span>
+                    </span>
+                    <button class="btn-pagination" id="btnNext" disabled>
+                        Siguiente <i class="fas fa-angle-right"></i>
+                    </button>
+                    <button class="btn-pagination" id="btnLast" disabled>
+                        <i class="fas fa-angle-double-right"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="main-footer">
+        <p>Sistema de Recursos Humanos - Autorización de Pago Vacacionistas © New Technology 2025</p>
+    </footer>
+
+    <script src="../Logica/Autorizaciones/AutorizarPagoVacacionista.js"></script>
+</body>
+</html>
