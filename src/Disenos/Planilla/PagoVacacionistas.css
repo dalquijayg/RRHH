@@ -14,9 +14,9 @@ body {
     display: flex;
     justify-content: center;
     align-items: center;
-    overflow: hidden;
+    overflow: auto;
     position: relative;
-    padding: 20px;
+    padding: 10px;
 }
 
 /* Logo de la empresa (esquina superior izquierda) */
@@ -55,10 +55,13 @@ body {
     box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
     border: 1px solid #f0f0f0;
     position: relative;
-    overflow: hidden;
-    max-height: calc(100vh - 40px);
+    overflow-y: auto;
+    overflow-x: hidden;
+    max-height: calc(100vh - 20px);
     display: flex;
     flex-direction: column;
+    min-width: 800px;
+    width: 100%;
 }
 
 /* Efecto de brillo en las esquinas */
@@ -226,8 +229,10 @@ h1::after, h2::after {
    ============================================ */
 
 .periodo-section {
-    max-width: 700px;
+    max-width: 900px;
+    width: 100%;
     margin: 0 auto;
+    min-width: 600px;
 }
 
 /* Info Card */
@@ -492,6 +497,7 @@ h1::after, h2::after {
     justify-content: center;
     gap: 15px;
     margin-top: 30px;
+    flex-wrap: wrap;
 }
 
 .btn {
@@ -1485,47 +1491,122 @@ input[type="checkbox"] {
     }
 }
 
+/* Responsive para tablets y pantallas medianas */
+@media screen and (max-width: 900px) {
+    .content-box {
+        padding: 30px 20px;
+        max-width: 95%;
+    }
+
+    .periodo-section {
+        max-width: 100%;
+    }
+
+    .form-row {
+        grid-template-columns: 1fr;
+        gap: 15px;
+    }
+
+    .info-banner-wrapper {
+        flex-direction: column;
+    }
+
+    .info-banner {
+        grid-template-columns: repeat(3, 1fr);
+    }
+
+    .summary-cards-compact {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
 @media screen and (max-width: 480px) {
     .content-box {
         padding: 20px 15px;
+        margin: 10px;
+        max-width: calc(100% - 20px);
     }
-    
+
+    h1 {
+        font-size: 1.5rem;
+    }
+
+    .subtitle {
+        font-size: 0.9rem;
+    }
+
     .button-group {
         flex-direction: column;
+        gap: 10px;
     }
-    
+
     .button-group .btn {
         width: 100%;
     }
-    
+
     .info-card {
         flex-direction: column;
         text-align: center;
-    }
-    
-    .periodo-form {
         padding: 20px;
     }
-    
-    .bubble {
-        opacity: 0.05;
+
+    .info-icon {
+        font-size: 2.5rem;
     }
-    
-    .personal-table thead th {
-        font-size: 0.75rem;
+
+    .periodo-form {
+        padding: 20px 15px;
     }
-    
-    .personal-table tbody td {
-        font-size: 0.8rem;
+
+    .form-row {
+        grid-template-columns: 1fr;
+        gap: 15px;
+        margin-bottom: 20px;
     }
-    
+
+    .periodo-info {
+        padding: 15px;
+    }
+
     .info-row {
         flex-direction: column;
         text-align: center;
-        gap: 10px;
+        gap: 8px;
+        margin-bottom: 12px;
     }
-    
+
+    .info-label {
+        font-size: 0.75rem;
+    }
+
     .info-value {
-        font-size: 1.3rem;
+        font-size: 1.1rem;
+    }
+
+    .bubble {
+        opacity: 0.05;
+    }
+
+    .personal-table thead th {
+        font-size: 0.7rem;
+        padding: 12px 8px;
+    }
+
+    .personal-table tbody td {
+        font-size: 0.75rem;
+        padding: 10px 8px;
+    }
+
+    .info-banner {
+        grid-template-columns: 1fr;
+    }
+
+    .summary-cards-compact {
+        grid-template-columns: 1fr;
+    }
+
+    .compact-card,
+    .info-item {
+        padding: 8px 10px;
     }
 }

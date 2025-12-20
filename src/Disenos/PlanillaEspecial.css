@@ -2774,3 +2774,17 @@ input[type="checkbox"]:disabled {
 .swal2-container {
     z-index: 10200 !important;
 }
+
+/* Estilo para filas con advertencia (colaboradores sin monto asignado) */
+.warning-row {
+    background-color: #fff3cd !important;
+    border-left: 3px solid var(--color-danger) !important;
+}
+
+.warning-row:hover {
+    background-color: #ffe69c !important;
+}
+
+.warning-row td {
+    color: #856404 !important;
+}

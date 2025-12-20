@@ -11,9 +11,10 @@ const { saveAs } = require('file-saver');
 let departamentosData = [];
 let tiposPersonalData = [];
 let personalData = [];
-let pagoAplicable = 'dominical'; // 'dominical' o 'especial'
+let pagoAplicable = 'dominical'; // 'dominical', 'especial' o 'findeAnio'
 let esDiaEspecial = false;
 let esDomingo = false;
+let esFinDeAnio = false;
 let filtersApplied = false;
 let currentPage = 1;
 let itemsPerPage = 50;
@@ -403,29 +404,38 @@ async function verificarDiaEspecial(fecha, idDepartamento) {
 // Función para determinar el tipo de fecha y el pago aplicable
 async function determinarTipoFecha(fecha, idDepartamento) {
     const fechaNormalizada = fecha.includes('T') ? fecha : `${fecha}T00:00:00`;
-    
+    const fechaObj = new Date(fechaNormalizada);
+    const dia = fechaObj.getDate();
+    const mes = fechaObj.getMonth() + 1; // Los meses en JS van de 0-11
+
     // Verificar si es domingo
     const domingo = esFechaDomingo(fechaNormalizada);
-    
+
     // Verificar si es día especial
     const resultadoDiaEspecial = await verificarDiaEspecial(fechaNormalizada, idDepartamento);
     const diaEspecial = resultadoDiaEspecial.esDiaEspecial;
     const descripcionDiaEspecial = resultadoDiaEspecial.descripcion;
-    
+
+    // 🎄 Verificar si es 24 o 31 de diciembre (Fin de Año)
+    const finDeAnio = (mes === 12 && (dia === 24 || dia === 31));
+
     // Actualizar variables globales
     esDomingo = domingo;
     esDiaEspecial = diaEspecial;
-    
+    esFinDeAnio = finDeAnio;
+
     // 🆕 DETERMINAR TIPO DE PLANILLA NUMÉRICO
     let tipoPlanillaNumerico = 0;
     let tituloPDF = "";
     let tipoPago = "";
-    
+
+    // Verificar si es día especial primero (incluye 24 y 31 de diciembre si están en DiasEspeciales)
     if (diaEspecial) {
         if (resultadoDiaEspecial.esGlobal === true) {
             // 🌍 Día global (asueto) = 2
             tipoPlanillaNumerico = 2;
-            pagoAplicable = 'especial';
+            // 🎄 Si es 24 o 31 de diciembre, usar PagoFindeAnio
+            pagoAplicable = finDeAnio ? 'findeAnio' : 'especial';
             tituloPDF = "PLANILLA POR ASUETO";
             tipoPago = `Pago por Asueto (${descripcionDiaEspecial})`;
         } else {
@@ -435,15 +445,15 @@ async function determinarTipoFecha(fecha, idDepartamento) {
             tituloPDF = "PLANILLA POR FERIADO";
             tipoPago = `Pago por Feriado (${descripcionDiaEspecial})`;
         }
-        
+
         return {
-            tipo: 'especial',
-            icono: 'calendar-check',
+            tipo: finDeAnio ? 'findeAnio' : 'especial',
+            icono: finDeAnio ? 'gift' : 'calendar-check',
             mensaje: descripcionDiaEspecial,
-            iconoColor: 'var(--color-info)',
+            iconoColor: finDeAnio ? 'var(--color-success)' : 'var(--color-info)',
             tipoPago: tipoPago,
             tituloPDF: tituloPDF,
-            tipoPlanillaNumerico: tipoPlanillaNumerico  // 🆕 NUEVO CAMPO
+            tipoPlanillaNumerico: tipoPlanillaNumerico
         };
     } else if (domingo) {
         // 📅 Domingo = 1
@@ -451,7 +461,7 @@ async function determinarTipoFecha(fecha, idDepartamento) {
         pagoAplicable = 'dominical';
         tituloPDF = "PLANILLA DOMINICAL";
         tipoPago = 'Pago Dominical';
-        
+
         return {
             tipo: 'dominical',
             icono: 'calendar-day',
@@ -459,13 +469,13 @@ async function determinarTipoFecha(fecha, idDepartamento) {
             iconoColor: 'var(--color-warning)',
             tipoPago: tipoPago,
             tituloPDF: tituloPDF,
-            tipoPlanillaNumerico: tipoPlanillaNumerico  // 🆕 NUEVO CAMPO
+            tipoPlanillaNumerico: tipoPlanillaNumerico
         };
     } else {
         // ❌ Día regular = 0 (no aplica)
         tipoPlanillaNumerico = 0;
         pagoAplicable = null;
-        
+
         return {
             tipo: 'regular',
             icono: 'calendar-times',
@@ -473,7 +483,7 @@ async function determinarTipoFecha(fecha, idDepartamento) {
             iconoColor: 'var(--color-danger)',
             tipoPago: 'No Aplica',
             tituloPDF: '',
-            tipoPlanillaNumerico: tipoPlanillaNumerico  // 🆕 NUEVO CAMPO
+            tipoPlanillaNumerico: tipoPlanillaNumerico
         };
     }
 }
@@ -488,12 +498,13 @@ async function cargarPersonalDepartamento(idDepartamento, idTipoPersonal) {
         
         const query = `
             SELECT
-                personal.IdPersonal, 
+                personal.IdPersonal,
                 CONCAT(personal.PrimerApellido, ' ', IFNULL(personal.SegundoApellido, ''), ', ', personal.PrimerNombre, ' ', IFNULL(personal.SegundoNombre, ''), ' ', IFNULL(personal.TercerNombre, '')) AS NombreCompleto,
                 personal.IdPuesto,
                 Puestos.Nombre AS NombrePuesto,
                 Puestos.PagosDominicales,
                 Puestos.PagosDiasEspeciales,
+                Puestos.PagoFindeAnio,
                 personal.TipoPersonal AS IdTipoPersonal,
                 TP.TipoPersonal AS NombreTipoPersonal
             FROM
@@ -518,6 +529,7 @@ async function cargarPersonalDepartamento(idDepartamento, idTipoPersonal) {
             ...personal,
             PagosDominicales: Number(personal.PagosDominicales),
             PagosDiasEspeciales: Number(personal.PagosDiasEspeciales),
+            PagoFindeAnio: Number(personal.PagoFindeAnio),
             selected: false
         }));
         
@@ -638,7 +650,9 @@ function renderizarTablaPersonal(personal, paginar = true) {
 
     // Calcular el monto total solo de los seleccionados
     personalSeleccionado.forEach(persona => {
-        if (pagoAplicable === 'dominical' && esDomingo) {
+        if (pagoAplicable === 'findeAnio' && esFinDeAnio) {
+            totalMonto += persona.PagoFindeAnio;
+        } else if (pagoAplicable === 'dominical' && esDomingo) {
             totalMonto += persona.PagosDominicales;
         } else if (pagoAplicable === 'especial' && esDiaEspecial) {
             totalMonto += persona.PagosDiasEspeciales;
@@ -658,7 +672,10 @@ function renderizarTablaPersonal(personal, paginar = true) {
         let montoAplicable = 0;
         let tipoPagoMostrar = 'No aplica';
 
-        if (pagoAplicable === 'dominical' && esDomingo) {
+        if (pagoAplicable === 'findeAnio' && esFinDeAnio) {
+            montoAplicable = persona.PagoFindeAnio;
+            tipoPagoMostrar = 'Fin de Año';
+        } else if (pagoAplicable === 'dominical' && esDomingo) {
             montoAplicable = persona.PagosDominicales;
             tipoPagoMostrar = 'Dominical';
         } else if (pagoAplicable === 'especial' && esDiaEspecial) {
@@ -730,20 +747,32 @@ function renderizarTablaPersonal(personal, paginar = true) {
         }
         
         tr.appendChild(tdTipoPersonal);
-        
+
         // Crear celda de pago aplicable
         const tdPagoAplicable = document.createElement('td');
-        
-        if (montoAplicable > 0) {
-            tdPagoAplicable.innerHTML = `
-                <span class="pago-aplicable">${tipoPagoMostrar}: Q ${montoAplicable.toFixed(2)}</span>
-            `;
+
+        if (pagoAplicable && (pagoAplicable === 'dominical' || pagoAplicable === 'especial' || pagoAplicable === 'findeAnio')) {
+            // Si hay un tipo de pago aplicable para esta fecha
+            if (montoAplicable > 0) {
+                tdPagoAplicable.innerHTML = `
+                    <span class="pago-aplicable">${tipoPagoMostrar}: Q ${montoAplicable.toFixed(2)}</span>
+                `;
+            } else {
+                // El colaborador no tiene monto asignado para este tipo de pago
+                tdPagoAplicable.innerHTML = `
+                    <span style="color: var(--color-danger); font-weight: 500;">
+                        <i class="fas fa-exclamation-triangle"></i> Sin monto asignado
+                    </span>
+                `;
+                // Agregar clase de advertencia a la fila
+                tr.classList.add('warning-row');
+            }
         } else {
             tdPagoAplicable.textContent = 'No aplica para esta fecha';
         }
-        
+
         tr.appendChild(tdPagoAplicable);
-        
+
         // Añadir la fila a la tabla
         personalTableBody.appendChild(tr);
     });
@@ -1268,15 +1297,70 @@ function mostrarConfirmacionPlanilla() {
             });
             return;
         }
-        
-        // Si no hay excesos, continuar con la confirmación normal
-        
+
+        // 💰 Validar que todos los colaboradores tengan monto asignado
+        const colaboradoresSinMonto = [];
+        personalSeleccionado.forEach(persona => {
+            let montoAplicable = 0;
+            let tipoPagoTexto = '';
+
+            if (pagoAplicable === 'findeAnio') {
+                montoAplicable = persona.PagoFindeAnio || 0;
+                tipoPagoTexto = 'Fin de Año';
+            } else if (pagoAplicable === 'dominical') {
+                montoAplicable = persona.PagosDominicales || 0;
+                tipoPagoTexto = 'Dominical';
+            } else if (pagoAplicable === 'especial') {
+                montoAplicable = persona.PagosDiasEspeciales || 0;
+                tipoPagoTexto = 'Día Especial';
+            }
+
+            if (montoAplicable === 0 || montoAplicable === null || isNaN(montoAplicable)) {
+                colaboradoresSinMonto.push({
+                    nombre: persona.NombreCompleto,
+                    puesto: persona.NombrePuesto,
+                    tipoPago: tipoPagoTexto
+                });
+            }
+        });
+
+        if (colaboradoresSinMonto.length > 0) {
+            // Mostrar alerta de colaboradores sin monto
+            const listaColaboradores = colaboradoresSinMonto.map(col =>
+                `<li><strong>${col.nombre}</strong> - ${col.puesto} (Pago ${col.tipoPago})</li>`
+            ).join('');
+
+            Swal.fire({
+                icon: 'error',
+                title: 'Colaboradores Sin Monto Asignado',
+                html: `
+                    <div class="alerta-sin-monto">
+                        <p style="margin-bottom: 15px;">Los siguientes colaboradores no tienen un monto asignado para este tipo de pago:</p>
+                        <ul style="text-align: left; margin: 15px 0; padding-left: 25px; max-height: 300px; overflow-y: auto;">
+                            ${listaColaboradores}
+                        </ul>
+                        <p style="margin-top: 15px; font-weight: bold; color: var(--color-primary);">
+                            Por favor, contacte con el departamento de Recursos Humanos para que asignen los montos correspondientes.
+                        </p>
+                    </div>
+                `,
+                confirmButtonText: 'Entendido',
+                confirmButtonColor: 'var(--color-danger)',
+                width: '600px'
+            });
+            return;
+        }
+
+        // Si no hay excesos ni colaboradores sin monto, continuar con la confirmación normal
+
         // Calcular totales
         const totalColaboradores = personalSeleccionado.length;
         let totalMonto = 0;
         
         personalSeleccionado.forEach(persona => {
-            if (pagoAplicable === 'dominical') {
+            if (pagoAplicable === 'findeAnio') {
+                totalMonto += persona.PagoFindeAnio;
+            } else if (pagoAplicable === 'dominical') {
                 totalMonto += persona.PagosDominicales;
             } else if (pagoAplicable === 'especial') {
                 totalMonto += persona.PagosDiasEspeciales;
@@ -1295,7 +1379,9 @@ function mostrarConfirmacionPlanilla() {
         document.getElementById('confirmDepartamento').textContent = nombreDepartamento;
         document.getElementById('confirmTipoPersonal').textContent = tipoPersonalTexto;
         document.getElementById('confirmFecha').textContent = fechaFormateada;
-        document.getElementById('confirmTipoPago').textContent = pagoAplicable === 'dominical' ? 'Pago Dominical' : 'Pago Día Especial';
+        document.getElementById('confirmTipoPago').textContent =
+            pagoAplicable === 'findeAnio' ? 'Pago Fin de Año' :
+            pagoAplicable === 'dominical' ? 'Pago Dominical' : 'Pago Día Especial';
         document.getElementById('confirmTotalPersonal').textContent = totalColaboradores;
         document.getElementById('confirmTotalPago').textContent = `Q ${totalMonto.toFixed(2)}`;
         
@@ -1356,8 +1442,8 @@ async function generarPlanilla() {
         const infoTipoFecha = await determinarTipoFecha(fecha, idDepartamento);
         const tipoPlanillaNumerico = infoTipoFecha.tipoPlanillaNumerico;
         
-        // Verificar si es día especial o dominical
-        if (!esDiaEspecial && !esDomingo) {
+        // Verificar si es día especial, dominical o fin de año
+        if (!esDiaEspecial && !esDomingo && !esFinDeAnio) {
             throw new Error('La fecha seleccionada no es válida para generar planilla especial');
         }
         
@@ -1371,20 +1457,60 @@ async function generarPlanilla() {
         // Verificar límites de personal
         const limitesDepartamento = await cargarLimitesDepartamento(idDepartamento);
         const excesos = verificarLimitesPersonal(personalSeleccionado, limitesDepartamento);
-        
+
         if (excesos.excedeLimites) {
             throw new Error('Se han excedido los límites de personal establecidos para este departamento');
         }
-        
+
+        // 💰 Validar que todos los colaboradores tengan monto asignado
+        updateProgress(20, 'Validando montos de pago...');
+        const colaboradoresSinMonto = [];
+        personalSeleccionado.forEach(persona => {
+            let montoAplicable = 0;
+            let tipoPagoTexto = '';
+
+            if (pagoAplicable === 'findeAnio') {
+                montoAplicable = persona.PagoFindeAnio || 0;
+                tipoPagoTexto = 'Fin de Año';
+            } else if (pagoAplicable === 'dominical') {
+                montoAplicable = persona.PagosDominicales || 0;
+                tipoPagoTexto = 'Dominical';
+            } else if (pagoAplicable === 'especial') {
+                montoAplicable = persona.PagosDiasEspeciales || 0;
+                tipoPagoTexto = 'Día Especial';
+            }
+
+            if (montoAplicable === 0 || montoAplicable === null || isNaN(montoAplicable)) {
+                colaboradoresSinMonto.push({
+                    nombre: persona.NombreCompleto,
+                    puesto: persona.NombrePuesto,
+                    tipoPago: tipoPagoTexto
+                });
+            }
+        });
+
+        if (colaboradoresSinMonto.length > 0) {
+            const nombresColaboradores = colaboradoresSinMonto.map(col => col.nombre).join(', ');
+            throw new Error(`Los siguientes colaboradores no tienen monto asignado: ${nombresColaboradores}. Contacte con Recursos Humanos.`);
+        }
+
         // Preparar datos para la planilla
         updateProgress(30, 'Preparando datos...');
         
-        const tipoPlanilla = esDiaEspecial ? 'especial' : 'dominical';
-        const descripcionLaboral = esDiaEspecial ? 
-                                  document.getElementById('tipoFecha').querySelector('.status-value').textContent : 
-                                  'Pago Dominical';
+        const tipoPlanilla = esFinDeAnio ? 'findeAnio' : (esDiaEspecial ? 'especial' : 'dominical');
+        const descripcionLaboral = esFinDeAnio ?
+                                  document.getElementById('tipoFecha').querySelector('.status-value').textContent :
+                                  (esDiaEspecial ?
+                                  document.getElementById('tipoFecha').querySelector('.status-value').textContent :
+                                  'Pago Dominical');
         const montoTotal = personalSeleccionado.reduce((total, persona) => {
-            return total + (tipoPlanilla === 'dominical' ? persona.PagosDominicales : persona.PagosDiasEspeciales);
+            if (tipoPlanilla === 'findeAnio') {
+                return total + persona.PagoFindeAnio;
+            } else if (tipoPlanilla === 'dominical') {
+                return total + persona.PagosDominicales;
+            } else {
+                return total + persona.PagosDiasEspeciales;
+            }
         }, 0);
         
         // 🆕 GENERAR CORRELATIVO ANTES DE INSERTAR
@@ -1488,7 +1614,8 @@ async function generarPlanilla() {
         for (let i = 0; i < personalSeleccionado.length; i++) {
             try {
                 const persona = personalSeleccionado[i];
-                const monto = tipoPlanilla === 'dominical' ? persona.PagosDominicales : persona.PagosDiasEspeciales;
+                const monto = tipoPlanilla === 'findeAnio' ? persona.PagoFindeAnio :
+                             (tipoPlanilla === 'dominical' ? persona.PagosDominicales : persona.PagosDiasEspeciales);
                 
                 // Determinar si es un colaborador externo y su departamento origen
                 const esExterno = persona.esExterno ? 1 : 0; // 1 o 0 para el campo int
@@ -1628,7 +1755,7 @@ async function generarPDFOficial(idPlanilla, correlativo = null) {
             // Si tenemos el tipo de planilla de la BD, usarlo
             const titulos = {
                 1: "PLANILLA DOMINICAL",
-                2: "PLANILLA POR ASUETO", 
+                2: "PLANILLA POR ASUETO",
                 3: "PLANILLA POR FERIADO"
             };
             tituloPDF = titulos[tipoPlanillaNumerico] || tituloPDF;
@@ -1639,7 +1766,7 @@ async function generarPDFOficial(idPlanilla, correlativo = null) {
             } else if (esDiaEspecial) {
                 // Obtener la información del día especial nuevamente para confirmar si es global o específico
                 const resultadoDiaEspecial = await verificarDiaEspecial(fechaSeleccionada, idDepartamento);
-                
+
                 // Verificación explícita y detallada para depuración
                 if (resultadoDiaEspecial.esGlobal === true) {
                     tituloPDF = "PLANILLA POR ASUETO";
@@ -1650,7 +1777,8 @@ async function generarPDFOficial(idPlanilla, correlativo = null) {
         }
         
         // Determinar tipo de pago
-        const tipoPago = pagoAplicable === 'dominical' ? 'Pago Dominical' : 'Pago Día Especial';
+        const tipoPago = pagoAplicable === 'findeAnio' ? 'Pago Fin de Año' :
+                        (pagoAplicable === 'dominical' ? 'Pago Dominical' : 'Pago Día Especial');
         const descripcionDia = document.getElementById('tipoFecha').querySelector('.status-value').textContent;
         
         // Obtener personal seleccionado
@@ -1661,7 +1789,9 @@ async function generarPDFOficial(idPlanilla, correlativo = null) {
         let totalMonto = 0;
         
         personalSeleccionado.forEach(persona => {
-            if (pagoAplicable === 'dominical') {
+            if (pagoAplicable === 'findeAnio') {
+                totalMonto += persona.PagoFindeAnio;
+            } else if (pagoAplicable === 'dominical') {
                 totalMonto += persona.PagosDominicales;
             } else if (pagoAplicable === 'especial') {
                 totalMonto += persona.PagosDiasEspeciales;
@@ -1870,9 +2000,11 @@ async function generarPDFOficial(idPlanilla, correlativo = null) {
         doc.setFontSize(10);
 
         todosLosColaboradores.forEach((persona, index) => {
-            const montoAplicable = pagoAplicable === 'dominical' ? 
-                                  persona.PagosDominicales : 
-                                  persona.PagosDiasEspeciales;
+            const montoAplicable = pagoAplicable === 'findeAnio' ?
+                                  persona.PagoFindeAnio :
+                                  (pagoAplicable === 'dominical' ?
+                                  persona.PagosDominicales :
+                                  persona.PagosDiasEspeciales);
             
             // Verificar si necesitamos una nueva página
             // Ahora necesitamos más espacio para cada fila (15px en lugar de 10px)
@@ -2754,6 +2886,7 @@ async function cargarCoachesDisponibles(fecha) {
                 Puestos.Nombre AS NombrePuesto,
                 Puestos.PagosDominicales,
                 Puestos.PagosDiasEspeciales,
+                Puestos.PagoFindeAnio,
                 personal.TipoPersonal AS IdTipoPersonal,
                 TP.TipoPersonal AS NombreTipoPersonal
             FROM
@@ -2780,6 +2913,7 @@ async function cargarCoachesDisponibles(fecha) {
                     ...coach,
                     PagosDominicales: Number(coach.PagosDominicales),
                     PagosDiasEspeciales: Number(coach.PagosDiasEspeciales),
+                    PagoFindeAnio: Number(coach.PagoFindeAnio),
                     selected: false
                 });
             }
@@ -2851,7 +2985,10 @@ function renderizarTablaCoaches(coaches) {
         let montoAplicable = 0;
         let tipoPagoMostrar = 'No aplica';
 
-        if (pagoAplicable === 'dominical' && esDomingo) {
+        if (pagoAplicable === 'findeAnio' && esFinDeAnio) {
+            montoAplicable = coach.PagoFindeAnio;
+            tipoPagoMostrar = 'Fin de Año';
+        } else if (pagoAplicable === 'dominical' && esDomingo) {
             montoAplicable = coach.PagosDominicales;
             tipoPagoMostrar = 'Dominical';
         } else if (pagoAplicable === 'especial' && esDiaEspecial) {
@@ -3215,12 +3352,13 @@ async function cargarPersonalDepartamentoExterno(idDepartamento) {
 
         const query = `
             SELECT
-                personal.IdPersonal, 
+                personal.IdPersonal,
                 CONCAT(personal.PrimerApellido, ' ', IFNULL(personal.SegundoApellido, ''), ', ', personal.PrimerNombre, ' ', IFNULL(personal.SegundoNombre, ''), ' ', IFNULL(personal.TercerNombre, '')) AS NombreCompleto,
                 personal.IdPuesto,
                 Puestos.Nombre AS NombrePuesto,
                 Puestos.PagosDominicales,
                 Puestos.PagosDiasEspeciales,
+                Puestos.PagoFindeAnio,
                 personal.TipoPersonal AS IdTipoPersonal,
                 TP.TipoPersonal AS NombreTipoPersonal
             FROM
@@ -3233,15 +3371,16 @@ async function cargarPersonalDepartamentoExterno(idDepartamento) {
             ORDER BY
                 personal.PrimerApellido, personal.PrimerNombre
         `;
-        
+
         const result = await connection.query(query, [idDepartamento]);
         await connection.close();
-        
+
         // Guardar datos en variable global
         externalPersonalData = result.map(persona => ({
             ...persona,
             PagosDominicales: Number(persona.PagosDominicales),
             PagosDiasEspeciales: Number(persona.PagosDiasEspeciales),
+            PagoFindeAnio: Number(persona.PagoFindeAnio),
             selected: false
         }));
         
@@ -3295,8 +3434,11 @@ function renderizarTablaPersonalExterno(personal) {
         // Determinar el pago aplicable para este colaborador
         let montoAplicable = 0;
         let tipoPagoMostrar = 'No aplica';
-        
-        if (pagoAplicable === 'dominical' && esDomingo) {
+
+        if (pagoAplicable === 'findeAnio' && esFinDeAnio) {
+            montoAplicable = persona.PagoFindeAnio;
+            tipoPagoMostrar = 'Fin de Año';
+        } else if (pagoAplicable === 'dominical' && esDomingo) {
             montoAplicable = persona.PagosDominicales;
             tipoPagoMostrar = 'Dominical';
         } else if (pagoAplicable === 'especial' && esDiaEspecial) {
@@ -4009,7 +4151,9 @@ function actualizarTotales() {
     
     personalData.forEach(persona => {
         if (persona.selected) {
-            if (pagoAplicable === 'dominical' && esDomingo) {
+            if (pagoAplicable === 'findeAnio' && esFinDeAnio) {
+                totalMonto += persona.PagoFindeAnio;
+            } else if (pagoAplicable === 'dominical' && esDomingo) {
                 totalMonto += persona.PagosDominicales;
             } else if (pagoAplicable === 'especial' && esDiaEspecial) {
                 totalMonto += persona.PagosDiasEspeciales;
@@ -4820,7 +4964,9 @@ function generarPreviewPDF() {
     let totalMonto = 0;
     const detallePersonal = personalSeleccionado.map(persona => {
         let montoAplicable = 0;
-        if (pagoAplicable === 'dominical') {
+        if (pagoAplicable === 'findeAnio') {
+            montoAplicable = persona.PagoFindeAnio;
+        } else if (pagoAplicable === 'dominical') {
             montoAplicable = persona.PagosDominicales;
         } else if (pagoAplicable === 'especial') {
             montoAplicable = persona.PagosDiasEspeciales;
@@ -4844,7 +4990,8 @@ function mostrarModalDetallePersonal(detallePersonal, totalMonto) {
     // Actualizar información del resumen
     const nombreDepartamento = departamentoSelect.options[departamentoSelect.selectedIndex].text;
     const fechaFormateada = formatearFechaSinZonaHoraria(fechaInput.value, false);
-    const tipoPago = pagoAplicable === 'dominical' ? 'Pago Dominical' : 'Pago Día Especial';
+    const tipoPago = pagoAplicable === 'findeAnio' ? 'Pago Fin de Año' :
+                    (pagoAplicable === 'dominical' ? 'Pago Dominical' : 'Pago Día Especial');
 
     document.getElementById('previewDepartamento').textContent = nombreDepartamento;
     document.getElementById('previewFecha').textContent = fechaFormateada;
