@@ -94,14 +94,25 @@
                 </div>
             </div>
             
-            <button id="applyFilters" class="apply-filters">
-                <i class="fas fa-search"></i> 
-                <span class="btn-text">Aplicar Filtros</span>
-                <span class="btn-total" id="btnTotal" style="display: none;">
-                    <span class="total-separator">|</span>
-                    <span class="total-amount" id="totalPlanillaAmount">Q0.00</span>
-                </span>
-            </button>
+            <div class="filters-actions">
+                <button id="applyFilters" class="apply-filters">
+                    <i class="fas fa-search"></i>
+                    <span class="btn-text">Aplicar Filtros</span>
+                </button>
+
+                <div class="filters-summary" id="filtersSummary" style="display: none;">
+                    <div class="summary-item">
+                        <i class="fas fa-users"></i>
+                        <span class="summary-label">Colaboradores:</span>
+                        <span class="summary-value" id="totalColaboradores">0</span>
+                    </div>
+                    <div class="summary-item total-planilla">
+                        <i class="fas fa-money-bill-wave"></i>
+                        <span class="summary-label">Total Planilla:</span>
+                        <span class="summary-value" id="totalPlanillaAmount">Q0.00</span>
+                    </div>
+                </div>
+            </div>
         </section>
         
         <!-- Tabla de datos -->

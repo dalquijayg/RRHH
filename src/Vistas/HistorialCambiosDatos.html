@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Historial de Cambios de Datos</title>
+    <link rel="stylesheet" href="../Disenos/Archivos/HistorialCambiosDatos.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+</head>
+<body>
+    <!-- Header con logo y título -->
+    <header class="app-header">
+        <div class="header-left">
+            <div class="header-title">
+                <h1><i class="fas fa-history"></i> Historial de Cambios</h1>
+                <p class="subtitle">Consulta de modificaciones de datos del personal</p>
+            </div>
+        </div>
+        <img src="../Imagenes/Logo Recursos Humanos new.png" alt="Logo" class="header-logo">
+    </header>
+
+    <!-- Contenedor principal -->
+    <div class="main-container">
+        <!-- Panel de filtros -->
+        <div class="filters-panel">
+            <div class="panel-header">
+                <h3><i class="fas fa-filter"></i> Filtros de Búsqueda</h3>
+            </div>
+            
+            <div class="filters-content" id="filtersContent">
+                <!-- Filtros en una sola fila -->
+                <div class="filters-row">
+                    <!-- Búsqueda por nombre -->
+                    <div class="filter-group-inline">
+                        <label for="searchNombre">
+                            <i class="fas fa-user"></i> Personal
+                        </label>
+                        <div class="autocomplete-container">
+                            <input
+                                type="text"
+                                id="searchNombre"
+                                class="filter-input filter-input-with-clear"
+                                placeholder="Buscar por nombre..."
+                                autocomplete="off"
+                            >
+                            <button class="btn-clear-input" id="btnClearSearch" style="display: none;" title="Limpiar búsqueda">
+                                <i class="fas fa-times"></i>
+                            </button>
+                            <input type="hidden" id="selectedPersonalId">
+                            <div class="autocomplete-list" id="autocompleteList"></div>
+                        </div>
+                    </div>
+
+                    <!-- Fecha Inicio -->
+                    <div class="filter-group-inline">
+                        <label for="fechaInicio">
+                            <i class="fas fa-calendar-alt"></i> Desde
+                        </label>
+                        <input
+                            type="date"
+                            id="fechaInicio"
+                            class="filter-input"
+                        >
+                    </div>
+
+                    <!-- Fecha Fin -->
+                    <div class="filter-group-inline">
+                        <label for="fechaFin">
+                            <i class="fas fa-calendar-check"></i> Hasta
+                        </label>
+                        <input
+                            type="date"
+                            id="fechaFin"
+                            class="filter-input"
+                        >
+                    </div>
+
+                    <!-- Botones de acción -->
+                    <div class="filter-actions-inline">
+                        <button class="btn btn-primary" id="btnBuscar" title="Buscar">
+                            <i class="fas fa-search"></i>
+                        </button>
+                        <button class="btn btn-secondary" id="btnLimpiar" title="Limpiar filtros">
+                            <i class="fas fa-eraser"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Panel de resultados -->
+        <div class="results-panel">
+            <!-- Info bar con contador -->
+            <div class="results-info">
+                <div class="info-left">
+                    <span class="result-count" id="resultCount">
+                        <i class="fas fa-list"></i> 0 registros encontrados
+                    </span>
+                </div>
+                <div class="info-right">
+                    <button class="btn-icon" id="btnRefresh" title="Actualizar">
+                        <i class="fas fa-sync-alt"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Tabla de resultados -->
+            <div class="table-container" id="tableContainer">
+                <table class="data-table" id="dataTable">
+                    <thead>
+                        <tr>
+                            <th data-column="IdPersonal" data-type="number">
+                                <i class="fas fa-hashtag column-icon"></i> ID
+                                <i class="fas fa-sort sort-icon"></i>
+                            </th>
+                            <th data-column="NombrePersonal" data-type="string">
+                                <i class="fas fa-user column-icon"></i> Nombre Personal
+                                <i class="fas fa-sort sort-icon"></i>
+                            </th>
+                            <th data-column="Cambio" data-type="string">
+                                <i class="fas fa-edit column-icon"></i> Campo Modificado
+                                <i class="fas fa-sort sort-icon"></i>
+                            </th>
+                            <th data-column="ValorAnterior" data-type="string">
+                                <i class="fas fa-minus-circle column-icon"></i> Valor Anterior
+                                <i class="fas fa-sort sort-icon"></i>
+                            </th>
+                            <th data-column="ValorNuevo" data-type="string">
+                                <i class="fas fa-plus-circle column-icon"></i> Valor Nuevo
+                                <i class="fas fa-sort sort-icon"></i>
+                            </th>
+                            <th data-column="NombreUsuario" data-type="string">
+                                <i class="fas fa-user-tie column-icon"></i> Usuario
+                                <i class="fas fa-sort sort-icon"></i>
+                            </th>
+                            <th data-column="FechaHoraCambio" data-type="date">
+                                <i class="fas fa-clock column-icon"></i> Fecha y Hora
+                                <i class="fas fa-sort sort-icon"></i>
+                            </th>
+                        </tr>
+                    </thead>
+                    <tbody id="tableBody">
+                        <!-- Los datos se cargarán dinámicamente -->
+                    </tbody>
+                </table>
+
+                <!-- Mensaje cuando no hay datos -->
+                <div class="no-data" id="noData" style="display: none;">
+                    <i class="fas fa-inbox"></i>
+                    <p>No se encontraron registros</p>
+                    <small>Intente ajustar los filtros de búsqueda</small>
+                </div>
+
+                <!-- Loading spinner -->
+                <div class="loading" id="loading" style="display: none;">
+                    <div class="spinner"></div>
+                    <p>Cargando datos...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="../Logica/Archivos/HistorialCambiosDatos.js"></script>
+</body>
+</html>

@@ -595,7 +595,59 @@ document.getElementById('dpi').addEventListener('input', (event) => {
     habilitarBoton();
 });
 
+// Función para actualizar hora, fecha y saludo
+function updateDateTime() {
+    const now = new Date();
+    const hours = now.getHours();
+    const minutes = String(now.getMinutes()).padStart(2, '0');
+    const seconds = String(now.getSeconds()).padStart(2, '0');
+
+    // Actualizar hora
+    const timeDisplay = document.getElementById('timeDisplay');
+    if (timeDisplay) {
+        timeDisplay.textContent = `${String(hours).padStart(2, '0')}:${minutes}:${seconds}`;
+    }
+
+    // Actualizar fecha
+    const dateDisplay = document.getElementById('dateDisplay');
+    if (dateDisplay) {
+        const options = {
+            weekday: 'long',
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric'
+        };
+        const dateString = now.toLocaleDateString('es-GT', options);
+        // Capitalizar primera letra
+        dateDisplay.textContent = dateString.charAt(0).toUpperCase() + dateString.slice(1);
+    }
+
+    // Actualizar saludo y icono según la hora
+    const greetingText = document.getElementById('greetingText');
+    const weatherIcon = document.getElementById('weatherIcon');
+
+    if (greetingText && weatherIcon) {
+        if (hours >= 5 && hours < 12) {
+            // Mañana (5am - 11:59am)
+            greetingText.textContent = 'Buenos días';
+            weatherIcon.innerHTML = '🌞'; // Sol brillante
+        } else if (hours >= 12 && hours < 19) {
+            // Tarde (12pm - 6:59pm)
+            greetingText.textContent = 'Buenas tardes';
+            weatherIcon.innerHTML = '⛅'; // Sol detrás de nubes
+        } else {
+            // Noche (7pm - 4:59am)
+            greetingText.textContent = 'Buenas noches';
+            weatherIcon.innerHTML = '🌛'; // Luna creciente
+        }
+    }
+}
+
 document.addEventListener('DOMContentLoaded', () => {
+    // Inicializar reloj y saludo
+    updateDateTime();
+    setInterval(updateDateTime, 1000); // Actualizar cada segundo
+
     habilitarBoton();
     
     document.head.insertAdjacentHTML('beforeend', `

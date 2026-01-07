@@ -90,8 +90,78 @@ body {
 /* Logo del sistema */
 .logo {
     width: 120px;
-    margin-bottom: 15px;
+    margin-bottom: 20px;
     animation: pulse 5s infinite ease-in-out;
+}
+
+/* Contenedor de fecha, hora y saludo - Fuera de la caja */
+.datetime-container-external {
+    position: absolute;
+    top: 30px;
+    right: 30px;
+    padding: 15px 25px;
+    z-index: 100;
+    animation: slideInRight 0.8s ease-out;
+}
+
+@keyframes slideInRight {
+    from {
+        opacity: 0;
+        transform: translateX(50px);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
+.greeting-section {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    margin-bottom: 12px;
+}
+
+.weather-icon {
+    font-size: 2.5rem;
+    animation: weatherFloat 3s ease-in-out infinite;
+}
+
+@keyframes weatherFloat {
+    0%, 100% {
+        transform: translateY(0px);
+    }
+    50% {
+        transform: translateY(-8px);
+    }
+}
+
+.greeting-text h3 {
+    margin: 0;
+    font-size: 1.3rem;
+    color: #654321;
+    font-weight: 600;
+}
+
+.datetime-info {
+    text-align: center;
+}
+
+.time-display {
+    font-size: 2rem;
+    font-weight: 600;
+    color: #FF9800;
+    font-family: 'Courier New', monospace;
+    letter-spacing: 2px;
+    margin-bottom: 5px;
+    text-shadow: 0 2px 4px rgba(255, 152, 0, 0.2);
+}
+
+.date-display {
+    font-size: 0.95rem;
+    color: #777;
+    font-weight: 500;
 }
 
 @keyframes pulse {
@@ -668,21 +738,80 @@ h2::after {
 }
 
 /* Responsive */
+@media screen and (max-width: 768px) {
+    .datetime-container-external {
+        top: 15px;
+        right: 15px;
+        left: 15px;
+        padding: 15px 20px;
+        text-align: center;
+    }
+
+    .greeting-section {
+        flex-direction: column;
+        gap: 8px;
+        margin-bottom: 10px;
+    }
+
+    .weather-icon {
+        font-size: 2rem;
+    }
+
+    .greeting-text h3 {
+        font-size: 1.1rem;
+    }
+
+    .time-display {
+        font-size: 1.6rem;
+        letter-spacing: 1px;
+    }
+
+    .date-display {
+        font-size: 0.85rem;
+    }
+}
+
 @media screen and (max-width: 480px) {
     .container {
         padding: 15px;
+        margin-top: 140px; /* Espacio para el reloj */
     }
-    
+
     .login-box {
         padding: 30px 20px;
     }
-    
+
     .brand-logo {
         max-width: 100px;
     }
-    
+
     .bubble {
         opacity: 0.05; /* Menos visible en móviles */
+    }
+
+    .datetime-container-external {
+        position: fixed;
+        top: 10px;
+        right: 10px;
+        left: 10px;
+        padding: 12px 15px;
+    }
+
+    .weather-icon {
+        font-size: 1.8rem;
+    }
+
+    .greeting-text h3 {
+        font-size: 1rem;
+    }
+
+    .time-display {
+        font-size: 1.4rem;
+        letter-spacing: 1px;
+    }
+
+    .date-display {
+        font-size: 0.8rem;
     }
 }
 .swal2-popup.swal2-no-scroll {

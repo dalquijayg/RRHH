@@ -47,6 +47,7 @@ const PagoLiquidacion = document.getElementById('pagoLiquidacionesBtn');
 const ReportePlanillasContables = document.getElementById('reportePlanillasContables');
 const GestionDocumentosPersonales = document.getElementById('gestionDocumentosPersonalBtn');
 const ConsultarArchivos = document.getElementById('consultarArchivosBtn');
+const historialcambios = document.getElementById('reporteHistorialCambiosBtn');
 const PagoPlanillaParcial = document.getElementById('planillaTiempoParcialBtn');
 const PagoVacacionistas = document.getElementById('pagoVacacionistasBtn');
 const AutorizarPlanillasParciales = document.getElementById('autorizarPlanillasParcialesBtn')
@@ -1816,6 +1817,44 @@ ConsultarArchivos.addEventListener('click', async () => {
                 icon: 'error',
                 title: 'Acceso denegado',
                 text: 'No tienes permisos para acceder a esta funcionalidad. Trans.124'
+            });
+        }
+    } catch (error) {
+        console.error('Error al verificar permisos:', error);
+        mostrarNotificacion('Error al verificar permisos', 'error');
+    }
+});
+historialcambios.addEventListener('click', async () => {
+    try {
+        // Mostrar notificación de verificación
+        mostrarNotificacion('Verificando permisos...', 'info');
+        
+        // Obtener el ID del usuario actual
+        const idPersonal = userData.IdPersonal;
+        
+        // Verificar permisos en la base de datos
+        const connection = await getConnection();
+        
+        const permisosQuery = `
+            SELECT COUNT(*) AS tienePermiso 
+            FROM TransaccionesRRHH 
+            WHERE IdPersonal = ${idPersonal} AND Codigo = 135
+        `;
+        
+        const resultado = await connection.query(permisosQuery);
+        await connection.close();
+        
+        // Verificar si tiene permiso (si el conteo es mayor a 0)
+        if (resultado[0].tienePermiso > 0) {
+            // Tiene permiso, abrir la ventana
+            mostrarNotificacion('Abriendo Historial de Cambios...', 'success');
+            ipcRenderer.send('open_historial_cambios_docPersonales');
+        } else {
+            // No tiene permiso, mostrar error
+            Swal.fire({
+                icon: 'error',
+                title: 'Acceso denegado',
+                text: 'No tienes permisos para acceder a esta funcionalidad. Trans.135'
             });
         }
     } catch (error) {

@@ -3,98 +3,378 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Reporte de Planillas Parciales</title>
+    <title>Reporte de Planillas Parciales - Recursos Humanos</title>
     <link rel="stylesheet" href="../Disenos/Reportes/ReportePlanillasParciales.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 </head>
 <body>
-    <div class="container">
-        <!-- Encabezado con filtros compactos -->
-        <header class="header">
-            <h1 class="titulo">Reporte de Planillas Parciales</h1>
-            <div class="contenedor-filtros-totales">
-                <div class="filtros">
-                    <div class="filtro-grupo">
-                        <label for="fechaInicio">Fecha Inicio:</label>
-                        <input type="date" id="fechaInicio" class="input-fecha">
-                    </div>
-                    <div class="filtro-grupo">
-                        <label for="fechaFin">Fecha Fin:</label>
-                        <input type="date" id="fechaFin" class="input-fecha">
-                    </div>
-                    <button id="btnBuscar" class="btn-buscar">Buscar</button>
-                </div>
-
-                <!-- Totales -->
-                <div class="totales">
-                    <div class="total-card">
-                        <span class="total-label">Registros</span>
-                        <span class="total-valor" id="totalRegistros">0</span>
-                    </div>
-                    <div class="total-card">
-                        <span class="total-label">Planillas</span>
-                        <span class="total-valor" id="cantidadPlanillas">0</span>
-                    </div>
-                    <div class="total-card">
-                        <span class="total-label">Total Turnos</span>
-                        <span class="total-valor" id="totalTurnos">0</span>
-                    </div>
-                    <div class="total-card total-monto">
-                        <span class="total-label">Monto Total</span>
-                        <span class="total-valor" id="montoTotal">Q 0.00</span>
-                    </div>
-                </div>
+    <!-- Header con logo y título -->
+    <header class="main-header">
+        <div class="header-content">
+            <img src="../Imagenes/Logo Recursos Humanos new.png" alt="Logo RRHH" class="header-logo">
+            <div class="header-text">
+                <h1>Reporte de Planillas Parciales</h1>
+                <p class="header-subtitle">Sistema de Recursos Humanos</p>
             </div>
-
-            <!-- Botones de vista -->
-            <div class="ordenamiento">
-                <span class="ordenamiento-label">Vista:</span>
-                <button class="btn-ordenar activo" id="btnVistaDetalle" data-vista="detalle">
-                    📋 Detalle
-                </button>
-                <button class="btn-ordenar" id="btnVistaResumen" data-vista="resumen">
-                    📊 Resumen por Departamento
-                </button>
-            </div>
-        </header>
-
-        <!-- Contenedor de la tabla con scroll -->
-        <div class="tabla-container">
-            <table id="tablaPlanillas">
-                <thead id="tablaHeader">
-                    <!-- Encabezado para vista detalle -->
-                    <tr id="headerDetalle">
-                        <th>Departamento</th>
-                        <th>Monto Planilla</th>
-                        <th>Cant. Colaboradores</th>
-                        <th>Periodo Pago</th>
-                        <th>Usuario Registro</th>
-                        <th>Fecha Registro</th>
-                        <th>Estado</th>
-                        <th>Usuario Autoriza</th>
-                        <th>Fecha Autorización</th>
-                    </tr>
-                    <!-- Encabezado para vista resumen -->
-                    <tr id="headerResumen" style="display: none;">
-                        <th>Departamento</th>
-                        <th>Total Monto</th>
-                        <th>Total Colaboradores</th>
-                        <th>Cant. Planillas</th>
-                        <th>Turnos Mañana</th>
-                        <th>Turnos Mixto</th>
-                        <th>Turnos 4 Horas</th>
-                    </tr>
-                </thead>
-                <tbody id="tablaPlanillasBody">
-                    <!-- Los datos se cargarán dinámicamente -->
-                    <tr class="fila-vacia">
-                        <td colspan="9">Seleccione un rango de fechas y presione Buscar</td>
-                    </tr>
-                </tbody>
-            </table>
         </div>
+        <div class="user-info" id="userInfo">
+            <img src="../Imagenes/user-default.png" alt="Usuario" class="user-avatar" id="userAvatar">
+            <div class="user-details">
+                <span class="user-name" id="userName">Cargando...</span>
+                <span class="user-role" id="userRole">---</span>
+            </div>
+        </div>
+    </header>
 
+    <!-- Franja de colores -->
+    <div class="color-strip">
+        <div class="color-strip-item color-red"></div>
+        <div class="color-strip-item color-blue"></div>
+        <div class="color-strip-item color-green"></div>
+        <div class="color-strip-item color-yellow"></div>
+        <div class="color-strip-item color-orange"></div>
     </div>
 
+    <!-- Contenedor principal -->
+    <main class="main-container">
+        <!-- Panel de filtros -->
+        <section class="filters-panel">
+            <div class="filters-header">
+                <h2><i class="fas fa-filter"></i> Filtros de Búsqueda</h2>
+            </div>
+            
+            <div class="filters-content">
+                <div class="filter-group">
+                    <label for="fechaInicio">
+                        <i class="fas fa-calendar-alt"></i> Fecha Inicio
+                    </label>
+                    <input type="date" id="fechaInicio" class="filter-input">
+                </div>
+
+                <div class="filter-group">
+                    <label for="fechaFin">
+                        <i class="fas fa-calendar-alt"></i> Fecha Fin
+                    </label>
+                    <input type="date" id="fechaFin" class="filter-input">
+                </div>
+
+                <div class="filter-group">
+                    <label for="departamento">
+                        <i class="fas fa-building"></i> Departamento
+                    </label>
+                    <select id="departamento" class="filter-select">
+                        <option value="">Todos los departamentos</option>
+                        <!-- Se llenarán dinámicamente desde la BD -->
+                    </select>
+                </div>
+
+                <div class="filter-group">
+                    <label for="estado">
+                        <i class="fas fa-info-circle"></i> Estado
+                    </label>
+                    <select id="estado" class="filter-select">
+                        <option value="">Todos los estados</option>
+                        <!-- Se llenarán dinámicamente desde la BD -->
+                    </select>
+                </div>
+
+                <div class="filter-actions">
+                    <button id="btnBuscar" class="btn btn-primary">
+                        <i class="fas fa-search"></i> Buscar
+                    </button>
+                    <button id="btnLimpiar" class="btn btn-secondary">
+                        <i class="fas fa-eraser"></i> Limpiar
+                    </button>
+                    <button id="btnExportar" class="btn btn-success" disabled>
+                        <i class="fas fa-file-excel"></i> Exportar
+                    </button>
+                </div>
+
+                <!-- Resumen de resultados en línea -->
+                <div class="results-summary-inline" id="resultsSummary" style="display: none;">
+                    <div class="summary-card-inline">
+                        <div class="summary-icon-inline">
+                            <i class="fas fa-file-invoice-dollar"></i>
+                        </div>
+                        <div class="summary-info-inline">
+                            <span class="summary-label-inline">Planillas</span>
+                            <span class="summary-value-inline" id="totalPlanillas">0</span>
+                        </div>
+                    </div>
+
+                    <div class="summary-card-inline">
+                        <div class="summary-icon-inline">
+                            <i class="fas fa-users"></i>
+                        </div>
+                        <div class="summary-info-inline">
+                            <span class="summary-label-inline">Colaboradores</span>
+                            <span class="summary-value-inline" id="totalColaboradores">0</span>
+                        </div>
+                    </div>
+
+                    <div class="summary-card-inline">
+                        <div class="summary-icon-inline">
+                            <i class="fas fa-money-bill-wave"></i>
+                        </div>
+                        <div class="summary-info-inline">
+                            <span class="summary-label-inline">Monto Total</span>
+                            <span class="summary-value-inline" id="montoTotal">Q 0.00</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Sección de resultados -->
+        <section class="results-section">
+            <!-- Sistema de pestañas -->
+            <div class="tabs-container">
+                <div class="tabs-header">
+                    <button class="tab-button active" data-tab="detallado">
+                        <i class="fas fa-list-ul"></i> Reporte Detallado
+                    </button>
+                    <button class="tab-button" data-tab="departamento">
+                        <i class="fas fa-chart-bar"></i> Resumen por Departamento
+                    </button>
+                </div>
+            </div>
+
+            <!-- Contenido de pestañas -->
+            <div class="tabs-content">
+                <!-- Pestaña 1: Reporte Detallado -->
+                <div class="tab-pane active" id="tab-detallado">
+                    <div class="table-container">
+                        <div class="table-header">
+                            <h3><i class="fas fa-table"></i> Planillas Encontradas</h3>
+                            <span class="record-count" id="recordCount">0 registros</span>
+                        </div>
+
+                        <div class="table-wrapper">
+                            <table class="data-table" id="tablaPlanillas">
+                                <thead>
+                                    <tr>
+                                        <th class="sortable" data-column="IdPlanillaParcial" data-type="number">ID Planilla</th>
+                                        <th class="sortable" data-column="NombreDepartamento" data-type="string">Departamento</th>
+                                        <th class="sortable" data-column="PeriodoPago" data-type="string">Período de Pago</th>
+                                        <th class="sortable" data-column="CantidadColaboradores" data-type="number">Colaboradores</th>
+                                        <th class="sortable" data-column="MontoPlanillaParcial" data-type="number">Monto Total</th>
+                                        <th class="sortable" data-column="NombreEstado" data-type="string">Estado</th>
+                                        <th class="sortable" data-column="NombreUsuario" data-type="string">Usuario Registro</th>
+                                        <th class="sortable" data-column="FechaHoraRegistro" data-type="date">Fecha Registro</th>
+                                        <th class="sortable" data-column="NombreUsuarioAutoriza" data-type="string">Usuario Autoriza</th>
+                                        <th class="sortable" data-column="FechaHoraAutorizacion" data-type="date">Fecha Autorización</th>
+                                        <th>Acciones</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="tablaPlanillasBody">
+                                    <!-- Se llenará dinámicamente -->
+                                    <tr class="no-data">
+                                        <td colspan="11">
+                                            <div class="no-data-message">
+                                                <i class="fas fa-search"></i>
+                                                <p>Utiliza los filtros para buscar planillas</p>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <!-- Paginación -->
+                        <div class="pagination-container" id="paginationContainer" style="display: none;">
+                            <div class="pagination-info">
+                                Mostrando <span id="paginaActual">1</span> de <span id="totalPaginas">1</span>
+                            </div>
+                            <div class="pagination-controls">
+                                <button id="btnPrimera" class="btn-pagination" disabled>
+                                    <i class="fas fa-angle-double-left"></i>
+                                </button>
+                                <button id="btnAnterior" class="btn-pagination" disabled>
+                                    <i class="fas fa-angle-left"></i>
+                                </button>
+                                <span class="pagination-numbers" id="paginationNumbers"></span>
+                                <button id="btnSiguiente" class="btn-pagination" disabled>
+                                    <i class="fas fa-angle-right"></i>
+                                </button>
+                                <button id="btnUltima" class="btn-pagination" disabled>
+                                    <i class="fas fa-angle-double-right"></i>
+                                </button>
+                            </div>
+                            <div class="pagination-size">
+                                <label>Registros por página:</label>
+                                <select id="registrosPorPagina">
+                                    <option value="10">10</option>
+                                    <option value="25" selected>25</option>
+                                    <option value="50">50</option>
+                                    <option value="100">100</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <!-- Fin Pestaña 1: Reporte Detallado -->
+
+                <!-- Pestaña 2: Resumen por Departamento -->
+                <div class="tab-pane" id="tab-departamento">
+                    <div class="table-container">
+                        <div class="table-header">
+                            <h3><i class="fas fa-chart-bar"></i> Resumen por Departamento</h3>
+                            <span class="record-count" id="recordCountDept">0 registros</span>
+                        </div>
+
+                        <div class="table-wrapper">
+                            <table class="data-table" id="tablaDepartamentos">
+                                <thead>
+                                    <tr>
+                                        <th class="sortable" data-column="IdDepartamentoSucursal" data-type="number">ID Depto</th>
+                                        <th class="sortable" data-column="NombreDepartamento" data-type="string">Departamento</th>
+                                        <th class="sortable" data-column="CantidadPlanillas" data-type="number">Cantidad Planillas</th>
+                                        <th class="sortable" data-column="MontoTotalPlanillas" data-type="number">Monto Total</th>
+                                        <th class="sortable" data-column="TurnoManana" data-type="number">Turno Mañana</th>
+                                        <th class="sortable" data-column="TurnoMixto" data-type="number">Turno Mixto</th>
+                                        <th class="sortable" data-column="Turno4Horas" data-type="number">Turno 4 Horas</th>
+                                        <th class="sortable" data-column="TotalTurnos" data-type="number">Total Turnos</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="tablaDepartamentosBody">
+                                    <tr class="no-data">
+                                        <td colspan="8">
+                                            <div class="no-data-message">
+                                                <i class="fas fa-search"></i>
+                                                <p>Utiliza los filtros para buscar planillas</p>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                                <tfoot id="tablaDepartamentosFoot" style="display: none;">
+                                    <tr class="total-row">
+                                        <td colspan="2" style="text-align: right;"><strong>TOTALES:</strong></td>
+                                        <td style="text-align: center;"><strong id="totalPlanillasDept">0</strong></td>
+                                        <td style="text-align: right;"><strong id="totalMontoDept">Q 0.00</strong></td>
+                                        <td style="text-align: center;"><strong id="totalTurnoManana">0</strong></td>
+                                        <td style="text-align: center;"><strong id="totalTurnoMixto">0</strong></td>
+                                        <td style="text-align: center;"><strong id="totalTurno4H">0</strong></td>
+                                        <td style="text-align: center;"><strong id="totalTurnosTodos">0</strong></td>
+                                    </tr>
+                                </tfoot>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+                <!-- Fin Pestaña 2: Resumen por Departamento -->
+            </div>
+        </section>
+    </main>
+
+    <!-- Modal para ver detalle de planilla -->
+    <div id="modalDetalle" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2><i class="fas fa-list-ul"></i> Detalle de Planilla</h2>
+                <button class="modal-close" id="btnCerrarModal">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            
+            <div class="modal-body">
+                <!-- Información de la planilla -->
+                <div class="planilla-info">
+                    <div class="info-row">
+                        <div class="info-item">
+                            <label>ID Planilla:</label>
+                            <span id="modalIdPlanilla">---</span>
+                        </div>
+                        <div class="info-item">
+                            <label>Departamento:</label>
+                            <span id="modalDepartamento">---</span>
+                        </div>
+                        <div class="info-item">
+                            <label>Período:</label>
+                            <span id="modalPeriodo">---</span>
+                        </div>
+                        <div class="info-item">
+                            <label>Estado:</label>
+                            <span id="modalEstado" class="estado-badge">---</span>
+                        </div>
+                    </div>
+                    
+                    <div class="info-row">
+                        <div class="info-item">
+                            <label>Colaboradores:</label>
+                            <span id="modalColaboradores">---</span>
+                        </div>
+                        <div class="info-item">
+                            <label>Monto Total:</label>
+                            <span id="modalMontoTotal" class="monto-total">---</span>
+                        </div>
+                        <div class="info-item">
+                            <label>Usuario Registro:</label>
+                            <span id="modalUsuarioRegistro">---</span>
+                        </div>
+                        <div class="info-item">
+                            <label>Fecha Registro:</label>
+                            <span id="modalFechaRegistro">---</span>
+                        </div>
+                    </div>
+
+                    <div class="info-row" id="autorizacionRow" style="display: none;">
+                        <div class="info-item">
+                            <label>Usuario Autoriza:</label>
+                            <span id="modalUsuarioAutoriza">---</span>
+                        </div>
+                        <div class="info-item">
+                            <label>Fecha Autorización:</label>
+                            <span id="modalFechaAutoriza">---</span>
+                        </div>
+                    </div>
+
+                    <div class="info-row" id="rechazoRow" style="display: none;">
+                        <div class="info-item full-width">
+                            <label>Motivo de Rechazo:</label>
+                            <span id="modalMotivoRechazo" class="motivo-rechazo">---</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tabla de detalle -->
+                <div class="detalle-table-container">
+                    <h3>Detalle de Pagos</h3>
+                    <div class="table-wrapper">
+                        <table class="data-table detalle-table">
+                            <thead>
+                                <tr>
+                                    <th>Colaborador</th>
+                                    <th width="120">Fecha Laborada</th>
+                                    <th width="100">ID Turno</th>
+                                    <th width="150">Tipo de Turno</th>
+                                    <th width="120">Monto Pagado</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tablaDetalleBody">
+                                <!-- Se llenará dinámicamente -->
+                            </tbody>
+                            <tfoot>
+                                <tr class="total-row">
+                                    <td colspan="4" style="text-align: right;"><strong>Total:</strong></td>
+                                    <td><strong id="totalDetalle">Q 0.00</strong></td>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <div class="modal-footer">
+                <button class="btn btn-secondary" id="btnCerrarModalFooter">
+                    <i class="fas fa-times"></i> Cerrar
+                </button>
+                <button class="btn btn-primary" id="btnExportarDetalle">
+                    <i class="fas fa-file-excel"></i> Exportar Detalle
+                </button>
+            </div>
+        </div>
+    </div>
     <script src="../Logica/Reportes/ReportePlanillasParciales.js"></script>
 </body>
 </html>

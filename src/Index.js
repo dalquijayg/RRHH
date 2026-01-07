@@ -37,6 +37,7 @@ let ModificaPagoNominaWindow = null;
 let PagoVacacionistasWindow = null;
 let AutorizarPagoVacacionistasWindow = null;
 let ReportePagosVacacionistasWindow = null;
+let historialCambiosWindow = null;
 
 if(process.env.NODE_ENV !=='production'){
     require('electron-reload')(__dirname,{
@@ -802,6 +803,35 @@ function createReportePagosVacacionistasWindow() {
         ReportePagosVacacionistasWindow = null;
     });
 }
+function createHistorialCambiosWindow() {
+    // Verifica si la ventana ya está abierta
+    if (historialCambiosWindow) {
+        // Si ya está abierta, simplemente enfócala
+        if (historialCambiosWindow.isMinimized()) historialCambiosWindow.restore();
+        historialCambiosWindow.focus();
+        return;
+    }
+    
+    // Crea una nueva ventana si no existe
+    historialCambiosWindow = new BrowserWindow({
+        width: 1200,
+        height: 800,
+        webPreferences: {
+            nodeIntegration: true,
+            contextIsolation: false,
+        },
+        icon: path.join(__dirname, 'LogoRecursos.ico'),
+        title: 'Historial Cambios Datos',
+        autoHideMenuBar: true
+    });
+
+    historialCambiosWindow.loadURL(`file://${__dirname}/Vistas/HistorialCambiosDatos.html`);
+    
+    // Elimina la referencia a la ventana cuando se cierre
+    historialCambiosWindow.on('closed', () => {
+        historialCambiosWindow = null;
+    });
+}
 function createAutorizacionPagoParcialWindow() {
     // Verifica si la ventana ya está abierta
     if (AutorizarPagoPlanillasWindow) {
@@ -1073,6 +1103,9 @@ ipcMain.on('open_Ventana_MPN', () => {
 });
 ipcMain.on('open_Ventana_ReportePagosVacacionistas', () => {
     createReportePagosVacacionistasWindow();
+});
+ipcMain.on('open_historial_cambios_docPersonales', () => {
+    createHistorialCambiosWindow();
 });
 ipcMain.handle('show-save-dialog', async (event, options) => {
     const result = await dialog.showOpenDialog(options);

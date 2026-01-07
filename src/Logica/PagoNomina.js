@@ -6,11 +6,9 @@ const Swal = require('sweetalert2');
 
 // Variables para la paginación
 let currentPage = 1;
-const rowsPerPage = 30;
+const rowsPerPage = 100;
 let totalRows = 0;
 let filteredData = [];
-
-
 
 // Función para verificar qué planillas ya están guardadas
 async function obtenerPlanillasGuardadas() {
@@ -234,50 +232,67 @@ async function obtenerDatosNomina() {
         const tipoQuincena = document.getElementById('tipoQuincenaFilter').value;
         const mes = document.getElementById('mesFilter').value;
         const anio = document.getElementById('anioFilter').value;
-        
-        console.log('Filtros aplicados:', { planillaId, tipoQuincena, mes, anio });
-        
-        // Construir la consulta SQL para personal activo (SIN CAMBIOS)
+
+        // Construir la consulta SQL para personal activo
         let queryActivos = `
             SELECT
-                personal.IdPersonal, 
+                personal.IdPersonal,
                 CONCAT(
-                    personal.PrimerApellido, 
-                    CASE WHEN personal.SegundoApellido IS NOT NULL AND personal.SegundoApellido != '' 
-                         THEN CONCAT(' ', personal.SegundoApellido) 
-                         ELSE '' 
+                    personal.PrimerApellido,
+                    CASE WHEN personal.SegundoApellido IS NOT NULL AND personal.SegundoApellido != ''
+                         THEN CONCAT(' ', personal.SegundoApellido)
+                         ELSE ''
                     END,
                     ' ',
                     personal.PrimerNombre,
-                    CASE WHEN personal.SegundoNombre IS NOT NULL AND personal.SegundoNombre != '' 
-                         THEN CONCAT(' ', personal.SegundoNombre) 
-                         ELSE '' 
+                    CASE WHEN personal.SegundoNombre IS NOT NULL AND personal.SegundoNombre != ''
+                         THEN CONCAT(' ', personal.SegundoNombre)
+                         ELSE ''
                     END,
-                    CASE WHEN personal.TercerNombre IS NOT NULL AND personal.TercerNombre != '' 
-                         THEN CONCAT(' ', personal.TercerNombre) 
-                         ELSE '' 
+                    CASE WHEN personal.TercerNombre IS NOT NULL AND personal.TercerNombre != ''
+                         THEN CONCAT(' ', personal.TercerNombre)
+                         ELSE ''
                     END
-                ) AS NombreCompleto, 
-                personal.IdSucuDepa, 
-                personal.FechaPlanilla, 
-                departamentos.NombreDepartamento, 
-                planillas.IdPlanilla, 
-                planillas.Nombre_Planilla, 
-                CASE 
+                ) AS NombreCompleto,
+                personal.IdSucuDepa,
+                personal.FechaPlanilla,
+                departamentos.NombreDepartamento,
+                planillas.IdPlanilla,
+                planillas.Nombre_Planilla,
+                CASE
                     WHEN divisiones.Nombre IS NOT NULL THEN CONCAT(divisiones.Nombre, ' - ', planillas.Nombre_Planilla)
                     ELSE planillas.Nombre_Planilla
                 END AS Nombre_Planilla_Completo,
-                planillas.EsCapital, 
+                planillas.EsCapital,
                 planillas.NoCentroTrabajo,
                 planillas.Division,
                 divisiones.Nombre AS NombreDivision,
-                personal.SalarioDiario, 
-                personal.SalarioQuincena, 
-                personal.SalarioQuincenaFinMes,
-                personal.Bonificacion,
-                personal.SalarioBase,
+                CASE
+                    WHEN planillas.EsCapital = 0 THEN salariosbase.SalarioDiario
+                    ELSE salariosbase.SalarioDiarioGuate
+                END AS SalarioDiario,
+                CASE
+                    WHEN planillas.EsCapital = 0 THEN salariosbase.SalarioQuincena
+                    ELSE salariosbase.SalarioQuincenaGuate
+                END AS SalarioQuincena,
+                CASE
+                    WHEN planillas.EsCapital = 0 THEN salariosbase.SalarioQuincenaFin
+                    ELSE salariosbase.SalarioQuincenaFinGuate
+                END AS SalarioQuincenaFinMes,
+                CASE
+                    WHEN planillas.EsCapital = 0 THEN salariosbase.SalarioBonificacion
+                    ELSE salariosbase.SalarioBonificacionGuate
+                END AS Bonificacion,
+                CASE
+                    WHEN planillas.EsCapital = 0 THEN salariosbase.SalarioBase
+                    ELSE salariosbase.SalarioBaseGuate
+                END AS SalarioBase,
+                CASE
+                    WHEN planillas.EsCapital = 0 THEN salariosbase.ISR
+                    ELSE salariosbase.ISRGuate
+                END AS ISR,
                 personal.CuentaDivision1,
-                personal.CuentaDivision2, 
+                personal.CuentaDivision2,
                 personal.CuentaDivision3,
                 NULL AS FechaFinColaborador,
                 NULL AS TipoBaja
@@ -287,6 +302,7 @@ async function obtenerDatosNomina() {
                 INNER JOIN Puestos ON personal.IdPuesto = Puestos.IdPuesto
                 INNER JOIN departamentos ON personal.IdSucuDepa = departamentos.IdDepartamento
                 LEFT JOIN divisiones ON planillas.Division = divisiones.IdDivision
+                LEFT JOIN salariosbase ON salariosbase.Anyo = ?
             WHERE
                 personal.Estado IN (1,5) AND
                 personal.TipoPersonal = 1`;
@@ -312,47 +328,66 @@ async function obtenerDatosNomina() {
         // Construir la consulta SQL para personal con bajas en el periodo actual
         let queryBajas = `
             SELECT
-                personal.IdPersonal, 
+                personal.IdPersonal,
                 CONCAT(
-                    personal.PrimerApellido, 
-                    CASE WHEN personal.SegundoApellido IS NOT NULL AND personal.SegundoApellido != '' 
-                         THEN CONCAT(' ', personal.SegundoApellido) 
-                         ELSE '' 
+                    personal.PrimerApellido,
+                    CASE WHEN personal.SegundoApellido IS NOT NULL AND personal.SegundoApellido != ''
+                         THEN CONCAT(' ', personal.SegundoApellido)
+                         ELSE ''
                     END,
                     ' ',
                     personal.PrimerNombre,
-                    CASE WHEN personal.SegundoNombre IS NOT NULL AND personal.SegundoNombre != '' 
-                         THEN CONCAT(' ', personal.SegundoNombre) 
-                         ELSE '' 
+                    CASE WHEN personal.SegundoNombre IS NOT NULL AND personal.SegundoNombre != ''
+                         THEN CONCAT(' ', personal.SegundoNombre)
+                         ELSE ''
                     END,
-                    CASE WHEN personal.TercerNombre IS NOT NULL AND personal.TercerNombre != '' 
-                         THEN CONCAT(' ', personal.TercerNombre) 
-                         ELSE '' 
+                    CASE WHEN personal.TercerNombre IS NOT NULL AND personal.TercerNombre != ''
+                         THEN CONCAT(' ', personal.TercerNombre)
+                         ELSE ''
                     END
-                ) AS NombreCompleto, 
-                personal.IdSucuDepa, 
-                personal.FechaPlanilla, 
-                departamentos.NombreDepartamento, 
-                planillas.IdPlanilla, 
-                planillas.Nombre_Planilla, 
-                CASE 
+                ) AS NombreCompleto,
+                personal.IdSucuDepa,
+                personal.FechaPlanilla,
+                departamentos.NombreDepartamento,
+                planillas.IdPlanilla,
+                planillas.Nombre_Planilla,
+                CASE
                     WHEN divisiones.Nombre IS NOT NULL THEN CONCAT(divisiones.Nombre, ' - ', planillas.Nombre_Planilla)
                     ELSE planillas.Nombre_Planilla
                 END AS Nombre_Planilla_Completo,
-                planillas.EsCapital, 
+                planillas.EsCapital,
                 planillas.NoCentroTrabajo,
                 planillas.Division,
                 divisiones.Nombre AS NombreDivision,
-                personal.SalarioDiario, 
-                personal.SalarioQuincena, 
-                personal.SalarioQuincenaFinMes,
-                personal.Bonificacion,
-                personal.SalarioBase,
+                CASE
+                    WHEN planillas.EsCapital = 0 THEN salariosbase.SalarioDiario
+                    ELSE salariosbase.SalarioDiarioGuate
+                END AS SalarioDiario,
+                CASE
+                    WHEN planillas.EsCapital = 0 THEN salariosbase.SalarioQuincena
+                    ELSE salariosbase.SalarioQuincenaGuate
+                END AS SalarioQuincena,
+                CASE
+                    WHEN planillas.EsCapital = 0 THEN salariosbase.SalarioQuincenaFin
+                    ELSE salariosbase.SalarioQuincenaFinGuate
+                END AS SalarioQuincenaFinMes,
+                CASE
+                    WHEN planillas.EsCapital = 0 THEN salariosbase.SalarioBonificacion
+                    ELSE salariosbase.SalarioBonificacionGuate
+                END AS Bonificacion,
+                CASE
+                    WHEN planillas.EsCapital = 0 THEN salariosbase.SalarioBase
+                    ELSE salariosbase.SalarioBaseGuate
+                END AS SalarioBase,
+                CASE
+                    WHEN planillas.EsCapital = 0 THEN salariosbase.ISR
+                    ELSE salariosbase.ISRGuate
+                END AS ISR,
                 personal.CuentaDivision1,
-                personal.CuentaDivision2, 
+                personal.CuentaDivision2,
                 personal.CuentaDivision3,
                 dr.FechaFinColaborador,
-                CASE 
+                CASE
                     WHEN dr.IdEstadoPersonal = 2 THEN 'Despedido'
                     WHEN dr.IdEstadoPersonal = 3 THEN 'Renuncia'
                     ELSE 'Otro'
@@ -363,6 +398,7 @@ async function obtenerDatosNomina() {
                 INNER JOIN Puestos ON personal.IdPuesto = Puestos.IdPuesto
                 INNER JOIN departamentos ON personal.IdSucuDepa = departamentos.IdDepartamento
                 LEFT JOIN divisiones ON planillas.Division = divisiones.IdDivision
+                LEFT JOIN salariosbase ON salariosbase.Anyo = ?
                 INNER JOIN DespidosRenuncias dr ON personal.IdPersonal = dr.IdPersonal
             WHERE
                 personal.TipoPersonal = 1 AND
@@ -381,47 +417,66 @@ async function obtenerDatosNomina() {
             
             queryBajasQuincenaAnterior = `
                 SELECT
-                    personal.IdPersonal, 
+                    personal.IdPersonal,
                     CONCAT(
-                        personal.PrimerApellido, 
-                        CASE WHEN personal.SegundoApellido IS NOT NULL AND personal.SegundoApellido != '' 
-                             THEN CONCAT(' ', personal.SegundoApellido) 
-                             ELSE '' 
+                        personal.PrimerApellido,
+                        CASE WHEN personal.SegundoApellido IS NOT NULL AND personal.SegundoApellido != ''
+                             THEN CONCAT(' ', personal.SegundoApellido)
+                             ELSE ''
                         END,
                         ' ',
                         personal.PrimerNombre,
-                        CASE WHEN personal.SegundoNombre IS NOT NULL AND personal.SegundoNombre != '' 
-                             THEN CONCAT(' ', personal.SegundoNombre) 
-                             ELSE '' 
+                        CASE WHEN personal.SegundoNombre IS NOT NULL AND personal.SegundoNombre != ''
+                             THEN CONCAT(' ', personal.SegundoNombre)
+                             ELSE ''
                         END,
-                        CASE WHEN personal.TercerNombre IS NOT NULL AND personal.TercerNombre != '' 
-                             THEN CONCAT(' ', personal.TercerNombre) 
-                             ELSE '' 
+                        CASE WHEN personal.TercerNombre IS NOT NULL AND personal.TercerNombre != ''
+                             THEN CONCAT(' ', personal.TercerNombre)
+                             ELSE ''
                         END
-                    ) AS NombreCompleto, 
-                    personal.IdSucuDepa, 
-                    personal.FechaPlanilla, 
-                    departamentos.NombreDepartamento, 
-                    planillas.IdPlanilla, 
-                    planillas.Nombre_Planilla, 
-                    CASE 
+                    ) AS NombreCompleto,
+                    personal.IdSucuDepa,
+                    personal.FechaPlanilla,
+                    departamentos.NombreDepartamento,
+                    planillas.IdPlanilla,
+                    planillas.Nombre_Planilla,
+                    CASE
                         WHEN divisiones.Nombre IS NOT NULL THEN CONCAT(divisiones.Nombre, ' - ', planillas.Nombre_Planilla)
                         ELSE planillas.Nombre_Planilla
                     END AS Nombre_Planilla_Completo,
-                    planillas.EsCapital, 
+                    planillas.EsCapital,
                     planillas.NoCentroTrabajo,
                     planillas.Division,
                     divisiones.Nombre AS NombreDivision,
-                    personal.SalarioDiario, 
-                    personal.SalarioQuincena, 
-                    personal.SalarioQuincenaFinMes,
-                    personal.Bonificacion,
-                    personal.SalarioBase,
+                    CASE
+                        WHEN planillas.EsCapital = 0 THEN salariosbase.SalarioDiario
+                        ELSE salariosbase.SalarioDiarioGuate
+                    END AS SalarioDiario,
+                    CASE
+                        WHEN planillas.EsCapital = 0 THEN salariosbase.SalarioQuincena
+                        ELSE salariosbase.SalarioQuincenaGuate
+                    END AS SalarioQuincena,
+                    CASE
+                        WHEN planillas.EsCapital = 0 THEN salariosbase.SalarioQuincenaFin
+                        ELSE salariosbase.SalarioQuincenaFinGuate
+                    END AS SalarioQuincenaFinMes,
+                    CASE
+                        WHEN planillas.EsCapital = 0 THEN salariosbase.SalarioBonificacion
+                        ELSE salariosbase.SalarioBonificacionGuate
+                    END AS Bonificacion,
+                    CASE
+                        WHEN planillas.EsCapital = 0 THEN salariosbase.SalarioBase
+                        ELSE salariosbase.SalarioBaseGuate
+                    END AS SalarioBase,
+                    CASE
+                        WHEN planillas.EsCapital = 0 THEN salariosbase.ISR
+                        ELSE salariosbase.ISRGuate
+                    END AS ISR,
                     personal.CuentaDivision1,
-                    personal.CuentaDivision2, 
+                    personal.CuentaDivision2,
                     personal.CuentaDivision3,
                     dr.FechaFinColaborador,
-                    CASE 
+                    CASE
                         WHEN dr.IdEstadoPersonal = 2 THEN 'Despedido (Q1)'
                         WHEN dr.IdEstadoPersonal = 3 THEN 'Renuncia (Q1)'
                         ELSE 'Otro (Q1)'
@@ -432,6 +487,7 @@ async function obtenerDatosNomina() {
                     INNER JOIN Puestos ON personal.IdPuesto = Puestos.IdPuesto
                     INNER JOIN departamentos ON personal.IdSucuDepa = departamentos.IdDepartamento
                     LEFT JOIN divisiones ON planillas.Division = divisiones.IdDivision
+                    LEFT JOIN salariosbase ON salariosbase.Anyo = ?
                     INNER JOIN DespidosRenuncias dr ON personal.IdPersonal = dr.IdPersonal
                 WHERE
                     personal.TipoPersonal = 1 AND
@@ -440,12 +496,12 @@ async function obtenerDatosNomina() {
                     dr.FechaFinColaborador <= ? AND
                     dr.Estado = 1`;
             
-            paramsBajasQuincenaAnterior = [inicioQuincenaAnterior, finQuincenaAnterior];
+            paramsBajasQuincenaAnterior = [anio, inicioQuincenaAnterior, finQuincenaAnterior];
         }
-        
+
         // Agregar filtros
-        const params = [];
-        const paramsBajas = [inicioQuincena, finQuincena];
+        const params = [anio];
+        const paramsBajas = [anio, inicioQuincena, finQuincena];
         
         // Filtro de planilla (si no es "todos")
         if (planillaId !== 'todos') {
@@ -453,7 +509,7 @@ async function obtenerDatosNomina() {
             queryBajas += ' AND planillas.IdPlanilla = ?';
             params.push(planillaId);
             paramsBajas.push(planillaId);
-            
+
             if (tipoQuincena === 'finMes') {
                 queryBajasQuincenaAnterior += ' AND planillas.IdPlanilla = ?';
                 paramsBajasQuincenaAnterior.push(planillaId);
@@ -482,9 +538,7 @@ async function obtenerDatosNomina() {
         
         // Combinar resultados
         const results = [...resultsActivos, ...resultsBajas, ...resultsBajasQuincenaAnterior];
-        
-        console.log(`Resultados obtenidos: ${resultsActivos.length} activos, ${resultsBajas.length} bajas período actual, ${resultsBajasQuincenaAnterior.length} bajas quincena anterior`);
-        
+
         // Procesar cada empleado para agregar los días laborados y descuentos judiciales
         const mesStr = mes.toString().padStart(2, '0');
         const resultadosCompletos = [];
@@ -750,7 +804,6 @@ function actualizarEncabezadosTabla(thead, tipoQuincena) {
         thead.innerHTML = `
             <th>No.</th>
             <th>Nombre Completo</th>
-            <th>Planilla</th>
             <th>Tipo</th>
             <th>Salario Diario</th>
             <th>Días Laborados</th>
@@ -763,7 +816,6 @@ function actualizarEncabezadosTabla(thead, tipoQuincena) {
         thead.innerHTML = `
             <th>No.</th>
             <th>Nombre Completo</th>
-            <th>Planilla</th>
             <th>Tipo</th>
             <th>Salario Diario</th>
             <th>Días Quincena</th>
@@ -773,6 +825,7 @@ function actualizarEncabezadosTabla(thead, tipoQuincena) {
             <th>Total Días</th>
             <th>Bonificación</th>
             <th>IGSS</th>
+            <th>ISR</th>
             <th>Desc. Judicial</th>
             <th>Total Final</th>
             <th>Cuenta</th>
@@ -820,7 +873,6 @@ function crearFilaQuincenal(empleado, numeroConsecutivo) {
     return `
         <td>${numeroConsecutivo}</td>
         <td class="highlight">${nombreCompleto}</td>
-        <td>${empleado.Nombre_Planilla_Completo}</td>
         <td>
             <span class="status-badge ${empleado.EsCapital ? 'capital' : 'regional'}">
                 ${empleado.EsCapital ? 'Capital' : 'Regional'}
@@ -860,23 +912,47 @@ function crearFilaFinMes(empleado, numeroConsecutivo) {
     // Valores calculados
     const bonificacionCalculada = empleado.BonificacionCalculada || 0;
     const igssCalculado = empleado.IGSSCalculado || 0;
+
+    // **CÁLCULO PROPORCIONAL DE ISR**
+    // ISR se calcula proporcionalmente según días laborados del mes completo (máximo 30 días)
+    // REGLA: Solo aplica ISR si el empleado ingresó antes del 15 de enero del año seleccionado
+    const isrMensual = empleado.ISR || 0;
+    let isrCalculado = 0;
+
+    // Obtener el año seleccionado en los filtros
+    const anioSeleccionado = document.getElementById('anioFilter').value;
+
+    // Crear fecha límite: 15 de enero del año seleccionado
+    const fechaLimiteISR = new Date(`${anioSeleccionado}-01-15`);
+
+    // Fecha de ingreso del empleado
+    const fechaPlanilla = new Date(empleado.FechaPlanilla);
+
+    // Solo aplicar ISR si ingresó ANTES del 15 de enero del año seleccionado
+    if (fechaPlanilla < fechaLimiteISR) {
+        // El empleado ingresó antes del 15 de enero, aplicar ISR proporcional
+        isrCalculado = (isrMensual / 30) * totalDiasMes;
+    }
+    // Si ingresó el 15 de enero o después del año seleccionado, NO aplica ISR (isrCalculado = 0)
+
     const descuentoJudicial = empleado.DescuentoJudicial || 0;
-    
+
     // **CÁLCULO CORRECTO DEL TOTAL FINAL**
     let totalFinal;
     if (empleado.EsBajaQuincenaAnterior) {
-        // Para bajas de quincena anterior: solo bonificación - IGSS - descuento
-        totalFinal = Math.max(0, bonificacionCalculada - igssCalculado - descuentoJudicial);
+        // Para bajas de quincena anterior: solo bonificación - IGSS - ISR - descuento
+        totalFinal = Math.max(0, bonificacionCalculada - igssCalculado - isrCalculado - descuentoJudicial);
     } else {
-        // Caso normal: SubTotalPagar = Salario + Bonificación - IGSS - Descuento
+        // Caso normal: SubTotalPagar = Salario + Bonificación - IGSS - ISR - Descuento
         const salarioFinMesNumerico = parseFloat(empleado.SalarioDiario) * diasQ2;
-        const subTotalPagar = salarioFinMesNumerico + bonificacionCalculada - igssCalculado;
+        const subTotalPagar = salarioFinMesNumerico + bonificacionCalculada - igssCalculado - isrCalculado;
         totalFinal = Math.max(0, subTotalPagar - descuentoJudicial);
     }
-    
+
     // Formatear valores para mostrar
     const bonificacion = formatearMoneda(bonificacionCalculada);
     const igss = formatearMoneda(igssCalculado);
+    const isr = formatearMoneda(isrCalculado);
     const descuentoJudicialFormateado = formatearMoneda(descuentoJudicial);
     const totalFinalFormateado = formatearMoneda(totalFinal);
     
@@ -960,7 +1036,6 @@ function crearFilaFinMes(empleado, numeroConsecutivo) {
         return `
         <td>${numeroConsecutivo}</td>
         <td class="highlight">${nombreCompleto}</td>
-        <td>${empleado.Nombre_Planilla_Completo}</td>
         <td>
             <span class="status-badge ${empleado.EsCapital ? 'capital' : 'regional'}">
                 ${empleado.EsCapital ? 'Capital' : 'Regional'}
@@ -974,6 +1049,7 @@ function crearFilaFinMes(empleado, numeroConsecutivo) {
         <td class="text-center">${totalDiasMes}</td>
         <td class="currency bonificacion-calculada">${bonificacion}</td>
         <td class="currency igss-calculado">${igss}</td>
+        <td class="currency isr-calculado">${isr}</td>
         <td class="${claseDescuentoJudicial}" ${tooltipDescuento}>${contenidoDescuento}</td>
         <td class="currency salario-final">${totalFinalFormateado}</td>
         <td class="cuentas-division-combinadas">${combinarCuentasDivision(empleado)}</td>
@@ -2072,42 +2148,54 @@ async function guardarPlanilla() {
                 // Variables para los cálculos
                 let bonificacion = 0;
                 let pagoIGSS = 0;
+                let pagoISR = 0;
                 let subTotalPagar = 0;
                 let montoPagado = 0;
-                
+
                 if (tipoQuincena === 'normal') {
                     // **LÓGICA PARA QUINCENA NORMAL**
-                    
+
                     // SubTotalPagar = SueldoDiario * Días Laborados
                     subTotalPagar = salarioDiario * diasLaborados;
-                    
+
                     // MontoPagado = SubTotalPagar - Descuento Judicial
                     montoPagado = Math.max(0, subTotalPagar - empleado.DescuentoJudicial);
-                    
+
                 } else {
                     // **LÓGICA PARA FIN DE MES** (CORREGIDA)
-                    
+
                     // 1. Obtener datos de la quincena anterior
                     const datosQuincenaAnterior = await obtenerDatosQuincenaAnterior(empleado.IdPersonal, mes, anio);
-                    
+
                     // 2. Calcular: SueldoDiario * Días Laborados
                     const salarioCalculado = salarioDiario * diasLaborados;
-                    
+
                     // 3. Sumar SubTotalPagar de quincena + este cálculo de fin de mes
                     const sumaSubTotales = datosQuincenaAnterior.subTotalPagar + salarioCalculado;
-                    
+
                     // 4. Calcular IGSS = Suma de SubTotales * 4.83%
                     pagoIGSS = sumaSubTotales * 0.0483;
-                    
+
                     // 5. Calcular Bonificación = (Bonificación Mensual / 30) * (Días Quincena + Días Fin Mes)
                     const bonificacionMensual = empleado.Bonificacion || 0;
                     const totalDiasAmbasQuincenas = datosQuincenaAnterior.diasLaborados + diasLaborados;
                     bonificacion = (bonificacionMensual / 30) * totalDiasAmbasQuincenas;
-                    
-                    // 6. SubTotalPagar = SueldoDiario * Días + Bonificación - IGSS
-                    subTotalPagar = salarioCalculado + bonificacion - pagoIGSS;
-                    
-                    // 7. MontoPagado = SubTotalPagar - Descuento Judicial
+
+                    // 6. Calcular ISR proporcional
+                    const isrMensual = empleado.ISR || 0;
+                    const anioSeleccionado = anio;
+                    const fechaLimiteISR = new Date(`${anioSeleccionado}-01-15`);
+                    const fechaPlanilla = new Date(empleado.FechaPlanilla);
+
+                    // Solo aplicar ISR si ingresó ANTES del 15 de enero del año seleccionado
+                    if (fechaPlanilla < fechaLimiteISR) {
+                        pagoISR = (isrMensual / 30) * totalDiasAmbasQuincenas;
+                    }
+
+                    // 7. SubTotalPagar = SueldoDiario * Días + Bonificación - IGSS - ISR
+                    subTotalPagar = salarioCalculado + bonificacion - pagoIGSS - pagoISR;
+
+                    // 8. MontoPagado = SubTotalPagar - Descuento Judicial
                     montoPagado = Math.max(0, subTotalPagar - empleado.DescuentoJudicial);
                 }
                 
@@ -2121,6 +2209,7 @@ async function guardarPlanilla() {
                     SubTotalPagar: subTotalPagar,            // CALCULADO SEGÚN LÓGICA
                     Bonificacion: bonificacion,              // 0 para quincena, calculado para fin de mes
                     PagoIGSS: pagoIGSS,                      // 0 para quincena, calculado para fin de mes
+                    PagoISR: pagoISR,                        // 0 para quincena, calculado para fin de mes
                     DiasLaborados: diasLaborados,
                     NoCuentaDivision1: empleado.CuentaDivision1 || '',
                     NoCuentaDivision2: empleado.CuentaDivision2 || '',
@@ -2146,16 +2235,17 @@ async function guardarPlanilla() {
             html: `
                 <p>La planilla ha sido guardada exitosamente</p>
                 <p>Puede modificarla desde la pestaña "Modificar Nómina".</p>
-                ${tipoQuincena === 'finMes' ? 
+                ${tipoQuincena === 'finMes' ?
                     '<p><strong>Cálculos aplicados para Fin de Mes:</strong></p>' +
                     '<ul style="text-align: left;">' +
                     '<li>✅ SalarioDiario × Días Laborados</li>' +
                     '<li>✅ IGSS = (SubTotal Quincena + SubTotal Fin Mes) × 4.83%</li>' +
                     '<li>✅ Bonificación = (Bonificación/30) × Total Días</li>' +
-                    '<li>✅ SubTotalPagar = Salario + Bonificación - IGSS</li>' +
+                    '<li>✅ ISR = (ISR Mensual/30) × Total Días</li>' +
+                    '<li>✅ SubTotalPagar = Salario + Bonificación - IGSS - ISR</li>' +
                     '<li>✅ MontoPagado = SubTotalPagar - Descuentos</li>' +
-                    '</ul>' 
-                    : 
+                    '</ul>'
+                    :
                     '<p><strong>✅ Cálculos para Quincena Normal aplicados</strong></p>'
                 }
             `,
@@ -2342,7 +2432,7 @@ async function insertarDetallePlanilla(detalle) {
     try {
         const connection = await connectionString();
         
-        // Consulta SQL para insertar el detalle incluyendo SubTotalPagar
+        // Consulta SQL para insertar el detalle incluyendo SubTotalPagar e ISR
         const query = `
             INSERT INTO PagoPlanillaDetalle (
                 IdPagoPlanilla,
@@ -2354,13 +2444,14 @@ async function insertarDetallePlanilla(detalle) {
                 SubTotalPagar,
                 Bonificacion,
                 PagoIGSS,
+                ISR,
                 DiasLaborados,
                 NoCuentaDivision1,
                 NoCuentaDivision2,
                 NoCuentaDivision3
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `;
-        
+
         const params = [
             detalle.IdPagoPlanilla,
             detalle.IdPersonal,
@@ -2371,6 +2462,7 @@ async function insertarDetallePlanilla(detalle) {
             detalle.SubTotalPagar,
             detalle.Bonificacion || 0,
             detalle.PagoIGSS || 0,
+            detalle.PagoISR || 0,
             detalle.DiasLaborados,
             detalle.NoCuentaDivision1,
             detalle.NoCuentaDivision2,
@@ -3555,46 +3647,33 @@ function inicializarSistemaAyuda() {
     });
 }
 function calcularYMostrarTotal(datos) {
-    // Para opción 1
-    const btnTotal = document.getElementById('btnTotal');
-    
-    // Para opción 2
-    const totalBadge = document.getElementById('totalBadge');
-    
-    // Para opción 3
-    const totalText = document.getElementById('totalText');
-    
-    // Para opción 4
-    const totalIndicator = document.getElementById('totalIndicator');
-    const applyBtn = document.getElementById('applyFilters');
-    
-    const totalAmount = document.getElementById('totalPlanillaAmount');
-    
+    const filtersSummary = document.getElementById('filtersSummary');
+    const totalColaboradores = document.getElementById('totalColaboradores');
+    const totalPlanillaAmount = document.getElementById('totalPlanillaAmount');
+
     if (!datos || datos.length === 0) {
-        // Ocultar todos los elementos
-        [btnTotal, totalBadge, totalText, totalIndicator].forEach(el => {
-            if (el) el.style.display = 'none';
-        });
-        if (applyBtn) applyBtn.removeAttribute('data-tooltip');
+        // Ocultar el resumen si no hay datos
+        if (filtersSummary) filtersSummary.style.display = 'none';
         return;
     }
-    
-    // Calcular total
+
+    // Calcular total de planilla
     const total = datos.reduce((sum, emp) => sum + parseFloat(emp.SalarioFinalAPagar || 0), 0);
     const totalFormateado = formatearMoneda(total);
-    
-    // Actualizar display según la opción elegida
-    if (totalAmount) {
-        totalAmount.textContent = totalFormateado;
+
+    // Actualizar número de colaboradores
+    if (totalColaboradores) {
+        totalColaboradores.textContent = datos.length;
     }
-    
-    // Mostrar el elemento correspondiente a la opción elegida
-    if (btnTotal) btnTotal.style.display = 'flex';           // Opción 1
-    
-    // Para opción 4
-    if (totalIndicator && applyBtn) {
-        totalIndicator.style.display = 'inline';
-        applyBtn.setAttribute('data-tooltip', `Total: ${totalFormateado} (${datos.length} empleados)`);
+
+    // Actualizar total de planilla
+    if (totalPlanillaAmount) {
+        totalPlanillaAmount.textContent = totalFormateado;
+    }
+
+    // Mostrar el resumen
+    if (filtersSummary) {
+        filtersSummary.style.display = 'flex';
     }
 }
 function ocultarTotal() {
