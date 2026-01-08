@@ -10,7 +10,7 @@ const ExcelJS = require('exceljs');
 let userData;
 let employeesData = [];
 let currentPage = 1;
-let itemsPerPage = 10;
+let itemsPerPage = 100;
 let filteredData = [];
 let userDepartmentId = null; // ID del departamento del usuario logueado
 let userDepartmentName = ''; // Nombre del departamento del usuario
@@ -186,9 +186,18 @@ async function loadUserDepartmentInfo() {
 }
 function isValidDate(dateString) {
     if (!dateString) return false;
-    
+
     try {
-        const date = createDateFromDBString(dateString);
+        // Intentar parsear la fecha de diferentes formatos
+        if (typeof dateString === 'string') {
+            if (dateString.includes('-')) {
+                const parts = dateString.split(' ')[0];
+                const [year, month, day] = parts.split('-').map(num => parseInt(num, 10));
+                const date = new Date(year, month - 1, day);
+                return date && !isNaN(date);
+            }
+        }
+        const date = new Date(dateString);
         return date && !isNaN(date);
     } catch (error) {
         return false;
@@ -512,7 +521,8 @@ function renderEmployeesTable() {
         row.style.animationDelay = `${(index * 0.05)}s`;
 
         let actionsCell = '';
-                
+        const diasVacaciones = employee.DiasVacaciones || 0;
+
         if (isCurrentUser) {
             actionsCell = `
                 <div class="user-actions-disabled">
@@ -520,6 +530,17 @@ function renderEmployeesTable() {
                         <i class="fas fa-user-lock"></i> No disponible
                         <span class="tooltip-text">No puede solicitar vacaciones para usted mismo</span>
                     </span>
+                </div>
+            `;
+        } else if (diasVacaciones <= 0) {
+            actionsCell = `
+                <div class="action-buttons">
+                    <button class="btn-action btn-request" title="Sin días disponibles" disabled style="opacity: 0.5; cursor: not-allowed;">
+                        <i class="fas fa-calendar-plus"></i>
+                    </button>
+                    <button class="btn-action btn-info" title="Ver información" onclick="openInfoModal(${employee.IdPersonal})">
+                        <i class="fas fa-info-circle"></i>
+                    </button>
                 </div>
             `;
         } else {
@@ -534,10 +555,9 @@ function renderEmployeesTable() {
                 </div>
             `;
         }
-        
+
         let diasDisponiblesStyle = '';
-        const diasVacaciones = employee.DiasVacaciones || 0;
-        
+
         if (diasVacaciones <= 0) {
             diasDisponiblesStyle = `<div class="days-count" style="background-color: #FF5252;">0 días</div>`;
         } else if (diasVacaciones < 30) {
@@ -1432,8 +1452,11 @@ function initCalendar() {
         select: function(info) {
             let fechasNoDisponibles = [];
             let currentDate = new Date(info.start);
-            
-            while (currentDate < info.end) {
+            // FullCalendar incluye el día siguiente en info.end, por lo que debemos restar 1 día
+            let endDate = new Date(info.end);
+            endDate.setDate(endDate.getDate() - 1);
+
+            while (currentDate <= endDate) {
                 const fechaStr = formatFechaBaseDatos(currentDate);
                 if (fechasRegistradas.includes(fechaStr)) {
                     fechasNoDisponibles.push(formatDate(currentDate));
@@ -1502,9 +1525,16 @@ function initCalendar() {
 // Manejar la selección de fechas con validación
 function handleDateSelection(start, end) {
     let currentDate = new Date(start);
+    // Ajustar el end date si viene de FullCalendar
+    let adjustedEnd = new Date(end);
+    // Si la diferencia es exactamente 1 día pero el día es diferente, es un solo día de FullCalendar
+    if (end.getTime() - start.getTime() === 86400000 && start.getDate() !== end.getDate()) {
+        adjustedEnd.setDate(adjustedEnd.getDate() - 1);
+    }
+
     let fechasInvalidas = [];
-    
-    while (currentDate <= end) {
+
+    while (currentDate <= adjustedEnd) {
         const fechaStr = formatFechaBaseDatos(currentDate);
         if (fechasRegistradas.includes(fechaStr)) {
             fechasInvalidas.push(formatDate(currentDate));
@@ -1529,11 +1559,9 @@ function handleDateSelection(start, end) {
         return;
     }
     
-    let adjustedEnd;
-    
-    if (start.getTime() === end.getTime() || 
+    if (start.getTime() === end.getTime() ||
         (end.getTime() - start.getTime() === 86400000 && start.getDate() === end.getDate() - 1)) {
-        adjustedEnd = new Date(start);
+        adjustedEnd = start;
     } else {
         adjustedEnd = new Date(end);
         adjustedEnd.setDate(adjustedEnd.getDate() - 1);

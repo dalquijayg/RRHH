@@ -494,7 +494,8 @@ function renderEmployeesTable() {
         row.style.animationDelay = `${(currentPageData.indexOf(employee) * 0.05)}s`;
 
         let actionsCell = '';
-                
+        const diasVacaciones = employee.DiasVacaciones || 0;
+
         if (isCurrentUser) {
             actionsCell = `
                 <div class="user-actions-disabled">
@@ -502,6 +503,17 @@ function renderEmployeesTable() {
                         <i class="fas fa-user-lock"></i> No disponible
                         <span class="tooltip-text">No puede solicitar vacaciones para usted mismo</span>
                     </span>
+                </div>
+            `;
+        } else if (diasVacaciones <= 0) {
+            actionsCell = `
+                <div class="action-buttons">
+                    <button class="btn-action btn-request" title="Sin días disponibles" disabled style="opacity: 0.5; cursor: not-allowed;">
+                        <i class="fas fa-calendar-plus"></i>
+                    </button>
+                    <button class="btn-action btn-info" title="Ver información" onclick="openInfoModal(${employee.IdPersonal})">
+                        <i class="fas fa-info-circle"></i>
+                    </button>
                 </div>
             `;
         } else {

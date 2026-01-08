@@ -161,8 +161,7 @@ function configurarEventListeners() {
     // Modal
     document.getElementById('btnCerrarModal').addEventListener('click', cerrarModal);
     document.getElementById('btnCerrarModalFooter').addEventListener('click', cerrarModal);
-    document.getElementById('btnExportarDetalle').addEventListener('click', exportarDetalleExcel);
-
+    
     // Click fuera del modal para cerrar
     document.getElementById('modalDetalle').addEventListener('click', (e) => {
         if (e.target.id === 'modalDetalle') {
@@ -927,10 +926,6 @@ async function verDetalle(idPlanilla) {
         });
         
         document.getElementById('totalDetalle').textContent = formatearMoneda(totalDetalle);
-        
-        // Guardar ID de planilla actual para exportar
-        document.getElementById('btnExportarDetalle').setAttribute('data-planilla-id', idPlanilla);
-        
         // Mostrar modal
         document.getElementById('modalDetalle').classList.add('active');
         
@@ -1267,139 +1262,6 @@ async function exportarExcelDepartamento() {
     }
 }
 
-// ==================== EXPORTAR DETALLE A EXCEL ====================
-async function exportarDetalleExcel() {
-    const idPlanilla = document.getElementById('btnExportarDetalle').getAttribute('data-planilla-id');
-    
-    if (!idPlanilla) {
-        mostrarError('No se pudo identificar la planilla');
-        return;
-    }
-    
-    try {
-        const ExcelJS = require('exceljs');
-        const { dialog } = require('electron').remote;
-        
-        const connection = await connectionString();
-        
-        // Obtener detalle
-        const detalle = await connection.query(`
-            SELECT
-                NombrePersonal, 
-                FechaLaborada, 
-                IdTipoTurno, 
-                TipoTurno, 
-                MontoPagado
-            FROM
-                PagoPlanillaParcialDetalle
-            WHERE
-                IdPlanillaParcial = ?
-            ORDER BY FechaLaborada DESC, NombrePersonal
-        `, [idPlanilla]);
-        
-        await connection.close();
-        
-        if (detalle.length === 0) {
-            mostrarError('No hay detalles para exportar');
-            return;
-        }
-        
-        // Crear libro de trabajo
-        const workbook = new ExcelJS.Workbook();
-        const worksheet = workbook.addWorksheet(`Detalle Planilla ${idPlanilla}`);
-        
-        // Configurar columnas
-        worksheet.columns = [
-            { header: 'Colaborador', key: 'colaborador', width: 40 },
-            { header: 'Fecha Laborada', key: 'fechaLaborada', width: 15 },
-            { header: 'ID Turno', key: 'idTurno', width: 12 },
-            { header: 'Tipo de Turno', key: 'tipoTurno', width: 25 },
-            { header: 'Monto Pagado', key: 'montoPagado', width: 15 }
-        ];
-        
-        // Estilo del encabezado
-        worksheet.getRow(1).font = { bold: true, color: { argb: 'FFFFFFFF' } };
-        worksheet.getRow(1).fill = {
-            type: 'pattern',
-            pattern: 'solid',
-            fgColor: { argb: 'FF654321' }
-        };
-        worksheet.getRow(1).alignment = { vertical: 'middle', horizontal: 'center' };
-        worksheet.getRow(1).height = 25;
-        
-        // Agregar datos
-        let total = 0;
-        detalle.forEach(item => {
-            worksheet.addRow({
-                colaborador: item.NombrePersonal,
-                fechaLaborada: item.FechaLaborada,
-                idTurno: item.IdTipoTurno,
-                tipoTurno: item.TipoTurno,
-                montoPagado: parseFloat(item.MontoPagado)
-            });
-            total += parseFloat(item.MontoPagado || 0);
-        });
-        
-        // Formato de moneda
-        worksheet.getColumn('montoPagado').numFmt = 'Q #,##0.00';
-        
-        // Formato de fechas
-        worksheet.getColumn('fechaLaborada').numFmt = 'dd/mm/yyyy';
-        
-        // Agregar fila de total
-        const totalRow = worksheet.addRow({
-            colaborador: '',
-            fechaLaborada: '',
-            idTurno: '',
-            tipoTurno: 'TOTAL:',
-            montoPagado: total
-        });
-        
-        totalRow.font = { bold: true };
-        totalRow.fill = {
-            type: 'pattern',
-            pattern: 'solid',
-            fgColor: { argb: 'FFE0E0E0' }
-        };
-        
-        // Bordes
-        worksheet.eachRow((row, rowNumber) => {
-            row.eachCell((cell) => {
-                cell.border = {
-                    top: { style: 'thin' },
-                    left: { style: 'thin' },
-                    bottom: { style: 'thin' },
-                    right: { style: 'thin' }
-                };
-            });
-        });
-        
-        // Guardar archivo
-        const savePath = dialog.showSaveDialogSync({
-            title: 'Guardar detalle',
-            defaultPath: `Detalle_Planilla_${idPlanilla}_${new Date().toISOString().split('T')[0]}.xlsx`,
-            filters: [
-                { name: 'Excel', extensions: ['xlsx'] }
-            ]
-        });
-        
-        if (savePath) {
-            await workbook.xlsx.writeFile(savePath);
-            
-            Swal.fire({
-                icon: 'success',
-                title: 'Exportado exitosamente',
-                text: 'El detalle se ha guardado correctamente',
-                confirmButtonColor: '#4CAF50'
-            });
-        }
-        
-    } catch (error) {
-        console.error('Error al exportar detalle:', error);
-        mostrarError('Error al exportar el detalle');
-    }
-}
-
 // ==================== FUNCIONES DE UTILIDAD ====================
 function formatearMoneda(valor) {
     if (!valor || isNaN(valor)) return 'Q 0.00';
@@ -1411,10 +1273,11 @@ function formatearMoneda(valor) {
 
 function formatearFecha(fecha) {
     if (!fecha) return 'N/A';
-    const date = new Date(fecha);
-    const dia = String(date.getDate()).padStart(2, '0');
-    const mes = String(date.getMonth() + 1).padStart(2, '0');
-    const anio = date.getFullYear();
+
+    // Extraer directamente la fecha sin crear objeto Date para evitar problemas de zona horaria
+    const fechaStr = fecha.toString();
+    const [anio, mes, dia] = fechaStr.split('T')[0].split('-');
+
     return `${dia}/${mes}/${anio}`;
 }
 
