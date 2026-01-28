@@ -117,12 +117,13 @@ async function obtenerDiasSuspendidos(idPersonal, mes, anio, tipoQuincena) {
             inicioQuincena = `${anio}-${mes.padStart(2, '0')}-01`;
             finQuincena = `${anio}-${mes.padStart(2, '0')}-15`;
         } else {
-            // Segunda quincena: del 16 al último día del mes
+            // Segunda quincena: del 16 al 30 (mes comercial)
             inicioQuincena = `${anio}-${mes.padStart(2, '0')}-16`;
-            
-            // Obtener el último día del mes
-            const ultimoDia = new Date(anio, parseInt(mes), 0).getDate();
-            finQuincena = `${anio}-${mes.padStart(2, '0')}-${ultimoDia}`;
+
+            // Mes comercial: usar el mínimo entre 30 y el último día real (para febrero)
+            const ultimoDiaReal = new Date(anio, parseInt(mes), 0).getDate();
+            const diaFinComercial = Math.min(30, ultimoDiaReal);
+            finQuincena = `${anio}-${mes.padStart(2, '0')}-${diaFinComercial}`;
         }
         
         // Consulta modificada para incluir tanto suspensiones como faltas
@@ -315,12 +316,15 @@ async function obtenerDatosNomina() {
             inicioQuincena = `${anio}-${mes.padStart(2, '0')}-01`;
             finQuincena = `${anio}-${mes.padStart(2, '0')}-15`;
         } else {
-            // Segunda quincena: del 16 al último día del mes
+            // Segunda quincena: del 16 al 30 (mes comercial)
             inicioQuincena = `${anio}-${mes.padStart(2, '0')}-16`;
-            const ultimoDia = new Date(anio, parseInt(mes), 0).getDate();
-            finQuincena = `${anio}-${mes.padStart(2, '0')}-${ultimoDia}`;
-            
-            // NUEVO: Para fin de mes, también necesitamos el rango completo del mes
+
+            // Mes comercial: usar el mínimo entre 30 y el último día real (para febrero)
+            const ultimoDiaReal = new Date(anio, parseInt(mes), 0).getDate();
+            const diaFinComercial = Math.min(30, ultimoDiaReal);
+            finQuincena = `${anio}-${mes.padStart(2, '0')}-${diaFinComercial}`;
+
+            // Para fin de mes, también necesitamos el rango completo del mes
             inicioMes = `${anio}-${mes.padStart(2, '0')}-01`;
             finMes = finQuincena;
         }
@@ -651,19 +655,35 @@ async function obtenerDatosNomina() {
             
             // Calcular el salario final a pagar
             let salarioFinalAPagar;
+            let isrCalculado = 0;
+
             if (tipoQuincena === 'normal') {
                 salarioFinalAPagar = Math.max(0, salarioProporcional - montoDescuentoJudicial);
             } else {
+                // Calcular ISR para fin de mes
+                const isrMensual = empleado.ISR || 0;
+                const fechaLimiteISR = new Date(`${anio}-01-15`);
+                const fechaPlanilla = new Date(empleado.FechaPlanilla);
+
+                // Solo aplicar ISR si ingresó ANTES del 15 de enero del año seleccionado
+                if (fechaPlanilla < fechaLimiteISR) {
+                    const datosQ1 = empleado.DatosQuincenaAnterior || { diasLaborados: 0 };
+                    const totalDiasMes = datosQ1.diasLaborados + diasLaborados;
+                    isrCalculado = (isrMensual / 30) * totalDiasMes;
+                }
+
                 if (esBajaQuincenaAnterior) {
-                    // Para bajas de quincena anterior: solo bonificación - IGSS - descuento
-                    salarioFinalAPagar = Math.max(0, bonificacionCalculada - igssCalculado - montoDescuentoJudicial);
+                    // Para bajas de quincena anterior: solo bonificación - IGSS - ISR - descuento
+                    salarioFinalAPagar = Math.max(0, bonificacionCalculada - igssCalculado - isrCalculado - montoDescuentoJudicial);
                 } else {
                     // Caso normal de fin de mes
                     const salarioFinMes = empleado.SalarioDiario * diasLaborados;
-                    const subTotalFinMes = salarioFinMes + bonificacionCalculada - igssCalculado;
+                    const subTotalFinMes = salarioFinMes + bonificacionCalculada - igssCalculado - isrCalculado;
                     salarioFinalAPagar = Math.max(0, subTotalFinMes - montoDescuentoJudicial);
                 }
             }
+
+            empleado.ISRCalculado = isrCalculado;
             
             // Formatear fecha correctamente sin problemas de zona horaria
             if (empleado.FechaFinColaborador) {
@@ -1336,14 +1356,15 @@ async function obtenerDetallesSuspensiones(idPersonal, mes, anio, tipoQuincena) 
             inicioQuincena = `${anio}-${mes.toString().padStart(2, '0')}-01`;
             finQuincena = `${anio}-${mes.toString().padStart(2, '0')}-15`;
         } else {
-            // Segunda quincena: del 16 al último día del mes
+            // Segunda quincena: del 16 al 30 (mes comercial)
             inicioQuincena = `${anio}-${mes.toString().padStart(2, '0')}-16`;
-            
-            // Obtener el último día del mes
-            const ultimoDia = new Date(anio, parseInt(mes), 0).getDate();
-            finQuincena = `${anio}-${mes.toString().padStart(2, '0')}-${ultimoDia}`;
+
+            // Mes comercial: usar el mínimo entre 30 y el último día real (para febrero)
+            const ultimoDiaReal = new Date(anio, parseInt(mes), 0).getDate();
+            const diaFinComercial = Math.min(30, ultimoDiaReal);
+            finQuincena = `${anio}-${mes.toString().padStart(2, '0')}-${diaFinComercial}`;
         }
-        
+
         // Consulta para obtener las suspensiones del empleado en el periodo
         const query = `
             SELECT 
@@ -1387,14 +1408,15 @@ async function obtenerBajasColaboradores(mes, anio, tipoQuincena) {
             inicioQuincena = `${anio}-${mes.toString().padStart(2, '0')}-01`;
             finQuincena = `${anio}-${mes.toString().padStart(2, '0')}-15`;
         } else {
-            // Segunda quincena: del 16 al último día del mes
+            // Segunda quincena: del 16 al 30 (mes comercial)
             inicioQuincena = `${anio}-${mes.toString().padStart(2, '0')}-16`;
-            
-            // Obtener el último día del mes
-            const ultimoDia = new Date(anio, parseInt(mes), 0).getDate();
-            finQuincena = `${anio}-${mes.toString().padStart(2, '0')}-${ultimoDia}`;
+
+            // Mes comercial: usar el mínimo entre 30 y el último día real (para febrero)
+            const ultimoDiaReal = new Date(anio, parseInt(mes), 0).getDate();
+            const diaFinComercial = Math.min(30, ultimoDiaReal);
+            finQuincena = `${anio}-${mes.toString().padStart(2, '0')}-${diaFinComercial}`;
         }
-        
+
         // Consulta para obtener las bajas del periodo (MODIFICADA)
         const query = `
             SELECT 
@@ -3028,7 +3050,7 @@ async function crearHojaPlanilla(planilla, formValues, nombresMeses) {
                 totalPagadoQ2 += salarioCalculadoQ2;
                 totalSueldoTotal += sueldoTotal;
                 totalPagadoFinalQ2 += totalPagadoFinalQ2Empleado;
-                totalPlanilla += totalPagadoMes;
+                totalPlanilla += totalPagadoFinalQ2Empleado;
                 
                 // Crear fila con datos FORMATEADOS A 2 DECIMALES (19 columnas)
                 data[filaActual++] = [
@@ -3402,12 +3424,15 @@ async function obtenerObservacionesEmpleado(idPersonal, mes, anio, tipoQuincena)
             inicioQuincena = `${anio}-${mes.toString().padStart(2, '0')}-01`;
             finQuincena = `${anio}-${mes.toString().padStart(2, '0')}-15`;
         } else {
-            // Segunda quincena: del 16 al último día del mes
+            // Segunda quincena: del 16 al 30 (mes comercial)
             inicioQuincena = `${anio}-${mes.toString().padStart(2, '0')}-16`;
-            const ultimoDia = new Date(anio, parseInt(mes), 0).getDate();
-            finQuincena = `${anio}-${mes.toString().padStart(2, '0')}-${ultimoDia}`;
+
+            // Mes comercial: usar el mínimo entre 30 y el último día real (para febrero)
+            const ultimoDiaReal = new Date(anio, parseInt(mes), 0).getDate();
+            const diaFinComercial = Math.min(30, ultimoDiaReal);
+            finQuincena = `${anio}-${mes.toString().padStart(2, '0')}-${diaFinComercial}`;
         }
-        
+
         // FUNCIÓN AUXILIAR CORREGIDA PARA FORMATEAR FECHAS LOCALMENTE
         function formatearFechaLocal(fecha) {
             if (!fecha) return '';
@@ -3693,11 +3718,15 @@ async function obtenerDetallesSuspensionesFaltas(idPersonal, mes, anio, tipoQuin
             inicioQuincena = `${anio}-${mes.padStart(2, '0')}-01`;
             finQuincena = `${anio}-${mes.padStart(2, '0')}-15`;
         } else {
+            // Segunda quincena: del 16 al 30 (mes comercial)
             inicioQuincena = `${anio}-${mes.padStart(2, '0')}-16`;
-            const ultimoDia = new Date(anio, parseInt(mes), 0).getDate();
-            finQuincena = `${anio}-${mes.padStart(2, '0')}-${ultimoDia}`;
+
+            // Mes comercial: usar el mínimo entre 30 y el último día real (para febrero)
+            const ultimoDiaReal = new Date(anio, parseInt(mes), 0).getDate();
+            const diaFinComercial = Math.min(30, ultimoDiaReal);
+            finQuincena = `${anio}-${mes.padStart(2, '0')}-${diaFinComercial}`;
         }
-        
+
         // Consulta para obtener detalles separados de suspensiones y faltas
         const query = `
             SELECT 

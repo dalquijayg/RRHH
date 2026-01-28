@@ -46,16 +46,48 @@
             
             <!-- Buscador de colaboradores -->
             <div class="search-container">
-                <div class="input-container">
-                    <label for="buscarColaborador">Buscar Colaborador</label>
-                    <div class="search-input-wrapper">
-                        <input type="text" id="buscarColaborador" placeholder="Escribe el nombre del colaborador...">
-                        <i class="fas fa-search search-icon"></i>
-                    </div>
+                <div class="search-header">
+                    <h3>Buscar Colaborador</h3>
+                    <p class="search-hint">Presiona <kbd>Enter</kbd> para buscar</p>
                 </div>
                 
-                <!-- Resultados de búsqueda -->
-                <div id="resultadosBusqueda" class="search-results" style="display: none;"></div>
+                <div class="search-input-wrapper">
+                    <input 
+                        type="text" 
+                        id="buscarColaborador" 
+                        placeholder="Ingresa el nombre del colaborador y presiona Enter..."
+                        autocomplete="off"
+                    >
+                    <button type="button" id="btnBuscar" class="btn-search">
+                        <i class="fas fa-search"></i>
+                    </button>
+                </div>
+                
+                <!-- Resultados de búsqueda MEJORADOS -->
+                <div id="resultadosBusqueda" class="search-results" style="display: none;">
+                    <div class="results-header">
+                        <h4><i class="fas fa-users"></i> Resultados de búsqueda</h4>
+                        <div class="results-actions">
+                            <span class="results-count" id="resultsCount">0 resultados</span>
+                            <button type="button" class="btn-clear-search" id="btnClearSearch">
+                                <i class="fas fa-times"></i> Cerrar
+                            </button>
+                        </div>
+                    </div>
+                    <div class="results-list" id="resultsList">
+                        <!-- Los resultados se insertan dinámicamente aquí -->
+                    </div>
+                </div>
+
+                <!-- Mensaje sin resultados -->
+                <div id="noResults" class="no-results" style="display: none;">
+                    <i class="fas fa-user-slash"></i>
+                    <h4>No se encontraron colaboradores</h4>
+                    <p>Intenta con otro nombre o verifica la ortografía</p>
+                    <button type="button" class="btn-close-no-results" onclick="document.getElementById('noResults').style.display='none'">
+                        <i class="fas fa-arrow-left"></i> Volver a buscar
+                    </button>
+                </div>
             </div>
             
             <!-- Información del colaborador seleccionado -->

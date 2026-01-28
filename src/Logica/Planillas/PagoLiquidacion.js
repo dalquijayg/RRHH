@@ -3,7 +3,6 @@ const { connectionString } = require('../Conexion/Conexion');
 const Swal = require('sweetalert2');
 
 let colaboradorSeleccionado = null;
-let timeoutBusqueda = null;
 let liquidacionesAutorizadas = [];
 let liquidacionesAutorizadasFiltradas = [];
 let timeoutBusquedaAutorizadas = null;
@@ -43,6 +42,25 @@ async function verificarDespidoRenuncia(idPersonal) {
         }
     } catch (error) {
         console.error('Error al verificar despido/renuncia:', error);
+        throw error;
+    }
+}
+
+// Función para actualizar el estado de la liquidación a 2 (PDF generado/procesado)
+async function actualizarEstadoLiquidacion(idLiquidacion, nuevoEstado = 2) {
+    try {
+        const connection = await connectionString();
+        await connection.query(`
+            UPDATE Liquidaciones
+            SET Estado = ?
+            WHERE IdLiquidacion = ?
+        `, [nuevoEstado, idLiquidacion]);
+
+        await connection.close();
+        console.log(`Liquidación ${idLiquidacion} actualizada a Estado ${nuevoEstado}`);
+        return true;
+    } catch (error) {
+        console.error('Error al actualizar estado de liquidación:', error);
         throw error;
     }
 }
@@ -1337,13 +1355,23 @@ async function obtenerDatosLiquidacionBD(idLiquidacion) {
 // Función para mostrar resultados de búsqueda
 function mostrarResultados(colaboradores) {
     const contenedor = document.getElementById('resultadosBusqueda');
-    
+    const resultsList = document.getElementById('resultsList');
+    const resultsCount = document.getElementById('resultsCount');
+    const noResults = document.getElementById('noResults');
+
     if (colaboradores.length === 0) {
-        contenedor.innerHTML = '<div style="padding: 20px; text-align: center; color: #666;">No se encontraron colaboradores</div>';
-        contenedor.style.display = 'block';
+        contenedor.style.display = 'none';
+        noResults.style.display = 'block';
         return;
     }
-    
+
+    // Ocultar mensaje de sin resultados
+    noResults.style.display = 'none';
+
+    // Actualizar contador
+    const plural = colaboradores.length === 1 ? 'resultado' : 'resultados';
+    resultsCount.textContent = `${colaboradores.length} ${plural}`;
+
     let html = '';
     colaboradores.forEach(colaborador => {
         const fotoSrc = colaborador.FotoBase64 || '../Imagenes/user-default.png';
@@ -1357,8 +1385,8 @@ function mostrarResultados(colaboradores) {
             </div>
         `;
     });
-    
-    contenedor.innerHTML = html;
+
+    resultsList.innerHTML = html;
     contenedor.style.display = 'block';
 }
 
@@ -2040,37 +2068,69 @@ document.addEventListener('DOMContentLoaded', function() {
     const inputBusqueda = document.getElementById('buscarColaborador');
     const resultadosContainer = document.getElementById('resultadosBusqueda');
     
-    // Evento de búsqueda
-    inputBusqueda.addEventListener('input', function() {
-        const termino = this.value.trim();
-        
-        // Limpiar timeout anterior
-        if (timeoutBusqueda) {
-            clearTimeout(timeoutBusqueda);
-        }
-        
+    // Función para ejecutar la búsqueda
+    async function ejecutarBusqueda() {
+        const termino = inputBusqueda.value.trim();
+        const noResults = document.getElementById('noResults');
+
         if (termino.length < 2) {
             resultadosContainer.style.display = 'none';
+            noResults.style.display = 'none';
+            Swal.fire({
+                icon: 'info',
+                title: 'Búsqueda',
+                text: 'Ingresa al menos 2 caracteres para buscar.',
+                confirmButtonColor: '#FF9800',
+                timer: 2000,
+                showConfirmButton: false
+            });
             return;
         }
-        
+
         // Agregar clase de carga
-        this.parentElement.classList.add('loading');
-        
-        // Debounce de 500ms
-        timeoutBusqueda = setTimeout(async () => {
-            try {
-                const colaboradores = await buscarColaboradores(termino);
-                mostrarResultados(colaboradores);
-            } catch (error) {
-                console.error('Error en búsqueda:', error);
-                resultadosContainer.innerHTML = '<div style="padding: 20px; text-align: center; color: #FF5252;">Error al buscar colaboradores</div>';
-                resultadosContainer.style.display = 'block';
-            } finally {
-                inputBusqueda.parentElement.classList.remove('loading');
-            }
-        }, 500);
+        inputBusqueda.parentElement.classList.add('loading');
+        noResults.style.display = 'none';
+
+        try {
+            const colaboradores = await buscarColaboradores(termino);
+            mostrarResultados(colaboradores);
+        } catch (error) {
+            console.error('Error en búsqueda:', error);
+            Swal.fire({
+                icon: 'error',
+                title: 'Error',
+                text: 'No se pudo realizar la búsqueda. Intenta de nuevo.',
+                confirmButtonColor: '#FF9800'
+            });
+        } finally {
+            inputBusqueda.parentElement.classList.remove('loading');
+        }
+    }
+
+    // Evento de búsqueda con Enter
+    inputBusqueda.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            ejecutarBusqueda();
+        }
     });
+
+    // Botón de búsqueda
+    const btnBuscar = document.getElementById('btnBuscar');
+    if (btnBuscar) {
+        btnBuscar.addEventListener('click', ejecutarBusqueda);
+    }
+
+    // Botón de limpiar búsqueda
+    const btnClearSearch = document.getElementById('btnClearSearch');
+    if (btnClearSearch) {
+        btnClearSearch.addEventListener('click', function() {
+            inputBusqueda.value = '';
+            resultadosContainer.style.display = 'none';
+            document.getElementById('noResults').style.display = 'none';
+            inputBusqueda.focus();
+        });
+    }
     
     // Cerrar resultados al hacer clic fuera
     document.addEventListener('click', function(e) {
@@ -3117,7 +3177,23 @@ async function generarPDFAutorizada(idLiquidacion) {
                 
                 // Generar resumen con las firmas
                 await generarPDFResumen(colaboradorData, liquidacionData, infoCompleta, validacionVacaciones, firmasInfo);
-                
+
+                // Actualizar estado de la liquidación a 2 (procesada)
+                try {
+                    await actualizarEstadoLiquidacion(idLiquidacion, 2);
+
+                    // Actualizar la lista local removiendo la liquidación procesada
+                    liquidacionesAutorizadas = liquidacionesAutorizadas.filter(l => l.IdLiquidacion !== idLiquidacion);
+                    liquidacionesAutorizadasFiltradas = liquidacionesAutorizadasFiltradas.filter(l => l.IdLiquidacion !== idLiquidacion);
+
+                    // Actualizar la tabla si el manager está disponible
+                    if (liquidacionesAutorizadasManager) {
+                        liquidacionesAutorizadasManager.renderizarTabla();
+                    }
+                } catch (updateError) {
+                    console.error('Error al actualizar estado:', updateError);
+                }
+
                 Swal.close();
                 await Swal.fire({
                     icon: 'success',
@@ -3128,6 +3204,7 @@ async function generarPDFAutorizada(idLiquidacion) {
                             <p>✓ Liquidación laboral detallada</p>
                             <p>✓ Resumen de liquidación</p>
                             ${validacionVacaciones.tieneVacaciones ? '<p>✓ Incluye pago de vacaciones autorizadas</p>' : ''}
+                            <p style="margin-top: 15px; color: #4CAF50;"><i class="fas fa-check-circle"></i> Liquidación marcada como procesada</p>
                         </div>
                     `,
                     confirmButtonColor: '#FF9800'
