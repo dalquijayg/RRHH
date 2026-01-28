@@ -11,7 +11,7 @@
   "keywords": [],
   "author": "",
   "license": "ISC",
-  "description": "",
+  "description": "Sistema de Recursos Humanos",
   "dependencies": {
     "chart.js": "^4.4.8",
     "crypto": "^1.0.1",
