@@ -1255,7 +1255,7 @@ async function generarPDFConJsPDF(planilla, detalles) {
     doc.setFontSize(16);
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(101, 67, 33);
-    doc.text('PLANILLA DE PAGO VACACIONISTAS', pageWidth / 2, yPos + 8, { align: 'center' });
+    doc.text('PLANILLA DE PAGO ESPECIAL', pageWidth / 2, yPos + 8, { align: 'center' });
 
     doc.setFontSize(12);
     doc.setFont('helvetica', 'normal');
@@ -1334,6 +1334,7 @@ async function generarPDFConJsPDF(planilla, detalles) {
         body: tableData,
         foot: [['', '', '', 'TOTAL A PAGAR:', formatearMoneda(planilla.MontoPlanilla), '']],
         theme: 'grid',
+        showFoot: 'lastPage',
         headStyles: {
             fillColor: [255, 152, 0],
             textColor: [255, 255, 255],

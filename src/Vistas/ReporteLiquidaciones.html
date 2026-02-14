@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Reporte de Liquidaciones - Recursos Humanos</title>
+    <link rel="stylesheet" href="../Disenos/Reportes/ReporteLiquidaciones.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css">
+</head>
+<body>
+    <!-- Contenedor principal -->
+    <div class="main-container">
+
+        <!-- Header compacto con estadisticas -->
+        <header class="compact-header animate__animated animate__fadeInDown">
+            <div class="header-left">
+                <div class="page-icon">
+                    <i class="fas fa-file-contract"></i>
+                </div>
+                <div class="title-info">
+                    <h1 class="page-title">Reporte de Liquidaciones</h1>
+                    <p class="page-subtitle">Consulta y seguimiento de liquidaciones</p>
+                </div>
+            </div>
+
+            <div class="header-stats">
+                <div class="stat-item stat-total">
+                    <span class="stat-number" id="totalLiquidaciones">0</span>
+                    <span class="stat-label">Total</span>
+                    <i class="fas fa-file-alt"></i>
+                </div>
+                <div class="stat-item stat-parcial">
+                    <span class="stat-number" id="totalParciales">0</span>
+                    <span class="stat-label">Parciales</span>
+                    <i class="fas fa-file-invoice"></i>
+                </div>
+                <div class="stat-item stat-despido">
+                    <span class="stat-number" id="totalDespidos">0</span>
+                    <span class="stat-label">Despidos</span>
+                    <i class="fas fa-user-times"></i>
+                </div>
+                <div class="stat-item stat-renuncia">
+                    <span class="stat-number" id="totalRenuncias">0</span>
+                    <span class="stat-label">Renuncias</span>
+                    <i class="fas fa-user-minus"></i>
+                </div>
+            </div>
+        </header>
+
+        <!-- Barra de herramientas compacta -->
+        <div class="toolbar animate__animated animate__fadeIn" style="--delay: 0.1s">
+            <div class="filters-compact">
+                <div class="filter-inline">
+                    <label><i class="fas fa-calendar"></i></label>
+                    <input type="date" id="fechaDesde" class="form-control-compact" placeholder="Desde">
+                </div>
+                <div class="filter-inline">
+                    <label><i class="fas fa-calendar"></i></label>
+                    <input type="date" id="fechaHasta" class="form-control-compact" placeholder="Hasta">
+                </div>
+                <div class="filter-inline">
+                    <label><i class="fas fa-tag"></i></label>
+                    <select id="tipoLiquidacion" class="form-control-compact">
+                        <option value="">Todos los tipos</option>
+                        <option value="1">Parcial</option>
+                        <option value="2">Despido</option>
+                        <option value="3">Renuncia</option>
+                    </select>
+                </div>
+                <div class="filter-inline">
+                    <label><i class="fas fa-info-circle"></i></label>
+                    <select id="estadoLiquidacion" class="form-control-compact">
+                        <option value="">Todos los estados</option>
+                        <option value="0">Por Autorizar</option>
+                        <option value="1">Autorizada</option>
+                        <option value="2">Anulado</option>
+                        <option value="3">Documento Generado</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="toolbar-actions">
+                <button class="btn-action-search" id="btnBuscar" title="Buscar">
+                    <i class="fas fa-search"></i> Buscar
+                </button>
+                <button class="btn-action btn-clear" id="btnClearFilters" title="Limpiar filtros">
+                    <i class="fas fa-eraser"></i>
+                </button>
+            </div>
+        </div>
+
+        <!-- Panel principal -->
+        <main class="collaborators-panel animate__animated animate__fadeIn" style="--delay: 0.2s">
+            <div class="panel-header-main">
+                <div class="main-title">
+                    <i class="fas fa-list-ul"></i>
+                    <h2>Listado de Liquidaciones</h2>
+                    <span class="results-badge" id="resultsCount">(0 registros)</span>
+                </div>
+                <div class="search-box">
+                    <i class="fas fa-search"></i>
+                    <input type="text" id="searchInput" placeholder="Buscar por nombre..." class="search-input">
+                </div>
+            </div>
+
+            <!-- Vista de tabla -->
+            <div class="table-view-main" id="tableView">
+                <div class="table-wrapper">
+                    <table class="liquidaciones-table" id="liquidacionesTable">
+                        <thead>
+                            <tr>
+                                <th class="col-id sortable" data-column="IdLiquidacion" data-type="number">
+                                    <div class="th-content">
+                                        <span><i class="fas fa-hashtag"></i> ID</span>
+                                        <i class="fas fa-sort sort-icon"></i>
+                                    </div>
+                                </th>
+                                <th class="col-nombre sortable" data-column="NombrePersonal" data-type="string">
+                                    <div class="th-content">
+                                        <span><i class="fas fa-user"></i> Colaborador</span>
+                                        <i class="fas fa-sort sort-icon"></i>
+                                    </div>
+                                </th>
+                                <th class="col-tipo sortable" data-column="TipoLiquidacion" data-type="string">
+                                    <div class="th-content">
+                                        <span><i class="fas fa-tag"></i> Tipo</span>
+                                        <i class="fas fa-sort sort-icon"></i>
+                                    </div>
+                                </th>
+                                <th class="col-estado sortable" data-column="EstadoLiquidacion" data-type="string">
+                                    <div class="th-content">
+                                        <span><i class="fas fa-info-circle"></i> Estado</span>
+                                        <i class="fas fa-sort sort-icon"></i>
+                                    </div>
+                                </th>
+                                <th class="col-fecha sortable" data-column="FechaPlanilla" data-type="date">
+                                    <div class="th-content">
+                                        <span><i class="fas fa-calendar"></i> Fecha Planilla</span>
+                                        <i class="fas fa-sort sort-icon"></i>
+                                    </div>
+                                </th>
+                                <th class="col-fecha sortable" data-column="FechaFin" data-type="date">
+                                    <div class="th-content">
+                                        <span><i class="fas fa-calendar-times"></i> Fecha Fin</span>
+                                        <i class="fas fa-sort sort-icon"></i>
+                                    </div>
+                                </th>
+                                <th class="col-monto sortable" data-column="SalarioBase" data-type="number">
+                                    <div class="th-content">
+                                        <span><i class="fas fa-money-bill"></i> Salario Base</span>
+                                        <i class="fas fa-sort sort-icon"></i>
+                                    </div>
+                                </th>
+                                <th class="col-indemnizacion sortable" data-column="IndemnizacionAplica" data-type="string">
+                                    <div class="th-content">
+                                        <span><i class="fas fa-shield-alt"></i> Indemnizacion</span>
+                                        <i class="fas fa-sort sort-icon"></i>
+                                    </div>
+                                </th>
+                                <th class="col-monto sortable" data-column="MontoIndemnizacion" data-type="number">
+                                    <div class="th-content">
+                                        <span><i class="fas fa-coins"></i> Monto Indem.</span>
+                                        <i class="fas fa-sort sort-icon"></i>
+                                    </div>
+                                </th>
+                                <th class="col-monto sortable" data-column="MontoAguinaldo" data-type="number">
+                                    <div class="th-content">
+                                        <span><i class="fas fa-gift"></i> Aguinaldo</span>
+                                        <i class="fas fa-sort sort-icon"></i>
+                                    </div>
+                                </th>
+                                <th class="col-monto sortable" data-column="MontoVacaciones" data-type="number">
+                                    <div class="th-content">
+                                        <span><i class="fas fa-umbrella-beach"></i> Vacaciones</span>
+                                        <i class="fas fa-sort sort-icon"></i>
+                                    </div>
+                                </th>
+                                <th class="col-monto sortable" data-column="MontoBono14" data-type="number">
+                                    <div class="th-content">
+                                        <span><i class="fas fa-hand-holding-usd"></i> Bono 14</span>
+                                        <i class="fas fa-sort sort-icon"></i>
+                                    </div>
+                                </th>
+                                <th class="col-descuento sortable" data-column="DescuentoInterno" data-type="number">
+                                    <div class="th-content">
+                                        <span><i class="fas fa-minus-circle"></i> Descuento</span>
+                                        <i class="fas fa-sort sort-icon"></i>
+                                    </div>
+                                </th>
+                                <th class="col-vale sortable" data-column="NoVale" data-type="string">
+                                    <div class="th-content">
+                                        <span><i class="fas fa-receipt"></i> No. Vale</span>
+                                        <i class="fas fa-sort sort-icon"></i>
+                                    </div>
+                                </th>
+                                <th class="col-usuario sortable" data-column="NombreUsuario" data-type="string">
+                                    <div class="th-content">
+                                        <span><i class="fas fa-user-tie"></i> Registrado por</span>
+                                        <i class="fas fa-sort sort-icon"></i>
+                                    </div>
+                                </th>
+                                <th class="col-fecha sortable" data-column="FechaHoraRegistro" data-type="date">
+                                    <div class="th-content">
+                                        <span><i class="fas fa-clock"></i> Fecha Registro</span>
+                                        <i class="fas fa-sort sort-icon"></i>
+                                    </div>
+                                </th>
+                                <th class="col-usuario sortable" data-column="NombreUsuarioAutoriza" data-type="string">
+                                    <div class="th-content">
+                                        <span><i class="fas fa-user-check"></i> Autorizado por</span>
+                                        <i class="fas fa-sort sort-icon"></i>
+                                    </div>
+                                </th>
+                            </tr>
+                        </thead>
+                        <tbody id="liquidacionesTableBody">
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Estado inicial: esperando busqueda -->
+                <div class="no-data-display" id="emptyState">
+                    <div class="no-data-illustration">
+                        <i class="fas fa-search"></i>
+                        <div class="no-data-lines">
+                            <div class="line"></div>
+                            <div class="line"></div>
+                            <div class="line"></div>
+                        </div>
+                    </div>
+                    <h3>Configura los filtros y presiona Buscar</h3>
+                    <p>Selecciona un rango de fechas y los filtros deseados para generar el reporte</p>
+                </div>
+
+                <!-- Mensaje cuando no hay resultados -->
+                <div class="no-data-display" id="noDataMessage" style="display: none;">
+                    <div class="no-data-illustration">
+                        <i class="fas fa-inbox"></i>
+                        <div class="no-data-lines">
+                            <div class="line"></div>
+                            <div class="line"></div>
+                            <div class="line"></div>
+                        </div>
+                    </div>
+                    <h3>No se encontraron liquidaciones</h3>
+                    <p>No hay registros con los criterios seleccionados</p>
+                    <button class="btn-reset-filters" onclick="limpiarFiltros()">
+                        <i class="fas fa-refresh"></i>
+                        Limpiar filtros
+                    </button>
+                </div>
+            </div>
+
+            <!-- Paginacion -->
+            <div class="pagination-modern" id="paginationContainer">
+                <div class="pagination-info">
+                    <span id="paginationInfo">Mostrando 0 de 0 registros</span>
+                </div>
+                <div class="pagination-controls" id="paginationControls">
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Contenedor de notificaciones -->
+    <div class="toast-container-modern"></div>
+
+    <!-- Loading overlay -->
+    <div class="loading-overlay" id="loadingOverlay" style="display: none;">
+        <div class="loading-spinner-large"></div>
+        <span class="loading-text" id="loadingText">Cargando...</span>
+    </div>
+
+    <!-- Scripts -->
+    <script src="../Logica/Reportes/ReporteLiquidaciones.js"></script>
+</body>
+</html>

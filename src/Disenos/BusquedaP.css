@@ -59,6 +59,35 @@ body {
     text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.2);
 }
 
+.header-center {
+    flex: 1;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.header-counter {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: rgba(255, 255, 255, 0.2);
+    color: white;
+    padding: 6px 16px;
+    border-radius: 20px;
+    font-size: 0.9rem;
+    backdrop-filter: blur(10px);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.header-counter i {
+    font-size: 1rem;
+}
+
+.header-counter strong {
+    font-size: 1.1rem;
+    font-weight: 700;
+}
+
 .header-right {
     display: flex;
     gap: 10px;
@@ -171,6 +200,9 @@ body {
 .autocomplete-wrapper {
     position: relative;
     flex: 1;
+    min-height: 29px;
+    display: flex;
+    align-items: center;
 }
 
 .autocomplete-wrapper input {
@@ -271,8 +303,9 @@ body {
     font-size: 0.7rem;
     animation: fadeIn 0.3s ease;
     position: absolute;
-    top: 0;
+    top: 50%;
     left: 0;
+    transform: translateY(-50%);
     z-index: 5;
 }
 
@@ -519,6 +552,40 @@ body {
     letter-spacing: 0.5px;
 }
 
+.data-table th.sortable {
+    cursor: pointer;
+    user-select: none;
+    transition: all 0.2s;
+    position: relative;
+}
+
+.data-table th.sortable:hover {
+    background: rgba(255, 255, 255, 0.15);
+}
+
+.data-table th.sortable .sort-icon {
+    margin-left: 5px;
+    font-size: 0.7rem;
+    opacity: 0.5;
+    transition: all 0.3s;
+}
+
+.data-table th.sortable:hover .sort-icon {
+    opacity: 1;
+}
+
+.data-table th.sortable.asc .sort-icon::before {
+    content: "\f0de";
+    opacity: 1;
+    color: #4CAF50;
+}
+
+.data-table th.sortable.desc .sort-icon::before {
+    content: "\f0dd";
+    opacity: 1;
+    color: #4CAF50;
+}
+
 .data-table tbody {
     display: block;
     max-height: calc(100vh - 195px);
@@ -628,6 +695,18 @@ body {
 .badge-jornal {
     background: #fff3e0;
     color: #FF9800;
+}
+
+.badge-suspendido {
+    background: #fff9c4;
+    color: #F57F17;
+    margin-top: 4px;
+}
+
+.badge-falta {
+    background: #ffe0b2;
+    color: #E65100;
+    margin-top: 4px;
 }
 
 /* Botones de acciones */

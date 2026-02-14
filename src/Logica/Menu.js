@@ -54,6 +54,7 @@ const AutorizarPlanillasParciales = document.getElementById('autorizarPlanillasP
 const AutorizarPagoVacacionistas = document.getElementById('autorizarPagoVacacionistasBtn')
 const AutorizarLiquidaciones = document.getElementById('autorizarLiquidacionesBtn')
 const ReporteDiasDisponiblesVacaciones = document.getElementById('reporteDiasDisponiblesVacacionesBtn')
+const ReporteLiquidaciones = document.getElementById('reporteLiquidacionesBtn')
 const GenerarDocumentos = document.getElementById('generarDocumentosBtn')
 const modificarPagosNominaBtn = document.getElementById('modificarPagosNominaBtn')
 const reportePlanillasParcialesBtn = document.getElementById('reportePlanillasParcialesBtn');
@@ -2083,6 +2084,44 @@ ReporteDiasDisponiblesVacaciones.addEventListener('click', async () => {
                 icon: 'error',
                 title: 'Acceso denegado',
                 text: 'No tienes permisos para acceder a esta funcionalidad. Trans.128'
+            });
+        }
+    } catch (error) {
+        console.error('Error al verificar permisos:', error);
+        mostrarNotificacion('Error al verificar permisos', 'error');
+    }
+});
+ReporteLiquidaciones.addEventListener('click', async () => {
+    try {
+        // Mostrar notificación de verificación
+        mostrarNotificacion('Verificando permisos...', 'info');
+        
+        // Obtener el ID del usuario actual
+        const idPersonal = userData.IdPersonal;
+        
+        // Verificar permisos en la base de datos
+        const connection = await getConnection();
+        
+        const permisosQuery = `
+            SELECT COUNT(*) AS tienePermiso 
+            FROM TransaccionesRRHH 
+            WHERE IdPersonal = ${idPersonal} AND Codigo = 136
+        `;
+        
+        const resultado = await connection.query(permisosQuery);
+        await connection.close();
+        
+        // Verificar si tiene permiso (si el conteo es mayor a 0)
+        if (resultado[0].tienePermiso > 0) {
+            // Tiene permiso, abrir la ventana
+            mostrarNotificacion('Abriendo Reporte de Liquidaciones...', 'success');
+            ipcRenderer.send('open_Ventana_ReporteLiquidaciones');
+        } else {
+            // No tiene permiso, mostrar error
+            Swal.fire({
+                icon: 'error',
+                title: 'Acceso denegado',
+                text: 'No tienes permisos para acceder a esta funcionalidad. Trans.136'
             });
         }
     } catch (error) {

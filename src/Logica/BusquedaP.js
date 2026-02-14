@@ -119,13 +119,27 @@ function llenarSelectTipoPersonal() {
 function llenarSelectEstadoPersonal() {
     const select = document.getElementById('estadoPersonal');
     select.innerHTML = '<option value="">Todos los estados</option>';
-    
+
+    let idActivoEncontrado = null;
+
     estadosPersonal.forEach(estado => {
         const option = document.createElement('option');
         option.value = estado.IdEstado;
         option.textContent = estado.EstadoPersonal;
+
+        // Buscar el estado "Activo" (ignorando mayúsculas/minúsculas)
+        if (estado.EstadoPersonal.toLowerCase() === 'activo') {
+            idActivoEncontrado = estado.IdEstado;
+            option.selected = true;
+        }
+
         select.appendChild(option);
     });
+
+    // Si encontró el estado Activo, establecerlo como valor seleccionado
+    if (idActivoEncontrado) {
+        select.value = idActivoEncontrado;
+    }
 }
 
 // ==================== CONFIGURAR EVENTOS ====================
@@ -298,6 +312,9 @@ function configurarEventos() {
 
     // Botón exportar
     btnExport.addEventListener('click', exportarExcel);
+
+    // Ordenamiento de columnas
+    configurarOrdenamiento();
 }
 
 // ==================== AUTOCOMPLETADO NOMBRES ====================
@@ -596,7 +613,12 @@ async function buscarPersonal() {
                     ELSE NULL
                 END` : 'NULL'} AS FotoBase64,
                 CONCAT(usuario.PrimerNombre, ' ', IFNULL(usuario.SegundoNombre, ''), ' ', IFNULL(usuario.TercerNombre, ''), ' ', usuario.PrimerApellido, ' ', IFNULL(usuario.SegundoApellido, '')) AS UsuarioRegistro,
-                personal.Fechahoraregistro
+                personal.Fechahoraregistro,
+                DespidosRenuncias.FechaFinColaborador,
+                Suspensiones.FechaInicio AS SuspensionInicio,
+                Suspensiones.FechaFin AS SuspensionFin,
+                TipoSuspensiones.TipoSuspensiones,
+                Suspensiones.EsFalta
             FROM
                 personal
                 INNER JOIN
@@ -623,6 +645,20 @@ async function buscarPersonal() {
                 personal AS usuario
                 ON
                     personal.IdUsuario = usuario.IdPersonal
+                LEFT JOIN
+                DespidosRenuncias
+                ON
+                    personal.IdPersonal = DespidosRenuncias.IdPersonal
+                    AND DespidosRenuncias.Estado = 1
+                LEFT JOIN
+                Suspensiones
+                ON
+                    personal.IdPersonal = Suspensiones.IdPersonal
+                    AND CURDATE() BETWEEN Suspensiones.FechaInicio AND Suspensiones.FechaFin
+                LEFT JOIN
+                TipoSuspensiones
+                ON
+                    Suspensiones.TipoSuspension = TipoSuspensiones.IdTipoSuspension
             WHERE 1=1
         `;
 
@@ -685,9 +721,19 @@ function mostrarResultados(resultados) {
     const noResults = document.getElementById('noResults');
     const totalResultados = document.getElementById('totalResultados');
     const tabla = document.getElementById('tablaPersonal');
+    const headerCounter = document.getElementById('headerCounter');
+    const headerTotalResultados = document.getElementById('headerTotalResultados');
 
     tbody.innerHTML = '';
     totalResultados.textContent = resultados.length;
+
+    // Actualizar contador en el header
+    headerTotalResultados.textContent = resultados.length;
+    if (resultados.length > 0) {
+        headerCounter.style.display = 'flex';
+    } else {
+        headerCounter.style.display = 'none';
+    }
 
     if (resultados.length === 0) {
         noResults.innerHTML = `
@@ -710,13 +756,22 @@ function mostrarResultados(resultados) {
         const inicioLaboral = persona.InicioLaboral ?
             formatearFecha(persona.InicioLaboral) : 'N/A';
 
-        // Calcular tiempo laborado
-        const tiempoLaborado = persona.InicioLaboral ?
-            calcularTiempoLaborado(persona.InicioLaboral) : 'N/A';
+        // Calcular tiempo laborado o días faltantes
+        let tiempoLaborado = 'N/A';
+        if (persona.InicioLaboral) {
+            const fechaInicio = new Date(persona.InicioLaboral + 'T00:00:00');
+            const hoy = new Date();
+            hoy.setHours(0, 0, 0, 0);
 
-        // Determinar clase de badge para estado
-        const estadoClass = persona.EstadoPersonal.toLowerCase().includes('activo') ?
-            'badge-activo' : 'badge-inactivo';
+            if (fechaInicio > hoy) {
+                // Fecha de inicio es futura
+                const diasFaltantes = Math.ceil((fechaInicio - hoy) / (1000 * 60 * 60 * 24));
+                tiempoLaborado = `<span style="color: #2196F3; font-weight: 500;">Inicia en ${diasFaltantes} ${diasFaltantes === 1 ? 'día' : 'días'}</span>`;
+            } else {
+                // Fecha de inicio ya pasó, calcular tiempo laborado
+                tiempoLaborado = calcularTiempoLaborado(persona.InicioLaboral, persona.FechaFinColaborador);
+            }
+        }
 
         // Determinar clase de badge para tipo
         const tipoClass = persona.TipoPersonal.toLowerCase().includes('planilla') ?
@@ -724,6 +779,23 @@ function mostrarResultados(resultados) {
 
         // Foto del colaborador
         const fotoSrc = persona.FotoBase64 || '../Imagenes/user-default.png';
+
+        // Determinar badge de estado (priorizar suspensión/falta si existe)
+        let badgeEstado = '';
+        if (persona.SuspensionInicio && persona.SuspensionFin) {
+            // Hay suspensión o falta activa
+            if (persona.EsFalta === 1) {
+                badgeEstado = '<span class="badge badge-falta" title="Falta activa">FALTA</span>';
+            } else {
+                const tipoSusp = persona.TipoSuspensiones || 'Suspensión';
+                badgeEstado = `<span class="badge badge-suspendido" title="${tipoSusp}">SUSPENDIDO</span>`;
+            }
+        } else {
+            // No hay suspensión/falta, mostrar estado normal
+            const estadoClass = persona.EstadoPersonal.toLowerCase().includes('activo') ?
+                'badge-activo' : 'badge-inactivo';
+            badgeEstado = `<span class="badge ${estadoClass}">${persona.EstadoPersonal}</span>`;
+        }
 
         tr.innerHTML = `
             <td>${persona.IdPersonal}</td>
@@ -737,7 +809,7 @@ function mostrarResultados(resultados) {
             <td>${persona.NombrePuesto}</td>
             <td>${inicioLaboral}</td>
             <td>${tiempoLaborado}</td>
-            <td><span class="badge ${estadoClass}">${persona.EstadoPersonal}</span></td>
+            <td>${badgeEstado}</td>
             <td><span class="badge ${tipoClass}">${persona.TipoPersonal}</span></td>
             <td>
                 <div style="display: flex; gap: 4px; justify-content: center; flex-wrap: wrap;">
@@ -785,12 +857,18 @@ function limpiarFiltros() {
 
     // Limpiar selects
     document.getElementById('tipoPersonal').value = '';
-    document.getElementById('estadoPersonal').value = '';
+
+    // Restablecer estado a "Activo" por defecto
+    const estadoActivo = estadosPersonal.find(e => e.EstadoPersonal.toLowerCase() === 'activo');
+    document.getElementById('estadoPersonal').value = estadoActivo ? estadoActivo.IdEstado : '';
 
     // Limpiar resultados
     todosLosResultados = [];
     document.getElementById('tbodyPersonal').innerHTML = '';
     document.getElementById('tablaPersonal').style.display = 'none';
+
+    // Ocultar contador del header
+    document.getElementById('headerCounter').style.display = 'none';
 
     // Limpiar estado guardado en localStorage
     localStorage.removeItem('busquedaPersonalEstado');
@@ -1111,6 +1189,23 @@ async function verInfoLaboral(idPersonal) {
         `;
 
         const resultados = await connection.query(query, [idPersonal]);
+
+        // Consultar información de baja/despido/renuncia si existe
+        const queryBaja = `
+            SELECT
+                DespidosRenuncias.EstadoPersonal,
+                DespidosRenuncias.FechaFinColaborador,
+                DespidosRenuncias.ObservacionRetiro,
+                DespidosRenuncias.FechaHoraRegistro,
+                DespidosRenuncias.NombreUsuario
+            FROM
+                DespidosRenuncias
+            WHERE
+                DespidosRenuncias.Estado = 1 AND
+                DespidosRenuncias.IdPersonal = ?
+        `;
+
+        const infoBaja = await connection.query(queryBaja, [idPersonal]);
         await connection.close();
 
         if (resultados.length === 0) {
@@ -1133,8 +1228,23 @@ async function verInfoLaboral(idPersonal) {
                 day: 'numeric'
             }) : 'N/A';
 
-        const tiempoLaborado = infoLab.InicioLaboral ?
-            calcularTiempoLaborado(infoLab.InicioLaboral) : 'N/A';
+        // Calcular tiempo laborado o días faltantes
+        const fechaFinParaCalculo = (infoBaja && infoBaja.length > 0) ? infoBaja[0].FechaFinColaborador : null;
+        let tiempoLaborado = 'N/A';
+        if (infoLab.InicioLaboral) {
+            const fechaInicio = new Date(infoLab.InicioLaboral + 'T00:00:00');
+            const hoy = new Date();
+            hoy.setHours(0, 0, 0, 0);
+
+            if (fechaInicio > hoy) {
+                // Fecha de inicio es futura
+                const diasFaltantes = Math.ceil((fechaInicio - hoy) / (1000 * 60 * 60 * 24));
+                tiempoLaborado = `<span style="color: #2196F3; font-weight: 600;">Inicia en ${diasFaltantes} ${diasFaltantes === 1 ? 'día' : 'días'}</span>`;
+            } else {
+                // Fecha de inicio ya pasó, calcular tiempo laborado
+                tiempoLaborado = calcularTiempoLaborado(infoLab.InicioLaboral, fechaFinParaCalculo);
+            }
+        }
 
         const fechaContrato = infoLab.FechaContrato ?
             new Date(infoLab.FechaContrato + 'T00:00:00').toLocaleDateString('es-GT', {
@@ -1157,6 +1267,49 @@ async function verInfoLaboral(idPersonal) {
         // Usuario que registró (puede ser null si no existe)
         const usuarioRegistro = infoLab.UsuarioRegistro ?
             infoLab.UsuarioRegistro.trim() : 'N/A';
+
+        // Procesar información de baja si existe
+        let seccionBaja = '';
+        if (infoBaja && infoBaja.length > 0) {
+            const baja = infoBaja[0];
+
+            const fechaFinColaborador = baja.FechaFinColaborador ?
+                new Date(baja.FechaFinColaborador + 'T00:00:00').toLocaleDateString('es-GT', {
+                    year: 'numeric',
+                    month: 'long',
+                    day: 'numeric'
+                }) : 'N/A';
+
+            const fechaHoraRegistroBaja = baja.FechaHoraRegistro ?
+                formatearFechaHora(baja.FechaHoraRegistro) : 'N/A';
+
+            seccionBaja = `
+                <!-- Información de Baja -->
+                <div style="background: #ffebee; padding: 12px; border-radius: 8px; border-left: 3px solid #f44336; margin-top: 15px;">
+                    <p style="margin: 0 0 10px 0; color: #c62828; font-size: 0.9rem; font-weight: 600;">
+                        <i class="fas fa-user-times"></i> Información de Baja
+                    </p>
+                    <div style="margin-bottom: 8px;">
+                        <p style="margin: 0; color: #555; font-size: 0.8rem;">Estado al momento de la baja</p>
+                        <p style="margin: 3px 0 0 0; font-weight: 600; color: #333; font-size: 0.85rem;">${baja.EstadoPersonal || 'N/A'}</p>
+                    </div>
+                    <div style="margin-bottom: 8px;">
+                        <p style="margin: 0; color: #555; font-size: 0.8rem;">Fecha de Finalización</p>
+                        <p style="margin: 3px 0 0 0; font-weight: 600; color: #d32f2f; font-size: 0.85rem;">${fechaFinColaborador}</p>
+                    </div>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 8px; padding-top: 8px; border-top: 1px solid #ffcdd2;">
+                        <div>
+                            <p style="margin: 0; color: #555; font-size: 0.75rem;">Registrado por</p>
+                            <p style="margin: 3px 0 0 0; font-weight: 600; color: #333; font-size: 0.8rem;">${baja.NombreUsuario || 'N/A'}</p>
+                        </div>
+                        <div>
+                            <p style="margin: 0; color: #555; font-size: 0.75rem;">Fecha de registro</p>
+                            <p style="margin: 3px 0 0 0; font-weight: 600; color: #333; font-size: 0.8rem;">${fechaHoraRegistroBaja}</p>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
 
         await Swal.fire({
             title: '<i class="fas fa-briefcase"></i> Información Laboral',
@@ -1248,6 +1401,8 @@ async function verInfoLaboral(idPersonal) {
                                 </span>
                             </p>
                         </div>
+
+                        ${seccionBaja}
 
                         <!-- Información de Registro -->
                         <div style="background: #e8f5e9; padding: 12px; border-radius: 8px; border-left: 3px solid #4CAF50; margin-top: 15px;">
@@ -2295,18 +2450,19 @@ function formatearFechaHora(fechaHora) {
     return `${dia}/${mes}/${anio} ${horas}:${minutos}:${segundos}`;
 }
 
-function calcularTiempoLaborado(fechaInicio) {
+function calcularTiempoLaborado(fechaInicio, fechaFin = null) {
     const inicio = new Date(fechaInicio + 'T00:00:00');
-    const hoy = new Date();
+    // Si hay fecha de fin (baja), usar esa; si no, usar la fecha actual
+    const fin = fechaFin ? new Date(fechaFin + 'T00:00:00') : new Date();
 
-    let anios = hoy.getFullYear() - inicio.getFullYear();
-    let meses = hoy.getMonth() - inicio.getMonth();
-    let dias = hoy.getDate() - inicio.getDate();
+    let anios = fin.getFullYear() - inicio.getFullYear();
+    let meses = fin.getMonth() - inicio.getMonth();
+    let dias = fin.getDate() - inicio.getDate();
 
     // Ajustar si los días son negativos
     if (dias < 0) {
         meses--;
-        const ultimoDiaMesAnterior = new Date(hoy.getFullYear(), hoy.getMonth(), 0).getDate();
+        const ultimoDiaMesAnterior = new Date(fin.getFullYear(), fin.getMonth(), 0).getDate();
         dias += ultimoDiaMesAnterior;
     }
 
@@ -2433,6 +2589,113 @@ function mostrarFotoAmpliada(fotoSrc, nombreCompleto) {
         showCloseButton: true,
         backdrop: `rgba(0,0,0,0.8)`
     });
+}
+
+// ==================== ORDENAMIENTO DE COLUMNAS ====================
+let ordenActual = {
+    columna: null,
+    direccion: null // 'asc' o 'desc'
+};
+
+function configurarOrdenamiento() {
+    const tabla = document.getElementById('tablaPersonal');
+    const headers = tabla.querySelectorAll('th.sortable');
+
+    headers.forEach(header => {
+        header.addEventListener('click', () => {
+            const columna = header.dataset.column;
+            const tipo = header.dataset.type;
+
+            // Si es la misma columna, cambiar dirección
+            if (ordenActual.columna === columna) {
+                if (ordenActual.direccion === 'asc') {
+                    ordenActual.direccion = 'desc';
+                } else if (ordenActual.direccion === 'desc') {
+                    // Resetear a sin ordenamiento
+                    ordenActual.columna = null;
+                    ordenActual.direccion = null;
+                } else {
+                    ordenActual.direccion = 'asc';
+                }
+            } else {
+                // Nueva columna, ordenar ascendente
+                ordenActual.columna = columna;
+                ordenActual.direccion = 'asc';
+            }
+
+            // Actualizar iconos visuales
+            actualizarIconosOrdenamiento(headers, header);
+
+            // Ordenar y mostrar
+            if (ordenActual.columna && ordenActual.direccion) {
+                const datosOrdenados = ordenarDatos(todosLosResultados, columna, tipo, ordenActual.direccion);
+                mostrarResultados(datosOrdenados);
+            } else {
+                // Volver al orden original
+                mostrarResultados(todosLosResultados);
+            }
+        });
+    });
+}
+
+function actualizarIconosOrdenamiento(headers, headerActivo) {
+    // Limpiar todos los iconos
+    headers.forEach(h => {
+        h.classList.remove('asc', 'desc');
+    });
+
+    // Agregar clase al header activo
+    if (ordenActual.direccion) {
+        headerActivo.classList.add(ordenActual.direccion);
+    }
+}
+
+function ordenarDatos(datos, columna, tipo, direccion) {
+    // Crear una copia para no modificar el array original
+    const copiaOrdenada = [...datos];
+
+    copiaOrdenada.sort((a, b) => {
+        let valorA = a[columna];
+        let valorB = b[columna];
+
+        // Manejo de valores nulos
+        if (valorA === null || valorA === undefined) return 1;
+        if (valorB === null || valorB === undefined) return -1;
+
+        // Comparación según el tipo de dato
+        let comparacion = 0;
+
+        switch (tipo) {
+            case 'number':
+                comparacion = Number(valorA) - Number(valorB);
+                break;
+
+            case 'text':
+                comparacion = String(valorA).localeCompare(String(valorB), 'es', { sensitivity: 'base' });
+                break;
+
+            case 'date':
+                const fechaA = new Date(valorA);
+                const fechaB = new Date(valorB);
+                comparacion = fechaA - fechaB;
+                break;
+
+            case 'time':
+                // Para tiempo laborado, necesitamos calcular desde InicioLaboral
+                const tiempoA = a.InicioLaboral ? new Date() - new Date(a.InicioLaboral) : 0;
+                const tiempoB = b.InicioLaboral ? new Date() - new Date(b.InicioLaboral) : 0;
+                comparacion = tiempoA - tiempoB;
+                break;
+
+            default:
+                comparacion = String(valorA).localeCompare(String(valorB));
+        }
+
+        // Invertir si es descendente
+        return direccion === 'desc' ? -comparacion : comparacion;
+    });
+
+    return copiaOrdenada;
 }
 
 // Agregar estilos adicionales para el modal de detalle

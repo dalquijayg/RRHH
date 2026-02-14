@@ -47,7 +47,7 @@ async function verificarDespidoRenuncia(idPersonal) {
 }
 
 // Función para actualizar el estado de la liquidación a 2 (PDF generado/procesado)
-async function actualizarEstadoLiquidacion(idLiquidacion, nuevoEstado = 2) {
+async function actualizarEstadoLiquidacion(idLiquidacion, nuevoEstado = 3) {
     try {
         const connection = await connectionString();
         await connection.query(`
